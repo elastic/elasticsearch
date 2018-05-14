@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -269,19 +267,5 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ListTasksResponse that = (ListTasksResponse) o;
-        return Objects.equals(tasks, that.tasks) &&
-                Objects.equals(getTaskFailures(), that.getTaskFailures());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(tasks);
     }
 }

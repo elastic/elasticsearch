@@ -118,7 +118,7 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return "[" + nodeId + "][" + taskId + "] failed, reason [" + getReason() + "]";
     }
 
     public static TaskOperationFailure fromXContent(XContentParser parser) {
@@ -138,21 +138,5 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
         }
         return builder;
 
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TaskOperationFailure that = (TaskOperationFailure) o;
-        return taskId == that.taskId &&
-                Objects.equals(nodeId, that.nodeId) &&
-                // 'reason' is not checked because Exception doesn't have overridden equals()
-                status == that.status;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(taskId, nodeId, status);
     }
 }

@@ -29,19 +29,20 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ListTasksResponseTests extends AbstractStreamableTestCase<ListTasksResponse> {
+public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksResponse> {
 
     public void testEmptyToString() {
         assertEquals("{\"tasks\":[]}", new ListTasksResponse().toString());
@@ -58,17 +59,6 @@ public class ListTasksResponseTests extends AbstractStreamableTestCase<ListTasks
     }
 
     @Override
-    protected ListTasksResponse createBlankInstance() {
-        return new ListTasksResponse();
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new)));
-    }
-
-    @Override
     protected ListTasksResponse createTestInstance() {
         List<TaskInfo> tasks = new ArrayList<>();
         for (int i = 0; i < randomInt(10); i++) {
@@ -82,18 +72,29 @@ public class ListTasksResponseTests extends AbstractStreamableTestCase<ListTasks
         return new ListTasksResponse(tasks, taskFailures, Collections.singletonList(new FailedNodeException("", "message", null)));
     }
 
-    public void testXContentWithFailures() throws IOException {
-        ListTasksResponse expected = createTestInstance();
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference serialized = XContentHelper.toXContent(expected, xContentType, false);
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), serialized);
-        ListTasksResponse parsed = ListTasksResponse.fromXContent(parser);
+    @Override
+    protected ListTasksResponse doParseInstance(XContentParser parser) throws IOException {
+        return ListTasksResponse.fromXContent(parser);
+    }
 
-        assertThat(parsed, equalTo(expected));
-        assertThat(parsed.getNodeFailures().size(), equalTo(1));
-        for (ElasticsearchException failure : parsed.getNodeFailures()) {
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(ListTasksResponse expectedInstance, ListTasksResponse newInstance) {
+        assertNotSame(expectedInstance, newInstance);
+        assertThat(newInstance.getTasks(), equalTo(expectedInstance.getTasks()));
+        assertThat(newInstance.getNodeFailures().size(), equalTo(1));
+        for (ElasticsearchException failure : newInstance.getNodeFailures()) {
             assertThat(failure, notNullValue());
             assertThat(failure.getMessage(), equalTo("Elasticsearch exception [type=failed_node_exception, reason=message]"));
         }
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
     }
 }

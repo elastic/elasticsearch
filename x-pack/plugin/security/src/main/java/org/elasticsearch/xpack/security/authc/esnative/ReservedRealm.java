@@ -191,7 +191,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
             listener.onResponse(DISABLED_DEFAULT_USER_INFO.deepClone());
-        } else if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        } else if (securityLifecycleService.securityIndex().indexExists() == false) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -218,7 +218,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private boolean userIsDefinedForCurrentSecurityMapping(String username) {
         final Version requiredVersion = getDefinedVersion(username);
-        return securityLifecycleService.checkSecurityMappingVersion(requiredVersion::onOrBefore);
+        return securityLifecycleService.securityIndex().checkMappingVersion(requiredVersion::onOrBefore);
     }
 
     private Version getDefinedVersion(String username) {

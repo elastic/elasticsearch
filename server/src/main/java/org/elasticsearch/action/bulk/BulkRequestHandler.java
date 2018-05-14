@@ -23,7 +23,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.concurrent.CountDownLatch;
@@ -49,7 +48,7 @@ public final class BulkRequestHandler {
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
-        this.retry = new Retry(EsRejectedExecutionException.class, backoffPolicy, scheduler);
+        this.retry = new Retry(backoffPolicy, scheduler);
         this.semaphore = new Semaphore(concurrentRequests > 0 ? concurrentRequests : 1);
     }
 

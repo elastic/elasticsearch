@@ -104,3 +104,11 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-put-settings>>
 
 include::cluster/put_settings.asciidoc[]
+
+== Snapshot APIs
+
+The Java High Level REST Client supports the following Snapshot APIs:
+
+* <<java-rest-high-snapshot-get-repository>>
+
+include::snapshot/get_repository.asciidoc[]

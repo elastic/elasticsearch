@@ -656,7 +656,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private final String key;
         private final String value;
 
-        public RandomStepInfo() {
+        RandomStepInfo() {
             this.key = randomAlphaOfLength(20);
             this.value = randomAlphaOfLength(20);
         }

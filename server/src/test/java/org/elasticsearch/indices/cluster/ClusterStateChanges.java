@@ -87,6 +87,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -230,6 +231,15 @@ public class ClusterStateChanges extends AbstractComponent {
 
     public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(joinTaskExecutor, clusterState, nodes);
+    }
+
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+        List<DiscoveryNode> joinNodes = new ArrayList<>();
+        joinNodes.add(NodeJoinController.BECOME_MASTER_TASK);
+        joinNodes.add(NodeJoinController.FINISH_ELECTION_TASK);
+        joinNodes.addAll(nodes);
+
+        return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {

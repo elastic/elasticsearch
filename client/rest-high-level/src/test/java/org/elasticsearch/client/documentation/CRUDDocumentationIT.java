@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
@@ -49,6 +47,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
@@ -58,6 +57,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestStatus;
@@ -274,16 +274,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexResponse indexResponse = client.index(indexRequest);
             assertSame(indexResponse.status(), RestStatus.CREATED);
 
-            XContentType xContentType = XContentType.JSON;
-            String script = Strings.toString(XContentBuilder.builder(xContentType.xContent())
+            Request request = new Request("POST", "/_scripts/increment-field");
+            request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
                     .startObject()
                         .startObject("script")
                             .field("lang", "painless")
                             .field("code", "ctx._source.field += params.count")
                         .endObject()
-                    .endObject());
-            HttpEntity body = new NStringEntity(script, ContentType.create(xContentType.mediaType()));
-            Response response = client().performRequest(HttpPost.METHOD_NAME, "/_scripts/increment-field", emptyMap(), body);
+                    .endObject()));
+            Response response = client().performRequest(request);
             assertEquals(response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus());
         }
         {

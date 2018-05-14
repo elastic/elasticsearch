@@ -33,8 +33,9 @@ setup:
 ---
 "Split index via API":
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: " - 6.3.99"
+      reason: expects warnings that pre-6.4.0 will not send
+      features: "warnings"
 
   # make it read-only
   - do:
@@ -60,6 +61,8 @@ setup:
           settings:
             index.number_of_replicas: 0
             index.number_of_shards: 2
+      warnings:
+        - "resize operations without copying settings is deprecated; set parameter [copy_settings] to [true] for future default behavior"
 
   - do:
       cluster.health:
@@ -103,8 +106,9 @@ setup:
 ---
 "Create illegal split indices":
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: " - 6.3.99"
+      reason: expects warnings that pre-6.4.0 will not send
+      features: "warnings"
 
   # try to do an illegal split with number_of_routing_shards set
   - do:
@@ -119,6 +123,8 @@ setup:
             index.number_of_replicas: 0
             index.number_of_shards: 2
             index.number_of_routing_shards: 4
+      warnings:
+        - "resize operations without copying settings is deprecated; set parameter [copy_settings] to [true] for future default behavior"
 
   # try to do an illegal split with illegal number_of_shards
   - do:
@@ -132,3 +138,5 @@ setup:
           settings:
             index.number_of_replicas: 0
             index.number_of_shards: 3
+      warnings:
+        - "resize operations without copying settings is deprecated; set parameter [copy_settings] to [true] for future default behavior"

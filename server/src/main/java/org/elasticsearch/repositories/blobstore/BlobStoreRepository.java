@@ -950,6 +950,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
             try {
+                // Delete temporary index files first, as we might otherwise fail in the next step creating the new index file if an earlier
+                // attempt to write an index file with this generation failed mid-way after creating the temporary file.
+                for (final String blobName : blobs.keySet()) {
+                    if (indexShardSnapshotsFormat.isTempBlobName(blobName)) {
+                        try {
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        } catch (IOException e) {
+                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blob [{}] during finalization",
+                                snapshotId, shardId, blobName), e);
+                            throw e;
+                        }
+                    }
+                }
+
                 // If we deleted all snapshots, we don't need to create a new index file
                 if (snapshots.size() > 0) {
                     indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, blobContainer, indexGeneration);
@@ -957,7 +971,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 // Delete old index files
                 for (final String blobName : blobs.keySet()) {
-                    if (indexShardSnapshotsFormat.isTempBlobName(blobName) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
+                    if (blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
                         try {
                             blobContainer.deleteBlobIgnoringIfNotExists(blobName);
                         } catch (IOException e) {

@@ -30,26 +30,34 @@ import java.util.TreeSet;
 public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
 
-    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
+    // For internal updates
+    static final ConstructingObjectParser<Builder, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
+            "job_update", args -> new Builder((String) args[0]));
+
+    // For parsing REST requests
+    public static final ConstructingObjectParser<Builder, Void> EXTERNAL_PARSER = new ConstructingObjectParser<>(
             "job_update", args -> new Builder((String) args[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
-        PARSER.declareStringArray(Builder::setGroups, Job.GROUPS);
-        PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
-        PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
-        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.CONFIG_PARSER, Job.MODEL_PLOT_CONFIG);
-        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.CONFIG_PARSER, Job.ANALYSIS_LIMITS);
-        PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
-                TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())), Job.BACKGROUND_PERSIST_INTERVAL);
-        PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
-        PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
-        PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
-        PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
-        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
-        PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
-        PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
+        for (ConstructingObjectParser<Builder, Void> parser : Arrays.asList(INTERNAL_PARSER, EXTERNAL_PARSER)) {
+            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
+            parser.declareStringArray(Builder::setGroups, Job.GROUPS);
+            parser.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
+            parser.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
+            parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.CONFIG_PARSER, Job.MODEL_PLOT_CONFIG);
+            parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.CONFIG_PARSER, Job.ANALYSIS_LIMITS);
+            parser.declareString((builder, val) -> builder.setBackgroundPersistInterval(
+                    TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())), Job.BACKGROUND_PERSIST_INTERVAL);
+            parser.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
+            parser.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
+            parser.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
+            parser.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+            parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
+        }
+        // These fields should not be set by a REST request
+        INTERNAL_PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
+        INTERNAL_PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
+        INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
     }
 
     private final String jobId;
@@ -224,12 +232,12 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return establishedModelMemory;
     }
 
-    public boolean isAutodetectProcessUpdate() {
-        return modelPlotConfig != null || detectorUpdates != null;
-    }
-
     public Version getJobVersion() {
         return jobVersion;
+    }
+
+    public boolean isAutodetectProcessUpdate() {
+        return modelPlotConfig != null || detectorUpdates != null;
     }
 
     @Override
@@ -332,7 +340,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     /**
      * Updates {@code source} with the new values in this object returning a new {@link Job}.
      *
-     * @param source Source job to be updated
+     * @param source              Source job to be updated
      * @param maxModelMemoryLimit The maximum model memory allowed
      * @return A new job equivalent to {@code source} updated.
      */

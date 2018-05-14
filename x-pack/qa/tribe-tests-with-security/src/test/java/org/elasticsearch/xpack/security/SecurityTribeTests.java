@@ -35,7 +35,6 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.tribe.TribeService;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
@@ -60,6 +59,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -153,7 +153,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
     public void tearDownTribeNodeAndWipeCluster() throws Exception {
         if (cluster2 != null) {
             try {
-                cluster2.wipe(Collections.singleton(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME));
+                cluster2.wipe(Collections.singleton(SECURITY_TEMPLATE_NAME));
                 try {
                     // this is a hack to clean up the .security index since only the XPackSecurity user or superusers can delete it
                     final Client cluster2Client = cluster2.client().filterWithHeader(Collections.singletonMap("Authorization",

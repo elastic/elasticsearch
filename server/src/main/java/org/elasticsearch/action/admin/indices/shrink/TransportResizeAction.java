@@ -185,7 +185,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 .waitForActiveShards(targetIndex.waitForActiveShards())
                 .recoverFrom(metaData.getIndex())
                 .resizeType(resizeRequest.getResizeType())
-                .copySettings(resizeRequest.getCopySettings());
+                .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
     }
 
     @Override

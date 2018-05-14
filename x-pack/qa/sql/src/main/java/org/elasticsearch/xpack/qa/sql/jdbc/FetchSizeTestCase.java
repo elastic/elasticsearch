@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -15,7 +16,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearchContexts;
 
 /**
@@ -25,13 +25,15 @@ import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearch
 public class FetchSizeTestCase extends JdbcIntegrationTestCase {
     @Before
     public void createTestIndex() throws IOException {
+        Request request = new Request("PUT", "/test/doc/_bulk");
+        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test_field\":" + i + "}\n");
         }
-        client().performRequest("PUT", "/test/doc/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
     }
 
     /**

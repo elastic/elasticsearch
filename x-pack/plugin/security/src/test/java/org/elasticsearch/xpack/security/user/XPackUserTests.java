@@ -10,7 +10,6 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -19,6 +18,8 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 public class XPackUserTests extends ESTestCase {
 
@@ -32,7 +33,7 @@ public class XPackUserTests extends ESTestCase {
     public void testXPackUserCannotAccessSecurityIndex() {
         final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
         final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(SecurityLifecycleServiceField.SECURITY_INDEX_NAME), Matchers.is(false));
+        assertThat(predicate.test(SECURITY_INDEX_NAME), Matchers.is(false));
         assertThat(predicate.test(SecurityLifecycleService.INTERNAL_SECURITY_INDEX), Matchers.is(false));
     }
 

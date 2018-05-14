@@ -351,11 +351,12 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     private Response bodyTest(final RestClient restClient, final String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
-        StringEntity entity = new StringEntity(requestBody, ContentType.APPLICATION_JSON);
         int statusCode = randomStatusCode(getRandom());
+        Request request = new Request(method, "/" + statusCode);
+        request.setJsonEntity(requestBody);
         Response esResponse;
         try {
-            esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), entity);
+            esResponse = restClient.performRequest(request);
         } catch(ResponseException e) {
             esResponse = e.getResponse();
         }

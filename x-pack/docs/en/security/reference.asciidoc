@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-reference]]
 == Reference
 * <<security-privileges, Security Privileges>>

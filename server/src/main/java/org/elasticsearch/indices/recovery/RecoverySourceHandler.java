@@ -342,8 +342,7 @@ public class RecoverySourceHandler {
                     recoverySourceSyncId.equals(recoveryTargetSyncId);
             if (recoverWithSyncId) {
                 final long numDocsTarget = request.metadataSnapshot().getNumDocs();
-                final boolean softDeletesEnabled = shard.indexSettings().isSoftDeleteEnabled();
-                final long numDocsSource = softDeletesEnabled ? Lucene.getExactNumDocs(snapshot) : recoverySourceMetadata.getNumDocs();
+                final long numDocsSource = Lucene.getExactNumDocs(snapshot);
                 if (numDocsTarget != numDocsSource) {
                     throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
                             "of docs differ: " + numDocsSource + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsTarget

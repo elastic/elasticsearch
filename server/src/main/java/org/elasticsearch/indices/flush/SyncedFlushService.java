@@ -475,12 +475,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         indexShard.flush(flushRequest);
         try (Engine.IndexCommitRef commitRef = indexShard.acquireLastIndexCommit(false)) {
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(commitRef.getIndexCommit());
-            final int numDocs;
-            if (indexShard.indexSettings().isSoftDeleteEnabled()) {
-                numDocs = Lucene.getExactNumDocs(commitRef.getIndexCommit());
-            } else {
-                numDocs = Lucene.getNumDocs(segmentInfos);
-            }
+            final int numDocs = Lucene.getExactNumDocs(commitRef.getIndexCommit());
             final Engine.CommitId commitId = new Engine.CommitId(segmentInfos.getId());
             final String syncId = segmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
             logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, numDocs);

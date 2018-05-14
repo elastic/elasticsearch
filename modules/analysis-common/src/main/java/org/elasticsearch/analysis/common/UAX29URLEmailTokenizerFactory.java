@@ -17,27 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LowerCaseTokenizer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory implements MultiTermAwareComponent {
+public class UAX29URLEmailTokenizerFactory extends AbstractTokenizerFactory {
 
-    public LowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    private final int maxTokenLength;
+
+    UAX29URLEmailTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
+        maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
     }
 
     @Override
     public Tokenizer create() {
-        return new LowerCaseTokenizer();
-    }
-
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
+        UAX29URLEmailTokenizer tokenizer = new UAX29URLEmailTokenizer();
+        tokenizer.setMaxTokenLength(maxTokenLength);
+        return tokenizer;
     }
 }

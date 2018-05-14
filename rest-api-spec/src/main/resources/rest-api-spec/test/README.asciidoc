@@ -132,16 +132,6 @@ by default, thus the related skip sections can be removed from the tests.
 The `features` field can either be a string or an array of strings.
 The skip section requires to specify either a `version` or a `features` list.
 
-The skip section can also skip tests when the running against a particular
-distribution. This is useful for tests that are fine running against oss-zip
-or integ-test-zip but not when x-pack is present. Example:
-
-....
-    - skip:
-        distribution: zip
-        reason: x-pack includes templates which breaks the output here
-....
-
 Required operators:
 -------------------
 

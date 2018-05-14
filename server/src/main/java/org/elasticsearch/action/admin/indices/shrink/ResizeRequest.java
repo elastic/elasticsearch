@@ -101,8 +101,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
         if (in.getVersion().before(Version.V_6_4_0)) {
             copySettings = null;
-        } else if (in.getVersion().onOrAfter(Version.V_6_4_0) && in.getVersion().before(Version.V_7_0_0_alpha1)){
-            copySettings = in.readBoolean();
         } else {
             copySettings = in.readOptionalBoolean();
         }
@@ -116,10 +114,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (out.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
             out.writeEnum(type);
         }
+        // noinspection StatementWithEmptyBody
         if (out.getVersion().before(Version.V_6_4_0)) {
 
-        } else if (out.getVersion().onOrAfter(Version.V_6_4_0) && out.getVersion().before(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(copySettings == null ? false : copySettings);
         } else {
             out.writeOptionalBoolean(copySettings);
         }

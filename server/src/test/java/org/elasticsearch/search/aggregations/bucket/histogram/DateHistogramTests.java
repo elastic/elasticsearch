@@ -148,7 +148,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 
             w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2018-03-11T11:55:00").getMillis()));
-            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2018-03-20T18:13:00").getMillis()));
+            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2017-10-28T18:13:00").getMillis()));
 
             try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
 
@@ -161,6 +161,8 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
                     DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("my_date_histo");
                     builder.field(DATE_FIELD_NAME);
+                    builder.dateHistogramInterval(DateHistogramInterval.DAY);
+
                     // no timeZone => no rewrite
                     assertNull(builder.rewriteTimeZone(shardContextThatDoesntCross));
                     assertNull(builder.rewriteTimeZone(shardContextThatCrosses));
@@ -175,6 +177,25 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                     tz = DateTimeZone.forID("Europe/Paris");
                     builder.timeZone(tz);
                     assertEquals(DateTimeZone.forOffsetHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    // Rounded values are no longer all within the same transitions => no rewrite
+                    builder.dateHistogramInterval(DateHistogramInterval.MONTH);
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    builder = new DateHistogramAggregationBuilder("my_date_histo");
+                    builder.field(DATE_FIELD_NAME);
+                    builder.timeZone(tz);
+
+                    builder.interval(1000L * 60 * 60 * 24); // ~ 1 day
+                    assertEquals(DateTimeZone.forOffsetHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    // Because the interval is large, rounded values are not
+                    // within the same transitions as the values => no rewrite
+                    builder.interval(1000L * 60 * 60 * 24 * 30); // ~ 1 month
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
                     assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
                 }
             }

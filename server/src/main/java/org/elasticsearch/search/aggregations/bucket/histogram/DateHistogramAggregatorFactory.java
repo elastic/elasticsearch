@@ -38,8 +38,6 @@ import java.util.Map;
 public final class DateHistogramAggregatorFactory
         extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, DateHistogramAggregatorFactory> {
 
-    private final DateHistogramInterval dateHistogramInterval;
-    private final long interval;
     private final long offset;
     private final BucketOrder order;
     private final boolean keyed;
@@ -48,14 +46,12 @@ public final class DateHistogramAggregatorFactory
     private final Rounding rounding;
     private final Rounding shardRounding;
 
-    public DateHistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, long interval,
-            DateHistogramInterval dateHistogramInterval, long offset, BucketOrder order, boolean keyed, long minDocCount,
+    public DateHistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config,
+            long offset, BucketOrder order, boolean keyed, long minDocCount,
             Rounding rounding, Rounding shardRounding, ExtendedBounds extendedBounds, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
-        this.interval = interval;
-        this.dateHistogramInterval = dateHistogramInterval;
         this.offset = offset;
         this.order = order;
         this.keyed = keyed;

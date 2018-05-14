@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -54,6 +53,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -391,11 +391,26 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 if (anyInstant != null) {
                     final long prevTransition = tz.previousTransition(anyInstant);
                     final long nextTransition = tz.nextTransition(anyInstant);
+
+                    // We need all not only values but also rounded values to be within
+                    // [prevTransition, nextTransition].
+                    final long low;
+                    DateTimeUnit intervalAsUnit = getIntervalAsDateTimeUnit();
+                    if (intervalAsUnit != null) {
+                        final DateTimeField dateTimeField = intervalAsUnit.field(tz);
+                        low = dateTimeField.roundCeiling(prevTransition);
+                    } else {
+                        final TimeValue intervalAsMillis = getIntervalAsTimeValue();
+                        low = Math.addExact(prevTransition, intervalAsMillis.millis());
+                    }
+                    // rounding rounds down, so 'nextTransition' is a good upper bound
+                    final long high = nextTransition;
+
                     final DocValueFormat format = ft.docValueFormat(null, null);
-                    final String formattedPrevTransition = format.format(prevTransition);
-                    final String formattedNextTransition = format.format(nextTransition);
-                    if (ft.isFieldWithinQuery(reader, formattedPrevTransition, formattedNextTransition,
-                            false, false, tz, null, context) == Relation.WITHIN) {
+                    final String formattedLow = format.format(low);
+                    final String formattedHigh = format.format(high);
+                    if (ft.isFieldWithinQuery(reader, formattedLow, formattedHigh,
+                            true, false, tz, null, context) == Relation.WITHIN) {
                         // All values in this reader have the same offset despite daylight saving times.
                         // This is very common for location-based timezones such as Europe/Paris in
                         // combination with time-based indices.
@@ -425,24 +440,40 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             // parse any string bounds to longs and round
             roundedBounds = this.extendedBounds.parseAndValidate(name, context, config.format()).round(rounding);
         }
-        return new DateHistogramAggregatorFactory(name, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
+        return new DateHistogramAggregatorFactory(name, config, offset, order, keyed, minDocCount,
                 rounding, shardRounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
+    }
+
+    /** Return the interval as a date time unit if applicable. If this returns
+     *  {@code null} then it means that the interval is expressed as a fixed
+     *  {@link TimeValue} and may be accessed via
+     *  {@link #getIntervalAsTimeValue()}. */
+    private DateTimeUnit getIntervalAsDateTimeUnit() {
+        if (dateHistogramInterval != null) {
+            return DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
+        }
+        return null;
+    }
+
+    /**
+     * Get the interval as a {@link TimeValue}. Should only be called if
+     * {@link #getIntervalAsDateTimeUnit()} returned {@code null}.
+     */
+    private TimeValue getIntervalAsTimeValue() {
+        if (dateHistogramInterval != null) {
+            return TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass().getSimpleName() + ".interval");
+        } else {
+            return TimeValue.timeValueMillis(interval);
+        }
     }
 
     private Rounding createRounding(DateTimeZone timeZone) {
         Rounding.Builder tzRoundingBuilder;
-        if (dateHistogramInterval != null) {
-            DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
-            if (dateTimeUnit != null) {
-                tzRoundingBuilder = Rounding.builder(dateTimeUnit);
-            } else {
-                // the interval is a time value?
-                tzRoundingBuilder = Rounding.builder(
-                        TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass().getSimpleName() + ".interval"));
-            }
+        DateTimeUnit intervalAsUnit = getIntervalAsDateTimeUnit();
+        if (intervalAsUnit != null) {
+            tzRoundingBuilder = Rounding.builder(intervalAsUnit);
         } else {
-            // the interval is an integer time value in millis?
-            tzRoundingBuilder = Rounding.builder(TimeValue.timeValueMillis(interval));
+            tzRoundingBuilder = Rounding.builder(getIntervalAsTimeValue());
         }
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);

@@ -100,14 +100,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
-        }
         store.execute((Operation<Void>) fileContext -> {
             Path blob = new Path(path, blobName);
             // we pass CREATE, which means it fails if a blob already exists.
-            // NOTE: this behavior differs from FSBlobContainer, which passes TRUNCATE_EXISTING
-            // that should be fixed there, no need to bring truncation into this, give the user an error.
             EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
             CreateOpts[] opts = {CreateOpts.bufferSize(bufferSize)};
             try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
@@ -121,6 +116,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                     //  if true synchronous behavior is required"
                     stream.hsync();
                 }
+            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
+                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
             }
             return null;
         });

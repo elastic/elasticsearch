@@ -1,12 +1,12 @@
 ---
 "Split index ignores target template mapping":
-#  - skip:
-#      version: " - 6.0.99"
-#      reason: Added in 6.1.0
-# uncomment once AwaitsFix is resolved
   - skip:
+      # when re-enabling uncomment the below skips
       version: "all"
       reason: "AwaitsFix'ing, see https://github.com/elastic/elasticsearch/issues/30503"
+      # version: " - 6.99.99"
+      # reason: expects warnings that pre-7.0.0 will not send
+      features: "warnings"
 
   # create index
   - do:
@@ -68,6 +68,8 @@
           settings:
             index.number_of_shards: 2
             index.number_of_replicas: 0
+      warnings:
+        - "resize operations without copying settings is deprecated; set parameter [copy_settings] to [true] for future default behavior"
 
   - do:
       cluster.health:

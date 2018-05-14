@@ -100,7 +100,7 @@ public class RestIntegTestTask extends DefaultTask {
         // copy the rest spec/tests into the test resources
         Task copyRestSpec = createCopyRestSpecTask(project, includePackaged)
         runner.dependsOn(copyRestSpec)
-
+        
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {

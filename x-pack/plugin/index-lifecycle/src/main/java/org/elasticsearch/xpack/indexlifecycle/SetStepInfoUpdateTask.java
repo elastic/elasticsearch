@@ -8,27 +8,29 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.io.IOException;
-import java.util.function.LongSupplier;
 
-public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
+public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
-    private LongSupplier nowSupplier;
-    private Exception cause;
+    private ToXContentObject stepInfo;
 
-    public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier) {
+    public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
-        this.cause = cause;
-        this.nowSupplier = nowSupplier;
+        this.stepInfo = stepInfo;
     }
 
     Index getIndex() {
@@ -43,16 +45,21 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
         return currentStepKey;
     }
 
-    Exception getCause() {
-        return cause;
+    ToXContentObject getStepInfo() {
+        return stepInfo;
     }
 
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
         Settings indexSettings = currentState.getMetaData().index(index).getSettings();
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
-            return IndexLifecycleRunner.moveClusterStateToErrorStep(index, currentState, currentStepKey, cause, nowSupplier);
+                && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
+            XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
+            stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
+            String stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
+            Settings.Builder newSettings = Settings.builder().put(indexSettings).put(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.getKey(),
+                    stepInfoString);
+            return IndexLifecycleRunner.newClusterStateWithIndexSettings(index, currentState, newSettings).build();
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In
@@ -64,6 +71,6 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     @Override
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName()
-                + "] failed trying to move from step [" + currentStepKey + "] to the ERROR step.", e);
+                + "] failed trying to set step info for step [" + currentStepKey + "].", e);
     }
 }

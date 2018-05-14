@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 
 public abstract class AsyncWaitStep extends Step {
@@ -25,7 +26,7 @@ public abstract class AsyncWaitStep extends Step {
 
     public interface Listener {
 
-        void onResponse(boolean conditionMet);
+        void onResponse(boolean conditionMet, ToXContentObject infomationContext);
 
         void onFailure(Exception e);
     }

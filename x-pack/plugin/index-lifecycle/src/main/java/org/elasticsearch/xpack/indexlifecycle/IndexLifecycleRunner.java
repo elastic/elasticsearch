@@ -6,13 +6,19 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
@@ -24,6 +30,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
+import java.io.IOException;
 import java.util.function.LongSupplier;
 
 public class IndexLifecycleRunner {
@@ -55,10 +62,12 @@ public class IndexLifecycleRunner {
                 ((AsyncWaitStep) currentStep).evaluateCondition(indexMetaData.getIndex(), new AsyncWaitStep.Listener() {
     
                     @Override
-                    public void onResponse(boolean conditionMet) {
+                    public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
                         logger.debug("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
                         if (conditionMet) {
                             moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                        } else if (stepInfo != null) {
+                            setStepInfo(indexMetaData.getIndex(), policy, currentStep.getKey(), stepInfo);
                         }
                     }
     
@@ -145,11 +154,17 @@ public class IndexLifecycleRunner {
         return newClusterStateBuilder.build();
     }
 
-    static ClusterState moveClusterStateToErrorStep(Index index, ClusterState clusterState, StepKey currentStep, LongSupplier nowSupplier) {
+    static ClusterState moveClusterStateToErrorStep(Index index, ClusterState clusterState, StepKey currentStep, Exception cause,
+            LongSupplier nowSupplier) throws IOException {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
+        XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
+        causeXContentBuilder.startObject();
+        ElasticsearchException.generateFailureXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause, false);
+        causeXContentBuilder.endObject();
         Settings.Builder indexSettings = moveIndexSettingsToNextStep(idxMeta.getSettings(), currentStep,
                 new StepKey(currentStep.getPhase(), currentStep.getAction(), ErrorStep.NAME), nowSupplier)
-                        .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, currentStep.getName());
+                        .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, currentStep.getName())
+                        .put(LifecycleSettings.LIFECYCLE_STEP_INFO, BytesReference.bytes(causeXContentBuilder).utf8ToString());
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
         return newClusterStateBuilder.build();
     }
@@ -159,7 +174,9 @@ public class IndexLifecycleRunner {
         long nowAsMillis = nowSupplier.getAsLong();
         Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
                 .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
-                .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis);
+                .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis)
+                // clear any step info from the current step
+                .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);
         }
@@ -169,7 +186,7 @@ public class IndexLifecycleRunner {
         return newSettings;
     }
 
-    private static ClusterState.Builder newClusterStateWithIndexSettings(Index index, ClusterState clusterState,
+    static ClusterState.Builder newClusterStateWithIndexSettings(Index index, ClusterState clusterState,
             Settings.Builder newSettings) {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData())
@@ -187,6 +204,10 @@ public class IndexLifecycleRunner {
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {
         logger.debug("policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + currentStepKey
                 + "]. Moving to ERROR step.", e);
-        clusterService.submitStateUpdateTask("ILM", new MoveToErrorStepUpdateTask(index, policy, currentStepKey, nowSupplier));
+        clusterService.submitStateUpdateTask("ILM", new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier));
+    }
+
+    private void setStepInfo(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
+        clusterService.submitStateUpdateTask("ILM", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 }

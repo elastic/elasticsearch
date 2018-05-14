@@ -1048,8 +1048,10 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "1").get().getResult());
         assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "2").get().getResult());
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
-            forceMerge();
+            // Need to persist the global checkpoint and flush a new safe commit
+            // as the soft-deletes retention merge policy depends on the local-checkpoint of the safe commit.
+            persistGlobalCheckpoint("index");
+            flush("index");
         }
         refresh();
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();

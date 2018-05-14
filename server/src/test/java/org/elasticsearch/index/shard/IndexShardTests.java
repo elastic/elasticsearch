@@ -2918,9 +2918,10 @@ public class IndexShardTests extends IndexShardTestCase {
         // Deleting a doc causes its memory to be freed from the breaker
         deleteDoc(primary, "_doc", "0");
         if (primary.indexSettings().isSoftDeleteEnabled()) {
-            // Need to sync global checkpoint and create a new safe commit as the soft-deletes MergePolicy depends on it.
-            primary.flush(new FlushRequest());
-            primary.forceMerge(new ForceMergeRequest().onlyExpungeDeletes(true));
+            // Need to persist the global checkpoint and flush a new safe commit
+            // as the soft-deletes retention merge policy depends on the local-checkpoint of the safe commit.
+            primary.sync();
+            flushShard(primary);
         }
         primary.refresh("force refresh");
 

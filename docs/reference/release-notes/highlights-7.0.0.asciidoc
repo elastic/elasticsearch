@@ -1,0 +1,6 @@
+[[release-highlights-7.0.0]]
+== 7.0.0 release highlights
+
+coming[7.0.0]
+
+See also <<breaking-changes-7.0>> and <<release-notes-7.0.0>>. 

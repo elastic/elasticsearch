@@ -123,13 +123,17 @@ final class StoreRecovery {
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
-                    final Directory directory = indexShard.store().directory(); // don't close this directory!!
                     final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
                     final long maxUnsafeAutoIdTimestamp =
                             shards.stream().mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp).max().getAsLong();
-                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo, maxUnsafeAutoIdTimestamp,
-                        indexShard.indexSettings().getIndexMetaData(), indexShard.shardId().id(), isSplit, hasNested);
+                    try (Directory directory = indexShard.store().createNewDirectory()) {
+                        // we create a new directory since we might delete old files we never write again
+                        // but this might cause issues on windows since Lucenes IW now checks for pending deletes before it
+                        // starts up and we might be still holding on to them on windows. for this reason we use a private directory here
+                        addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo, maxUnsafeAutoIdTimestamp,
+                            indexShard.indexSettings().getIndexMetaData(), indexShard.shardId().id(), isSplit, hasNested);
+                    }
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.

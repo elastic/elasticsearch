@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -93,6 +95,8 @@ public class SysTables extends Command {
                     enumeration[3] = type.toSql();
                     values.add(asList(enumeration));
                 }
+
+                values.sort(Comparator.comparing(l -> l.get(3).toString()));
                 listener.onResponse(Rows.of(output(), values));
                 return;
             }
@@ -112,6 +116,9 @@ public class SysTables extends Command {
 
         session.indexResolver().resolveNames(index, regex, types, ActionListener.wrap(result -> listener.onResponse(
                 Rows.of(output(), result.stream()
+                 // sort by type (which might be legacy), then by name
+                 .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))
+                           .thenComparing(Comparator.comparing(i -> i.name())))
                  .map(t -> asList(cluster,
                          EMPTY,
                          t.name(),

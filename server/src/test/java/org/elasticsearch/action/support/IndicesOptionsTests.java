@@ -134,4 +134,21 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());
     }
+
+    public void testSimpleByteBWC() {
+        // Corresponds to byte 24 prior to rewriting IndicesOptions not to be byte-based
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true, false, false, false);
+
+        logger.info("--> 1 {}", indicesOptions.toString());
+        IndicesOptions indicesOptions2 = IndicesOptions.fromByte((byte)24);
+        logger.info("--> 2 {}", indicesOptions2.toString());
+
+        assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
+        assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
+        assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
+        assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
+        assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
+        assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+        assertThat(indicesOptions2.ignoreAliases(), equalTo(indicesOptions.ignoreAliases()));
+    }
 }

@@ -99,8 +99,8 @@ class ClusterFormationTasks {
             // from mirrors using gradles built-in mechanism etc.
 
             configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion)
-            for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
-                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, config.bwcVersion)
+            for (Map.Entry<String, Object> entry : config.plugins.entrySet()) {
+                configureBwcPluginDependency(project, entry.getValue(), bwcPlugins, config.bwcVersion)
             }
             bwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
             bwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
@@ -150,10 +150,15 @@ class ClusterFormationTasks {
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
-    static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, Version elasticsearchVersion) {
-        verifyProjectHasBuildPlugin(name, elasticsearchVersion, project, pluginProject)
-        final String pluginName = findPluginName(pluginProject)
-        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
+    static void configureBwcPluginDependency(Project project, Object plugin, Configuration configuration, Version elasticsearchVersion) {
+        if (plugin instanceof Project) {
+            Project pluginProject = (Project)plugin
+            verifyProjectHasBuildPlugin(configuration.name, elasticsearchVersion, project, pluginProject)
+            final String pluginName = findPluginName(pluginProject)
+            project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
+        } else {
+            project.dependencies.add(configuration.name, "${plugin}@zip")
+        }
     }
 
     /**
@@ -210,9 +215,9 @@ class ClusterFormationTasks {
         }
 
         // install plugins
-        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
-            String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
-            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, plugin.getValue(), prefix)
+        for (String pluginName : node.config.plugins.keySet()) {
+            String actionName = pluginTaskName('install', pluginName, 'Plugin')
+            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, pluginName, prefix)
         }
 
         // sets up any extra config files that need to be copied over to the ES instance;
@@ -444,31 +449,40 @@ class ClusterFormationTasks {
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
-        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
 
-            Project pluginProject = plugin.getValue()
-            verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = pluginConfigurationName(prefix, pluginProject)
+            String configurationName = pluginConfigurationName(prefix, plugin.key)
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
             }
-            project.dependencies.add(configurationName, project.dependencies.project(path: pluginProject.path, configuration: 'zip'))
-            setup.dependsOn(pluginProject.tasks.bundlePlugin)
 
-            // also allow rest tests to use the rest spec from the plugin
-            String copyRestSpecTaskName = pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec')
-            Copy copyRestSpec = project.tasks.findByName(copyRestSpecTaskName)
-            for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
-                File restApiDir = new File(resourceDir, 'rest-api-spec/api')
-                if (restApiDir.exists() == false) continue
-                if (copyRestSpec == null) {
-                    copyRestSpec = project.tasks.create(name: copyRestSpecTaskName, type: Copy)
-                    copyPlugins.dependsOn(copyRestSpec)
-                    copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+            if (plugin.getValue() instanceof Project) {
+                Project pluginProject = plugin.getValue()
+                verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
+
+                project.dependencies.add(configurationName, project.dependencies.project(path: pluginProject.path, configuration: 'zip'))
+                setup.dependsOn(pluginProject.tasks.bundlePlugin)
+
+                // also allow rest tests to use the rest spec from the plugin
+                String copyRestSpecTaskName = pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec')
+                Copy copyRestSpec = project.tasks.findByName(copyRestSpecTaskName)
+                for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
+                    File restApiDir = new File(resourceDir, 'rest-api-spec/api')
+                    if (restApiDir.exists() == false) continue
+                    if (copyRestSpec == null) {
+                        copyRestSpec = project.tasks.create(name: copyRestSpecTaskName, type: Copy)
+                        copyPlugins.dependsOn(copyRestSpec)
+                        copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+                    }
+                    copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
                 }
-                copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
+            } else {
+                project.dependencies.add(configurationName, "${plugin.getValue()}@zip")
             }
+
+
+
             pluginFiles.add(configuration)
         }
 
@@ -477,32 +491,37 @@ class ClusterFormationTasks {
         return copyPlugins
     }
 
-    private static String pluginConfigurationName(final String prefix, final Project project) {
-        return "_plugin_${prefix}_${project.path}".replace(':', '_')
+    private static String pluginConfigurationName(final String prefix, final String name) {
+        return "_plugin_${prefix}_${name}".replace(':', '_')
     }
 
-    private static String pluginBwcConfigurationName(final String prefix, final Project project) {
-        return "_plugin_bwc_${prefix}_${project.path}".replace(':', '_')
+    private static String pluginBwcConfigurationName(final String prefix, final String name) {
+        return "_plugin_bwc_${prefix}_${name}".replace(':', '_')
     }
 
     /** Configures task to copy a plugin based on a zip file resolved using dependencies for an older version */
     static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node, String prefix) {
         Configuration bwcPlugins = project.configurations.getByName("${prefix}_elasticsearchBwcPlugins")
-        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
-            Project pluginProject = plugin.getValue()
-            verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = pluginBwcConfigurationName(prefix, pluginProject)
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
+            String configurationName = pluginBwcConfigurationName(prefix, plugin.key)
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
             }
 
-            final String depName = findPluginName(pluginProject)
+            if (plugin.getValue() instanceof Project) {
+                Project pluginProject = plugin.getValue()
+                verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
 
-            Dependency dep = bwcPlugins.dependencies.find {
-                it.name == depName
+                final String depName = findPluginName(pluginProject)
+
+                Dependency dep = bwcPlugins.dependencies.find {
+                    it.name == depName
+                }
+                configuration.dependencies.add(dep)
+            } else {
+                project.dependencies.add(configurationName, "${plugin.getValue()}@zip")
             }
-            configuration.dependencies.add(dep)
         }
 
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup) {
@@ -527,12 +546,12 @@ class ClusterFormationTasks {
         return installModule
     }
 
-    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin, String prefix) {
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
         final FileCollection pluginZip;
         if (node.nodeVersion != VersionProperties.elasticsearch) {
-            pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, plugin))
+            pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {
-            pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, plugin))
+            pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, pluginName))
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         final Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"

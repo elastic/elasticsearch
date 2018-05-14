@@ -55,6 +55,30 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithUnsupportedMethod() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
+            restClient.performRequestAsync(new Request("unsupported", randomAsciiLettersOfLength(5)), new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of unsupported method");
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(UnsupportedOperationException.class));
+                    assertEquals("http method not supported: unsupported", exception.getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
+        }
+    }
+
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithUnsupportedMethod()}.
+     */
+    @Deprecated
+    public void testPerformAsyncOldStyleWithUnsupportedMethod() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
@@ -72,7 +96,11 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    public void testPerformAsyncWithNullParams() throws Exception {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetParameters()}.
+     */
+    @Deprecated
+    public void testPerformOldStyleAsyncWithNullParams() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, new ResponseListener() {
@@ -84,7 +112,7 @@ public class RestClientTests extends RestClientTestCase {
                 @Override
                 public void onFailure(Exception exception) {
                     assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("params must not be null", exception.getMessage());
+                    assertEquals("parameters cannot be null", exception.getMessage());
                     latch.countDown();
                 }
             });
@@ -92,7 +120,11 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    public void testPerformAsyncWithNullHeaders() throws Exception {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetHeaders()}.
+     */
+    @Deprecated
+    public void testPerformOldStyleAsyncWithNullHeaders() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             ResponseListener listener = new ResponseListener() {
@@ -104,7 +136,7 @@ public class RestClientTests extends RestClientTestCase {
                 @Override
                 public void onFailure(Exception exception) {
                     assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("request header must not be null", exception.getMessage());
+                    assertEquals("header cannot be null", exception.getMessage());
                     latch.countDown();
                 }
             };
@@ -114,6 +146,30 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     public void testPerformAsyncWithWrongEndpoint() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        try (RestClient restClient = createRestClient()) {
+            restClient.performRequestAsync(new Request("GET", "::http:///"), new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of wrong endpoint");
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(IllegalArgumentException.class));
+                    assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
+        }
+    }
+
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithWrongEndpoint()}.
+     */
+    @Deprecated
+    public void testPerformAsyncOldStyleWithWrongEndpoint() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
@@ -207,6 +263,10 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testConstructor()}.
+     */
+    @Deprecated
     public void testNullPath() throws IOException {
         try (RestClient restClient = createRestClient()) {
             for (String method : getHttpMethods()) {
@@ -214,7 +274,7 @@ public class RestClientTests extends RestClientTestCase {
                     restClient.performRequest(method, null);
                     fail("path set to null should fail!");
                 } catch (NullPointerException e) {
-                    assertEquals("path must not be null", e.getMessage());
+                    assertEquals("endpoint cannot be null", e.getMessage());
                 }
             }
         }

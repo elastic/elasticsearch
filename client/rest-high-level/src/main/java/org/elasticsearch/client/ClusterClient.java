@@ -48,7 +48,7 @@ public final class ClusterClient {
      */
     public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
             throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, emptySet(), headers);
     }
 
@@ -60,7 +60,7 @@ public final class ClusterClient {
      */
     public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 }

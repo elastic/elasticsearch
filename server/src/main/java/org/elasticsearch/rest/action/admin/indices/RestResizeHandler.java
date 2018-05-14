@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -46,6 +47,24 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
+        final String rawCopySettings = request.param("copy_settings");
+        final Boolean copySettings;
+        if (rawCopySettings == null) {
+            copySettings = resizeRequest.getCopySettings();
+        } else if (rawCopySettings.isEmpty()) {
+            copySettings = true;
+        } else {
+            copySettings = Booleans.parseBoolean(rawCopySettings);
+            if (copySettings == false) {
+                throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
+            }
+        }
+        if (copySettings == null) {
+            deprecationLogger.deprecated(
+                    "resize operations without copying settings is deprecated; "
+                            + "set parameter [copy_settings] to [true] for future default behavior");
+        }
+        resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);
         resizeRequest.timeout(request.paramAsTime("timeout", resizeRequest.timeout()));
         resizeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resizeRequest.masterNodeTimeout()));

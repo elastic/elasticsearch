@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 

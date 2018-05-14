@@ -206,6 +206,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         assertThat(e.getMessage(), equalTo("Cannot run forecast: Forecast cannot be executed as model memory status is not OK"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/30399")
     public void testMemoryLimit() throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");

@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -52,15 +51,18 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexManagerTests extends ESTestCase {
 
-    private static final ClusterName CLUSTER_NAME = new ClusterName("index-lifecycle-manager-tests");
+    private static final ClusterName CLUSTER_NAME = new ClusterName("security-index-manager-tests");
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
-    public static final String INDEX_NAME = "SecurityIndexManagerTests";
+    public static final String INDEX_NAME = ".security";
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
     private Map<Action<?, ?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
@@ -127,29 +129,14 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     public void testIndexHealthChangeListeners() throws Exception {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        final AtomicReference<ClusterIndexHealth> previousHealth = new AtomicReference<>();
-        final AtomicReference<ClusterIndexHealth> currentHealth = new AtomicReference<>();
-        final BiConsumer<ClusterIndexHealth, ClusterIndexHealth> listener = (prevState, state) -> {
-            previousHealth.set(prevState);
-            currentHealth.set(state);
+        final AtomicReference<SecurityIndexManager.State> previousState = new AtomicReference<>();
+        final AtomicReference<SecurityIndexManager.State> currentState = new AtomicReference<>();
+        final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> listener = (prevState, state) -> {
+            previousState.set(prevState);
+            currentState.set(state);
             listenerCalled.set(true);
         };
-
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                manager.addIndexHealthChangeListener(listener);
-                manager.addIndexHealthChangeListener((prevState, state) -> {
-                    throw new RuntimeException("throw after listener");
-                });
-            } else {
-                manager.addIndexHealthChangeListener((prevState, state) -> {
-                    throw new RuntimeException("throw before listener");
-                });
-                manager.addIndexHealthChangeListener(listener);
-            }
-        } else {
-            manager.addIndexHealthChangeListener(listener);
-        }
+        manager.addIndexStateListener(listener);
 
         // index doesn't exist and now exists
         final ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
@@ -157,26 +144,26 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(clusterStateBuilder));
 
         assertTrue(listenerCalled.get());
-        assertNull(previousHealth.get());
-        assertEquals(ClusterHealthStatus.GREEN, currentHealth.get().getStatus());
+        assertNull(previousState.get().indexStatus);
+        assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexStatus);
 
         // reset and call with no change to the index
         listenerCalled.set(false);
-        previousHealth.set(null);
-        currentHealth.set(null);
+        previousState.set(null);
+        currentState.set(null);
         ClusterChangedEvent event = new ClusterChangedEvent("same index health", clusterStateBuilder.build(), clusterStateBuilder.build());
         manager.clusterChanged(event);
 
         assertFalse(listenerCalled.get());
-        assertNull(previousHealth.get());
-        assertNull(currentHealth.get());
+        assertNull(previousState.get());
+        assertNull(currentState.get());
 
         // index with different health
         listenerCalled.set(false);
-        previousHealth.set(null);
-        currentHealth.set(null);
-        ClusterState previousState = clusterStateBuilder.build();
-        Index prevIndex = previousState.getRoutingTable().index(INDEX_NAME).getIndex();
+        previousState.set(null);
+        currentState.set(null);
+        ClusterState previousClusterState = clusterStateBuilder.build();
+        Index prevIndex = previousClusterState.getRoutingTable().index(INDEX_NAME).getIndex();
         clusterStateBuilder.routingTable(RoutingTable.builder()
                 .add(IndexRoutingTable.builder(prevIndex)
                         .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(prevIndex, 0))
@@ -189,29 +176,30 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
 
 
-        event = new ClusterChangedEvent("different index health", clusterStateBuilder.build(), previousState);
+        event = new ClusterChangedEvent("different index health", clusterStateBuilder.build(), previousClusterState);
         manager.clusterChanged(event);
         assertTrue(listenerCalled.get());
-        assertEquals(ClusterHealthStatus.GREEN, previousHealth.get().getStatus());
-        assertEquals(ClusterHealthStatus.RED, currentHealth.get().getStatus());
+        assertEquals(ClusterHealthStatus.GREEN, previousState.get().indexStatus);
+        assertEquals(ClusterHealthStatus.RED, currentState.get().indexStatus);
 
         // swap prev and current
         listenerCalled.set(false);
-        previousHealth.set(null);
-        currentHealth.set(null);
-        event = new ClusterChangedEvent("different index health swapped", previousState, clusterStateBuilder.build());
+        previousState.set(null);
+        currentState.set(null);
+        event = new ClusterChangedEvent("different index health swapped", previousClusterState, clusterStateBuilder.build());
         manager.clusterChanged(event);
         assertTrue(listenerCalled.get());
-        assertEquals(ClusterHealthStatus.RED, previousHealth.get().getStatus());
-        assertEquals(ClusterHealthStatus.GREEN, currentHealth.get().getStatus());
+        assertEquals(ClusterHealthStatus.RED, previousState.get().indexStatus);
+        assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexStatus);
     }
 
     public void testIndexOutOfDateListeners() throws Exception {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
-        manager.addIndexOutOfDateListener((prev, current) -> {
+        AtomicBoolean upToDateChanged = new AtomicBoolean();
+        manager.addIndexStateListener((prev, current) -> {
             listenerCalled.set(true);
-            assertNotEquals(prev, current);
+            upToDateChanged.set(prev.isIndexUpToDate != current.isIndexUpToDate);
         });
         assertTrue(manager.isIndexUpToDate());
 
@@ -225,12 +213,14 @@ public class SecurityIndexManagerTests extends ESTestCase {
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
         assertTrue(listenerCalled.get());
+        assertTrue(upToDateChanged.get());
         assertFalse(manager.isIndexUpToDate());
 
         listenerCalled.set(false);
         assertFalse(listenerCalled.get());
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         assertTrue(listenerCalled.get());
+        assertTrue(upToDateChanged.get());
         assertTrue(manager.isIndexUpToDate());
 
         listenerCalled.set(false);
@@ -238,7 +228,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, SecurityIndexManager.INTERNAL_INDEX_FORMAT);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
-        assertFalse(listenerCalled.get());
+        assertTrue(listenerCalled.get());
+        assertFalse(upToDateChanged.get());
         assertTrue(manager.isIndexUpToDate());
     }
 
@@ -323,5 +314,140 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private static String loadTemplate(String templateName) {
         final String resource = "/" + templateName + ".json";
         return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN);
+    }
+
+    public void testMappingVersionMatching() throws IOException {
+        String templateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
+        manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
+        assertTrue(manager.checkMappingVersion(Version.CURRENT.minimumIndexCompatibilityVersion()::before));
+        assertFalse(manager.checkMappingVersion(Version.CURRENT.minimumIndexCompatibilityVersion()::after));
+    }
+
+    public void testMissingVersionMappingThrowsError() throws IOException {
+        String templateString = "/missing-version-" + SECURITY_TEMPLATE_NAME + ".json";
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
+        final ClusterState clusterState = clusterStateBuilder.build();
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, Version.CURRENT::equals));
+        assertEquals("Cannot read security-version string in index " + SECURITY_INDEX_NAME, exception.getMessage());
+    }
+
+    public void testIndexTemplateIsIdentifiedAsUpToDate() throws IOException {
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(
+            "/" + SECURITY_TEMPLATE_NAME + ".json"
+        );
+        manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
+        // No upgrade actions run
+        assertThat(actions.size(), equalTo(0));
+    }
+
+    public void testIndexTemplateVersionMatching() throws Exception {
+        String templateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
+        final ClusterState clusterState = clusterStateBuilder.build();
+
+        assertTrue(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
+            SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
+            Version.V_5_0_0::before));
+        assertFalse(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
+            SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
+            Version.V_5_0_0::after));
+    }
+
+    public void testUpToDateMappingsAreIdentifiedAsUpToDate() throws IOException {
+        String securityTemplateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(securityTemplateString);
+        manager.clusterChanged(new ClusterChangedEvent("test-event",
+            clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
+        assertThat(actions.size(), equalTo(0));
+    }
+
+    public void testMissingIndexIsIdentifiedAsUpToDate() throws IOException {
+        final ClusterName clusterName = new ClusterName("test-cluster");
+        final ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName);
+        String mappingString = "/" + SECURITY_TEMPLATE_NAME + ".json";
+        IndexTemplateMetaData.Builder templateMeta = getIndexTemplateMetaData(SECURITY_TEMPLATE_NAME, mappingString);
+        MetaData.Builder builder = new MetaData.Builder(clusterStateBuilder.build().getMetaData());
+        builder.put(templateMeta);
+        clusterStateBuilder.metaData(builder);
+        manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+            , EMPTY_CLUSTER_STATE));
+        assertThat(actions.size(), equalTo(0));
+    }
+
+    private ClusterState.Builder createClusterStateWithTemplate(String securityTemplateString) throws IOException {
+        // add the correct mapping no matter what the template
+        ClusterState clusterState = createClusterStateWithIndex("/" + SECURITY_TEMPLATE_NAME + ".json").build();
+        final MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterState.metaData());
+        metaDataBuilder.put(getIndexTemplateMetaData(SECURITY_TEMPLATE_NAME, securityTemplateString));
+        return ClusterState.builder(clusterState).metaData(metaDataBuilder);
+    }
+
+    private ClusterState.Builder createClusterStateWithMapping(String securityTemplateString) throws IOException {
+        final ClusterState clusterState = createClusterStateWithIndex(securityTemplateString).build();
+        final String indexName = clusterState.metaData().getAliasAndIndexLookup()
+            .get(SECURITY_INDEX_NAME).getIndices().get(0).getIndex().getName();
+        return ClusterState.builder(clusterState).routingTable(SecurityTestUtils.buildIndexRoutingTable(indexName));
+    }
+
+    private ClusterState.Builder createClusterStateWithMappingAndTemplate(String securityTemplateString) throws IOException {
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(securityTemplateString);
+        MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterStateBuilder.build().metaData());
+        String securityMappingString = "/" + SECURITY_TEMPLATE_NAME + ".json";
+        IndexTemplateMetaData.Builder securityTemplateMeta = getIndexTemplateMetaData(SECURITY_TEMPLATE_NAME, securityMappingString);
+        metaDataBuilder.put(securityTemplateMeta);
+        return clusterStateBuilder.metaData(metaDataBuilder);
+    }
+
+    private static IndexMetaData.Builder createIndexMetadata(String indexName, String templateString) throws IOException {
+        String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
+            SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(template, XContentType.JSON);
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
+        indexMetaData.settings(Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build());
+
+        for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
+            indexMetaData.putMapping(entry.getKey(), entry.getValue());
+        }
+        return indexMetaData;
+    }
+
+    private ClusterState.Builder createClusterStateWithIndex(String securityTemplate) throws IOException {
+        final MetaData.Builder metaDataBuilder = new MetaData.Builder();
+        final boolean withAlias = randomBoolean();
+        final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        metaDataBuilder.put(createIndexMetadata(securityIndexName, securityTemplate));
+
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(state());
+        if (withAlias) {
+            // try with .security index as an alias
+            clusterStateBuilder.metaData(SecurityTestUtils.addAliasToMetaData(metaDataBuilder.build(), securityIndexName));
+        } else {
+            // try with .security index as a concrete index
+            clusterStateBuilder.metaData(metaDataBuilder);
+        }
+
+        clusterStateBuilder.routingTable(SecurityTestUtils.buildIndexRoutingTable(securityIndexName));
+        return clusterStateBuilder;
+    }
+
+    private static IndexTemplateMetaData.Builder getIndexTemplateMetaData(String templateName, String templateString) throws IOException {
+
+        String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
+            SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(template, XContentType.JSON);
+        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName)
+            .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
+        for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
+            templateBuilder.putMapping(entry.getKey(), entry.getValue());
+        }
+        return templateBuilder;
     }
 }

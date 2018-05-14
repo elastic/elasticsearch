@@ -48,12 +48,6 @@ class VagrantTestPlugin implements Plugin<Project> {
             'ubuntu-1404'
     ])
 
-    /** Boxes that have been supplied and are available for testing **/
-    List<String> AVAILABLE_BOXES = []
-
-    /** extra env vars to pass to vagrant for box configuration **/
-    Map<String, String> VAGRANT_BOX_ENV_VARS = [:]
-
     /** All distributions to bring into test VM, whether or not they are used **/
     static final List<String> DISTRIBUTIONS = unmodifiableList([
             'archives:tar',
@@ -72,6 +66,12 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$PACKAGING_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
     private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
+
+    /** Boxes that have been supplied and are available for testing **/
+    List<String> availableBoxes = []
+
+    /** extra env vars to pass to vagrant for box configuration **/
+    Map<String, String> vagrantBoxEnvVars = [:]
 
     @Override
     void apply(Project project) {
@@ -100,9 +100,9 @@ class VagrantTestPlugin implements Plugin<Project> {
                 throw new InvalidUserDataException("Vagrant box [${box}] is unknown to this plugin. Valid boxes are ${ALL_BOXES}")
             }
 
-            if (AVAILABLE_BOXES.contains(box) == false) {
+            if (availableBoxes.contains(box) == false) {
                 throw new InvalidUserDataException("Vagrant box [${box}] is not available because an image is not supplied for it. " +
-                    "Available boxes with supplied images are ${AVAILABLE_BOXES}")
+                    "Available boxes with supplied images are ${availableBoxes}")
             }
         }
 
@@ -115,19 +115,19 @@ class VagrantTestPlugin implements Plugin<Project> {
      */
     private void collectAvailableBoxes(Project project) {
         // these images are hardcoded in the Vagrantfile and are always available
-        AVAILABLE_BOXES.addAll(LINUX_BOXES)
+        availableBoxes.addAll(LINUX_BOXES)
 
         // these images need to be provided at runtime
         String windows_2012r2_box = project.getProperties().get('vagrant.windows-2012r2.id')
         if (windows_2012r2_box != null && windows_2012r2_box.isEmpty() == false) {
-            AVAILABLE_BOXES.add('windows-2012r2')
-            VAGRANT_BOX_ENV_VARS['VAGRANT_WINDOWS_2012R2_BOX'] = windows_2012r2_box
+            availableBoxes.add('windows-2012r2')
+            vagrantBoxEnvVars['VAGRANT_WINDOWS_2012R2_BOX'] = windows_2012r2_box
         }
 
         String windows_2016_box = project.getProperties().get('vagrant.windows-2016.id')
         if (windows_2016_box != null && windows_2016_box.isEmpty() == false) {
-            AVAILABLE_BOXES.add('windows-2016')
-            VAGRANT_BOX_ENV_VARS['VAGRANT_WINDOWS_2016_BOX'] = windows_2016_box
+            availableBoxes.add('windows-2016')
+            vagrantBoxEnvVars['VAGRANT_WINDOWS_2016_BOX'] = windows_2016_box
         }
     }
 
@@ -361,7 +361,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             description 'List all vagrant boxes which are available for testing'
             doLast {
                 println("All vagrant boxes available to ${project.path}")
-                for (String box : AVAILABLE_BOXES) {
+                for (String box : availableBoxes) {
                     println(box)
                 }
             }
@@ -412,10 +412,10 @@ class VagrantTestPlugin implements Plugin<Project> {
                 'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
                 'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
         ]
-        vagrantEnvVars.putAll(VAGRANT_BOX_ENV_VARS)
+        vagrantEnvVars.putAll(vagrantBoxEnvVars)
 
         // Each box gets it own set of tasks
-        for (String box : AVAILABLE_BOXES) {
+        for (String box : availableBoxes) {
             String boxTask = box.capitalize().replace('-', '')
 
             // always add a halt task for all boxes, so clean makes sure they are all shutdown

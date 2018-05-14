@@ -26,6 +26,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.apache.http.HttpEntity;
@@ -66,58 +67,22 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  * --------------------------------------------------
  */
 public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
-
-    public void testCreateIndex() throws IOException {
-        RestHighLevelClient client = highLevelClient();
-        {
-            //tag::migration-create-index
-            Settings indexSettings = Settings.builder() // <1>
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build();
-
-            String payload = Strings.toString(XContentFactory.jsonBuilder() // <2>
-                    .startObject()
-                        .startObject("settings") // <3>
-                            .value(indexSettings)
-                        .endObject()
-                        .startObject("mappings")  // <4>
-                            .startObject("doc")
-                                .startObject("properties")
-                                    .startObject("time")
-                                        .field("type", "date")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject());
-
-            HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON); // <5>
-
-            Response response = client.getLowLevelClient().performRequest("PUT", "my-index", emptyMap(), entity); // <6>
-            if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-                // <7>
-            }
-            //end::migration-create-index
-            assertEquals(200, response.getStatusLine().getStatusCode());
-        }
-    }
-
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
             //tag::migration-cluster-health
-            Map<String, String> parameters = singletonMap("wait_for_status", "green");
-            Response response = client.getLowLevelClient().performRequest("GET", "/_cluster/health", parameters); // <1>
+            Request request = new Request("GET", "/_cluster/health");
+            request.addParameter("wait_for_status", "green"); // <1>
+            Response response = client.getLowLevelClient().performRequest(request); // <2>
 
             ClusterHealthStatus healthStatus;
-            try (InputStream is = response.getEntity().getContent()) { // <2>
-                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true); // <3>
-                healthStatus = ClusterHealthStatus.fromString((String) map.get("status")); // <4>
+            try (InputStream is = response.getEntity().getContent()) { // <3>
+                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true); // <4>
+                healthStatus = ClusterHealthStatus.fromString((String) map.get("status")); // <5>
             }
 
-            if (healthStatus == ClusterHealthStatus.GREEN) {
-                // <5>
+            if (healthStatus != ClusterHealthStatus.GREEN) {
+                // <6>
             }
             //end::migration-cluster-health
             assertSame(ClusterHealthStatus.GREEN, healthStatus);

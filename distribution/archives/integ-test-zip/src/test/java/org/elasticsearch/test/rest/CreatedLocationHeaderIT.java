@@ -21,18 +21,22 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.junit.Before;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for the "Location" header returned when returning {@code 201 CREATED}.
  */
 public class CreatedLocationHeaderIT extends ESRestTestCase {
+
     public void testCreate() throws IOException {
         locationTestCase("PUT", "test/test/1");
     }
@@ -54,8 +58,11 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
     private void locationTestCase(String method, String url) throws IOException {
         locationTestCase(client().performRequest(method, url, emptyMap(),
             new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON)));
+        // we have to delete the index otherwise the second indexing request will route to the single shard and not produce a 201
+        final Response response = client().performRequest(new Request("DELETE", "test"));
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         locationTestCase(client().performRequest(method, url + "?routing=cat", emptyMap(),
-            new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON)));
+                new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON)));
     }
 
     private void locationTestCase(Response response) throws IOException {
@@ -65,4 +72,5 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
         Response getResponse = client().performRequest("GET", location);
         assertEquals(singletonMap("test", "test"), entityAsMap(getResponse).get("_source"));
     }
+
 }

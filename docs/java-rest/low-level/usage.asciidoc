@@ -263,6 +263,14 @@ IMPORTANT: The `ContentType` specified for the `HttpEntity` is important
 because it will be used to set the `Content-Type` header so that Elasticsearch
 can properly parse the content.
 
+You can also set it to a `String` which will default to
+a `ContentType` of `application/json`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-body-shorter]
+--------------------------------------------------
+
 And you can set a list of headers to send with the request:
 
 ["source","java",subs="attributes,callouts,macros"]

@@ -56,10 +56,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
+import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
 import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -277,6 +279,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     ? ((RangeQueryBuilder)builder).fieldName()
                     : ((TermQueryBuilder)builder).fieldName();
 
+            List<String> incorrectTimeZones = new ArrayList<>();
             List<String> rewrittenFieldName = jobCaps.stream()
                     // We only care about job caps that have the query's target field
                     .filter(caps -> caps.getFieldCaps().keySet().contains(fieldName))
@@ -286,6 +289,24 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                             // For now, we only allow filtering on grouping fields
                             .filter(agg -> {
                                 String type = (String)agg.get(RollupField.AGG);
+
+                                // If the cap is for a date_histo, and the query is a range, the timezones need to match
+                                if (type.equals(DateHistogramAggregationBuilder.NAME) && builder instanceof RangeQueryBuilder) {
+                                    String timeZone = ((RangeQueryBuilder)builder).timeZone();
+
+                                    // Many range queries don't include the timezone because the default is UTC, but the query
+                                    // builder will return null so we need to set it here
+                                    if (timeZone == null) {
+                                        timeZone = DateTimeZone.UTC.toString();
+                                    }
+                                    boolean matchingTZ = ((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()))
+                                        .equalsIgnoreCase(timeZone);
+                                    if (matchingTZ == false) {
+                                        incorrectTimeZones.add((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()));
+                                    }
+                                    return matchingTZ;
+                                }
+                                // Otherwise just make sure it's one of the three groups
                                 return type.equals(TermsAggregationBuilder.NAME)
                                         || type.equals(DateHistogramAggregationBuilder.NAME)
                                         || type.equals(HistogramAggregationBuilder.NAME);
@@ -304,8 +325,14 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     .collect(ArrayList::new, List::addAll, List::addAll);
 
             if (rewrittenFieldName.isEmpty()) {
-                throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builder.getWriteableName()
+                if (incorrectTimeZones.isEmpty()) {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builder.getWriteableName()
                         + "] query is not available in selected rollup indices, cannot query.");
+                } else {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builder.getWriteableName()
+                        + "] query was found in rollup indices, but requested timezone is not compatible. Options include: "
+                        + incorrectTimeZones);
+                }
             }
 
             if (rewrittenFieldName.size() > 1) {

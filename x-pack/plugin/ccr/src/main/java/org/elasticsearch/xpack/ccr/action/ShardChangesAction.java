@@ -34,11 +34,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.PriorityQueue;
-import java.util.Queue;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -237,8 +234,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexShard indexShard = indexService.getShard(request.getShard().id());
 
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
+            request.maxSeqNo = Math.min(request.maxSeqNo, indexShard.getGlobalCheckpoint());
             final Translog.Operation[] operations =
-                    getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
+                getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
             return new Response(indexMetaDataVersion, operations);
         }
 
@@ -264,47 +262,22 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo,
-                                                     long byteLimit) throws IOException {
+    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo, long byteLimit) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
-
-        long seenBytes = 0;
-        long nextExpectedSeqNo = minSeqNo;
-        final Queue<Translog.Operation> orderedOps = new PriorityQueue<>(Comparator.comparingLong(Translog.Operation::seqNo));
-
+        int seenBytes = 0;
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newTranslogSnapshotBetween(minSeqNo, maxSeqNo)) {
-            for (Translog.Operation unorderedOp = snapshot.next(); unorderedOp != null; unorderedOp = snapshot.next()) {
-                if (unorderedOp.seqNo() < minSeqNo || unorderedOp.seqNo() > maxSeqNo) {
-                    continue;
-                }
-
-                orderedOps.add(unorderedOp);
-                while (orderedOps.peek() != null && orderedOps.peek().seqNo() == nextExpectedSeqNo) {
-                    Translog.Operation orderedOp = orderedOps.poll();
-                    if (seenBytes < byteLimit) {
-                        nextExpectedSeqNo++;
-                        seenBytes += orderedOp.estimateSize();
-                        operations.add(orderedOp);
-                        if (nextExpectedSeqNo > maxSeqNo) {
-                            return operations.toArray(EMPTY_OPERATIONS_ARRAY);
-                        }
-                    } else {
-                        return operations.toArray(EMPTY_OPERATIONS_ARRAY);
-                    }
+        try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", minSeqNo, maxSeqNo, true)) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                operations.add(op);
+                seenBytes += op.estimateSize();
+                if (seenBytes > byteLimit) {
+                    break;
                 }
             }
         }
-
-        if (nextExpectedSeqNo >= maxSeqNo) {
-            return operations.toArray(EMPTY_OPERATIONS_ARRAY);
-        } else {
-            String message = "Not all operations between min_seq_no [" + minSeqNo + "] and max_seq_no [" + maxSeqNo +
-                    "] found, tracker checkpoint [" + nextExpectedSeqNo + "]";
-            throw new IllegalStateException(message);
-        }
+        return operations.toArray(EMPTY_OPERATIONS_ARRAY);
     }
-
 }

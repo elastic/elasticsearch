@@ -43,7 +43,6 @@ public final class Request {
     private final Map<String, String> parameters = new HashMap<>();
 
     private HttpEntity entity;
-
     private List<Header> headers = new ArrayList<>();
     private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
             HttpAsyncResponseConsumerFactory.DEFAULT;

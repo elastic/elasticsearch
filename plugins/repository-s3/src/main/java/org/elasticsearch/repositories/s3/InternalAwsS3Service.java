@@ -28,6 +28,12 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3EncryptionClient;
+import com.amazonaws.services.s3.model.CryptoConfiguration;
+import com.amazonaws.services.s3.model.CryptoMode;
+import com.amazonaws.services.s3.model.EncryptionMaterials;
+import com.amazonaws.services.s3.model.StaticEncryptionMaterialsProvider;
+import com.amazonaws.util.Base64;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -37,6 +43,15 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -75,7 +90,20 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
         ClientConfiguration configuration = buildConfiguration(clientSettings);
 
-        client = new AmazonS3Client(credentials, configuration);
+        if (S3Repository.CLIENT_SIDE_ENCRYPTION_SETTING.exists(repositorySettings) &&
+            Boolean.parseBoolean(S3Repository.CLIENT_SIDE_ENCRYPTION_SETTING.get(repositorySettings).toString())) {
+
+            logger.debug("Client side encryption is enabled");
+
+            client = new AmazonS3EncryptionClient(
+                credentials,
+                new StaticEncryptionMaterialsProvider(buildClientSideEncryption(logger, repositorySettings)),
+                configuration,
+                new CryptoConfiguration(CryptoMode.EncryptionOnly));
+
+        } else {
+            client = new AmazonS3Client(credentials, configuration);
+        }
 
         if (Strings.hasText(clientSettings.endpoint)) {
             client.setEndpoint(clientSettings.endpoint);
@@ -137,6 +165,60 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             logger.debug("Using basic key/secret credentials");
             return new StaticCredentialsProvider(credentials);
         }
+    }
+
+    static EncryptionMaterials buildClientSideEncryption(Logger logger, Settings repositorySettings) {
+
+        EncryptionMaterials clientSideEncryptionMaterials = null;
+        if (S3Repository.CLIENT_SIDE_ENCRYPTION_SETTING.exists(repositorySettings) &&
+            Boolean.parseBoolean(S3Repository.CLIENT_SIDE_ENCRYPTION_SETTING.get(repositorySettings).toString())) {
+
+            String symmetricKey = S3Repository.CLIENT_SYMMETRIC_KEY_SETTING.get(repositorySettings).toString();
+            String publicKey = S3Repository.CLIENT_PUBLIC_KEY_SETTING.get(repositorySettings);
+            String privateKey = S3Repository.CLIENT_PRIVATE_KEY_SETTING.get(repositorySettings).toString();
+
+            if (Strings.isNullOrEmpty(symmetricKey) == false && (Strings.isNullOrEmpty(publicKey) == false ||
+                Strings.isNullOrEmpty(privateKey) == false)) {
+                throw new IllegalArgumentException("Client-side encryption: You can't specify a symmetric key " +
+                    "AND a public/private key pair");
+            }
+
+            if (Strings.isNullOrEmpty(symmetricKey) == false || Strings.isNullOrEmpty(publicKey) == false ||
+                Strings.isNullOrEmpty(privateKey) == false) {
+                try {
+                    // Check crypto
+                    if (Cipher.getMaxAllowedKeyLength("AES") < 256) {
+                        throw new IllegalArgumentException("Client-side encryption: Please install the Java " +
+                            "Cryptography Extension");
+                    }
+
+                    // Transform the keys in a EncryptionMaterials
+                    if (Strings.isNullOrEmpty(symmetricKey) == false) {
+                        clientSideEncryptionMaterials = new EncryptionMaterials(new SecretKeySpec(
+                            Base64.decode(symmetricKey), "AES"));
+                    } else {
+                        if (Strings.isNullOrEmpty(publicKey) || Strings.isNullOrEmpty(privateKey)) {
+                            String missingKey = Strings.isNullOrEmpty(publicKey) ? "public key" : "private key";
+                            throw new IllegalArgumentException("Client-side encryption: " + missingKey + " is missing");
+                        }
+
+                        clientSideEncryptionMaterials = new EncryptionMaterials(new KeyPair(
+                            KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Base64.decode(publicKey))),
+                            KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(
+                                Base64.decode(privateKey)))));
+                    }
+
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Client-side encryption: Error decoding your keys: " + e.getMessage());
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(e.getMessage());
+                } catch (InvalidKeySpecException e) {
+                    throw new IllegalArgumentException(e.getMessage());
+                }
+            }
+        }
+
+        return clientSideEncryptionMaterials;
     }
 
     @Override

@@ -25,6 +25,8 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+
+import com.amazonaws.util.Base64;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -32,6 +34,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -41,7 +44,13 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.After;
 import org.junit.Before;
 
+import javax.crypto.KeyGenerator;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -369,6 +378,75 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
             fail("Shouldn't be here");
         } catch (SnapshotMissingException ex) {
             // Expected
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
+    public void testClientSideEncryption() throws NoSuchAlgorithmException {
+
+        KeyGenerator keyGenerator1 = KeyGenerator.getInstance("AES");
+        keyGenerator1.init(128);
+        String symmetricEncryptionKeyBase64 = Base64.encodeAsString(keyGenerator1.generateKey().getEncoded());
+
+        KeyPairGenerator keyGenerator2 = KeyPairGenerator.getInstance("RSA");
+        keyGenerator2.initialize(512, new SecureRandom());
+        KeyPair keyPair = keyGenerator2.generateKeyPair();
+        String publicEncryptionKeyBase64 = Base64.encodeAsString(keyPair.getPublic().getEncoded());
+        String privateEncryptionKeyBase64 = Base64.encodeAsString(keyPair.getPrivate().getEncoded());
+
+        Client client = client();
+        try {
+            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                    .setType("s3").setSettings(Settings.builder()
+                                    .put("base_path", basePath)
+                                    .put("client_side_encryption_key.symmetric", symmetricEncryptionKeyBase64)
+                                    .put("client_side_encryption_key.public", publicEncryptionKeyBase64)
+                                    .put("client_side_encryption_key.private", privateEncryptionKeyBase64)
+                                    .put("chunk_size", randomIntBetween(1000, 10000))
+                    ).get();
+            fail("Symmetric and public/private key pairs are exclusive options. An exception should be thrown.");
+        } catch (RepositoryException e) {
+        }
+
+        List<Settings.Builder> allSettings = Arrays.asList(
+                Settings.builder()
+                        .put("base_path", basePath)
+                        .put("client_side_encryption_key.symmetric", symmetricEncryptionKeyBase64)
+                        .put("chunk_size", randomIntBetween(1000, 10000)),
+                Settings.builder()
+                        .put("base_path", basePath)
+                        .put("client_side_encryption_key.public", publicEncryptionKeyBase64)
+                        .put("client_side_encryption_key.private", privateEncryptionKeyBase64)
+                        .put("chunk_size", randomIntBetween(1000, 10000))
+        );
+        for (Settings.Builder settings : allSettings) {
+            PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                    .setType("s3").setSettings(settings).get();
+
+            // Create the index and index some data
+            createIndex("test-idx-1");
+            for (int i = 0; i < 100; i++) {
+                index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
+            }
+            refresh();
+
+            // Take the snapshot
+            CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").get();
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+            // Restore
+            cluster().wipeIndices("test-idx-1");
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").execute().actionGet();
+            ensureGreen();
+            assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().getTotalHits(), equalTo(100L));
+            ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
+            assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
+
+            // Clean, the test will bbe run with different settings
+            cluster().wipeIndices("test-idx-1");
+            wipeRepositories();
+            cleanRepositoryFiles(basePath);
         }
     }
 

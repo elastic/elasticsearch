@@ -147,6 +147,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
     private final SingleObjectCache<StoreStats> statsCache;
+    private final DirectoryService directoryService;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -165,6 +166,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
         this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", settings, shardId));
+        this.directoryService = directoryService;
         this.shardLock = shardLock;
         this.onClose = onClose;
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
@@ -174,6 +176,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
+    }
+
+    /**
+     * Returns a new directory instance that is not maintained by this store. The caller is responsible for closing it.
+     */
+    public Directory createNewDirectory() throws IOException {
+        ensureOpen();
+        return directoryService.newDirectory();
     }
 
     public Directory directory() {

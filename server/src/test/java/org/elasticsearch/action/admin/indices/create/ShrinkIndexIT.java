@@ -77,7 +77,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30416")
 public class ShrinkIndexIT extends ESIntegTestCase {
 
     @Override

@@ -78,11 +78,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public int getJobCount() {
-        return schedules.size();
-    }
-
-    @Override
     public boolean remove(String jobId) {
         return schedules.remove(jobId) != null;
     }

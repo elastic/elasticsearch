@@ -549,6 +549,64 @@ GET /_snapshot/my_backup/snapshot_1/_status
 // CONSOLE
 // TEST[continued]
 
+Returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_1",
+      "repository": "my_backup",
+      "uuid": "XuBo4l4ISYiVg0nYUen9zg",
+      "state": "SUCCESS",
+      "include_global_state": true,
+      "shards_stats": {
+        "initializing": 0,
+        "started": 0,
+        "finalizing": 0,
+        "done": 5,
+        "failed": 0,
+        "total": 5
+      },
+      "stats": {
+        "incremental": {
+          "count": 8,
+          "size_in_bytes": 4704
+        },
+        "processed": {
+          "count": 7,
+          "size_in_bytes": 4254
+        },
+        "total": {
+          "count": 8,
+          "size_in_bytes": 4704
+        },
+        "start_time_in_millis": 1526280280355,
+        "time_in_millis": 358,
+
+        <!-- backward-compatible section -->
+
+        "number_of_files": 8,
+        "processed_files": 8,
+        "total_size_in_bytes": 4704,
+        "processed_size_in_bytes": 4704
+      },
+      "indices": {
+        // ...
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Where `stats` provides snapshot details - how many files the snapshot consists of and sizes in bytes.
+`processed` is an optional property that could be visible while snapshot has not been finished yet.
+Properties go after `backward-compatible section` describe stats in compatible with version
+`5.x`, `6.x` way - and will be dropped in next major version.
+
 Multiple ids are also supported:
 
 [source,sh]

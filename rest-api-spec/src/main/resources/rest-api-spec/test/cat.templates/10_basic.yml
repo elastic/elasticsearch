@@ -17,7 +17,7 @@
     - skip:
         features: default_shards
         distribution: zip
-        reason: x-pack includes templates which breaks the output here and default_shards adds a template which confuses this
+        reason: x-pack includes templates which breaks the output here
 
     - do:
         cat.templates: {}
@@ -182,7 +182,7 @@
     - skip:
         features: default_shards
         distribution: zip
-        reason: x-pack includes templates which breaks the output here and default_shards adds a template which confuses this
+        reason: x-pack includes templates which breaks the output here
 
     - do:
         indices.put_template:
@@ -235,7 +235,7 @@
     - skip:
         features: default_shards
         distribution: zip
-        reason: x-pack includes templates which breaks the output here and default_shards adds a template which confuses this
+        reason: x-pack includes templates which breaks the output here
 
     - do:
         indices.put_template:

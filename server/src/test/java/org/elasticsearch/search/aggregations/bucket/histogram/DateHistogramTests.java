@@ -148,7 +148,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 
             w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2018-03-11T11:55:00").getMillis()));
-            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2017-10-28T18:13:00").getMillis()));
+            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2017-10-30T18:13:00").getMillis()));
 
             try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
 

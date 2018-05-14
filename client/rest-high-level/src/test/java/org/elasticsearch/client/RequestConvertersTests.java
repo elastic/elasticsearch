@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -1425,6 +1426,26 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testGetRepositories() {
+        Map<String, String> expectedParams = new HashMap<>();
+        StringBuilder endpoint = new StringBuilder("/_snapshot");
+
+        GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
+        setRandomMasterTimeout(getRepositoriesRequest, expectedParams);
+        setRandomLocal(getRepositoriesRequest, expectedParams);
+
+        if (randomBoolean()) {
+            String[] entries = new String[] {"a", "b", "c"};
+            getRepositoriesRequest.repositories(entries);
+            endpoint.append("/" + String.join(",", entries));
+        }
+
+        Request request = RequestConverters.getRepositories(getRepositoriesRequest);
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
     public void testPutTemplateRequest() throws Exception {

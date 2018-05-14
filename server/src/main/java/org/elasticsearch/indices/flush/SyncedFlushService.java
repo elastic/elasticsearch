@@ -20,6 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -48,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -507,8 +507,18 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         if (indexShard.routingEntry().primary() == false) {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
+        if (Assertions.ENABLED) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("in flight operations {}, acquirers {}", indexShard.getActiveOperationsCount(), indexShard.getActiveOperations());
+            }
+        }
         int opCount = indexShard.getActiveOperationsCount();
-        logger.trace("{} in flight operations sampled at [{}]", request.shardId(), opCount);
+        // Need to snapshot the debug info twice as it's updated concurrently with the permit count.
+        if (Assertions.ENABLED) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("in flight operations {}, acquirers {}", indexShard.getActiveOperationsCount(), indexShard.getActiveOperations());
+            }
+        }
         return new InFlightOpsResponse(opCount);
     }
 

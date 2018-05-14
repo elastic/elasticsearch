@@ -108,7 +108,7 @@ provide a command-line tool for this, `elasticsearch-translog`.
 
 [WARNING]
 The `elasticsearch-translog` tool should *not* be run while Elasticsearch is
-running, and you will permanently lose the documents that were contained only in
+running. If you do so, you will permanently lose the documents that were contained only in
 the translog!
 
 In order to run the `elasticsearch-translog` tool, specify the `truncate`

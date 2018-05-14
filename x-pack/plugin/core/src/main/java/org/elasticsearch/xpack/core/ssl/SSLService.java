@@ -30,7 +30,6 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.DestroyFailedException;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -188,9 +187,20 @@ public class SSLService extends AbstractComponent {
      */
     public SSLSocketFactory sslSocketFactory(Settings settings) {
         SSLConfiguration sslConfiguration = sslConfiguration(settings);
-        SSLSocketFactory socketFactory = sslContext(sslConfiguration).getSocketFactory();
-        return new SecuritySSLSocketFactory(socketFactory, sslConfiguration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
-                supportedCiphers(socketFactory.getSupportedCipherSuites(), sslConfiguration.cipherSuites(), false));
+        return sslSocketFactory(sslConfiguration);
+    }
+
+    /**
+     * Create a new {@link SSLSocketFactory} based on the provided settings. The settings are used to identify the ssl configuration that
+     * should be used to create the socket factory. The socket factory will also properly configure the ciphers and protocols on each
+     * socket that is created
+     * @param configuration The SSL configuration to use. Typically obtained from {@link #getSSLConfiguration(String)}
+     * @return Never {@code null}.
+     */
+    public SSLSocketFactory sslSocketFactory(SSLConfiguration configuration) {
+        SSLSocketFactory socketFactory = sslContext(configuration).getSocketFactory();
+        return new SecuritySSLSocketFactory(socketFactory, configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
+                supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.cipherSuites(), false));
     }
 
     /**

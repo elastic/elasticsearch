@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -180,7 +181,8 @@ public abstract class SessionFactory {
         Settings settings = realmConfig.settings();
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
-            socketFactory = clientSSLService.sslSocketFactory(settings.getByPrefix("ssl."));
+            SSLConfiguration ssl = clientSSLService.getSSLConfiguration(RealmSettings.getFullSettingKey(realmConfig, "ssl"));
+            socketFactory = clientSSLService.sslSocketFactory(ssl);
             if (settings.getAsBoolean(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, true)) {
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {

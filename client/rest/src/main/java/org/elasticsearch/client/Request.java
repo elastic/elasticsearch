@@ -19,14 +19,16 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -36,13 +38,13 @@ import static java.util.Collections.unmodifiableMap;
  * HTTP Request to Elasticsearch.
  */
 public final class Request {
-    private static final Header[] NO_HEADERS = new Header[0];
     private final String method;
     private final String endpoint;
     private final Map<String, String> parameters = new HashMap<>();
 
     private HttpEntity entity;
-    private Header[] headers = NO_HEADERS;
+
+    private List<Header> headers = new ArrayList<>();
     private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
             HttpAsyncResponseConsumerFactory.DEFAULT;
 
@@ -125,21 +127,21 @@ public final class Request {
     }
 
     /**
-     * Set the headers to attach to the request.
+     * Add the provided headers to the request.
      */
-    public void setHeaders(Header... headers) {
+    public void addHeaders(Header... headers) {
         Objects.requireNonNull(headers, "headers cannot be null");
         for (Header header : headers) {
             Objects.requireNonNull(header, "header cannot be null");
         }
-        this.headers = headers;
+        Collections.addAll(this.headers, headers);
     }
 
     /**
      * Headers to attach to the request.
      */
-    public Header[] getHeaders() {
-        return headers;
+    public List<Header> getHeaders() {
+        return Collections.unmodifiableList(headers);
     }
 
     /**
@@ -175,13 +177,13 @@ public final class Request {
         if (entity != null) {
             b.append(", entity=").append(entity);
         }
-        if (headers.length > 0) {
+        if (headers.size() > 0) {
             b.append(", headers=");
-            for (int h = 0; h < headers.length; h++) {
+            for (int h = 0; h < headers.size(); h++) {
                 if (h != 0) {
                     b.append(',');
                 }
-                b.append(headers[h].toString());
+                b.append(headers.get(h).toString());
             }
         }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
@@ -204,12 +206,12 @@ public final class Request {
                 && endpoint.equals(other.endpoint)
                 && parameters.equals(other.parameters)
                 && Objects.equals(entity, other.entity)
-                && Arrays.equals(headers, other.headers)
+                && headers.equals(other.headers)
                 && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, endpoint, parameters, entity, Arrays.hashCode(headers), httpAsyncResponseConsumerFactory);
+        return Objects.hash(method, endpoint, parameters, entity, headers, httpAsyncResponseConsumerFactory);
     }
 }

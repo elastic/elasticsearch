@@ -19,19 +19,19 @@
 
 package org.elasticsearch.client;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
 
-import static org.junit.Assert.assertArrayEquals;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
@@ -124,31 +124,39 @@ public class RequestTests extends RestClientTestCase {
         assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));
     }
 
-    public void testSetHeaders() {
+    public void testAddHeaders() {
         final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         Request request = new Request(method, endpoint);
 
         try {
-            request.setHeaders((Header[]) null);
+            request.addHeaders((Header[]) null);
             fail("expected failure");
         } catch (NullPointerException e) {
             assertEquals("headers cannot be null", e.getMessage());
         }
 
         try {
-            request.setHeaders(new Header [] {null});
+            request.addHeaders(new Header [] {null});
             fail("expected failure");
         } catch (NullPointerException e) {
             assertEquals("header cannot be null", e.getMessage());
         }
 
-        Header[] headers = new Header[between(0, 5)];
-        for (int i = 0; i < headers.length; i++) {
-            headers[i] = new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+        List<Header> headers = new ArrayList<>(between(0, 5));
+        for (int i = 0; i < headers.size(); i++) {
+            BasicHeader header = new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+            headers.add(header);
+            request.addHeaders(header);
         }
-        request.setHeaders(headers);
-        assertArrayEquals(headers, request.getHeaders());
+        if (headers.size() > 0 && randomBoolean()) {
+            //check that duplicates are accepted at this stage
+            Header header = headers.get(randomIntBetween(0, headers.size() - 1));
+            BasicHeader basicHeader = new BasicHeader(header.getName(), randomAsciiAlphanumOfLength(3));
+            headers.add(basicHeader);
+            request.addHeaders(basicHeader);
+        }
+        assertEquals(headers, request.getHeaders());
     }
 
     // TODO equals and hashcode

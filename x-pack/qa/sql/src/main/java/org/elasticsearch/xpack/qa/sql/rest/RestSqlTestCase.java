@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.qa.sql.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
@@ -16,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -35,10 +33,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -323,7 +319,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
-        request.setHeaders(randomFrom(
+        request.addHeaders(randomFrom(
             new Header[] {},
             new Header[] {new BasicHeader("Accept", "*/*")},
             new Header[] {new BasicHeader("Accpet", "application/json")}));
@@ -538,7 +534,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Request request = new Request("POST", "/_xpack/sql" + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
-        request.setHeaders(new BasicHeader("Accept", accept));
+        request.addHeaders(new BasicHeader("Accept", accept));
         Response response = client().performRequest(request);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),

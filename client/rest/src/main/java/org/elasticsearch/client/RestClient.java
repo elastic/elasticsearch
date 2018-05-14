@@ -215,7 +215,7 @@ public class RestClient implements Closeable {
     @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
-        request.setHeaders(headers);
+        request.addHeaders(headers);
         return performRequest(request);
     }
 
@@ -237,7 +237,7 @@ public class RestClient implements Closeable {
     public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
         addParameters(request, params);
-        request.setHeaders(headers);
+        request.addHeaders(headers);
         return performRequest(request);
     }
 
@@ -264,7 +264,7 @@ public class RestClient implements Closeable {
         Request request = new Request(method, endpoint);
         addParameters(request, params);
         request.setEntity(entity);
-        request.setHeaders(headers);
+        request.addHeaders(headers);
         return performRequest(request);
     }
 
@@ -305,7 +305,7 @@ public class RestClient implements Closeable {
         addParameters(request, params);
         request.setEntity(entity);
         request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
-        request.setHeaders(headers);
+        request.addHeaders(headers);
         return performRequest(request);
     }
 
@@ -325,7 +325,7 @@ public class RestClient implements Closeable {
         Request request;
         try {
             request = new Request(method, endpoint);
-            request.setHeaders(headers);
+            request.addHeaders(headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -352,7 +352,7 @@ public class RestClient implements Closeable {
         try {
             request = new Request(method, endpoint);
             addParameters(request, params);
-            request.setHeaders(headers);
+            request.addHeaders(headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -383,7 +383,7 @@ public class RestClient implements Closeable {
             request = new Request(method, endpoint);
             addParameters(request, params);
             request.setEntity(entity);
-            request.setHeaders(headers);
+            request.addHeaders(headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -420,7 +420,7 @@ public class RestClient implements Closeable {
             addParameters(request, params);
             request.setEntity(entity);
             request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
-            request.setHeaders(headers);
+            request.addHeaders(headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -539,9 +539,9 @@ public class RestClient implements Closeable {
         });
     }
 
-    private void setHeaders(HttpRequest httpRequest, Header[] requestHeaders) {
+    private void setHeaders(HttpRequest httpRequest, List<Header> requestHeaders) {
         // request headers override default headers, so we don't add default headers if they exist as request headers
-        final Set<String> requestNames = new HashSet<>(requestHeaders.length);
+        final Set<String> requestNames = new HashSet<>(requestHeaders.size());
         for (Header requestHeader : requestHeaders) {
             httpRequest.addHeader(requestHeader);
             requestNames.add(requestHeader.getName());

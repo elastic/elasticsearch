@@ -333,7 +333,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (useDefaultNumberOfShards == false
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
-            request.setHeaders(new BasicHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters()));
+            request.addHeaders(new BasicHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters()));
             request.setEntity(new StringEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}"));
             adminClient().performRequest(request);
         }

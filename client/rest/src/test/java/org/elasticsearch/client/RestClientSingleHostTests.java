@@ -312,7 +312,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetHeaders()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeaders()}.
      */
     @Deprecated
     public void tesPerformRequestOldStyleNullHeaders() throws IOException {
@@ -333,7 +333,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetParameters()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
      */
     @Deprecated
     public void testPerformRequestOldStyleWithNullParams() throws IOException {
@@ -362,7 +362,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Request request = new Request(method, "/" + statusCode);
-            request.setHeaders(requestHeaders);
+            request.addHeaders(requestHeaders);
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(request);
@@ -436,7 +436,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
             Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
-            request.setHeaders(headers);
+            request.addHeaders(headers);
             for (Header header : headers) {
                 expectedRequest.addHeader(header);
                 uniqueNames.add(header.getName());

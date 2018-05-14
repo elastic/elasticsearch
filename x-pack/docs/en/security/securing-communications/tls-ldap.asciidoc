@@ -29,7 +29,7 @@ xpack:
           order: 0
           url: "ldaps://ldap.example.com:636"
           ssl:
-            certificate_authorities: [ "CONFIG_DIR/x-pack/cacert.pem" ]
+            certificate_authorities: [ "CONFIG_DIR/cacert.pem" ]
 --------------------------------------------------
 
 The CA certificate must be a PEM encoded.

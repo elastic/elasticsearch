@@ -43,7 +43,7 @@ to each user.
 
 If you use files to manage the role mappings, you must configure a YAML file
 and copy it to each node in the cluster. By default, role mappings are stored in
-`ES_PATH_CONF/x-pack/role_mapping.yml`. Alternatively, you can specify a
+`ES_PATH_CONF/role_mapping.yml`. Alternatively, you can specify a
 different role mapping file for each type of realm and specify its location in
 the `elasticsearch.yml` file. For more information, see
 {xpack-ref}/mapping-roles.html#mapping-roles-file[Using Role Mapping Files].

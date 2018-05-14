@@ -180,7 +180,8 @@ being cast *to* is a descendant of the reference type being cast *from*.
 <2> declare `ArrayList y`;
     access `x` -> `List reference`;
     *error* -> cannot implicit cast `List reference` to `ArrayList reference`;
-    (note an explicit is valid since `ArrayList` is a descendant of `List`)
+    (note an explicit cast is valid since `ArrayList` is a descendant of
+            `List`)
 <3> declare `ArrayList y`;
     access `x` -> `List reference`;
     *error* -> cannot explicit cast `List reference` to `Map reference`;
@@ -192,9 +193,9 @@ being cast *to* is a descendant of the reference type being cast *from*.
 
 A <<dynamic-types, dynamic type>> cast is the conversion of the value of one
 <<dynamic-types, dynamic type>> to the equivalent value of any inferred or
-specified other <<painless-types, type>> and vice versa.  Implicit casts from
-<<painless-types, any type>> to the <<dyanmic types dynamic type, `def`, are
-allowed.
+specified other <<painless-types, type>> or vice versa.  Implicit casts from
+<<painless-types, any type>> to the <<dynamic-types, dynamic type>>, `def`, are
+always allowed.
 
 All primitive and reference types can always be implicitly cast to
 `def`. While it is possible to explicitly cast to `def`, it is not necessary.

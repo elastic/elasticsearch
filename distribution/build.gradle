@@ -283,8 +283,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main bin files, processed with distribution specific substitutions
           // everything except windows files
           from '../src/bin'
-          exclude '*.exe'
-          exclude '*.bat'
+          if (distributionType != 'zip') {
+            exclude '*.exe'
+            exclude '*.bat'
+          }
           eachFile { it.setMode(0755) }
           MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
         }
@@ -294,6 +296,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from project(':distribution').buildOssBin
           } else {
             from project(':distribution').buildDefaultBin
+          }
+          if (distributionType != 'zip') {
+            exclude '*.bat'
           }
         }
       }

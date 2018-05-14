@@ -57,12 +57,14 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean os
       }
       into('bin') {
         with binFiles(distributionType, oss)
-        with copySpec {
-          from('../src/bin') {
-            include '*.bat'
-            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+        if (distributionType == 'zip') {
+          with copySpec {
+            from('../src/bin') {
+              include '*.bat'
+              filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+            }
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
           }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
         }
       }
       into('') {

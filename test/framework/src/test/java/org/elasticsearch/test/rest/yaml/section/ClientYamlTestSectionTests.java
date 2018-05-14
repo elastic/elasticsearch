@@ -46,7 +46,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     public void testAddingDoWithWarningWithSkip() {
         int lineNumber = between(1, 10000);
         ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("warnings"), null, null));
+        section.setSkipSection(new SkipSection(null, singletonList("warnings"), null));
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         section.addExecutableSection(doSection);
@@ -55,7 +55,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     public void testAddingDoWithWarningWithSkipButNotWarnings() {
         int lineNumber = between(1, 10000);
         ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("yaml"), null, null));
+        section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));

@@ -60,7 +60,6 @@ public class SkipSection {
         XContentParser.Token token;
         String version = null;
         String reason = null;
-        String distribution = null;
         List<String> features = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -72,8 +71,6 @@ public class SkipSection {
                     reason = parser.text();
                 } else if ("features".equals(currentFieldName)) {
                     features.add(parser.text());
-                } else if ("distribution".equals(currentFieldName)) {
-                    distribution = parser.text();
                 }
                 else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -90,17 +87,13 @@ public class SkipSection {
 
         parser.nextToken();
 
-        if (!Strings.hasLength(version) && features.isEmpty() && distribution == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "version or features or distribution is mandatory within skip section");
+        if (!Strings.hasLength(version) && features.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "version or features is mandatory within skip section");
         }
         if (Strings.hasLength(version) && !Strings.hasLength(reason)) {
             throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip version section");
         }
-        if (Strings.hasLength(distribution) && !Strings.hasLength(reason)) {
-            throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip distribution section");
-        }
-        return new SkipSection(version, features, distribution, reason);
+        return new SkipSection(version, features, reason);
     }
 
     public static final SkipSection EMPTY = new SkipSection();
@@ -108,28 +101,21 @@ public class SkipSection {
     private final Version lowerVersion;
     private final Version upperVersion;
     private final List<String> features;
-    /**
-     * Skip the test if the distribution has been overridden to a
-     * particular value.
-     */
-    private final String distribution;
     private final String reason;
 
     private SkipSection() {
         this.lowerVersion = null;
         this.upperVersion = null;
         this.features = new ArrayList<>();
-        this.distribution = null;
         this.reason = null;
     }
 
-    public SkipSection(String versionRange, List<String> features, String distribution, String reason) {
+    public SkipSection(String versionRange, List<String> features, String reason) {
         assert features != null;
         Version[] versions = parseVersionRange(versionRange);
         this.lowerVersion = versions[0];
         this.upperVersion = versions[1];
         this.features = features;
-        this.distribution = distribution;
         this.reason = reason;
     }
 
@@ -145,14 +131,6 @@ public class SkipSection {
         return features;
     }
 
-    /**
-     * If non-null then this will skip the test when the distribution
-     * is overridden to this value.
-     */
-    public String getDistribution() {
-        return distribution;
-    }
-
     public String getReason() {
         return reason;
     }
@@ -164,15 +142,11 @@ public class SkipSection {
         boolean skip = lowerVersion != null && upperVersion != null && currentVersion.onOrAfter(lowerVersion)
             && currentVersion.onOrBefore(upperVersion);
         skip |= Features.areAllSupported(features) == false;
-        skip |= distribution != null && distribution.equals(getDistributionOverrideValue());
         return skip;
     }
 
-    /**
-     * Get the value that the distribution was overridden to.
-     */
-    protected String getDistributionOverrideValue() {
-        return System.getProperty("tests.distribution");
+    public boolean isVersionCheck() {
+        return features.isEmpty();
     }
 
     public boolean isEmpty() {
@@ -207,9 +181,6 @@ public class SkipSection {
         }
         if (features.isEmpty() == false) {
             messageBuilder.append(" unsupported features ").append(getFeatures());
-        }
-        if (distribution != null) {
-            messageBuilder.append(" unsupported distribution [").append(getDistribution()).append(']');
         }
         return messageBuilder.toString();
     }

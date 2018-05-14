@@ -122,8 +122,43 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Netty4Utils.setup();
     }
 
+    /*
+     * Size in bytes of an individual message received by io.netty.handler.codec.MessageAggregator which accumulates the content for an
+     * HTTP request. This number is used for estimating the maximum number of allowed buffers before the MessageAggregator's internal
+     * collection of buffers is resized.
+     *
+     * By default we assume the Ethernet MTU (1500 bytes) but users can override it with a system property.
+     */
+    private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
+
+    private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
+
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-        Setting.intSetting("http.netty.max_composite_buffer_components", -1, Property.NodeScope);
+        new Setting<>(SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS, (s) -> {
+            ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);
+            /*
+             * Netty accumulates buffers containing data from all incoming network packets that make up one HTTP request in an instance of
+             * io.netty.buffer.CompositeByteBuf (think of it as a buffer of buffers). Once its capacity is reached, the buffer will iterate
+             * over its individual entries and put them into larger buffers (see io.netty.buffer.CompositeByteBuf#consolidateIfNeeded()
+             * for implementation details). We want to to resize that buffer because this leads to additional garbage on the heap and also
+             * increases the application's native memory footprint (as direct byte buffers hold their contents off-heap).
+             *
+             * With this setting we control the CompositeByteBuf's capacity (which is by default 1024, see
+             * io.netty.handler.codec.MessageAggregator#DEFAULT_MAX_COMPOSITEBUFFER_COMPONENTS). To determine a proper default capacity for
+             * that buffer, we need to consider that the upper bound for the size of HTTP requests is determined by `maxContentLength`. The
+             * number of buffers that are needed depend on how often Netty reads network packets which depends on the network type (MTU).
+             * We assume here that Elasticsearch receives HTTP requests via an Ethernet connection which has a MTU of 1500 bytes.
+             *
+             * Note that we are *not* pre-allocating any memory based on this setting but rather determine the CompositeByteBuf's capacity.
+             * The tradeoff is between less (but larger) buffers that are contained in the CompositeByteBuf and more (but smaller) buffers.
+             * With the default max content length of 100MB and a MTU of 1500 bytes we would allow 69905 entries.
+             */
+            long maxBufferComponentsEstimate = Math.round((double) (maxContentLength.getBytes() / MTU.getBytes()));
+            // clamp value to the allowed range
+            long maxBufferComponents = Math.max(2, Math.min(maxBufferComponentsEstimate, Integer.MAX_VALUE));
+            return String.valueOf(maxBufferComponents);
+            // Netty's CompositeByteBuf implementation does not allow less than two components.
+        }, s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS), Property.NodeScope);
 
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
         (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
@@ -236,8 +271,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.maxContentLength = maxContentLength;
 
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
-                "receive_predictor[{}], pipelining[{}], pipelining_max_events[{}]",
-            maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictor, pipelining, pipeliningMaxEvents);
+                "receive_predictor[{}], max_composite_buffer_components[{}], pipelining[{}], pipelining_max_events[{}]",
+            maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictor, maxCompositeBufferComponents,
+            pipelining, pipeliningMaxEvents);
     }
 
     public Settings settings() {
@@ -532,9 +568,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.getBytes()));
-            if (transport.maxCompositeBufferComponents != -1) {
-                aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-            }
+            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline().addLast("aggregator", aggregator);
             if (transport.compression) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));

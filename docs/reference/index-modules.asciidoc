@@ -103,9 +103,14 @@ specific index module:
 
 `index.auto_expand_replicas`::
 
-    Auto-expand the number of replicas based on the number of available nodes.
+    Auto-expand the number of replicas based on the number of data nodes in the cluster.
     Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
-    for the upper bound (e.g. `0-all`).  Defaults to `false` (i.e. disabled).
+    for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled).
+    Note that the auto-expanded number of replicas does not take any other allocation
+    rules into account, such as <<allocation-awareness,shard allocation awareness>>,
+    <<shard-allocation-filtering,filtering>> or <<allocation-total-shards,total shards per node>>,
+    and this can lead to the cluster health becoming `YELLOW` if the applicable rules
+    prevent all the replicas from being allocated.
 
 `index.search.idle.after`::
     How long a shard can not receive a search or get request until it's considered

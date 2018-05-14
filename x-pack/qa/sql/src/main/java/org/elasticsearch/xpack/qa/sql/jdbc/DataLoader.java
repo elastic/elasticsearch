@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -55,6 +56,7 @@ public class DataLoader {
        .endObject();
     }
     protected static void loadDatasetIntoEs(RestClient client, String index) throws Exception {
+        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
         {
@@ -91,11 +93,9 @@ public class DataLoader {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        
-        client.performRequest("PUT", "/" + index, emptyMap(), new StringEntity(Strings.toString(createIndex),
-                        ContentType.APPLICATION_JSON));
+        request.setJsonEntity(Strings.toString(createIndex));
+        client.performRequest(request);
 
-        
         Map<String, String> deps = new LinkedHashMap<>();
         csvToLines("departments", (titles, fields) -> deps.put(fields.get(0), fields.get(1)));
 
@@ -119,6 +119,8 @@ public class DataLoader {
             list.add(dep);
         });
 
+        request = new Request("POST", "/" + index + "/emp/_bulk");
+        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines("employees", (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
@@ -146,17 +148,16 @@ public class DataLoader {
                 bulk.setLength(bulk.length() - 1);
                 bulk.append("]");
             }
-            
+
             bulk.append("}\n");
         });
-
-        client.performRequest("POST", "/" + index + "/emp/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
+        client.performRequest(request);
     }
 
     protected static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
         for (String index : indices) {
-            client.performRequest("POST", "/" + index + "/_alias/" + aliasName);
+            client.performRequest(new Request("POST", "/" + index + "/_alias/" + aliasName));
         }
     }
 

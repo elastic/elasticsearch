@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 

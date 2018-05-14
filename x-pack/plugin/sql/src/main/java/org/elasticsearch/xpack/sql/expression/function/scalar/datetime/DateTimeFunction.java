@@ -15,12 +15,12 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
+import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -89,11 +89,14 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
+        ScriptFunction sf = null;
+
         if (TimeZone.getTimeZone("UTC").equals(timeZone)) {
             // TODO: it would be nice to be able to externalize the extract function and reuse the script across all extractors
             template = formatTemplate("doc[{}].value.get" + extractFunction() + "()");
             params.variable(field.name());
         } else {
+
             // TODO ewwww
             /*
              * This uses the Java 8 time API because Painless doesn't whitelist creation of new
@@ -104,14 +107,17 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
              *      ZoneId.of(<insert user tz>)).get(ChronoField.get(MONTH_OF_YEAR))
              */
 
-            template = formatTemplate("ZonedDateTime.ofInstant(Instant.ofEpochMilli(doc[{}].value.millis), "
-                    + "ZoneId.of({})).get(ChronoField.valueOf({}))");
+            sf = new ScriptFunction("dateTime", "ZonedDateTime dateTime(def millis, def tzId, def chrono) {"
+                    + "ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId)).get(ChronoField.get(ChronoField.valueOf(chrono)))"
+                    + "}");
+
+            template = formatTemplate("dateTime(doc[{}].value.millis, {}, {})");
             params.variable(field.name())
                   .variable(timeZone.getID())
                   .variable(chronoField().name());
         }
 
-        return new ScriptTemplate(template, params.build(), dataType());
+        return new ScriptTemplate(template, params.build(), sf, dataType());
     }
 
 

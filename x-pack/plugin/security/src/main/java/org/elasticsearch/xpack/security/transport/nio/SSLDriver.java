@@ -113,14 +113,13 @@ public class SSLDriver implements AutoCloseable {
     }
 
     public void read(InboundChannelBuffer buffer) throws SSLException {
-        boolean continueReading = true;
-        while (continueReading) {
-            Mode modePriorToRead = currentMode;
+        Mode modePriorToRead;
+        do {
+            modePriorToRead = currentMode;
             currentMode.read(buffer);
             // If we switched modes we want to read again as there might be unhandled bytes that need to be
             // handled by the new mode.
-            continueReading = modePriorToRead != currentMode;
-        }
+        } while (modePriorToRead != currentMode);
     }
 
     public boolean readyForApplicationWrites() {

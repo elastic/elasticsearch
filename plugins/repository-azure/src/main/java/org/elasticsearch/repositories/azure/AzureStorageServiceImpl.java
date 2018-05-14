@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
@@ -324,7 +325,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, AccessCondition.generateIfNotExistsCondition(),
                 null, generateOperationContext(account)));
         } catch (StorageException se) {
-            if (StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
+            if (se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
+                StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
                 throw new FileAlreadyExistsException(blobName, null, se.getMessage());
             }
             throw se;

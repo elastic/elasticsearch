@@ -10,6 +10,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Nullable;
@@ -176,14 +177,15 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         private static Map<String, Object> runSql(@Nullable String asUser, String mode, HttpEntity entity) throws IOException {
-            Map<String, String> params = new TreeMap<>();
-            params.put("format", "json");        // JSON is easier to parse then a table
-            if (Strings.hasText(mode)) {
-                params.put("mode", mode);        // JDBC or PLAIN mode
+            Request request = new Request("POST", "/_xpack/sql");
+            if (false == mode.isEmpty()) {
+                request.addParameter("mode", mode);
             }
-            Header[] headers = asUser == null ? new Header[0] : new Header[] {new BasicHeader("es-security-runas-user", asUser)};
-            Response response = client().performRequest("POST", "/_xpack/sql", params, entity, headers);
-            return toMap(response);
+            if (asUser != null) {
+                request.setHeaders(new BasicHeader("es-security-runas-user", asUser));
+            }
+            request.setEntity(entity);
+            return toMap(client().performRequest(request));
         }
 
         private static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {

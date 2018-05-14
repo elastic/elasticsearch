@@ -193,17 +193,20 @@ being cast *to* is a descendant of the reference type being cast *from*.
 
 A <<dynamic-types, dynamic type>> cast is the conversion of the value of one
 <<dynamic-types, dynamic type>> to the equivalent value of any inferred or
-specified other <<painless-types, type>> or vice versa.  Implicit casts from
-<<painless-types, any type>> to the <<dynamic-types, dynamic type>>, `def`, are
-always allowed.
+specified other <<painless-types, type>> or vice versa.
 
-All primitive and reference types can always be implicitly cast to
-`def`. While it is possible to explicitly cast to `def`, it is not necessary.
+Implicit casts from <<painless-types, any type>> to the
+<<dynamic-types, dynamic type>>, `def`, are always allowed. Explicit casts from
+<<painless-types, any type>> to the <<dynamic-types, dynamic type>>, `def`, are
+allowed but never necessary.
+
+Implicit and explicit casts from the <dynamic-types, dynamic type>>, `def`, to
+<<painless-types, any type>> are allowed if and only if the cast would be
+allowed .
 
 However, it is not always possible to implicitly cast a `def` to other
 primitive and reference types. An explicit cast is required if an explicit
 cast would normally be required between the non-def types.
-
 
 *Examples:*
 [source,Java]

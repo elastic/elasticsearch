@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.xpack.sql.proto.Mode;
+
 import java.util.function.Consumer;
 
 /**
@@ -12,16 +14,16 @@ import java.util.function.Consumer;
  */
 public class SqlLicenseChecker {
 
-    private final Consumer<AbstractSqlRequest.Mode> checkIfSqlAllowed;
+    private final Consumer<Mode> checkIfSqlAllowed;
 
-    public SqlLicenseChecker(Consumer<AbstractSqlRequest.Mode> checkIfSqlAllowed) {
+    public SqlLicenseChecker(Consumer<Mode> checkIfSqlAllowed) {
         this.checkIfSqlAllowed = checkIfSqlAllowed;
     }
 
     /**
      * Throws an ElasticsearchSecurityException if the specified mode is not allowed
      */
-    public void checkIfSqlAllowed(AbstractSqlRequest.Mode mode) {
+    public void checkIfSqlAllowed(Mode mode) {
         checkIfSqlAllowed.accept(mode);
     }
 }

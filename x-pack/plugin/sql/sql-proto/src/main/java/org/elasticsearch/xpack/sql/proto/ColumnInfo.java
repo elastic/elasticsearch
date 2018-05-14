@@ -3,14 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.plugin;
+package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,16 +23,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Information about a column returned with first query response
  */
-public final class ColumnInfo implements Writeable, ToXContentObject {
+public class ColumnInfo implements ToXContentObject {
 
     private static final ConstructingObjectParser<ColumnInfo, Void> PARSER =
-            new ConstructingObjectParser<>("column_info", true, objects ->
-                    new ColumnInfo(
-                            objects[0] == null ? "" : (String) objects[0],
-                            (String) objects[1],
-                            (String) objects[2],
-                            objects[3] == null ? null : JDBCType.valueOf((int) objects[3]),
-                            objects[4] == null ? 0 : (int) objects[4]));
+        new ConstructingObjectParser<>("column_info", true, objects ->
+            new ColumnInfo(
+                objects[0] == null ? "" : (String) objects[0],
+                (String) objects[1],
+                (String) objects[2],
+                objects[3] == null ? null : JDBCType.valueOf((int) objects[3]),
+                objects[4] == null ? 0 : (int) objects[4]));
 
     private static final ParseField TABLE = new ParseField("table");
     private static final ParseField NAME = new ParseField("name");
@@ -72,33 +69,6 @@ public final class ColumnInfo implements Writeable, ToXContentObject {
         this.esType = esType;
         this.jdbcType = null;
         this.displaySize = 0;
-    }
-
-    ColumnInfo(StreamInput in) throws IOException {
-        table = in.readString();
-        name = in.readString();
-        esType = in.readString();
-        if (in.readBoolean()) {
-            jdbcType = JDBCType.valueOf(in.readVInt());
-            displaySize = in.readVInt();
-        } else {
-            jdbcType = null;
-            displaySize = 0;
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(table);
-        out.writeString(name);
-        out.writeString(esType);
-        if (jdbcType != null) {
-            out.writeBoolean(true);
-            out.writeVInt(jdbcType.getVendorTypeNumber());
-            out.writeVInt(displaySize);
-        } else {
-            out.writeBoolean(false);
-        }
     }
 
     @Override
@@ -162,10 +132,10 @@ public final class ColumnInfo implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         ColumnInfo that = (ColumnInfo) o;
         return displaySize == that.displaySize &&
-                Objects.equals(table, that.table) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(esType, that.esType) &&
-                jdbcType == that.jdbcType;
+            Objects.equals(table, that.table) &&
+            Objects.equals(name, that.name) &&
+            Objects.equals(esType, that.esType) &&
+            jdbcType == that.jdbcType;
     }
 
     @Override

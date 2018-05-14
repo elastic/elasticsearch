@@ -61,5 +61,4 @@ public class PutRepositoryResponse extends AcknowledgedResponse {
     public static PutRepositoryResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
-
 }

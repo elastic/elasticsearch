@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
@@ -31,7 +29,6 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,8 +38,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         PutRepositoryRequest request = new PutRepositoryRequest(repository);
         request.settings(settings, XContentType.JSON);
         request.type(type);
-        return execute(request, highLevelClient().snapshot()::putRepository,
-            highLevelClient().snapshot()::putRepositoryAsync);
+        return execute(request, highLevelClient().snapshot()::createRepository,
+            highLevelClient().snapshot()::createRepositoryAsync);
 
     }
 

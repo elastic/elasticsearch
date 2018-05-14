@@ -74,9 +74,8 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-
-    public PutRepositoryResponse putRepository(PutRepositoryRequest putRepositoryRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(putRepositoryRequest, RequestConverters::putRepository,
+    public PutRepositoryResponse createRepository(PutRepositoryRequest putRepositoryRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putRepositoryRequest, RequestConverters::createRepository,
             PutRepositoryResponse::fromXContent, emptySet(), headers);
     }
 
@@ -86,9 +85,9 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public void putRepositoryAsync(PutRepositoryRequest putRepositoryRequest,
-                                   ActionListener<PutRepositoryResponse> listener, Header... headers){
-        restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest, RequestConverters::putRepository,
+    public void createRepositoryAsync(PutRepositoryRequest putRepositoryRequest,
+                                      ActionListener<PutRepositoryResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest, RequestConverters::createRepository,
             PutRepositoryResponse::fromXContent, listener, emptySet(), headers);
     }
 }

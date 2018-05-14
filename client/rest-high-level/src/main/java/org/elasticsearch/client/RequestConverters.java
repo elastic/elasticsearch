@@ -657,13 +657,14 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putRepository(PutRepositoryRequest putRepositoryRequest) throws IOException {
+    static Request createRepository(PutRepositoryRequest putRepositoryRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_snapshot").addPathPart(putRepositoryRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
         parameters.withMasterTimeout(putRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(putRepositoryRequest.timeout());
+        parameters.withVerify(putRepositoryRequest.verify());
 
         request.setEntity(createEntity(putRepositoryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -904,6 +905,13 @@ final class RequestConverters {
         Params withPreserveExisting(boolean preserveExisting) {
             if (preserveExisting) {
                 return putParam("preserve_existing", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withVerify(boolean verify) {
+            if (verify) {
+                return putParam("verify", Boolean.TRUE.toString());
             }
             return this;
         }

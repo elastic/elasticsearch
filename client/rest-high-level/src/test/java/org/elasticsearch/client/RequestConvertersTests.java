@@ -1451,13 +1451,14 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
-    public void testPutRepository() throws IOException {
+    public void testCreateRepository() throws IOException {
         String repository = "repo";
         PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
         putRepositoryRequest.type(FsRepository.TYPE);
+        putRepositoryRequest.verify(randomBoolean());
         putRepositoryRequest.settings("{\"location\": \".\"}", XContentType.JSON);
 
-        Request request = RequestConverters.putRepository(putRepositoryRequest);
+        Request request = RequestConverters.createRepository(putRepositoryRequest);
         assertThat("/_snapshot/" + repository, equalTo(request.getEndpoint()));
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertToXContentBody(putRepositoryRequest, request.getEntity());

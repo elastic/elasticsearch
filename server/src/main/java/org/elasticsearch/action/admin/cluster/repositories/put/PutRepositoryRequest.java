@@ -239,10 +239,12 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         builder.startObject();
         builder.field("name", name);
         builder.field("type", type);
+
         builder.startObject("settings");
         settings.toXContent(builder, params);
         builder.endObject();
 
+        builder.field("verify", verify);
         builder.endObject();
         return builder;
     }

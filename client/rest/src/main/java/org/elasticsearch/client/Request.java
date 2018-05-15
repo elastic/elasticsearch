@@ -132,7 +132,7 @@ public final class Request {
     public void addHeader(String name, String value) {
         Objects.requireNonNull(name, "header name cannot be null");
         Objects.requireNonNull(value, "header value cannot be null");
-        this.headers.add(new BasicHeader(name, value));
+        this.headers.add(new ReqHeader(name, value));
     }
 
     /**
@@ -210,6 +210,31 @@ public final class Request {
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, endpoint, parameters, entity, headers, httpAsyncResponseConsumerFactory);
+        return Objects.hash(method, endpoint, parameters, entity, headers.hashCode(), httpAsyncResponseConsumerFactory);
+    }
+
+    static final class ReqHeader extends BasicHeader {
+
+        ReqHeader(String name, String value) {
+            super(name, value);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other instanceof ReqHeader) {
+                Header otherHeader = (Header) other;
+                return Objects.equals(getName(), otherHeader.getName()) &&
+                        Objects.equals(getValue(), otherHeader.getValue());
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getName(), getValue());
+        }
     }
 }

@@ -440,7 +440,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             for (Header header : headers) {
                 request.addHeader(header.getName(), header.getValue());
-                expectedRequest.addHeader(header);
+                expectedRequest.addHeader(new Request.ReqHeader(header.getName(), header.getValue()));
                 uniqueNames.add(header.getName());
             }
         }

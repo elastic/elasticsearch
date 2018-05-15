@@ -24,7 +24,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
@@ -150,11 +149,11 @@ public class RequestTests extends RestClientTestCase {
         int numHeaders = between(0, 5);
         List<Header> headers = new ArrayList<>();
         for (int i = 0; i < numHeaders; i++) {
-            BasicHeader header = new BasicHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
+            Header header = new Request.ReqHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
             headers.add(header);
             request.addHeader(header.getName(), header.getValue());
         }
-        assertEquals(headers, request.getHeaders());
+        assertEquals(headers, new ArrayList<>(request.getHeaders()));
     }
 
     public void testEqualsAndHashCode() {

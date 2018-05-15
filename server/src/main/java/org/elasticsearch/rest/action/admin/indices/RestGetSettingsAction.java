@@ -19,16 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -46,6 +42,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
 
     public RestGetSettingsAction(Settings settings, RestController controller) {
         super(settings);
+        controller.registerHandler(GET, "/_settings", this);
         controller.registerHandler(GET, "/_settings/{name}", this);
         controller.registerHandler(GET, "/{index}/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings/{name}", this);

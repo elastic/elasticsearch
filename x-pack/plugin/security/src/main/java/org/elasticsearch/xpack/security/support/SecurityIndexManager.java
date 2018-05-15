@@ -23,24 +23,31 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
@@ -52,32 +59,35 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 
 /**
  * Manages the lifecycle of a single index, its template, mapping and and data upgrades/migrations.
  */
-public class SecurityIndexManager extends AbstractComponent {
+public class SecurityIndexManager extends AbstractComponent implements ClusterStateListener {
 
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
     public static final int INTERNAL_INDEX_FORMAT = 6;
     public static final String SECURITY_VERSION_STRING = "security-version";
-    public static final String TEMPLATE_VERSION_PATTERN =
-            Pattern.quote("${security.template.version}");
+    public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
+    public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
+    public static final String SECURITY_INDEX_NAME = ".security";
 
     private final String indexName;
     private final Client client;
 
-    private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
-    private final List<BiConsumer<Boolean, Boolean>> indexOutOfDateListeners = new CopyOnWriteArrayList<>();
+    private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
 
-    private volatile State indexState = new State(false, false, false, false, null);
+    private volatile State indexState = new State(false, false, false, false, null, null);
 
-    public SecurityIndexManager(Settings settings, Client client, String indexName) {
+    public SecurityIndexManager(Settings settings, Client client, String indexName, ClusterService clusterService) {
         super(settings);
         this.client = client;
         this.indexName = indexName;
+        clusterService.addListener(this);
+    }
+
+    public static List<String> indexNames() {
+        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     }
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
@@ -107,81 +117,38 @@ public class SecurityIndexManager extends AbstractComponent {
     }
 
     /**
-     * Adds a listener which will be notified when the security index health changes. The previous and
-     * current health will be provided to the listener so that the listener can determine if any action
-     * needs to be taken.
+     * Add a listener for notifications on state changes to the configured index.
+     *
+     * The previous and current state are provided.
      */
-    public void addIndexHealthChangeListener(BiConsumer<ClusterIndexHealth, ClusterIndexHealth> listener) {
-        indexHealthChangeListeners.add(listener);
+    public void addIndexStateListener(BiConsumer<State, State> listener) {
+        stateChangeListeners.add(listener);
     }
 
-    /**
-     * Adds a listener which will be notified when the security index out of date value changes. The previous and
-     * current value will be provided to the listener so that the listener can determine if any action
-     * needs to be taken.
-     */
-    public void addIndexOutOfDateListener(BiConsumer<Boolean, Boolean> listener) {
-        indexOutOfDateListeners.add(listener);
-    }
-
+    @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean previousUpToDate = this.indexState.isIndexUpToDate;
-        processClusterState(event.state());
-        checkIndexHealthChange(event);
-        if (previousUpToDate != this.indexState.isIndexUpToDate) {
-            notifyIndexOutOfDateListeners(previousUpToDate, this.indexState.isIndexUpToDate);
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // wait until the gateway has recovered from disk, otherwise we think we don't have the
+            // .security index but they may not have been restored from the cluster state on disk
+            logger.debug("security index manager waiting until state has been recovered");
+            return;
         }
-    }
-
-    private void processClusterState(ClusterState clusterState) {
-        assert clusterState != null;
-        final IndexMetaData securityIndex = resolveConcreteIndex(indexName, clusterState.metaData());
-        final boolean indexExists = securityIndex != null;
+        final State previousState = indexState;
+        final IndexMetaData indexMetaData = resolveConcreteIndex(indexName, event.state().metaData());
+        final boolean indexExists = indexMetaData != null;
         final boolean isIndexUpToDate = indexExists == false ||
-                INDEX_FORMAT_SETTING.get(securityIndex.getSettings()).intValue() == INTERNAL_INDEX_FORMAT;
-        final boolean indexAvailable = checkIndexAvailable(clusterState);
-        final boolean mappingIsUpToDate = indexExists == false || checkIndexMappingUpToDate(clusterState);
-        final Version mappingVersion = oldestIndexMappingVersion(clusterState);
-        this.indexState = new State(indexExists, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion);
-    }
+            INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() == INTERNAL_INDEX_FORMAT;
+        final boolean indexAvailable = checkIndexAvailable(event.state());
+        final boolean mappingIsUpToDate = indexExists == false || checkIndexMappingUpToDate(event.state());
+        final Version mappingVersion = oldestIndexMappingVersion(event.state());
+        final ClusterHealthStatus indexStatus = indexMetaData == null ? null :
+            new ClusterIndexHealth(indexMetaData, event.state().getRoutingTable().index(indexMetaData.getIndex())).getStatus();
+        final State newState = new State(indexExists, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion, indexStatus);
+        this.indexState = newState;
 
-    private void checkIndexHealthChange(ClusterChangedEvent event) {
-        final ClusterState state = event.state();
-        final ClusterState previousState = event.previousState();
-        final IndexMetaData indexMetaData = resolveConcreteIndex(indexName, state.metaData());
-        final IndexMetaData previousIndexMetaData = resolveConcreteIndex(indexName, previousState.metaData());
-        if (indexMetaData != null) {
-            final ClusterIndexHealth currentHealth =
-                    new ClusterIndexHealth(indexMetaData, state.getRoutingTable().index(indexMetaData.getIndex()));
-            final ClusterIndexHealth previousHealth = previousIndexMetaData != null ? new ClusterIndexHealth(previousIndexMetaData,
-                            previousState.getRoutingTable().index(previousIndexMetaData.getIndex())) : null;
-
-            if (previousHealth == null || previousHealth.getStatus() != currentHealth.getStatus()) {
-                notifyIndexHealthChangeListeners(previousHealth, currentHealth);
-            }
-        } else if (previousIndexMetaData != null) {
-            final ClusterIndexHealth previousHealth =
-                    new ClusterIndexHealth(previousIndexMetaData, previousState.getRoutingTable().index(previousIndexMetaData.getIndex()));
-            notifyIndexHealthChangeListeners(previousHealth, null);
-        }
-    }
-
-    private void notifyIndexHealthChangeListeners(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
-        for (BiConsumer<ClusterIndexHealth, ClusterIndexHealth> consumer : indexHealthChangeListeners) {
-            try {
-                consumer.accept(previousHealth, currentHealth);
-            } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("failed to notify listener [{}] of index health change", consumer), e);
-            }
-        }
-    }
-
-    private void notifyIndexOutOfDateListeners(boolean previous, boolean current) {
-        for (BiConsumer<Boolean, Boolean> consumer : indexOutOfDateListeners) {
-            try {
-                consumer.accept(previous, current);
-            } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("failed to notify listener [{}] of index out of date change", consumer), e);
+        if (newState.equals(previousState) == false) {
+            for (BiConsumer<State, State> listener : stateChangeListeners) {
+                listener.accept(previousState, newState);
             }
         }
     }
@@ -194,7 +161,6 @@ public class SecurityIndexManager extends AbstractComponent {
         logger.debug("Security index [{}] is not yet active", indexName);
         return false;
     }
-
 
     /**
      * Returns the routing-table for this index, or <code>null</code> if the index does not exist.
@@ -351,23 +317,59 @@ public class SecurityIndexManager extends AbstractComponent {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(SECURITY_TEMPLATE_NAME).source(template, XContentType.JSON);
         return new Tuple<>(request.mappings().get("doc"), request.settings());
     }
-    /**
-     * Holder class so we can update all values at once
-     */
-    private static class State {
-        private final boolean indexExists;
-        private final boolean isIndexUpToDate;
-        private final boolean indexAvailable;
-        private final boolean mappingUpToDate;
-        private final Version mappingVersion;
 
-        private State(boolean indexExists, boolean isIndexUpToDate, boolean indexAvailable,
-                      boolean mappingUpToDate, Version mappingVersion) {
+    /**
+     * Return true if the state moves from an unhealthy ("RED") index state to a healthy ("non-RED") state.
+     */
+    public static boolean isMoveFromRedToNonRed(State previousState, State currentState) {
+        return (previousState.indexStatus == null || previousState.indexStatus == ClusterHealthStatus.RED)
+                && currentState.indexStatus != null && currentState.indexStatus != ClusterHealthStatus.RED;
+    }
+
+    /**
+     * Return true if the state moves from the index existing to the index not existing.
+     */
+    public static boolean isIndexDeleted(State previousState, State currentState) {
+        return previousState.indexStatus != null && currentState.indexStatus == null;
+    }
+
+    /**
+     * State of the security index.
+     */
+    public static class State {
+        public final boolean indexExists;
+        public final boolean isIndexUpToDate;
+        public final boolean indexAvailable;
+        public final boolean mappingUpToDate;
+        public final Version mappingVersion;
+        public final ClusterHealthStatus indexStatus;
+
+        public State(boolean indexExists, boolean isIndexUpToDate, boolean indexAvailable,
+                      boolean mappingUpToDate, Version mappingVersion, ClusterHealthStatus indexStatus) {
             this.indexExists = indexExists;
             this.isIndexUpToDate = isIndexUpToDate;
             this.indexAvailable = indexAvailable;
             this.mappingUpToDate = mappingUpToDate;
             this.mappingVersion = mappingVersion;
+            this.indexStatus = indexStatus;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            State state = (State) o;
+            return indexExists == state.indexExists &&
+                isIndexUpToDate == state.isIndexUpToDate &&
+                indexAvailable == state.indexAvailable &&
+                mappingUpToDate == state.mappingUpToDate &&
+                Objects.equals(mappingVersion, state.mappingVersion) &&
+                indexStatus == state.indexStatus;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indexExists, isIndexUpToDate, indexAvailable, mappingUpToDate, mappingVersion, indexStatus);
         }
     }
 }

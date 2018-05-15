@@ -35,7 +35,9 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -69,20 +71,20 @@ import static org.junit.Assert.fail;
  */
 public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
-    private static HttpServer httpServer;
-    private static RestClient restClient;
-    private static String pathPrefix;
-    private static Header[] defaultHeaders;
+    private HttpServer httpServer;
+    private RestClient restClient;
+    private String pathPrefix;
+    private Header[] defaultHeaders;
 
-    @BeforeClass
-    public static void startHttpServer() throws Exception {
+    @Before
+    public void startHttpServer() throws Exception {
         pathPrefix = randomBoolean() ? "/testPathPrefix/" + randomAsciiLettersOfLengthBetween(1, 5) : "";
         httpServer = createHttpServer();
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         restClient = createRestClient(false, true);
     }
 
-    private static HttpServer createHttpServer() throws Exception {
+    private HttpServer createHttpServer() throws Exception {
         HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         //returns a different status code depending on the path
@@ -127,7 +129,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
     }
 
-    private static RestClient createRestClient(final boolean useAuth, final boolean usePreemptiveAuth) {
+    private RestClient createRestClient(final boolean useAuth, final boolean usePreemptiveAuth) {
         // provide the username/password for every request
         final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("user", "pass"));
@@ -155,8 +157,8 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         return restClientBuilder.build();
     }
 
-    @AfterClass
-    public static void stopHttpServers() throws IOException {
+    @After
+    public void stopHttpServers() throws IOException {
         restClient.close();
         restClient = null;
         httpServer.stop(0);
@@ -349,11 +351,12 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     private Response bodyTest(final RestClient restClient, final String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
-        StringEntity entity = new StringEntity(requestBody, ContentType.APPLICATION_JSON);
         int statusCode = randomStatusCode(getRandom());
+        Request request = new Request(method, "/" + statusCode);
+        request.setJsonEntity(requestBody);
         Response esResponse;
         try {
-            esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), entity);
+            esResponse = restClient.performRequest(request);
         } catch(ResponseException e) {
             esResponse = e.getResponse();
         }

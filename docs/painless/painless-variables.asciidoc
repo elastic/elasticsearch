@@ -155,12 +155,12 @@ assignment: ID '=' expression
             -> `List reference`;
     assign value of `List reference` to `l`
 <2> declare `List k`;
-    access `l` -> `List reference`;
+    access value of `l` -> `List reference`;
     assign value of `List reference` to `k`;
     (note `l` and `k` refer to the same instance known as a shallow-copy)
 <3> declare `List m`;
     assign default value of `null` to `m`
-<4> access `k` -> `List reference`;
+<4> access value of `k` -> `List reference`;
     assign value of `List reference` to `m`;
     (note `l`, `k`, and `m` refer to the same instance)
 +
@@ -183,20 +183,20 @@ assignment: ID '=' expression
 <2> allocate `1-d int array` instance with `length [2]`
             -> `1-d int array reference`;
     assign value of `1-d int array reference` to `ia1`
-<3> access `ia1` -> `1-d int array reference`;
+<3> access value of `ia1` -> `1-d int array reference`;
     assign value of `int 1` to `index [0]` of `1-d int array reference`
 <4> declare `int[] ib1`;
-    access `ia1` -> `1-d int array reference`;
+    access value of `ia1` -> `1-d int array reference`;
     assign value of `1-d int array reference` to `ib1`;
     (note `ia1` and `ib1` refer to the same instance known as a shallow copy)
 <5> declare `int[][] ic2`;
     allocate `2-d int array` instance with `length [2, 5]`
             -> `2-d int array reference`;
     assign value of `2-d int array reference` to `ic2`
-<6> access `ic2` -> `2-d int array reference`;
+<6> access value of `ic2` -> `2-d int array reference`;
     assign value of `int 2` to `index [1, 3]` of `2-d int array reference`
-<7> access `ia1` -> `1-d int array reference`;
-    access `ic2` -> `2-d int array reference`;
+<7> access value of `ia1` -> `1-d int array reference`;
+    access value of `ic2` -> `2-d int array reference`;
     assign value of `1-d int array reference` to
             `index [0]` of `2-d int array reference`;
     (note `ia1`, `ib1`, and `index [0]` of `ia2` refer to the same instance)

@@ -103,7 +103,7 @@ logical quantity with two possible values of `true` and `false`
 +
 <1> declare `int i`;
     assign value of `int 1` to `i`
-<2> access `i` -> `int 1`;
+<2> access value of `i` -> `int 1`;
     box value of `int 1` -> `Integer 1 reference`;
     call `toString` on `Integer 1 reference` -> `String '1'`
 
@@ -208,11 +208,11 @@ relationships.
     implicit cast value of `ArrayList reference` to value of `List reference`
             -> `List reference`;
     assign value of `List reference` to `l`
-<2> access `l` -> `List reference`;
+<2> access value of `l` -> `List reference`;
     implicit cast value of `int 1` to value of `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
 <3> declare `int i`;
-    access `l` -> `List reference`;
+    access value of `l` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def`;
     implicit cast value of `def` to value of `int 1` -> `int 1`;
     add value of `int 1` and value of `int 2` -> `int 3`;
@@ -235,20 +235,20 @@ relationships.
             -> `List reference`;
     assign value of `List reference` to `l0`
 <2> declare `List l1`;
-    access `l0` -> `List reference`;
+    access value of `l0` -> `List reference`;
     assign value of `List reference` to `l1`
     (note `l0` and `l1` refer to the same instance known as a shallow-copy)
-<3> access `l0` -> `List reference`;
+<3> access value of `l0` -> `List reference`;
     implicit cast value of `int 1` to value of `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
-<4> access `l1` -> `List reference`;
+<4> access value of `l1` -> `List reference`;
     implicit cast value of `int 2` to value of `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
 <5> declare `int i`;
-    access `l0` -> `List reference`;
+    access value of `l0` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def @0`;
     implicit cast value of `def @0` to value of `int 1` -> `int 1`;
-    access `l1` -> `List reference`;
+    access value of `l1` -> `List reference`;
     call `get` on `List reference` with arguments (`int 1`) -> `def @1`;
     implicit cast value of `def @1` to value of `int 2` -> `int 2`;
     add value of `int 1` and value of `int 2` -> `int 3`;
@@ -263,7 +263,7 @@ relationships.
 ----
 +
 <1> declare `int i`;
-    access `MAX_VALUE` on `Integer` -> `int 2147483647`;
+    access value of `MAX_VALUE` on `Integer` -> `int 2147483647`;
     assign value of `int 2147483647` to `i`
 <2> declare `long l`;
     call `parseLong` on `Long` with arguments (`long 123`) -> `long 123`;
@@ -311,9 +311,9 @@ reference types directly when performance is critical.
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast value of `ArrayList reference` to value of `def` -> `def`;
     assign value of `def` to `dr`
-<3> access `dp` -> `def`;
+<3> access value of `dp` -> `def`;
     assign value of `def` to `dr`;
-    (note the switch in type `dr` represents from `ArrayList` to `int`)
+    (note the switch in the type `dr` represents from `ArrayList` to `int`)
 +
 * A `def` type value representing the child-most descendant of a value.
 +
@@ -330,10 +330,10 @@ reference types directly when performance is critical.
             -> `Object reference`;
     assign value of `Object reference` to `l`
 <2> declare `def d`;
-    access `l` -> `Object reference`;
+    access value of `l` -> `Object reference`;
     implicit cast value of `Object reference` to value of `def` -> `def`;
     assign value of `def` to `d`;
-<3> access `d` -> `def`;
+<3> access value of `d` -> `def`;
     implicit cast value of `def` to value of `ArrayList reference`
             -> `ArrayList reference`;
     call `ensureCapacity` on `ArrayList reference` with arguments (`int 10`);
@@ -442,14 +442,14 @@ the array type `int[][]`.
     implicit cast value of `1-d float array reference` to value of `def`
             -> `def`;
     assign value of `def` to `z`
-<4> access `y` -> `1-d float array reference`;
+<4> access value of `y` -> `1-d float array reference`;
     assign value of `float 1.0` to `index [9]` of `1-d float array reference`
-<5> access `y` -> `1-d float array reference @1`;
-    access `index [9]` of `1-d float array reference @1` -> `float 1.0`;
-    access `z` -> `def`;
-    implicit cast value of `def` to value of `1-d float array reference @2`
-            -> `1-d float array reference @2`
-    assign `float 1.0` to `index [0]` of `1-d float array reference @2`
+<5> access value of `y` -> `1-d float array reference @0`;
+    access `index [9]` of `1-d float array reference @0` -> `float 1.0`;
+    access value of `z` -> `def`;
+    implicit cast value of `def` to value of `1-d float array reference @1`
+            -> `1-d float array reference @1`;
+    assign value of `float 1.0` to `index [0]` of `1-d float array reference @1`
 +
 * Use of a multi-dimensional array.
 +
@@ -464,9 +464,9 @@ the array type `int[][]`.
     allocate `3-d int array` instance with length `[2, 3, 4]`
             -> `3-d int array reference`;
     assign value of `3-d int array reference` to `ia3`
-<2> access `ia3` -> `3-d int array reference`;
+<2> access value of `ia3` -> `3-d int array reference`;
     assign value of `int 99` to `index [1, 2, 3]` of `3-d int array reference`
 <3> declare `int i`;
-    access `ia3` -> `3-d int array reference`;
-    access `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
+    access value of `ia3` -> `3-d int array reference`;
+    access value of `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
     assign value of `int 99` to `i`

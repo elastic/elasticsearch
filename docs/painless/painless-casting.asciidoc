@@ -38,7 +38,7 @@ cast: '(' TYPE ')' expression
             -> `Map reference`;
     assign value of `Map reference` to `m`
 <3> declare `HashMap hm`;
-    access `m` -> `Map reference`;
+    access value of `m` -> `Map reference`;
     explicit cast value of `Map reference` to value of `HashMap reference`
             -> `HashMap reference`;
     assign value of `HashMap reference` to `hm`
@@ -86,15 +86,15 @@ Each cast is read as a conversion of row to column.
 <1> declare `int a`;
     assign `int 1` to `a`
 <2> declare `long b`;
-    access `a` -> `int 1`;
+    access value of `a` -> `int 1`;
     implicit cast value of `int 1` to value of `long 1` -> `long 1`;
     assign value of `long 1` to `b`
 <3> declare `short c`;
-    access `b` -> `long 1`;
+    access value of `b` -> `long 1`;
     explicit cast value of `long 1` to value of `short 1` -> `short 1`;
     assign `short 1` value to `c`
 <4> declare `double e`;
-    access `a` -> `int 1`;
+    access value of `a` -> `int 1`;
     explicit cast value of `int 1` to `double 1.0`;
     assign value of `double 1.0` to `e`;
     (note the explicit cast is extraneous, and an implicit cast is valid)
@@ -114,7 +114,7 @@ Each cast is read as a conversion of row to column.
 <2> declare `int b`;
     assign `int 2` to `b`
 <3> declare byte `c`;
-    access `b` -> `int 2`;
+    access value of `b` -> `int 2`;
     *error* -> cannot implicit cast value of `int 2` to value of `byte 2`;
     (note an explicit cast is valid)
 
@@ -148,16 +148,16 @@ being cast *to* is a descendant of the reference type being cast *from*.
 <2> declare `ArrayList y`;
     allocate `ArrayList` instance -> `ArrayList reference`;
     assign value of `ArrayList reference` to `y`;
-<3> access `y` -> `ArrayList reference`;
+<3> access value of `y` -> `ArrayList reference`;
     implicit cast value of `ArrayList reference` to value of `List reference`
             -> `List reference`;
     assign `List reference` to `x`;
     (note `ArrayList` is a descendant of `List`)
-<4> access `x` -> `List reference`;
+<4> access value of `x` -> `List reference`;
     explicit cast value of `List reference` to value of `ArrayList reference`
             -> `ArrayList reference`;
     assign `ArrayList reference` to `y`;
-<5> access `y` -> `ArrayList reference`;
+<5> access value of `y` -> `ArrayList reference`;
     explicit cast value of `ArrayList reference` to value of `List reference`
             -> `List reference`;
     assign `List reference` to `x`;
@@ -178,12 +178,12 @@ being cast *to* is a descendant of the reference type being cast *from*.
             -> `List reference`;
     assign `List reference` to `x`
 <2> declare `ArrayList y`;
-    access `x` -> `List reference`;
+    access value of `x` -> `List reference`;
     *error* -> cannot implicit cast `List reference` to `ArrayList reference`;
     (note an explicit cast is valid since `ArrayList` is a descendant of
             `List`)
 <3> declare `ArrayList y`;
-    access `x` -> `List reference`;
+    access value of `x` -> `List reference`;
     *error* -> cannot explicit cast `List reference` to `Map reference`;
     (note no cast would be valid since neither `List` nor `Map` is a descendant
             of the other)
@@ -212,48 +212,137 @@ normally allowed based on the current type value the
 +
 [source,Painless]
 ----
-def d0 = 3;
-d0 = new ArrayList();
-Object m = new HashMap();
-def d1 = m;
-int i = d1.size();
+<1> def d0 = 3;
+<2> d0 = new ArrayList();
+<3> Object o = new HashMap();
+<4> def d1 = o;
+<5> int i = d1.size();
 ----
++
+<1> declare `def d0`;
+    implicit cast value of `int 3` to `def`
+    assign value of `int 3` to `d0`
+<2> allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast value of `ArrayList reference` to value of `def` -> `def`;
+    assign value of `def` to `d0`
+<3> declare `Object o`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast value of `HashMap reference` to value of `Object reference`
+            -> `Object reference`;
+    assign value of `Object reference` to `o`
+<4> declare `def d1`;
+    access value of `o` -> `Object reference`;
+    implicit cast value of `Object reference` to value of `def` -> `def`;
+    assign `def` to `d1`
+<5> declare `int i`;
+    access value of `d1` -> `def`;
+    implicit cast value of `def` to value of `HashMap reference`
+            -> HashMap reference`;
+    call `size` on `HashMap reference` -> `int 0`;
+    assign `int 0` to `i`;
+    (note value of `def` was implicit cast to value of `HashMap reference`
+            since `HashMap` is the child-most descendant type value that the
+            `def` type value represents)
 +
 * Examples of casting from the <<dynamic-types, dynamic type>> to
   <<painless-types, any type>>.
 +
 [source,Painless]
 ----
+<1> def d = 1.0;
+<2> int i = (int)d;
+<3> d = 1;
+<4> float f = d;
+<5> d = new ArrayList();
+<6> List l = d;
 ----
++
+<1> declare `def d`;
+    implicit cast value of `double 1.0` to value of `def` -> `def`;
+    assign value of `def` to `d`
+<2> declare `int i`;
+    access value of `d` -> `def`;
+    implicit cast value of `def` to value of `double 1.0` -> `double 1.0`;
+    explicit cast value of `double 1.0` to value of `int 1` -> `int 1`;
+    assign value of `int 1` to `i`;
+    (note the explicit cast is necessary since a `double` value cannot be
+     converted to an `int` value implicitly)
+<3> assign value of `int 1` to `d`;
+    (note the switch in the type `d` represents from `double` to `int`)
+<4> declare `float i`;
+    access value of `d` -> `def`;
+    implicit cast value of `def` to value of `int 1` -> `int 1`;
+    implicit cast value of `int 1` to value of `float 1.0` -> `float 1.0`;
+    assign value of `float 1.0` to `f`
+<5> allocate `ArrayList` instance -> `ArrayList reference`;
+    assign value of `ArrayList reference` to `d`;
+    (note the switch in the type `d` represents from `int` to `ArrayList`)
+<6> declare `List l`;
+    access value of `d` -> `def`;
+    implicit cast value of `def` to value of `ArrayList reference`
+            -> `ArrayList reference`;
+    implicit cast value of `ArrayList reference` to value of `List reference`
+            -> `List reference`;
+    assign value of `List reference` to `l`
 +
 * Examples of errors casting with <<dynamic-types, dynamic-type>>.
 +
 [source,Painless]
 ----
+<1> def d = 1;
+<2> short s = d;       // error
+<3> d = new HashMap();
+<4> List l = d;        // error
 ----
+<1> declare `def d`;
+    implicit cast value of `int 1` to value of `def` -> `def`;
+    assign value of `def` to `d`
+<2> declare `short s`;
+    access value of `d` -> `def`;
+    implicit cast value of `def` to value of `int 1` -> `int 1`;
+    *error* -> cannot implicit cast value of `int 1` to value of `short 1`;
+    (note an explicit cast is valid)
+<3> allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast value of `HashMap reference` to value of `def` -> `def`;
+    assign value of `def` to `d`
+<4> declare `List l`;
+    access value of `d` -> `def`;
+    implicit cast value of `def` to value of `HashMap reference`;
+    *error* -> cannot implicit cast `HashMap reference` to `List reference`;
+    (note no cast would be valid since neither `HashMap` nor `List` is a
+            descendant of the other)
 
-[source,Painless]
-----
-def x;          // Declare def variable x and set it to null
-x = 3;          // Set the def variable x to the literal 3 with an implicit
-                //   cast from int to def
-double a = x;   // Declare double variable a and set it to def variable x,
-                //   which contains a double
-int b = x;      // ERROR: Results in a run-time error because an explicit cast is
-                //   required to cast from a double to an int
-int c = (int)x; // Declare int variable c, explicitly cast def variable x to an
-                //   int, and assign x to c
-----
+[[string-character-casting]]
+==== String to Character Casting
 
-[[character-string-casting]]
-==== Character-String Casting
-* Casting a <<string-type, String>> value into a <<primitive-types, char>> value.
+Use the <<painless-casting, `cast operator '()'`>> to convert
+<<string-type, String>> values into <<primitive-types, char>> values. Use only
+<<string-type, String>> values one character in length for this conversion or
+an error will occur.
+
+*Examples*
+
+* Casting <<strings, string literals>> into <<primitive-types, char>> values.
 +
 [source,Painless]
 ----
-String s = "s";
-char c = (char)s;
+<1> char c = (char)"C"
+<2> c = (char)'c'
 ----
++
+<1> a
+<2> a
++
+* Casting a <<string-type, String>> value into a <<primitive-types, char>>
+  value.
++
+[source,Painless]
+----
+<1> String s = "s";
+<2> char c = (char)s;
+----
+<1> a
+<2> a
 
 [[boxing-unboxing]]
 ==== Boxing and Unboxing

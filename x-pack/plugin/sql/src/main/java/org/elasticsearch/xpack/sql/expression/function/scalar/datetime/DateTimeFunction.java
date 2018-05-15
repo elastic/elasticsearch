@@ -108,7 +108,8 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
              */
 
             sf = new ScriptFunction("dateTime", "ZonedDateTime dateTime(def millis, def tzId, def chrono) {"
-                    + "ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId)).get(ChronoField.get(ChronoField.valueOf(chrono)))"
+                    + "ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), "
+                          + "ZoneId.of(tzId)).get(ChronoField.get(ChronoField.valueOf(chrono)))"
                     + "}");
 
             template = formatTemplate("dateTime(doc[{}].value.millis, {}, {})");

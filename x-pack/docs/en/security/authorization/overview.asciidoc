@@ -1,5 +1,6 @@
+[role="xpack"]
 [[authorization]]
-== Configuring Role-based Access Control
+== Configuring role-based access control
 
 {security} introduces the concept of _authorization_ to {es}.
 Authorization is the process of determining whether the user behind an incoming
@@ -8,7 +9,7 @@ successfully authenticated and the user behind the request is identified.
 
 [[roles]]
 [float]
-=== Roles, Permissions and Privileges
+=== Roles, permissions, and privileges
 
 The authorization process revolves around the following 5 constructs:
 
@@ -49,7 +50,7 @@ then assign users to the roles. These can be assigned to users in a number of
 ways depending on the realms by which the users are authenticated.
 
 [[built-in-roles]]
-=== Built-in Roles
+=== Built-in roles
 
 {security} applies a default role to all users, including
 <<anonymous-access, anonymous users>>. The default role enables users to access
@@ -164,7 +165,7 @@ stats.
 
 
 [[defining-roles]]
-=== Defining Roles
+=== Defining roles
 
 A role is defined by the following JSON structure:
 
@@ -276,14 +277,14 @@ see <<custom-roles-provider, Custom Roles Provider Extension>>.
 
 [float]
 [[roles-management-ui]]
-=== Role Management UI
+=== Role management UI
 
 {security} enables you to easily manage users and roles from within {kib}. To
 manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*. 
 
 [float]
 [[roles-management-api]]
-=== Role Management API
+=== Role management API
 
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
 dynamically. When you use the APIs to manage roles in the `native` realm, the
@@ -292,10 +293,10 @@ see {ref}/security-api-roles.html[Role Management APIs].
 
 [float]
 [[roles-management-file]]
-=== File-based Role Management
+=== File-based role management
 
 Apart from the _Role Management APIs_, roles can also be defined in local
-`roles.yml` file located in `CONFIG_DIR/x-pack`. This is a YAML file where each
+`roles.yml` file located in `CONFIG_DIR`. This is a YAML file where each
 role definition is keyed by its name.
 
 [IMPORTANT]
@@ -338,12 +339,12 @@ click_admins:
 {security} continuously monitors the `roles.yml` file and automatically picks
 up and applies any changes to it.
 
-include::authorization/alias-privileges.asciidoc[]
+include::alias-privileges.asciidoc[]
 
-include::authorization/mapping-roles.asciidoc[]
+include::mapping-roles.asciidoc[]
 
-include::authorization/field-and-document-access-control.asciidoc[]
+include::field-and-document-access-control.asciidoc[]
 
-include::authorization/run-as-privilege.asciidoc[]
+include::run-as-privilege.asciidoc[]
 
-include::authorization/custom-roles-provider.asciidoc[]
+include::custom-roles-provider.asciidoc[]

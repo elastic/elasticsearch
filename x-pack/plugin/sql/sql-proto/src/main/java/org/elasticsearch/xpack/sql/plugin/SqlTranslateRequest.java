@@ -10,8 +10,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,4 +59,14 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
         request.mode(mode);
         return request;
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(mode(), query(), params(), timeZone(), fetchSize(),
+            requestTimeout(), pageTimeout(), filter(), null).toXContent(builder, params);
+
+    }
+
+
 }

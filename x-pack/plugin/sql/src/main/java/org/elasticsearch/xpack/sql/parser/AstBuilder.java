@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleStatementContext;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.util.Map;
 

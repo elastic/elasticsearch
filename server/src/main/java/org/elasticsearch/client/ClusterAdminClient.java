@@ -310,7 +310,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
 
     /**
      * Returns a request builder to fetch top N hot-threads samples per node. The hot-threads are only sampled
-     * for the node ids provided. Note: Use <tt>*</tt> to fetch samples for all nodes
+     * for the node ids provided. Note: Use {@code *} to fetch samples for all nodes
      */
     NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds);
 

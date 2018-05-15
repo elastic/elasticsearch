@@ -58,13 +58,39 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
                 throw new IllegalArgumentException("Illegal self generated license type [" + type +
                         "]. Must be trial or basic.");
             }
-
             return updateWithLicense(currentState, type);
         } else if (LicenseUtils.licenseNeedsExtended(currentLicensesMetaData.getLicense())) {
             return extendBasic(currentState, currentLicensesMetaData);
+        } else if (LicenseUtils.signatureNeedsUpdate(currentLicensesMetaData.getLicense())) {
+            return updateLicenseSignature(currentState, currentLicensesMetaData);
         } else {
             return currentState;
         }
+    }
+
+    private ClusterState updateLicenseSignature(ClusterState currentState, LicensesMetaData currentLicenseMetaData) {
+        License license = currentLicenseMetaData.getLicense();
+        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+        String type = license.type();
+        long issueDate = license.issueDate();
+        long expiryDate;
+        if ("basic".equals(type)) {
+            expiryDate = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+        } else {
+            expiryDate = issueDate + LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.getMillis();
+        }
+        License.Builder specBuilder = License.builder()
+                .uid(license.uid())
+                .issuedTo(license.issuedTo())
+                .maxNodes(selfGeneratedLicenseMaxNodes)
+                .issueDate(issueDate)
+                .type(type)
+                .expiryDate(expiryDate);
+        License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
+        Version trialVersion = currentLicenseMetaData.getMostRecentTrialVersion();
+        LicensesMetaData newLicenseMetadata = new LicensesMetaData(selfGeneratedLicense, trialVersion);
+        mdBuilder.putCustom(LicensesMetaData.TYPE, newLicenseMetadata);
+        return ClusterState.builder(currentState).metaData(mdBuilder).build();
     }
 
     @Override

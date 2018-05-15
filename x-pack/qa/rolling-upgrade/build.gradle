@@ -123,7 +123,7 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        plugin xpackProject('plugin').path
+        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
       }
       String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'

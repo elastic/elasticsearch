@@ -1,5 +1,6 @@
+[role="xpack"]
 [[file-realm]]
-=== File-based User Authentication
+=== File-based user authentication
 
 You can manage and authenticate users with the built-in `file` realm.
 With the `file` realm, users are defined in local files on each node in the cluster.

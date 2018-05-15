@@ -272,6 +272,7 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = matcher.group(1);
+                // noinspection StatementWithEmptyBody
                 if (masterVersion.before(Version.V_7_0_0_alpha1)
                         && message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
                         + "if you wish to continue using the default of [5] shards, "

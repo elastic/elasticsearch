@@ -49,7 +49,7 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
 
     @Override
     protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        int numValues = randomInt(100);
+        int numValues = frequently() ? randomInt(100) : 0;
         double[] values = new double[numValues];
         for (int i = 0; i < numValues; ++i) {
             values[i] = randomDouble();

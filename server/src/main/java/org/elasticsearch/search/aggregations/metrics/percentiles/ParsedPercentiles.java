@@ -92,9 +92,9 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (Map.Entry<Double, Double> percentile : percentiles.entrySet()) {
                 Double key = percentile.getKey();
-                builder.field(String.valueOf(key), percentile.getValue());
-
-                if (valuesAsString) {
+                Double value = percentile.getValue();
+                builder.field(String.valueOf(key), value.isNaN() ? null : value);
+                if (valuesAsString && value.isNaN() == false) {
                     builder.field(key + "_as_string", getPercentileAsString(key));
                 }
             }
@@ -106,8 +106,9 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                 builder.startObject();
                 {
                     builder.field(CommonFields.KEY.getPreferredName(), key);
-                    builder.field(CommonFields.VALUE.getPreferredName(), percentile.getValue());
-                    if (valuesAsString) {
+                    Double value = percentile.getValue();
+                    builder.field(CommonFields.VALUE.getPreferredName(), value.isNaN() ? null : value);
+                    if (valuesAsString && value.isNaN() == false) {
                         builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), getPercentileAsString(key));
                     }
                 }

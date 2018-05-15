@@ -12,7 +12,6 @@ public class SqlQueryAction extends Action<SqlQueryRequest, SqlQueryResponse, Sq
 
     public static final SqlQueryAction INSTANCE = new SqlQueryAction();
     public static final String NAME = "indices:data/read/sql";
-    public static final String REST_ENDPOINT = "/_xpack/sql";
 
     private SqlQueryAction() {
         super(NAME);

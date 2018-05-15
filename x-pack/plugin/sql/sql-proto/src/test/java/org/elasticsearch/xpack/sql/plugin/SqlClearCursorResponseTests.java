@@ -27,6 +27,8 @@ public class SqlClearCursorResponseTests extends AbstractStreamableXContentTestC
 
     @Override
     protected SqlClearCursorResponse doParseInstance(XContentParser parser) {
-        return SqlClearCursorResponse.fromXContent(parser);
+        org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse response =
+            org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse.fromXContent(parser);
+        return new SqlClearCursorResponse(response.isSucceeded());
     }
 }

@@ -272,9 +272,11 @@ relationships.
 [[dynamic-types]]
 ==== Dynamic Types
 
-Dynamic types can represent values of any primitive type or reference type
-under a single type name `def`.  The `def` type mimics the behavior of whatever
-value is currently represented.
+Use dynamic type values to represent the values of any primitive type or
+reference type under a single type name `def`. A `def` type value mimics
+the behavior of whatever value it currently represents and will always
+represent the child-most descendant type value of any value when used in
+<<painless-operators, operations>> and statements.
 
 Internally, if a `def` type value is a primitive type value, the value is
 converted (<<boxing-unboxing, boxed>>) to the corresponding reference type
@@ -303,13 +305,41 @@ reference types directly when performance is critical.
 ----
 +
 <1> declare `def dp`;
-    assign value of `int 1` to `dp`
+    implicit cast value of `int 1` to value of `def` -> `def`;
+    assign value of `def` to `dp`
 <2> declare `def dr`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    assign value of `ArrayList reference` to `dr`
-<3> access `dp` -> `int 1`;
-    assign value of `int 1` to `dr`;
-    (note the switch in type of `dr` from `ArrayList` to `int`)
+    implicit cast value of `ArrayList reference` to value of `def` -> `def`;
+    assign value of `def` to `dr`
+<3> access `dp` -> `def`;
+    assign value of `def` to `dr`;
+    (note the switch in type `dr` represents from `ArrayList` to `int`)
++
+* A `def` type value representing the child-most descendant of a value.
++
+[source,Painless]
+----
+<1> Object l = new ArrayList();
+<2> def d = l;
+<3> d.ensureCapacity(10);
+----
++
+<1> declare `Object l`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast value of `ArrayList reference` to value of `Object reference`
+            -> `Object reference`;
+    assign value of `Object reference` to `l`
+<2> declare `def d`;
+    access `l` -> `Object reference`;
+    implicit cast value of `Object reference` to value of `def` -> `def`;
+    assign value of `def` to `d`;
+<3> access `d` -> `def`;
+    implicit cast value of `def` to value of `ArrayList reference`
+            -> `ArrayList reference`;
+    call `ensureCapacity` on `ArrayList reference` with arguments (`int 10`);
+    (note value of `def` was implicit cast to value of `ArrayList reference`
+            since ArrayList` is the child-most descendant type value that the
+            `def` type value represents)
 
 [[string-type]]
 ==== String Type
@@ -409,10 +439,17 @@ the array type `int[][]`.
 <3> declare `def z`;
     allocate `1-d float array` instance with `length [5]`
             -> `1-d float array reference`;
-    assign value of `1-d float array reference` to `z`
-<4> assign value of `float 1.0` to `index [9]` of `y`
-<5> access `index [9]` of `y` -> `float 1.0`;
-    assign `float 1.0` to `index [0]` of `z`
+    implicit cast value of `1-d float array reference` to value of `def`
+            -> `def`;
+    assign value of `def` to `z`
+<4> access `y` -> `1-d float array reference`;
+    assign value of `float 1.0` to `index [9]` of `1-d float array reference`
+<5> access `y` -> `1-d float array reference @1`;
+    access `index [9]` of `1-d float array reference @1` -> `float 1.0`;
+    access `z` -> `def`;
+    implicit cast value of `def` to value of `1-d float array reference @2`
+            -> `1-d float array reference @2`
+    assign `float 1.0` to `index [0]` of `1-d float array reference @2`
 +
 * Use of a multi-dimensional array.
 +
@@ -425,9 +462,11 @@ the array type `int[][]`.
 +
 <1> declare `int[][][] ia`;
     allocate `3-d int array` instance with length `[2, 3, 4]`
-            -> `3-d float array reference`;
-    assign value of `3-d float array reference` to `ia3`
-<2> assign value of `int 99` to `index [1, 2, 3]` of `ia3`
+            -> `3-d int array reference`;
+    assign value of `3-d int array reference` to `ia3`
+<2> access `ia3` -> `3-d int array reference`;
+    assign value of `int 99` to `index [1, 2, 3]` of `3-d int array reference`
 <3> declare `int i`;
-    access `index [1, 2, 3]` of `ia3` -> `int 99`;
+    access `ia3` -> `3-d int array reference`;
+    access `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
     assign value of `int 99` to `i`

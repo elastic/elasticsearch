@@ -20,7 +20,7 @@ cast: '(' TYPE ')' expression
 
 *Examples*
 
-* General casts.
+* Valid general casts.
 +
 [source,Painless]
 ----
@@ -192,24 +192,47 @@ being cast *to* is a descendant of the reference type being cast *from*.
 ==== Dynamic Type Casting
 
 A <<dynamic-types, dynamic type>> cast is the conversion of the value of one
-<<dynamic-types, dynamic type>> to the equivalent value of any inferred or
-specified other <<painless-types, type>> or vice versa.
+<<dynamic-types, dynamic type>>, `def`, to the equivalent value of any inferred
+or specified other <<painless-types, type>> or vice versa.
 
-Implicit casts from <<painless-types, any type>> to the
-<<dynamic-types, dynamic type>>, `def`, are always allowed. Explicit casts from
-<<painless-types, any type>> to the <<dynamic-types, dynamic type>>, `def`, are
+Implicit casts from <<painless-types, any type>> value to a
+<<dynamic-types, `def` type>> value are always allowed. Explicit casts from
+<<painless-types, any type>> value to a <<dynamic-types, `def` type>> value are
 allowed but never necessary.
 
-Implicit and explicit casts from the <dynamic-types, dynamic type>>, `def`, to
-<<painless-types, any type>> are allowed if and only if the cast would be
-allowed .
+Implicit and explicit casts from a <dynamic-types, `def` type>>, value to
+<<painless-types, any type>> value are allowed if and only if the cast is
+normally allowed based on the current type value the
+<dynamic-types, `def` type>> value represents.
 
-However, it is not always possible to implicitly cast a `def` to other
-primitive and reference types. An explicit cast is required if an explicit
-cast would normally be required between the non-def types.
+*Examples*
++
+* Examples of casting <<painless-types, any type>> to the
+  <<dynamic-types, dynamic type>>.
++
+[source,Painless]
+----
+def d0 = 3;
+d0 = new ArrayList();
+Object m = new HashMap();
+def d1 = m;
+int i = d1.size();
+----
++
+* Examples of casting from the <<dynamic-types, dynamic type>> to
+  <<painless-types, any type>>.
++
+[source,Painless]
+----
+----
++
+* Examples of errors casting with <<dynamic-types, dynamic-type>>.
++
+[source,Painless]
+----
+----
 
-*Examples:*
-[source,Java]
+[source,Painless]
 ----
 def x;          // Declare def variable x and set it to null
 x = 3;          // Set the def variable x to the literal 3 with an implicit

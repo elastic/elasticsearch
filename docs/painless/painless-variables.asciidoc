@@ -106,7 +106,7 @@ assignment: ID '=' expression
     assign value of `double 2.0` to `j`
 +
 * Assignment of one variable to another using
-<<primitive-types, primitive types>>.
+  <<primitive-types, primitive types>>.
 +
 [source,Painless]
 ----
@@ -121,7 +121,7 @@ assignment: ID '=' expression
     assign value of `int 10` to `j`
 +
 * Assignment with <<reference-types, reference types>> using the
-<<constructor-call, new operator>>.
+  <<constructor-call, new operator>>.
 +
 [source,Painless]
 ----
@@ -139,7 +139,7 @@ assignment: ID '=' expression
     assign value of `Map reference` to `m`
 +
 * Assignment of one variable to another using
-<<reference-types, reference types>>.
+  <<reference-types, reference types>>.
 +
 [source,Painless]
 ----
@@ -165,7 +165,7 @@ assignment: ID '=' expression
     (note `l`, `k`, and `m` refer to the same instance)
 +
 * Assignment with the <<array-type, array type>> using the
-<<new-array, new operator>>.
+  <<new-array, new operator>>.
 +
 [source,Painless]
 ----
@@ -183,7 +183,8 @@ assignment: ID '=' expression
 <2> allocate `1-d int array` instance with `length [2]`
             -> `1-d int array reference`;
     assign value of `1-d int array reference` to `ia1`
-<3> assign value of `int 1` to `index [0]` of `ia1`
+<3> access `ia1` -> `1-d int array reference`;
+    assign value of `int 1` to `index [0]` of `1-d int array reference`
 <4> declare `int[] ib1`;
     access `ia1` -> `1-d int array reference`;
     assign value of `1-d int array reference` to `ib1`;
@@ -192,7 +193,10 @@ assignment: ID '=' expression
     allocate `2-d int array` instance with `length [2, 5]`
             -> `2-d int array reference`;
     assign value of `2-d int array reference` to `ic2`
-<6> assign value of `int 2` to `index [1, 3]` of `ic2`
+<6> access `ic2` -> `2-d int array reference`;
+    assign value of `int 2` to `index [1, 3]` of `2-d int array reference`
 <7> access `ia1` -> `1-d int array reference`;
-    assign value of `1-d int array reference` to `index [0]` of `ic2`;
+    access `ic2` -> `2-d int array reference`;
+    assign value of `1-d int array reference` to
+            `index [0]` of `2-d int array reference`;
     (note `ia1`, `ib1`, and `index [0]` of `ia2` refer to the same instance)

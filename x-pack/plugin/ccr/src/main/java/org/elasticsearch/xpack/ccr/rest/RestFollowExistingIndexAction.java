@@ -34,6 +34,11 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        Request request = createRequest(restRequest);
+        return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    static Request createRequest(RestRequest restRequest) {
         Request request = new Request();
         request.setLeaderIndex(restRequest.param("leader_index"));
         request.setFollowIndex(restRequest.param("follow_index"));
@@ -47,6 +52,6 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
             long value = Long.valueOf(restRequest.param(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
             request.setProcessorMaxTranslogBytes(value);
         }
-        return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
+        return request;
     }
 }

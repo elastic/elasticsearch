@@ -12,14 +12,14 @@
   - is_true: acknowledged
 
   - do:
-      indices.create:
-        index: bar
-        body:
-          mappings:
-            doc:
-              properties:
-                field:
-                  type: keyword
+      xpack.ccr.create_and_follow:
+        leader_index: foo
+        follow_index: bar
+  - is_true: acknowledged
+
+  - do:
+      xpack.ccr.unfollow_index:
+        follow_index: bar
   - is_true: acknowledged
 
   - do:

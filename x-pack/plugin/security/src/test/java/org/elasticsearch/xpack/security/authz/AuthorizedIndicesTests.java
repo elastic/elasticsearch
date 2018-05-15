@@ -21,10 +21,10 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class AuthorizedIndicesTests extends ESTestCase {
@@ -81,7 +81,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
@@ -97,12 +97,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
         List<String> list = authorizedIndices.get();
-        assertThat(list, containsInAnyOrder("an-index", "another-index", SECURITY_INDEX_NAME));
+        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME));
     }
 }

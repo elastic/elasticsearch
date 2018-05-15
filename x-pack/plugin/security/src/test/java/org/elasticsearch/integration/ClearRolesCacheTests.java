@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -25,10 +26,8 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-
 
 /**
  * Test for the clear roles API
@@ -57,7 +56,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
 
         // warm up the caches on every node
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {

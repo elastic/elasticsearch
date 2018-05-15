@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.Before;
 
@@ -74,7 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1198,14 +1199,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         {
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME));
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
         }
     }
 
@@ -1213,7 +1214,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        assertThat(indices, not(hasItem(SECURITY_INDEX_NAME)));
+        assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
     }
 
     public void testNonXPackUserAccessingSecurityIndex() {
@@ -1225,7 +1226,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             SearchRequest request = new SearchRequest();
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
         }
         
         {
@@ -1233,7 +1234,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias1").index("*"));
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
         }
     }
 

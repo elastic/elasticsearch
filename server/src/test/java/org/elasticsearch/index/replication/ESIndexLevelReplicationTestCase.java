@@ -100,7 +100,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     private final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
-        IndexMetaData metaData = buildIndexMetaData(replicas);
+        return createGroup(replicas, Settings.EMPTY);
+    }
+
+    protected ReplicationGroup createGroup(int replicas, Settings settings) throws IOException {
+        IndexMetaData metaData = buildIndexMetaData(replicas, settings, indexMapping);
         return new ReplicationGroup(metaData);
     }
 
@@ -109,9 +113,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected IndexMetaData buildIndexMetaData(int replicas, Map<String, String> mappings) throws IOException {
+        return buildIndexMetaData(replicas, Settings.EMPTY, mappings);
+    }
+
+    protected IndexMetaData buildIndexMetaData(int replicas, Settings indexSettings, Map<String, String> mappings) throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(indexSettings)
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())
             .settings(settings)

@@ -115,7 +115,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
          * - index #5
          * - If flush and the translog retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
          */
-        try (ReplicationGroup shards = createGroup(1)) {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING.getKey(), false).build();
+        try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             // create out of order delete and index op on replica
             final IndexShard orgReplica = shards.getReplicas().get(0);
@@ -162,6 +163,80 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
             final IndexShard orgPrimary = shards.getPrimary();
             shards.promoteReplicaToPrimary(orgReplica).get(); // wait for primary/replica sync to make sure seq# gap is closed.
+
+            IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
+            shards.recoverReplica(newReplica);
+            shards.assertAllEqual(3);
+
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(translogOps));
+        }
+    }
+
+    /**
+     * Another version of {@link #testRecoveryWithOutOfOrderDelete} that verifies out-of-order in peer-recovery using Lucene index.
+     */
+    public void testRecoveryWithOutOfOrderDeleteWithSoftDeletes() throws Exception {
+        /*
+         * The flow of this test:
+         * - delete #1
+         * - roll generation (to create gen 2)
+         * - index #0
+         * - index #3
+         * - flush (commit point has max_seqno 3, and local checkpoint 1 -> points at gen 2, previous commit point is maintained)
+         * - index #2
+         * - index #5
+         * - If flush and the soft-deletes retention disabled, delete #1 will be claimed while index #0 is still retained and replayed.
+         */
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10)
+            .build();
+        try (ReplicationGroup shards = createGroup(1, settings)) {
+            shards.startAll();
+            // create out of order delete and index op on replica
+            final IndexShard orgReplica = shards.getReplicas().get(0);
+            final String indexName = orgReplica.shardId().getIndexName();
+            // delete #1
+            orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id", VersionType.EXTERNAL);
+            orgReplica.refresh("test"); // isolate the delete in it's own segment
+            // index #0
+            orgReplica.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+                SourceToParse.source(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON));
+            // index #3
+            orgReplica.applyIndexOperationOnReplica(3, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+                SourceToParse.source(indexName, "type", "id-3", new BytesArray("{}"), XContentType.JSON));
+            // Flushing a new commit with local checkpoint=1 allows to claim #1 by merges
+            orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            // index #2
+            orgReplica.applyIndexOperationOnReplica(2, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+                SourceToParse.source(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
+            // index #5 -> force NoOp #4.
+            orgReplica.applyIndexOperationOnReplica(5, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+                SourceToParse.source(indexName, "type", "id-5", new BytesArray("{}"), XContentType.JSON));
+
+            final int translogOps;
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    logger.info("--> flushing shard (soft-deletes will be trimmed)");
+                    IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
+                    builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
+                            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0));
+                    orgReplica.indexSettings().updateIndexMetaData(builder.build());
+                    orgReplica.onSettingsChanged();
+                    translogOps = 5; // 4 ops + seqno gaps (delete #1 is removed but index #0 will be replayed).
+                } else {
+                    logger.info("--> flushing shard (soft-deletes will be retained)");
+                    translogOps = 6; // 5 ops + seqno gaps
+                }
+                flushShard(orgReplica);
+            } else {
+                translogOps = 6; // 5 ops + seqno gaps
+            }
+
+            final IndexShard orgPrimary = shards.getPrimary();
+            shards.promoteReplicaToPrimary(orgReplica).get();
 
             IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);

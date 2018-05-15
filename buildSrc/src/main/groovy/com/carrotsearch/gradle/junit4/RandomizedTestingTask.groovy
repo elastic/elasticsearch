@@ -98,6 +98,7 @@ class RandomizedTestingTask extends DefaultTask {
     }
 
     void basedOn(RandomizedTestingTask other) {
+        configure(BuildPlugin.commonTestConfig(project))
         classpath = other.classpath;
         testClassesDirs = other.testClassesDirs;
         dependsOn = other.dependsOn
@@ -223,7 +224,7 @@ class RandomizedTestingTask extends DefaultTask {
 
         DefaultLogger listener = null
         ByteArrayOutputStream antLoggingBuffer = null
-        if (false == logger.isInfoEnabled()) {
+        if (!logger.isInfoEnabled()) {
             // in info logging, ant already outputs info level, so we see everything
             // but on errors or when debugging, we want to see info level messages
             // because junit4 emits jvm output with ant logging

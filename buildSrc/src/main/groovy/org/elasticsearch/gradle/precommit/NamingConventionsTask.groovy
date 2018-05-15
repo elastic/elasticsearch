@@ -67,7 +67,7 @@ public class NamingConventionsTask extends LoggedExec {
 
     NamingConventionsTask() {
         // Extra classpath contains the actual test
-        if (false == project.configurations.names.contains('namingConventions')) {
+        if (!project.configurations.names.contains('namingConventions')) {
             project.configurations.create('namingConventions')
             Dependency buildToolsDep = project.dependencies.add('namingConventions',
                     "org.elasticsearch.gradle:build-tools:${VersionProperties.elasticsearch}")
@@ -81,11 +81,17 @@ public class NamingConventionsTask extends LoggedExec {
         description = "Tests that test classes aren't misnamed or misplaced"
         executable = new File(project.runtimeJavaHome, 'bin/java')
 
-        if (false == checkForTestsInMain) {
+        def dirsToUse = (checkForTestsInMain ?
+            project.sourceSets.main.output.classesDirs :
+            project.sourceSets.test.output.classesDirs)
+                .filter {it.exists()}
+                .collect {it.getAbsolutePath()}
+
+        if (!checkForTestsInMain) {
             /* This task is created by default for all subprojects with this
              * setting and there is no point in running it if the files don't
              * exist. */
-            onlyIf { getJavaClassesDir() != null && getJavaClassesDir().exists() }
+            onlyIf { dirsToUse.size() != 0 }
         }
 
         /*
@@ -118,20 +124,10 @@ public class NamingConventionsTask extends LoggedExec {
                 } else {
                     args('--')
                 }
-                args(getJavaClassesDir().absolutePath)
+                args(dirsToUse.join(File.pathSeparator))
             }
         }
         doLast { successMarker.setText("", 'UTF-8') }
     }
 
-    File getJavaClassesDir() {
-        FileCollection classesDirs = (checkForTestsInMain ?
-                project.sourceSets.main.output.classesDirs :
-                project.sourceSets.test.output.classesDirs)
-        if (classesDirs.isEmpty()) { return null }
-        // see https://docs.gradle.org/current/dsl/org.gradle.api.tasks.SourceSetOutput.html the deprecated property
-        // classesDir is the first in the FileCollection. There seems to be no other way to refer to the Java output dir
-        // We can't run the check against all classes as Groovy tests don't adhere to naming conventions.
-        return classesDirs[0]
-    }
 }

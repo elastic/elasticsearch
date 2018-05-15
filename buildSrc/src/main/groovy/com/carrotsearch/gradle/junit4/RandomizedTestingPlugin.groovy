@@ -45,7 +45,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
     }
 
     static void replaceTestTask(Project project) {
-        TaskContainer tasks = project.tasks
+        def tasks = project.tasks
         Test oldTestTask = tasks.findByPath('test')
         if (oldTestTask == null) {
             // no test task, ok, user will use testing task on their own

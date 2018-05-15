@@ -277,8 +277,8 @@ public class DoSection implements ExecutableSection {
                         + "if you wish to continue using the default of [5] shards, "
                         + "you must manage this on the create index request or with an index template")) {
                     /*
-                     * This warning header will come back in the vast majority of our tests that create an index when running against an older
-                     * master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
+                     * This warning header will come back in the vast majority of our tests that create an index when running against an
+                     * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
                      */
                 } else {
                     if (expected.remove(message) == false) {

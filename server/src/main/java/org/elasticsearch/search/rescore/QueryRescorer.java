@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
+import java.util.Collections;
+import static java.util.stream.Collectors.toSet;
 
 public final class QueryRescorer implements Rescorer {
 
@@ -61,6 +63,11 @@ public final class QueryRescorer implements Rescorer {
         // First take top slice of incoming docs, to be rescored:
         TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
 
+        // Save doc IDs for which rescoring was applied to be used in score explanation
+        Set<Integer> topNDocIDs = Collections.unmodifiableSet(
+            Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toSet()));
+        rescoreContext.setRescoredDocs(topNDocIDs);
+
         // Rescore them:
         TopDocs rescored = rescorer.rescore(searcher, topNFirstPass, rescoreContext.getWindowSize());
 
@@ -76,8 +83,6 @@ public final class QueryRescorer implements Rescorer {
             // this should not happen but just in case
             return Explanation.noMatch("nothing matched");
         }
-        // TODO: this isn't right?  I.e., we are incorrectly pretending all first pass hits were rescored?  If the requested docID was
-        // beyond the top rescoreContext.window() in the first pass hits, we don't rescore it now?
         Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
         float primaryWeight = rescore.queryWeight();
 
@@ -92,7 +97,7 @@ public final class QueryRescorer implements Rescorer {
 
         // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.  Maybe
         // we should add QueryRescorer.explainCombine to Lucene?
-        if (rescoreExplain != null && rescoreExplain.isMatch()) {
+        if (rescoreContext.isRescored(topLevelDocId) && rescoreExplain != null && rescoreExplain.isMatch()) {
             float secondaryWeight = rescore.rescoreQueryWeight();
             Explanation sec = Explanation.match(
                     rescoreExplain.getValue() * secondaryWeight,

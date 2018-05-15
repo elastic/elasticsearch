@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.qa.sql.security;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -178,7 +177,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 request.addParameter("mode", mode);
             }
             if (asUser != null) {
-                request.addHeader(new BasicHeader("es-security-runas-user", asUser));
+                request.addHeader("es-security-runas-user", asUser);
             }
             request.setEntity(entity);
             return toMap(client().performRequest(request));

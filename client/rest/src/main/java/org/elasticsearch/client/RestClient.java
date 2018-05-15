@@ -885,7 +885,7 @@ public class RestClient implements Closeable {
     private static void addHeaders(Request request, Header... headers) {
         Objects.requireNonNull(headers, "headers cannot be null");
         for (Header header : headers) {
-            request.addHeader(header);
+            request.addHeader(header.getName(), header.getValue());
         }
     }
 

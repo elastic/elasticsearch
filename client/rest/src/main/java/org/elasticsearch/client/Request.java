@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
@@ -128,15 +129,16 @@ public final class Request {
     /**
      * Add the provided header to the request.
      */
-    public void addHeader(Header header) {
-        Objects.requireNonNull(header, "header cannot be null");
-        this.headers.add(header);
+    public void addHeader(String name, String value) {
+        Objects.requireNonNull(name, "header name cannot be null");
+        Objects.requireNonNull(value, "header value cannot be null");
+        this.headers.add(new BasicHeader(name, value));
     }
 
     /**
      * Headers to attach to the request.
      */
-    public List<Header> getHeaders() {
+    List<Header> getHeaders() {
         return Collections.unmodifiableList(headers);
     }
 

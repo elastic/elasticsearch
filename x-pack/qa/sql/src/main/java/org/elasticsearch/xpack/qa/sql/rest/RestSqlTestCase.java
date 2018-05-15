@@ -9,7 +9,6 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -319,7 +318,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
         if (randomBoolean()) {
-            request.addHeader(randomFrom(new BasicHeader("Accept", "*/*"), new BasicHeader("Accpet", "application/json")));
+            request.addHeader("Accept", randomFrom("*/*", "application/json"));
         }
         request.setEntity(sql);
         Response response = client().performRequest(request);
@@ -532,7 +531,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Request request = new Request("POST", "/_xpack/sql" + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
-        request.addHeader(new BasicHeader("Accept", accept));
+        request.addHeader("Accept", accept);
         Response response = client().performRequest(request);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),

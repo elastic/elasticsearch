@@ -363,7 +363,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             final int statusCode = randomStatusCode(getRandom());
             Request request = new Request(method, "/" + statusCode);
             for (Header requestHeader : requestHeaders) {
-                request.addHeader(requestHeader);
+                request.addHeader(requestHeader.getName(), requestHeader.getValue());
             }
             Response esResponse;
             try {
@@ -439,7 +439,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         if (randomBoolean()) {
             Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             for (Header header : headers) {
-                request.addHeader(header);
+                request.addHeader(header.getName(), header.getValue());
                 expectedRequest.addHeader(header);
                 uniqueNames.add(header.getName());
             }

@@ -127,7 +127,7 @@ public class RequestTests extends RestClientTestCase {
         assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));
     }
 
-    public void testAddHeaders() {
+    public void testAddHeader() {
         final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         Request request = new Request(method, endpoint);

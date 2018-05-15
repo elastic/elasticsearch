@@ -1,5 +1,5 @@
 {
-  "xpack.ccr.follow_existing_index": {
+  "xpack.ccr.follow_index": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
     "methods": [ "POST" ],
     "url": {

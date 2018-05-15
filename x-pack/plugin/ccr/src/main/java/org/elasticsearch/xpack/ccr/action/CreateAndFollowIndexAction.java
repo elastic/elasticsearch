@@ -68,13 +68,13 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private FollowExistingIndexAction.Request followRequest;
+        private FollowIndexAction.Request followRequest;
 
-        public FollowExistingIndexAction.Request getFollowRequest() {
+        public FollowIndexAction.Request getFollowRequest() {
             return followRequest;
         }
 
-        public void setFollowRequest(FollowExistingIndexAction.Request followRequest) {
+        public void setFollowRequest(FollowIndexAction.Request followRequest) {
             this.followRequest = followRequest;
         }
 
@@ -86,7 +86,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            followRequest = new FollowExistingIndexAction.Request();
+            followRequest = new FollowIndexAction.Request();
             followRequest.readFrom(in);
         }
 
@@ -288,7 +288,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
             activeShardsObserver.waitForActiveShards(new String[]{request.followRequest.getFollowIndex()},
                 ActiveShardCount.DEFAULT, request.timeout(), result -> {
                     if (result) {
-                        client.execute(FollowExistingIndexAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                        client.execute(FollowIndexAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
                             r -> listener.onResponse(new Response(true, true, r.isAcknowledged())),
                             listener::onFailure
                         ));

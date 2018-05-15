@@ -38,13 +38,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.Request,
-        FollowExistingIndexAction.Response, FollowExistingIndexAction.RequestBuilder> {
+public class FollowIndexAction extends Action<FollowIndexAction.Request,
+        FollowIndexAction.Response, FollowIndexAction.RequestBuilder> {
 
-    public static final FollowExistingIndexAction INSTANCE = new FollowExistingIndexAction();
-    public static final String NAME = "cluster:admin/xpack/ccr/follow_existing_index";
+    public static final FollowIndexAction INSTANCE = new FollowIndexAction();
+    public static final String NAME = "cluster:admin/xpack/ccr/follow_index";
 
-    private FollowExistingIndexAction() {
+    private FollowIndexAction() {
         super(NAME);
     }
 
@@ -132,7 +132,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, FollowExistingIndexAction.RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, FollowIndexAction.RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
             super(client, action, new Request());

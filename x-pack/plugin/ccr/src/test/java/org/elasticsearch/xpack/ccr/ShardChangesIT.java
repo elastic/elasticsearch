@@ -28,7 +28,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
+import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
@@ -147,7 +147,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("index1");
 
-        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowIndex("index2");
 
@@ -177,7 +177,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
 
         unFollowIndex("index2");
-        client().execute(FollowExistingIndexAction.INSTANCE, followRequest).get();
+        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
@@ -212,10 +212,10 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         ensureGreen("index1", "index2");
 
-        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowIndex("index2");
-        client().execute(FollowExistingIndexAction.INSTANCE, followRequest).get();
+        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         final int numDocs = randomIntBetween(2, 64);
         for (int i = 0; i < numDocs; i++) {
@@ -259,19 +259,19 @@ public class ShardChangesIT extends ESIntegTestCase {
     public void testFollowNonExistentIndex() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader").get());
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());
-        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         // Leader index does not exist.
         followRequest.setLeaderIndex("non-existent-leader");
         followRequest.setFollowIndex("test-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
         // Follower index does not exist.
         followRequest.setLeaderIndex("test-leader");
         followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
         // Both indices do not exist.
         followRequest.setLeaderIndex("non-existent-leader");
         followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

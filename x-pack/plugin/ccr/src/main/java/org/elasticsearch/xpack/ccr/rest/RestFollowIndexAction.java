@@ -15,13 +15,13 @@ import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction.INSTANCE;
-import static org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction.Request;
+import static org.elasticsearch.xpack.ccr.action.FollowIndexAction.INSTANCE;
+import static org.elasticsearch.xpack.ccr.action.FollowIndexAction.Request;
 
 // TODO: change to confirm with API design
-public class RestFollowExistingIndexAction extends BaseRestHandler {
+public class RestFollowIndexAction extends BaseRestHandler {
 
-    public RestFollowExistingIndexAction(Settings settings, RestController controller) {
+    public RestFollowIndexAction(Settings settings, RestController controller) {
         super(settings);
         // TODO: figure out why: '/{follow_index}/_xpack/ccr/_follow' path clashes with create index api.
         controller.registerHandler(RestRequest.Method.POST, "/_xpack/ccr/{follow_index}/_follow", this);

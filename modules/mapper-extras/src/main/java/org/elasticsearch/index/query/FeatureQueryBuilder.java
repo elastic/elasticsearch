@@ -49,6 +49,8 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
         private static float getPivot(Float pivot, boolean positiveScoreImpact, String feature, IndexReader reader) throws IOException {
             if (pivot != null) {
                 return positiveScoreImpact ? pivot : 1 / pivot;
+            } else if (reader == null) {
+                return 1;
             } else {
                 float computedPivot = FeatureField.computePivotFeatureValue(new IndexSearcher(reader), "_feature", feature);
                 if (computedPivot == 0) {

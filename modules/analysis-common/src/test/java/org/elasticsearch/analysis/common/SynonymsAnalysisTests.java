@@ -17,15 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis.synonyms;
+package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -44,7 +42,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SynonymsAnalysisTests extends ESTestCase {
-    protected final Logger logger = Loggers.getLogger(getClass());
     private IndexAnalyzers indexAnalyzers;
 
     public void testSynonymsAnalysis() throws IOException {
@@ -56,14 +53,14 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Files.copy(synonyms, config.resolve("synonyms.txt"));
         Files.copy(synonymsWordnet, config.resolve("synonyms_wordnet.txt"));
 
-        String json = "/org/elasticsearch/index/analysis/synonyms/synonyms.json";
+        String json = "/org/elasticsearch/analysis/common/synonyms.json";
         Settings settings = Settings.builder().
             loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
 
         match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
@@ -91,7 +88,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try {
-            indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -112,7 +109,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try {
-            indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));

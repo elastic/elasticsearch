@@ -171,6 +171,47 @@ public class IndicesOptionsTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(indicesOptions, opts -> {
             return IndicesOptions.fromOptions(opts.ignoreUnavailable(), opts.allowNoIndices(), opts.expandWildcardsOpen(),
                 opts.expandWildcardsClosed(), opts.allowAliasesToMultipleIndices(), opts.forbidClosedIndices(), opts.ignoreAliases());
+        }, opts -> {
+            boolean mutated = false;
+            boolean ignoreUnavailable = opts.ignoreUnavailable();
+            boolean allowNoIndices = opts.allowNoIndices();
+            boolean expandOpen = opts.expandWildcardsOpen();
+            boolean expandClosed = opts.expandWildcardsClosed();
+            boolean allowAliasesToMulti = opts.allowAliasesToMultipleIndices();
+            boolean forbidClosed = opts.forbidClosedIndices();
+            boolean ignoreAliases = opts.ignoreAliases();
+            while (mutated == false) {
+                if (randomBoolean()) {
+                    ignoreUnavailable = !ignoreUnavailable;
+                    mutated = true;
+                }
+                if (randomBoolean()) {
+                    allowNoIndices = !allowNoIndices;
+                    mutated = true;
+                }
+                if (randomBoolean()) {
+                    expandOpen = !expandOpen;
+                    mutated = true;
+                }
+                if (randomBoolean()) {
+                    expandClosed = !expandClosed;
+                    mutated = true;
+                }
+                if (randomBoolean()) {
+                    allowAliasesToMulti = !allowAliasesToMulti;
+                    mutated = true;
+                }
+                if (randomBoolean()) {
+                    forbidClosed = !forbidClosed;
+                    mutated = true;
+                }
+                if (randomBoolean()) {
+                    ignoreAliases = !ignoreAliases;
+                    mutated = true;
+                }
+            }
+            return IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
+                allowAliasesToMulti, forbidClosed, ignoreAliases);
         });
     }
 }

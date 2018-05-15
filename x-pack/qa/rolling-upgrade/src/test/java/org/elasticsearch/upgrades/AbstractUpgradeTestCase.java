@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -67,7 +66,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     protected Collection<String> templatesToWaitFor() {
-        return Collections.singletonList(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME);
+        return Collections.singletonList("security-index-template");
     }
 
     @Before

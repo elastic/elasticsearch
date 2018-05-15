@@ -168,10 +168,13 @@ public class RestClientDocumentation {
             request.addParameter("pretty", "true");
             //end::rest-client-parameters
             //tag::rest-client-body
-            request.setEntity(new StringEntity(
+            request.setEntity(new NStringEntity(
                     "{\"json\":\"text\"}",
                     ContentType.APPLICATION_JSON));
             //end::rest-client-body
+            //tag::rest-client-body-shorter
+            request.setJsonEntity("{\"json\":\"text\"}");
+            //end::rest-client-body-shorter
             //tag::rest-client-headers
             request.setHeaders(
                     new BasicHeader("Accept", "text/plain"),

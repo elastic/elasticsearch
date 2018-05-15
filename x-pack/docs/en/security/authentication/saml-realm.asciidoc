@@ -1,3 +1,4 @@
+[role="xpack"]
 [[saml-realm]]
 === SAML authentication
 {security} supports user authentication using SAML Single Sign On.

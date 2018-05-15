@@ -1,5 +1,6 @@
+[role="xpack"]
 [[field-and-document-access-control]]
-=== Setting Up Field and Document Level Security
+=== Setting up field and document level security
 
 You can control access to data within an index by adding field and document level
 security permissions to a role. Field level security permissions restrict access
@@ -23,7 +24,7 @@ document level permissions per index. See <<multiple-roles-dls-fls>>.
 =====================================================================
 
 [[field-level-security]]
-==== Field Level Security
+==== Field level security
 
 To enable field level security, specify the fields that each role can access
 as part of the indices permissions in a role definition. Field level security is
@@ -235,7 +236,7 @@ The resulting permission is equal to:
 
 
 [[document-level-security]]
-==== Document Level Security
+==== Document level security
 
 Document level security restricts the documents that users have read access to.
 To enable document level security, specify a query that matches all the
@@ -292,7 +293,7 @@ For example, the following role grants read access only to the documents whose
 NOTE: `query` also accepts queries written as string values.
 
 [[templating-role-query]]
-===== Templating a Role Query
+===== Templating a role query
 
 You can use Mustache templates in a role query to insert the username of the
 current authenticated user into the role. Like other places in {es} that support
@@ -358,7 +359,7 @@ based on the `group.id` field in your documents:
 --------------------------------------------------
 
 [[set-security-user-processor]]
-===== Set Security User Ingest Processor
+===== Set security user ingest processor
 
 If an index is shared by many small users it makes sense to put all these users
 into the same index.  Having a dedicated index or shard per user is wasteful.
@@ -416,7 +417,7 @@ to the `user` field for all documents that are processed by this pipeline:
 --------------------------------------------------
 
 [[multiple-roles-dls-fls]]
-==== Multiple Roles with Document and Field Level Security
+==== Multiple roles with document and field level security
 
 A user can have many roles and each role can define different permissions on the
 same index. It is important to understand the behavior of document and field

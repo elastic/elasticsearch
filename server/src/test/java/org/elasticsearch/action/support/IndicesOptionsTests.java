@@ -24,6 +24,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -136,19 +139,27 @@ public class IndicesOptionsTests extends ESTestCase {
     }
 
     public void testSimpleByteBWC() {
-        // Corresponds to byte 24 prior to rewriting IndicesOptions not to be byte-based
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true, false, false, false);
+        Map<Byte, IndicesOptions> old = new HashMap<>();
+        // These correspond to each individual option (bit) in the old byte-based IndicesOptions
+        old.put((byte) 0, IndicesOptions.fromOptions(false, false, false, false, true, false, false));
+        old.put((byte) 1, IndicesOptions.fromOptions(true, false, false, false, true, false, false));
+        old.put((byte) 2, IndicesOptions.fromOptions(false, true, false, false, true, false, false));
+        old.put((byte) 4, IndicesOptions.fromOptions(false, false, true, false, true, false, false));
+        old.put((byte) 8, IndicesOptions.fromOptions(false, false, false, true, true, false, false));
+        old.put((byte) 16, IndicesOptions.fromOptions(false, false, false, false, false, false, false));
+        old.put((byte) 32, IndicesOptions.fromOptions(false, false, false, false, true, true, false));
+        old.put((byte) 64, IndicesOptions.fromOptions(false, false, false, false, true, false, true));
+        // Test a few multi-selected options
+        old.put((byte) 13, IndicesOptions.fromOptions(true, false, true, true, true, false, false));
+        old.put((byte) 19, IndicesOptions.fromOptions(true, true, false, false, false, false, false));
+        old.put((byte) 24, IndicesOptions.fromOptions(false, false, false, true, false, false, false));
+        old.put((byte) 123, IndicesOptions.fromOptions(true, true, false, true, false, true, true));
 
-        logger.info("--> 1 {}", indicesOptions.toString());
-        IndicesOptions indicesOptions2 = IndicesOptions.fromByte((byte)24);
-        logger.info("--> 2 {}", indicesOptions2.toString());
-
-        assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
-        assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
-        assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
-        assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-        assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
-        assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
-        assertThat(indicesOptions2.ignoreAliases(), equalTo(indicesOptions.ignoreAliases()));
+        for (Map.Entry<Byte, IndicesOptions> entry : old.entrySet()) {
+            IndicesOptions indicesOptions2 = IndicesOptions.fromByte(entry.getKey());
+            logger.info("--> 1 {}", entry.getValue().toString());
+            logger.info("--> 2 {}", indicesOptions2.toString());
+            assertThat("IndicesOptions for byte " + entry.getKey() + " differ for conversion",indicesOptions2, equalTo(entry.getValue()));
+        }
     }
 }

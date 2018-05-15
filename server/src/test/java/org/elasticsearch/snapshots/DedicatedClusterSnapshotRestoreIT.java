@@ -1003,7 +1003,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             admin.cluster().prepareCreateSnapshot(repo, snapshotName)
                 .setIncludeGlobalState(true)
                 .setWaitForCompletion(true)
-                .execute().actionGet();
+                .get();
         assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
 
         SnapshotsStatusResponse response = admin.cluster().prepareSnapshotStatus(repo)

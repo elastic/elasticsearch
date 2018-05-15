@@ -13,7 +13,6 @@ public class SqlClearCursorAction
 
     public static final SqlClearCursorAction INSTANCE = new SqlClearCursorAction();
     public static final String NAME = "indices:data/read/sql/close_cursor";
-    public static final String REST_ENDPOINT = "/_xpack/sql/close";
 
     private SqlClearCursorAction() {
         super(NAME);

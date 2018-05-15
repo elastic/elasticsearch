@@ -194,6 +194,17 @@ public class IndexLifecycleRunner {
         return newClusterStateBuilder;
     }
 
+    static ClusterState addStepInfoToClusterState(Index index, ClusterState clusterState, ToXContentObject stepInfo) throws IOException {
+        IndexMetaData idxMeta = clusterState.getMetaData().index(index);
+        XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
+        stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
+        String stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
+        Settings.Builder indexSettings = Settings.builder().put(idxMeta.getSettings())
+                .put(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.getKey(), stepInfoString);
+        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
+        return newClusterStateBuilder.build();
+    }
+
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
         logger.debug("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
                 + nextStepKey);

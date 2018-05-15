@@ -1,3 +1,4 @@
+[role="xpack"]
 [[built-in-users]]
 === Built-in users
 

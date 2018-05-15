@@ -1,8 +1,8 @@
 ---
 "Copy settings during split index":
   - skip:
-      version: " - 6.99.99"
-      reason: expects warnings that pre-7.0.0 will not send
+      version: " - 6.3.99"
+      reason: expects warnings that pre-6.4.0 will not send
       features: "warnings"
 
   - do:

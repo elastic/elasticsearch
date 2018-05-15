@@ -41,9 +41,9 @@ public final class Request {
     private final String method;
     private final String endpoint;
     private final Map<String, String> parameters = new HashMap<>();
+    private final List<Header> headers = new ArrayList<>();
 
     private HttpEntity entity;
-    private List<Header> headers = new ArrayList<>();
     private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
             HttpAsyncResponseConsumerFactory.DEFAULT;
 
@@ -126,14 +126,11 @@ public final class Request {
     }
 
     /**
-     * Add the provided headers to the request.
+     * Add the provided header to the request.
      */
-    public void addHeaders(Header... headers) {
-        Objects.requireNonNull(headers, "headers cannot be null");
-        for (Header header : headers) {
-            Objects.requireNonNull(header, "header cannot be null");
-        }
-        Collections.addAll(this.headers, headers);
+    public void addHeader(Header header) {
+        Objects.requireNonNull(header, "header cannot be null");
+        this.headers.add(header);
     }
 
     /**

@@ -178,7 +178,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 request.addParameter("mode", mode);
             }
             if (asUser != null) {
-                request.addHeaders(new BasicHeader("es-security-runas-user", asUser));
+                request.addHeader(new BasicHeader("es-security-runas-user", asUser));
             }
             request.setEntity(entity);
             return toMap(client().performRequest(request));

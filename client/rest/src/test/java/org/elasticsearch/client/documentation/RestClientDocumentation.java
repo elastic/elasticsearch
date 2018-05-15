@@ -172,9 +172,8 @@ public class RestClientDocumentation {
             request.setJsonEntity("{\"json\":\"text\"}");
             //end::rest-client-body-shorter
             //tag::rest-client-headers
-            request.addHeaders(
-                    new BasicHeader("Accept", "text/plain"),
-                    new BasicHeader("Cache-Control", "no-cache"));
+            request.addHeader(new BasicHeader("Accept", "text/plain"));
+            request.addHeader(new BasicHeader("Cache-Control", "no-cache"));
             //end::rest-client-headers
             //tag::rest-client-response-consumer
             request.setHttpAsyncResponseConsumerFactory(

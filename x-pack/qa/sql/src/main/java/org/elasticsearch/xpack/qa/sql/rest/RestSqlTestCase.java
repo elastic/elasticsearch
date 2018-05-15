@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.qa.sql.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -319,10 +318,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
-        request.addHeaders(randomFrom(
-            new Header[] {},
-            new Header[] {new BasicHeader("Accept", "*/*")},
-            new Header[] {new BasicHeader("Accpet", "application/json")}));
+        if (randomBoolean()) {
+            request.addHeader(randomFrom(new BasicHeader("Accept", "*/*"), new BasicHeader("Accpet", "application/json")));
+        }
         request.setEntity(sql);
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
@@ -534,7 +532,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Request request = new Request("POST", "/_xpack/sql" + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
-        request.addHeaders(new BasicHeader("Accept", accept));
+        request.addHeader(new BasicHeader("Accept", accept));
         Response response = client().performRequest(request);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),

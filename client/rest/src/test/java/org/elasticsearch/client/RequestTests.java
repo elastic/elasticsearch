@@ -32,8 +32,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -134,33 +136,47 @@ public class RequestTests extends RestClientTestCase {
         Request request = new Request(method, endpoint);
 
         try {
-            request.addHeaders((Header[]) null);
-            fail("expected failure");
-        } catch (NullPointerException e) {
-            assertEquals("headers cannot be null", e.getMessage());
-        }
-
-        try {
-            request.addHeaders(new Header [] {null});
+            request.addHeader(null);
             fail("expected failure");
         } catch (NullPointerException e) {
             assertEquals("header cannot be null", e.getMessage());
         }
 
-        List<Header> headers = new ArrayList<>(between(0, 5));
-        for (int i = 0; i < headers.size(); i++) {
-            BasicHeader header = new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+        int numHeaders = between(0, 5);
+        Set<Header> headers = new HashSet<>();
+        for (int i = 0; i < numHeaders; i++) {
+            BasicHeader header = new BasicHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
             headers.add(header);
-            request.addHeaders(header);
+            request.addHeader(header);
         }
-        if (headers.size() > 0 && randomBoolean()) {
-            //check that duplicates are accepted at this stage
-            Header header = headers.get(randomIntBetween(0, headers.size() - 1));
-            BasicHeader basicHeader = new BasicHeader(header.getName(), randomAsciiAlphanumOfLength(3));
-            headers.add(basicHeader);
-            request.addHeaders(basicHeader);
+        assertEquals(headers, new HashSet<>(request.getHeaders()));
+    }
+
+    public void testDuplicatedHeaders() {
+        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
+        Request request = new Request(method, endpoint);
+
+        int numHeaders = between(1, 3);
+        for (int i = 0; i < numHeaders; i++) {
+            request.addHeader(new BasicHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3)));
         }
-        assertEquals(headers, request.getHeaders());
+
+        Header existingHeader = randomFrom(new ArrayList<>(request.getHeaders()));
+        String headerName = existingHeader.getName();
+        if (randomBoolean()) {
+            headerName = headerName.toUpperCase(Locale.ROOT);
+        } else if (randomBoolean()) {
+            headerName = headerName.toLowerCase(Locale.ROOT);
+        }
+        try {
+            request.addHeader(new BasicHeader(headerName, randomAsciiAlphanumOfLength(3)));
+            fail("expected failure");
+        } catch(IllegalArgumentException e) {
+            assertEquals("Unable to add header with name [" + headerName + "] conflicting header ["
+                    + existingHeader + "] already present", e.getMessage());
+        }
+        assertEquals(numHeaders, request.getHeaders().size());
     }
 
     public void testEqualsAndHashCode() {
@@ -202,7 +218,7 @@ public class RequestTests extends RestClientTestCase {
         if (randomBoolean()) {
             int headerCount = between(1, 5);
             for (int i = 0; i < headerCount; i++) {
-                request.addHeaders(new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3)));
+                request.addHeader(new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3)));
             }
         }
 
@@ -238,7 +254,7 @@ public class RequestTests extends RestClientTestCase {
             mutant.setJsonEntity("mutant"); // randomRequest can't produce this value
             return mutant;
         case 2:
-            mutant.addHeaders(new BasicHeader("extra", "m"));
+            mutant.addHeader(new BasicHeader("extra", "m"));
             return mutant;
         case 3:
             mutant.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(5));
@@ -253,7 +269,9 @@ public class RequestTests extends RestClientTestCase {
             to.addParameter(param.getKey(), param.getValue());
         }
         to.setEntity(from.getEntity());
-        to.addHeaders(from.getHeaders().toArray(new Header[0]));
+        for (Header header : from.getHeaders()) {
+            to.addHeader(header);
+        }
         to.setHttpAsyncResponseConsumerFactory(from.getHttpAsyncResponseConsumerFactory());
     }
 }

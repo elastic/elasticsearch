@@ -3711,7 +3711,7 @@ public class InternalEngineTests extends EngineTestCase {
             };
             noOpEngine.recoverFromTranslog();
             final int gapsFilled = noOpEngine.fillSeqNoGaps(primaryTerm.get());
-            final String reason = randomAlphaOfLength(16);
+            final String reason = "filling gaps";
             noOpEngine.noOp(new Engine.NoOp(maxSeqNo + 1, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), reason));
             assertThat(noOpEngine.getLocalCheckpointTracker().getCheckpoint(), equalTo((long) (maxSeqNo + 1)));
             assertThat(noOpEngine.getTranslog().stats().getUncommittedOperations(), equalTo(gapsFilled));
@@ -3737,7 +3737,7 @@ public class InternalEngineTests extends EngineTestCase {
             List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, mapperService);
             assertThat(operationsFromLucene, hasSize(maxSeqNo + 2 - localCheckpoint)); // fills n gap and 2 manual noop.
             for (int i = 0; i < operationsFromLucene.size(); i++) {
-                assertThat(operationsFromLucene.get(i), equalTo(new Translog.NoOp(localCheckpoint + 1 + i, primaryTerm.get(), "")));
+                assertThat(operationsFromLucene.get(i), equalTo(new Translog.NoOp(localCheckpoint + 1 + i, primaryTerm.get(), "filling gaps")));
             }
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(noOpEngine, mapperService);
         } finally {

@@ -34,7 +34,7 @@ setup:
 "Split index via API":
   - skip:
       version: " - 6.9.99"
-      reason: expects warnings that pre-7.0.0 will not send
+      reason: pre-7.0.0 will send warnings
       features: "warnings"
 
   # make it read-only
@@ -105,12 +105,8 @@ setup:
 ---
 "Split from 1 to N":
   - skip:
-      # when re-enabling uncomment the below skips
-      version: "all"
-      reason: "AwaitsFix'ing, see https://github.com/elastic/elasticsearch/issues/30503"
-      # version: " - 6.9.99"
-      # reason: expects warnings that pre-7.0.0 will not send
-      features: "warnings"
+      version: " - 6.99.99"
+      reason: automatic preparation for splitting was added in 7.0.0
   - do:
       indices.create:
         index: source_one_shard
@@ -204,13 +200,11 @@ setup:
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
-
-
 ---
 "Create illegal split indices":
   - skip:
-      version: " - 6.3.99"
-      reason: expects warnings that pre-6.4.0 will not send
+      version: " - 6.9.99"
+      reason: pre-7.0.0 will send warnings
       features: "warnings"
 
   # try to do an illegal split with number_of_routing_shards set

@@ -51,6 +51,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -58,6 +59,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -991,13 +993,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
         final String snapshotName = "<snapshot-{now/d}>";
-        final String expression = nameExpressionResolver.resolveDateMathExpression(snapshotName);
 
         logger.info("-->  creating repository");
         assertAcked(admin.cluster().preparePutRepository(repo).setType("fs")
             .setSettings(Settings.builder().put("location", randomRepoPath())
                 .put("compress", randomBoolean())));
 
+        final String expression1 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
         logger.info("-->  creating date math snapshot");
         CreateSnapshotResponse snapshotResponse =
             admin.cluster().prepareCreateSnapshot(repo, snapshotName)
@@ -1005,12 +1007,16 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setWaitForCompletion(true)
                 .get();
         assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
+        // snapshot could be taken before or after a day rollover
+        final String expression2 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
 
         SnapshotsStatusResponse response = admin.cluster().prepareSnapshotStatus(repo)
-            .setSnapshots(expression)
-            .execute().actionGet();
-        assertThat(response.getSnapshots(), hasSize(1));
-        assertThat(response.getSnapshots().get(0).getState().completed(), equalTo(true));
+            .setSnapshots(Sets.newHashSet(expression1, expression2).toArray(Strings.EMPTY_ARRAY))
+            .setIgnoreUnavailable(true)
+            .get();
+        List<SnapshotStatus> snapshots = response.getSnapshots();
+        assertThat(snapshots, hasSize(1));
+        assertThat(snapshots.get(0).getState().completed(), equalTo(true));
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {

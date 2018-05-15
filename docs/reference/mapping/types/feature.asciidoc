@@ -39,7 +39,6 @@ GET my_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TESTSETUP
 <1> Feature fields must use the `feature` field type
 <2> Features that correlate negatively with the score need to declare it
 

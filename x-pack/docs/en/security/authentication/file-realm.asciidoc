@@ -1,3 +1,4 @@
+[role="xpack"]
 [[file-realm]]
 === File-based user authentication
 

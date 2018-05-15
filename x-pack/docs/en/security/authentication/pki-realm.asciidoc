@@ -1,3 +1,4 @@
+[role="xpack"]
 [[pki-realm]]
 === PKI user authentication
 

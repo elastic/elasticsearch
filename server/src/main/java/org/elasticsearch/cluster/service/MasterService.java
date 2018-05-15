@@ -386,7 +386,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
             });
 
-            return new DelegetingAckListener(ackListeners);
+            return new DelegatingAckListener(ackListeners);
         }
 
         public boolean clusterStateUnchanged() {
@@ -541,11 +541,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class DelegetingAckListener implements Discovery.AckListener {
+    private static class DelegatingAckListener implements Discovery.AckListener {
 
         private final List<Discovery.AckListener> listeners;
 
-        private DelegetingAckListener(List<Discovery.AckListener> listeners) {
+        private DelegatingAckListener(List<Discovery.AckListener> listeners) {
             this.listeners = listeners;
         }
 
@@ -554,11 +554,6 @@ public class MasterService extends AbstractLifecycleComponent {
             for (Discovery.AckListener listener : listeners) {
                 listener.onNodeAck(node, e);
             }
-        }
-
-        @Override
-        public void onTimeout() {
-            throw new UnsupportedOperationException("no timeout delegation");
         }
     }
 
@@ -614,7 +609,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        @Override
         public void onTimeout() {
             if (countDown.fastForward()) {
                 logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", clusterStateVersion);

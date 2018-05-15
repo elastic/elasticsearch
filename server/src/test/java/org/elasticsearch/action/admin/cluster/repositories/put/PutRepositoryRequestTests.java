@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.repositories;
+package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,7 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RepositoryRequestTests extends ESTestCase {
+public class PutRepositoryRequestTests extends ESTestCase {
 
     public void testCreateRepositoryToXContent() throws IOException {
         Map<String, String> mapParams = new HashMap<>();

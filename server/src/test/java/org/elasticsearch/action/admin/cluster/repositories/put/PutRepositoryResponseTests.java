@@ -16,23 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.repositories;
+package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RepositoryResponseTests extends ESTestCase {
+public class PutRepositoryResponseTests extends AbstractStreamableXContentTestCase<PutRepositoryResponse> {
 
-    public void testCreateRepositoryFromXContent() throws IOException {
-        Boolean acknowledged = randomBoolean();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"acknowledged\":\"" + acknowledged.toString() + "\"}");
-        PutRepositoryResponse response = PutRepositoryResponse.fromXContent(parser);
-        assertThat(response.isAcknowledged(), equalTo(acknowledged));
+    @Override
+    protected PutRepositoryResponse doParseInstance(XContentParser parser) throws IOException {
+        return PutRepositoryResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected PutRepositoryResponse createBlankInstance() {
+        return new PutRepositoryResponse();
+    }
+
+    @Override
+    protected PutRepositoryResponse createTestInstance() {
+        return new PutRepositoryResponse(randomBoolean());
     }
 }

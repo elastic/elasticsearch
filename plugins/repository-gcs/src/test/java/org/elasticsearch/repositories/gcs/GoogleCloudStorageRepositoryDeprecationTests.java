@@ -19,10 +19,9 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.services.storage.Storage;
+import com.google.cloud.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -46,7 +45,7 @@ public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
         new GoogleCloudStorageRepository(repositoryMetaData, environment, NamedXContentRegistry.EMPTY,
             new GoogleCloudStorageService(environment, GoogleCloudStorageClientSettings.load(Settings.EMPTY)) {
                 @Override
-                public Storage createClient(String clientName, String application, TimeValue connect, TimeValue read) throws Exception {
+                public Storage createClient(String clientName) throws Exception {
                     return new MockStorage("test", new ConcurrentHashMap<>());
                 }
             });

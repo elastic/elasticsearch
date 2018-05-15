@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
 
-public class CommonAnalysisPluginTest extends ESTestCase {
+public class CommonAnalysisPluginTests extends ESTestCase {
 
     /**
      * Check that the deprecated name "nGram" issues a deprecation warning for indices created since 6.3.0

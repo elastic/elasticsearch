@@ -106,11 +106,7 @@ which returns something similar to:
                    "num_docs" : 0
                  }
                }
-            ],
-            "1": ...,
-            "2": ...,
-            "3": ...,
-            "4": ...
+            ]
          }
       }
    }
@@ -120,10 +116,6 @@ which returns something similar to:
 // TESTRESPONSE[s/"translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA"/"translog_uuid": $body.indices.twitter.shards.0.0.commit.user_data.translog_uuid/]
 // TESTRESPONSE[s/"history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ"/"history_uuid": $body.indices.twitter.shards.0.0.commit.user_data.history_uuid/]
 // TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
-// TESTRESPONSE[s/"1": \.\.\./"1": $body.indices.twitter.shards.1/]
-// TESTRESPONSE[s/"2": \.\.\./"2": $body.indices.twitter.shards.2/]
-// TESTRESPONSE[s/"3": \.\.\./"3": $body.indices.twitter.shards.3/]
-// TESTRESPONSE[s/"4": \.\.\./"4": $body.indices.twitter.shards.4/]
 <1> the `sync id` marker
 
 [float]

@@ -405,6 +405,13 @@ A category resource has the following properties:
 `examples`::
   (array) A list of examples of actual values that matched the category.
 
+`grok_pattern`::
+  experimental[] (string) A Grok pattern that could be used in Logstash or an
+  Ingest Pipeline to extract fields from messages that match the category. This
+  field is experimental and may be changed or removed in a future release. The
+  Grok patterns that are found are not optimal, but are often a good starting
+  point for manual tweaking.
+
 `job_id`::
   (string) The unique identifier for the job that these results belong to.
 

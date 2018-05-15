@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -161,5 +162,15 @@ public class IndicesOptionsTests extends ESTestCase {
             logger.info("--> 2 {}", indicesOptions2.toString());
             assertThat("IndicesOptions for byte " + entry.getKey() + " differ for conversion",indicesOptions2, equalTo(entry.getValue()));
         }
+    }
+
+    public void testEqualityAndHashCode() {
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(indicesOptions, opts -> {
+            return IndicesOptions.fromOptions(opts.ignoreUnavailable(), opts.allowNoIndices(), opts.expandWildcardsOpen(),
+                opts.expandWildcardsClosed(), opts.allowAliasesToMultipleIndices(), opts.forbidClosedIndices(), opts.ignoreAliases());
+        });
     }
 }

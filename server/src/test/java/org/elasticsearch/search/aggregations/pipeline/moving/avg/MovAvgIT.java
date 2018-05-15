@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -45,7 +43,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -69,7 +66,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29456")
 public class MovAvgIT extends ESIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
     private static final String VALUE_FIELD = "v_value";
@@ -1308,7 +1304,7 @@ public class MovAvgIT extends ESIntegTestCase {
         } else {
             assertThat("[value] movavg is null", valuesMovAvg, notNullValue());
             assertEquals("[value] movavg does not match expected [" + valuesMovAvg.value() + " vs " + expectedValue + "]",
-                    valuesMovAvg.value(), expectedValue, 0.1 * Math.abs(countMovAvg.value()));
+                    valuesMovAvg.value(), expectedValue, 0.1 * Math.abs(valuesMovAvg.value()));
         }
     }
 

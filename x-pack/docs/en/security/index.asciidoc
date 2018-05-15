@@ -1,5 +1,6 @@
+[role="xpack"]
 [[xpack-security]]
-= Securing the Elastic Stack
+= Securing the {stack}
 
 [partintro]
 --
@@ -100,7 +101,7 @@ include::how-security-works.asciidoc[]
 
 include::authentication/overview.asciidoc[]
 
-include::authorization.asciidoc[]
+include::authorization/overview.asciidoc[]
 
 include::auditing.asciidoc[]
 

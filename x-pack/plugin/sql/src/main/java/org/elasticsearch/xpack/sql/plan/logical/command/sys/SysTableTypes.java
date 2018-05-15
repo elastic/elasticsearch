@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
+import java.util.Comparator;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -43,6 +44,8 @@ public class SysTableTypes extends Command {
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         listener.onResponse(Rows.of(output(), IndexType.VALID.stream()
+                // *DBC requires ascending order
+                .sorted(Comparator.comparing(t -> t.toSql()))
                 .map(t -> singletonList(t.toSql()))
                 .collect(toList())));
     }

@@ -188,7 +188,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .addAlias(new Alias("alias"))
                 .setSettings(Settings.builder()
                         .put(indexSettings())
-                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
@@ -260,7 +260,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(Settings.builder()
-                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
@@ -394,7 +394,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .addMapping("type1", mapping)
                 .setSettings(Settings.builder()
                         .put(indexSettings())
-                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
 
         ensureGreen();

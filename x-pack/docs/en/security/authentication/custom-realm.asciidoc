@@ -1,5 +1,6 @@
+[role="xpack"]
 [[custom-realms]]
-=== Integrating with Other Authentication Systems
+=== Integrating with other authentication systems
 
 If you are using an authentication system that is not supported out-of-the-box
 by {security}, you can create a custom realm to interact with it to authenticate
@@ -7,7 +8,7 @@ users. You implement a custom realm as an SPI loaded security extension
 as part of an ordinary elasticsearch plugin.
 
 [[implementing-custom-realm]]
-==== Implementing a Custom Realm
+==== Implementing a custom realm
 
 Sample code that illustrates the structure and implementation of a custom realm
 is provided in the https://github.com/elastic/shield-custom-realm-example[custom-realm-example]
@@ -70,7 +71,7 @@ part of the `SecurityExtension` interface, it's available as part of the elastic
 . Bundle all in a single zip file.
 
 [[using-custom-realm]]
-==== Using a Custom Realm to Authenticate Users
+==== Using a custom realm to authenticate users
 
 To use a custom realm:
 

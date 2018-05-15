@@ -185,7 +185,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testDefaultSettings() throws Exception {
         final ClusterState result = executeTask();
 
-        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("5"));
+        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() throws Exception {

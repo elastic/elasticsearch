@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -189,6 +191,7 @@ public class RestHighLevelClient implements Closeable {
 
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final ClusterClient clusterClient = new ClusterClient(this);
+    private final SnapshotClient snapshotClient = new SnapshotClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -250,6 +253,15 @@ public class RestHighLevelClient implements Closeable {
      */
     public final ClusterClient cluster() {
         return clusterClient;
+    }
+
+    /**
+     * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
+     */
+    public final SnapshotClient snapshot() {
+        return snapshotClient;
     }
 
     /**

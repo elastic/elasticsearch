@@ -215,9 +215,7 @@ public class RestClient implements Closeable {
     @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
-        for (Header header : headers) {
-            request.addHeader(header);
-        }
+        addHeaders(request, headers);
         return performRequest(request);
     }
 
@@ -880,7 +878,7 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Add all parameters from a map to a {@link Request}. This only exists
+     * Add all headers from the provided varargs argument to a {@link Request}. This only exists
      * to support methods that exist for backwards compatibility.
      */
     @Deprecated

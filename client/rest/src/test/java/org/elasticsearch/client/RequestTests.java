@@ -151,34 +151,7 @@ public class RequestTests extends RestClientTestCase {
         }
         assertEquals(headers, new HashSet<>(request.getHeaders()));
     }
-
-    public void testDuplicatedHeaders() {
-        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
-        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
-        Request request = new Request(method, endpoint);
-
-        int numHeaders = between(1, 3);
-        for (int i = 0; i < numHeaders; i++) {
-            request.addHeader(new BasicHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3)));
-        }
-
-        Header existingHeader = randomFrom(new ArrayList<>(request.getHeaders()));
-        String headerName = existingHeader.getName();
-        if (randomBoolean()) {
-            headerName = headerName.toUpperCase(Locale.ROOT);
-        } else if (randomBoolean()) {
-            headerName = headerName.toLowerCase(Locale.ROOT);
-        }
-        try {
-            request.addHeader(new BasicHeader(headerName, randomAsciiAlphanumOfLength(3)));
-            fail("expected failure");
-        } catch(IllegalArgumentException e) {
-            assertEquals("Unable to add header with name [" + headerName + "] conflicting header ["
-                    + existingHeader + "] already present", e.getMessage());
-        }
-        assertEquals(numHeaders, request.getHeaders().size());
-    }
-
+    
     public void testEqualsAndHashCode() {
         Request request = randomRequest();
         assertEquals(request, request);

@@ -1,3 +1,4 @@
+[role="xpack"]
 [[setting-up-authentication]]
 == User authentication
 

@@ -76,7 +76,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;

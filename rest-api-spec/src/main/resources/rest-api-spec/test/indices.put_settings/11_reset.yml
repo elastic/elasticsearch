@@ -9,6 +9,9 @@ setup:
         index: test-index
 ---
 Test reset index settings:
+  - skip:
+      version: " - 6.3.99"
+      reason: "include_defaults behavior is not expected to be consistent when nodes below 6.4.0 are present"
   - do:
       indices.get_settings:
         flat_settings: true

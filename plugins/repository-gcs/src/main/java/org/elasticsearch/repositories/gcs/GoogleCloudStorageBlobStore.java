@@ -28,7 +28,6 @@ import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.Storage.CopyRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -146,10 +145,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     boolean blobExists(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucket, blobName);
         final Blob blob = SocketAccess.doPrivilegedIOException(() -> storage.get(blobId));
-        if (blob != null) {
-            return Strings.hasText(blob.getName());
-        }
-        return false;
+        return blob != null;
     }
 
     /**
@@ -273,10 +269,12 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param blobNames names of the bucket to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
-        if (blobNames.size() < 2) {
-            for (final String blobName : blobNames) {
-                deleteBlob(blobName);
-            }
+        if (blobNames.isEmpty()) {
+            return;
+        }
+        // for a single op submit a simple delete instead of a batch of size 1
+        if (blobNames.size() == 1) {
+            deleteBlob(blobNames.iterator().next());
             return;
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blobName -> BlobId.of(bucket, blobName)).collect(Collectors.toList());

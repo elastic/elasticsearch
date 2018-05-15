@@ -93,6 +93,17 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName));
     }
 
+    public void testProjectIdDefaultsToCredentials() throws Exception {
+        final String clientName = randomAlphaOfLength(5);
+        final Tuple<ServiceAccountCredentials, byte[]> credentials = randomCredential(clientName);
+        final ServiceAccountCredentials credential = credentials.v1();
+        final GoogleCloudStorageClientSettings googleCloudStorageClientSettings = new GoogleCloudStorageClientSettings(credential,
+                ENDPOINT_SETTING.getDefault(Settings.EMPTY), PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
+                CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY), READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+                APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY), new URI(""));
+        assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
+    }
+
     /** Generates a given number of GoogleCloudStorageClientSettings along with the Settings to build them from **/
     private Tuple<Map<String, GoogleCloudStorageClientSettings>, Settings> randomClients(final int nbClients,
                                                                                          final List<Setting<?>> deprecationWarnings)
@@ -130,7 +141,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
         String endpoint;
         if (randomBoolean()) {
-            endpoint = randomAlphaOfLength(5);
+            endpoint = randomFrom("http://www.elastic.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
+                    "https://www.elastic.co:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");
             settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         } else {
             endpoint = ENDPOINT_SETTING.getDefault(Settings.EMPTY);

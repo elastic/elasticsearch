@@ -50,9 +50,7 @@ public class GoogleCloudStorageClientSettings {
     static final Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(PREFIX, "credentials_file",
             key -> SecureSetting.secureFile(key, null));
 
-    /**
-     * An override for the Storage endpoint to connect to.
-     */
+    /** An override for the Storage endpoint to connect to. */
     static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
             key -> Setting.simpleString(key, Setting.Property.NodeScope));
 
@@ -78,36 +76,29 @@ public class GoogleCloudStorageClientSettings {
     static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
         key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope));
 
-    /** Name used by the client when it uses the Google Cloud JSON API. **/
+    /** Name used by the client when it uses the Google Cloud JSON API. */
     static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(PREFIX, "application_name",
-            key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope,
-                    Setting.Property.Deprecated));
+        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated));
 
-    /** The credentials used by the client to connect to the Storage endpoint **/
+    /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
-    /**
-     * The Storage endpoint URL the client should talk to, or null string to use the
-     * default
-     **/
+    /** The Storage endpoint URL the client should talk to. Null value sets the default. */
     private final String endpoint;
 
-    /**
-     * The Google project ID overriding the default way to infer it. Null value sets
-     * the default.
-     **/
+    /** The Google project ID overriding the default way to infer it. Null value sets the default. */
     private final String projectId;
 
-    /** The timeout to establish a connection **/
+    /** The timeout to establish a connection */
     private final TimeValue connectTimeout;
 
-    /** The timeout to read data from an established connection **/
+    /** The timeout to read data from an established connection */
     private final TimeValue readTimeout;
 
-    /** The Storage client application name **/
+    /** The Storage client application name */
     private final String applicationName;
 
-    /** The token server URI. This leases access tokens in the oauth flow. **/
+    /** The token server URI. This leases access tokens in the oauth flow. */
     private final URI tokenUri;
 
     GoogleCloudStorageClientSettings(final ServiceAccountCredentials credential,

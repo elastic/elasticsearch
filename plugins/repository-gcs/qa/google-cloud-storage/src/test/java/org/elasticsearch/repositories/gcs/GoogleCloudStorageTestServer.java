@@ -209,7 +209,7 @@ public class GoogleCloudStorageTestServer {
                 if (bucket == null) {
                     return newError(RestStatus.NOT_FOUND, "bucket not found");
                 }
-                if (bucket.objects.put(objectName, EMPTY_BYTE) == null) {
+                if (bucket.objects.putIfAbsent(objectName, EMPTY_BYTE) == null) {
                     final String location = endpoint + "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
                             + objectName;
                     return new Response(RestStatus.CREATED, singletonMap("Location", location), XContentType.JSON.mediaType(), EMPTY_BYTE);

@@ -213,7 +213,7 @@ class RandomizedTestingTask extends DefaultTask {
 
         DefaultLogger listener = null
         ByteArrayOutputStream antLoggingBuffer = null
-        if (!logger.isInfoEnabled()) {
+        if (logger.isInfoEnabled() == false) {
             // in info logging, ant already outputs info level, so we see everything
             // but on errors or when debugging, we want to see info level messages
             // because junit4 emits jvm output with ant logging

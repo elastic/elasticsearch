@@ -43,7 +43,7 @@ final class SoftDeletesPolicy {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
         this.checkpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
-        this.minRequiredSeqNoForRecovery = checkpointOfSafeCommit + 1;
+        this.minRequiredSeqNoForRecovery = checkpointOfSafeCommit;
         this.retentionLockCount = 0;
     }
 
@@ -71,8 +71,7 @@ final class SoftDeletesPolicy {
     private void updateMinRequiredSeqNoForRecovery() {
         assert Thread.holdsLock(this) : Thread.currentThread().getName();
         if (retentionLockCount == 0) {
-            // Need to keep all operations after the local checkpoint of the safe commit for recovery purpose.
-            this.minRequiredSeqNoForRecovery = checkpointOfSafeCommit + 1;
+            this.minRequiredSeqNoForRecovery = checkpointOfSafeCommit;
         }
     }
 
@@ -108,7 +107,7 @@ final class SoftDeletesPolicy {
 
     // Package-level for testing
     synchronized long getMinSeqNoToRetain() {
-        final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() + 1 - retentionOperations;
-        return Math.min(minRequiredSeqNoForRecovery, minSeqNoForQueryingChanges);
+        final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOperations;
+        return Math.min(minRequiredSeqNoForRecovery, minSeqNoForQueryingChanges) + 1;
     }
 }

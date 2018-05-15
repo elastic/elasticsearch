@@ -20,7 +20,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.core.ml.MlClientHelper;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
@@ -100,7 +100,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return MlClientHelper.execute(context.headers, client, searchRequestBuilder::get);
+        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
@@ -211,7 +211,8 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        return MlClientHelper.execute(context.headers, client, () -> SearchScrollAction.INSTANCE.newRequestBuilder(client)
+        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
+                () -> SearchScrollAction.INSTANCE.newRequestBuilder(client)
                 .setScroll(SCROLL_TIMEOUT)
                 .setScrollId(scrollId)
                 .get());
@@ -226,7 +227,8 @@ class ScrollDataExtractor implements DataExtractor {
         if (scrollId != null) {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
-            MlClientHelper.execute(context.headers, client, () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet());
+            ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
+                    () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet());
         }
     }
 }

@@ -243,13 +243,11 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         List<ForecastRequestStats> forecastStats = getForecastStats();
         assertThat(forecastStats.size(), equalTo(1));
-        {
-            ForecastRequestStats forecastRequestStats = forecastStats.get(0);
-            List<Forecast> forecasts = getForecasts(job.getId(), forecastRequestStats);
+        ForecastRequestStats forecastRequestStats = forecastStats.get(0);
+        List<Forecast> forecasts = getForecasts(job.getId(), forecastRequestStats);
 
-            assertThat(forecastRequestStats.getRecordCount(), equalTo(8000L));
-            assertThat(forecasts.size(), equalTo(8000));
-        }
+        assertThat(forecastRequestStats.getRecordCount(), equalTo(8000L));
+        assertThat(forecasts.size(), equalTo(8000));
     }
 
     private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {

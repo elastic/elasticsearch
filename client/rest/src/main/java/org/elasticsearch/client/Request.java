@@ -19,8 +19,10 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import java.util.Arrays;
@@ -101,6 +103,17 @@ public final class Request {
      */
     public void setEntity(HttpEntity entity) {
         this.entity = entity;
+    }
+
+    /**
+     * Set the body of the request to a string. If not set or set to
+     * {@code null} then no body is sent with the request. The
+     * {@code Content-Type} will be sent as {@code application/json}.
+     * If you need a different content type then use
+     * {@link #setEntity(HttpEntity)}.
+     */
+    public void setJsonEntity(String entity) {
+        setEntity(entity == null ? null : new NStringEntity(entity, ContentType.APPLICATION_JSON));
     }
 
     /**

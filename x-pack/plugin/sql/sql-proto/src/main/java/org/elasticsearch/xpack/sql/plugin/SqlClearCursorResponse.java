@@ -6,13 +6,10 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -20,19 +17,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse.SUCCEEDED;
 
 /**
  * Response to the request to clean all SQL resources associated with the cursor
  */
 public class SqlClearCursorResponse extends ActionResponse implements StatusToXContentObject {
-
-    private static final ParseField SUCCEEDED = new ParseField("succeeded");
-    public static final ObjectParser<SqlClearCursorResponse, Void> PARSER =
-            new ObjectParser<>(SqlClearCursorAction.NAME, true, SqlClearCursorResponse::new);
-    static {
-        PARSER.declareBoolean(SqlClearCursorResponse::setSucceeded, SUCCEEDED);
-    }
-
 
     private boolean succeeded;
 
@@ -92,10 +82,5 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     public int hashCode() {
         return Objects.hash(succeeded);
     }
-
-    public static SqlClearCursorResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
 
 }

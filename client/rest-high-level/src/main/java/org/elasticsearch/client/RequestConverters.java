@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -79,6 +80,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
@@ -457,6 +459,15 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), "_search"));
 
         Params params = new Params(request);
+        addSearchRequestParams(params, searchRequest);
+
+        if (searchRequest.source() != null) {
+            request.setEntity(createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
+    }
+
+    private static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
@@ -472,11 +483,6 @@ final class RequestConverters {
         if (searchRequest.scroll() != null) {
             params.putParam("scroll", searchRequest.scroll().keepAlive());
         }
-
-        if (searchRequest.source() != null) {
-            request.setEntity(createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE));
-        }
-        return request;
     }
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
@@ -503,6 +509,24 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        return request;
+    }
+
+    static Request searchTemplate(SearchTemplateRequest searchTemplateRequest) throws IOException {
+        Request request;
+
+        if (searchTemplateRequest.isSimulate()) {
+            request = new Request(HttpGet.METHOD_NAME, "_render/template");
+        } else {
+            SearchRequest searchRequest = searchTemplateRequest.getRequest();
+            String endpoint = endpoint(searchRequest.indices(), searchRequest.types(), "_search/template");
+            request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+            Params params = new Params(request);
+            addSearchRequestParams(params, searchRequest);
+        }
+
+        request.setEntity(createEntity(searchTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -641,6 +665,17 @@ final class RequestConverters {
         parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
 
         request.setEntity(createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
+        String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addCommaSeparatedPathParts(repositories).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getRepositoriesRequest.masterNodeTimeout());
+        parameters.withLocal(getRepositoriesRequest.local());
         return request;
     }
 

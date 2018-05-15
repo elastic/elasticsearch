@@ -29,14 +29,10 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
-import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.function.BiConsumer;
 
 public class NettyAdaptor implements AutoCloseable {

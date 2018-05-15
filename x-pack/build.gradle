@@ -45,7 +45,6 @@ subprojects {
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": xpackModule('graph')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-logstash:${version}": xpackModule('logstash')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-beats:${version}": xpackModule('beats')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": xpackModule('ml')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": xpackModule('monitoring')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": xpackModule('security')]

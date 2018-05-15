@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -228,7 +228,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     private SqlTypedParamValue param(Object value) {
-        return new SqlTypedParamValue(value, DataTypes.fromJava(value));
+        return new SqlTypedParamValue(DataTypes.fromJava(value), value);
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {

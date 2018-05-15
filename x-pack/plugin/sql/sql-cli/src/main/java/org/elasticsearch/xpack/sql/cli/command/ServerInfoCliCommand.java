@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
+import org.elasticsearch.xpack.sql.proto.MainResponse;
 
 import java.sql.SQLException;
 import java.util.Locale;
@@ -30,7 +30,7 @@ public class ServerInfoCliCommand extends AbstractServerCliCommand {
         }
         terminal.line()
                 .text("Node:").em(info.getNodeName())
-                .text(" Cluster:").em(info.getClusterName().value())
+                .text(" Cluster:").em(info.getClusterName())
                 .text(" Version:").em(info.getVersion().toString())
                 .ln();
         return true;

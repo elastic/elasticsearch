@@ -1,6 +1,7 @@
+[role="xpack"]
 [[saml-guide]]
 
-== Configuring SAML single-sign-on on the Elastic Stack
+== Configuring SAML single-sign-on on the {stack}
 
 The Elastic Stack supports SAML single-sign-on (SSO) into {kib}, using {es} as
 a backend service. In SAML terminology, the Elastic Stack is operating as a

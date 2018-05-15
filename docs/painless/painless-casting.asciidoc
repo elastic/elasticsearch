@@ -31,7 +31,7 @@ cast: '(' TYPE ')' expression
 +
 <1> declare `int i`;
     explicit cast value of `long 5` to value of `int 5` -> `int 5`;
-    assign `int 5` to `i`
+    assign value of `int 5` to `i`
 <2> declare `Map m`;
     allocate `HashMap` instance -> `HashMap reference`;
     implicit cast value of `HashMap reference` to value of `Map reference`
@@ -84,7 +84,7 @@ Each cast is read as a conversion of row to column.
 ----
 +
 <1> declare `int a`;
-    assign `int 1` to `a`
+    assign value of `int 1` to `a`
 <2> declare `long b`;
     access value of `a` -> `int 1`;
     implicit cast value of `int 1` to value of `long 1` -> `long 1`;
@@ -92,7 +92,7 @@ Each cast is read as a conversion of row to column.
 <3> declare `short c`;
     access value of `b` -> `long 1`;
     explicit cast value of `long 1` to value of `short 1` -> `short 1`;
-    assign `short 1` value to `c`
+    assign value of `short 1` value to `c`
 <4> declare `double e`;
     access value of `a` -> `int 1`;
     explicit cast value of `int 1` to `double 1.0`;
@@ -112,7 +112,7 @@ Each cast is read as a conversion of row to column.
     *error* -> cannot implicit cast value of `double 1.0` to value of `int 1`;
     (note an explicit cast is valid)
 <2> declare `int b`;
-    assign `int 2` to `b`
+    assign value of `int 2` to `b`
 <3> declare byte `c`;
     access value of `b` -> `int 2`;
     *error* -> cannot implicit cast value of `int 2` to value of `byte 2`;
@@ -151,16 +151,16 @@ being cast *to* is a descendant of the reference type being cast *from*.
 <3> access value of `y` -> `ArrayList reference`;
     implicit cast value of `ArrayList reference` to value of `List reference`
             -> `List reference`;
-    assign `List reference` to `x`;
+    assign value of `List reference` to `x`;
     (note `ArrayList` is a descendant of `List`)
 <4> access value of `x` -> `List reference`;
     explicit cast value of `List reference` to value of `ArrayList reference`
             -> `ArrayList reference`;
-    assign `ArrayList reference` to `y`;
+    assign value of `ArrayList reference` to `y`;
 <5> access value of `y` -> `ArrayList reference`;
     explicit cast value of `ArrayList reference` to value of `List reference`
             -> `List reference`;
-    assign `List reference` to `x`;
+    assign value of `List reference` to `x`;
     (note the explicit cast is extraneous, and an implicit cast is valid)
 +
 * Invalid <<reference-types, reference type>> casts resulting in errors.
@@ -176,7 +176,7 @@ being cast *to* is a descendant of the reference type being cast *from*.
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast value of `ArrayList reference` to value of `List reference`
             -> `List reference`;
-    assign `List reference` to `x`
+    assign value of `List reference` to `x`
 <2> declare `ArrayList y`;
     access value of `x` -> `List reference`;
     *error* -> cannot implicit cast `List reference` to `ArrayList reference`;
@@ -206,7 +206,7 @@ normally allowed based on the current type value the
 <dynamic-types, `def` type>> value represents.
 
 *Examples*
-+
+
 * Examples of casting <<painless-types, any type>> to the
   <<dynamic-types, dynamic type>>.
 +
@@ -220,7 +220,7 @@ normally allowed based on the current type value the
 ----
 +
 <1> declare `def d0`;
-    implicit cast value of `int 3` to `def`
+    implicit cast value of `int 3` to `def`;
     assign value of `int 3` to `d0`
 <2> allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast value of `ArrayList reference` to value of `def` -> `def`;
@@ -233,13 +233,13 @@ normally allowed based on the current type value the
 <4> declare `def d1`;
     access value of `o` -> `Object reference`;
     implicit cast value of `Object reference` to value of `def` -> `def`;
-    assign `def` to `d1`
+    assign value of `def` to `d1`
 <5> declare `int i`;
     access value of `d1` -> `def`;
     implicit cast value of `def` to value of `HashMap reference`
             -> HashMap reference`;
     call `size` on `HashMap reference` -> `int 0`;
-    assign `int 0` to `i`;
+    assign value of `int 0` to `i`;
     (note value of `def` was implicit cast to value of `HashMap reference`
             since `HashMap` is the child-most descendant type value that the
             `def` type value represents)
@@ -285,7 +285,7 @@ normally allowed based on the current type value the
             -> `List reference`;
     assign value of `List reference` to `l`
 +
-* Examples of errors casting with <<dynamic-types, dynamic-type>>.
+* Examples of errors when casting with the <<dynamic-types, dynamic-type>>.
 +
 [source,Painless]
 ----
@@ -330,8 +330,11 @@ an error will occur.
 <2> c = (char)'c'
 ----
 +
-<1> a
-<2> a
+<1> declare `char c`;
+    explicit cast value of `String "C"` to value of `char C` -> `char C`;
+    assign value of `char C` to `c`
+<2> explicit cast value of `String 'c'` to value of `char c` -> `char c`;
+    assign value of `char c` to `c`
 +
 * Casting a <<string-type, String>> value into a <<primitive-types, char>>
   value.
@@ -341,62 +344,129 @@ an error will occur.
 <1> String s = "s";
 <2> char c = (char)s;
 ----
-<1> a
-<2> a
+<1> declare `String s`;
+    assign value of `String "s"` to `s`;
+<2> declare `char c`
+    access value of `s` -> `String "s"`;
+    explicit cast value of `String "s"` to value of `char s` -> `char s`;
+    assign value of `char s` to `c`
 
 [[boxing-unboxing]]
 ==== Boxing and Unboxing
 
-Boxing is where a cast is used to convert a primitive type to its corresponding
-reference type. Unboxing is the reverse, converting a reference type to the
-corresponding primitive type.
+Boxing is a special type of cast used to convert a
+<<primitive-types, primitive type>> to its corresponding
+<<reference-types, reference type>>. Unboxing is the reverse used to convert a
+<<reference-types, reference type>> to its corresponding
+<<primitive-types, primitive type>>.
 
-There are two places Painless performs implicit boxing and unboxing:
+Implicit boxing/unboxing occurs during the following
+<<painless-operators, operations>>:
 
-* When you call methods, Painless automatically boxes and unboxes arguments
-so you can specify either primitive types or their corresponding reference
-types.
-* When you use the `def` type, Painless automatically boxes and unboxes as
-needed when converting to and from `def`.
+* Conversions between the <<dynamic-types, `def` type>> and
+  <<primitive-types, primitive types>> will be implicitly boxed/unboxed as
+  necessary, though this is referred to as an implicit cast throughout the
+  documentation.
+* <<method-access, Method>>/function call arguments will be implicitly
+  boxed/unboxed as necessary.
+* <<primitive-types, Primitive type>> values will be implicitly boxed when a
+  <<reference-types, reference type>> <<method-access, method call>> is made on a
+  <<primitive-types, primitive type>> value.
 
-The casting operator does not support any way to explicitly box a primitive
-type or unbox a reference type.
+Explicit boxing/unboxing is not allowed and will result in an error. Use the
+reference type API to explicitly convert primitive type values to their
+respective reference type values and vice versa.
 
-If a primitive type needs to be converted to a reference type, the Painless
-reference type API supports methods that can do that. However, under normal
-circumstances this should not be necessary.
+*Examples*
 
-*Examples:*
-[source,Java]
+* Uses of implicit boxing/unboxing.
++
+[source,Painless]
 ----
-Integer x = 1;               // ERROR: not a legal implicit cast
-Integer y = (Integer)1;      // ERROR: not a legal explicit cast
-int a = new Integer(1);      // ERROR: not a legal implicit cast
-int b = (int)new Integer(1); // ERROR: not a legal explicit cast
+<1> List l = new ArrayList();
+<2> l.add(1);
+<3> Integer I = Integer.valueOf(0);
+<4> int i = l.get(i);
 ----
++
+<1> declare `List l`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    assign value of `ArrayList reference` to `l`;
+<2> access value of `l` -> `List reference`;
+    implicit cast value of `int 1` to value of `def` -> `def`;
+    call `add` on `List reference` with arguments (`def`);
+    (note internally `int 1` is boxed to `Integer 1` to store as a `def` type
+            value)
+<3> declare `Integer I`;
+    call `valueOf` on `Integer` with arguments of (`int 0`) -> `Integer 0`;
+    assign value of `Integer 0` to `I`;
+<4> declare `int i`;
+    access value of `I` -> `Integer 0`;
+    unbox `Integer 0` -> `int 0`;
+    access value of `l` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 0`) -> `def`;
+    implicit cast value of `def` to value of `int 1` -> `int 1`;
+    assign value of `int 1` to `i`;
+    (note internally `int 1` is unboxed from `Integer 1` when read from a `def`
+            type value)
++
+* Uses of invalid boxing/unboxing resulting in errors.
++
+[source,Painless]
+----
+<1> Integer x = 1;                   // error
+<2> Integer y = (Integer)1;          // error
+<3> int a = Integer.valueOf(1);      // error
+<4> int b = (int)Integer.valueOf(1); // error
+----
++
+<1> declare `Integer x`;
+    *error* -> cannot implicit box `int 1` to `Integer 1` during assignment
+<2> declare `Integer y`;
+    *error* -> cannot explicit box `int 1` to `Integer 1` during assignment
+<3> declare `int a`;
+    call `valueOf` on `Integer` with arguments of (`int 1`) -> `Integer 1`;
+    *error* -> cannot implicit unbox `Integer 1` to `int 1` during assignment
+<4> declare `int a`;
+    call `valueOf` on `Integer` with arguments of (`int 1`) -> `Integer 1`;
+    *error* -> cannot explicit unbox `Integer 1` to `int 1` during assignment
 
 [[promotion]]
 ==== Promotion
 
-Promotion is where certain operations require types to be either a minimum
-numerical type or for two (or more) types to be equivalent.
-The documentation for each operation that has these requirements
-includes promotion tables that describe how this is handled.
+Promotion is when a value is converted into either a certain type or when
+multiple values are converted into equivalent types for use during an
+<<painless-operators, operation>>. Each <<painless-operators, operation>> that
+requires promotion will have a promotion table that shows all allowed
+conversions. Values can be promoted to the `def` type at compile-time; however,
+at run-time, the promoted type of value is derived from what the `def` type
+value represents.
 
-When an operation promotes a type or types, the resultant type
-of the operation is the promoted type.  Types can be promoted to def
-at compile-time; however, at run-time, the resultant type will be the
-promotion of the types the `def` is representing.
+*Examples*
 
-*Examples:*
-[source,Java]
+* Uses of promotion.
++
+[source,Painless]
 ----
-2 + 2.0     // Add the literal int 2 and the literal double 2.0. The literal
-            //   2 is promoted to a double and the resulting value is a double.
-
-def x = 1;  // Declare def variable x and set it to the literal int 1 through
-            //   an implicit cast
-x + 2.0F    // Add def variable x and the literal float 2.0.
-            // At compile-time the types are promoted to def.
-            // At run-time the types are promoted to float.
+<1> double d = 2 + 2.0;
+<2> def x = 1;
+<3> float f = x + 2.0F;
 ----
+<1> declare `double d`;
+    promote value of `int 2` and value of `double 2.0 @0` -> `double 2.0 @0`;
+    implicit cast value of `int 2` to value of `double 2.0 @1`
+            -> `double 2.0 @1`;
+    add `double 2.0 @1` and `double 2.0 @0` -> `double 4.0`;
+    assign value of `double 4.0` to `d`
+<2> declare `def x`;
+    implicit cast value of `int 1` to value of `def` -> `def`;
+    assign value of `def` to `x`;
+<3> declare `float f`;
+    access value of `x` -> `def`;
+    implicit cast value of `def` to value of `int 1` -> `int 1`;
+    promote value of `int 1` and value of `float 2.0` -> `float 2.0`;
+    implicit cast value of `int 1` to value of `float 1.0` -> `float `1.0`;
+    add `float 1.0` and `float 2.0` -> `float 3.0`;
+    assign value of `float 3.0` to `f`;
+    (note this example illustrates promotion done at run-time as promotion
+     done at compile-time would have resolved to a `def` type value)

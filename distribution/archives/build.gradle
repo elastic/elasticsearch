@@ -18,7 +18,6 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.LoggedExec
@@ -57,15 +56,6 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean os
       }
       into('bin') {
         with binFiles(distributionType, oss)
-        if (distributionType == 'zip') {
-          with copySpec {
-            from('../src/bin') {
-              include '*.bat'
-              filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            }
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
-          }
-        }
       }
       into('') {
         from {
@@ -88,9 +78,6 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean os
       }
 
       with noticeFile
-      from('../src') {
-        include 'bin/*.exe'
-      }
       into('modules') {
         with modulesFiles
       }

@@ -30,10 +30,8 @@ import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedRes
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -151,7 +149,7 @@ public class RequestTests extends RestClientTestCase {
         }
         assertEquals(headers, new HashSet<>(request.getHeaders()));
     }
-    
+
     public void testEqualsAndHashCode() {
         Request request = randomRequest();
         assertEquals(request, request);

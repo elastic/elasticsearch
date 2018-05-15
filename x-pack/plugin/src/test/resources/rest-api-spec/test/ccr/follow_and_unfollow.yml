@@ -4,6 +4,10 @@
       indices.create:
         index: foo
         body:
+          settings:
+            index:
+              soft_deletes:
+                enabled: true
           mappings:
             doc:
               properties:

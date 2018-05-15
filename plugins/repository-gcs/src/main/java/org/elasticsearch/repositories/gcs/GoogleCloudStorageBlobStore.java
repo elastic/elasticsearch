@@ -220,6 +220,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                 if ((e.getStatusCode() == HTTP_PRECON_FAILED) || ((error != null) && (error.getCode() == HTTP_PRECON_FAILED))) {
                     throw new FileAlreadyExistsException(blobName, null, e.getMessage());
                 }
+                throw e;
             }
         });
     }

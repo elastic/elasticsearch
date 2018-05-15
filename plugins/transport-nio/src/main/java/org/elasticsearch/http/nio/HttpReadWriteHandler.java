@@ -79,6 +79,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         }
 
         adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
+        adaptor.addCloseListener((v, e) -> nioChannel.close());
     }
 
     @Override

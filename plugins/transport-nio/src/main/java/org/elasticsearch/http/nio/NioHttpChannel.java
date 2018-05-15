@@ -40,7 +40,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.AbstractRestChannel;

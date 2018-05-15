@@ -75,11 +75,8 @@ public class FileUserRolesStore {
     }
 
     public String[] roles(String username) {
-        if (userRoles == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        String[] roles = userRoles.get(username);
-        return roles == null ? Strings.EMPTY_ARRAY : userRoles.get(username);
+        final String[] roles = userRoles.get(username);
+        return roles == null ? Strings.EMPTY_ARRAY : roles;
     }
 
     public static Path resolveFile(Environment env) {
@@ -160,11 +157,7 @@ public class FileUserRolesStore {
             }
 
             for (String user : roleUsers) {
-                List<String> roles = userToRoles.get(user);
-                if (roles == null) {
-                    roles = new ArrayList<>();
-                    userToRoles.put(user, roles);
-                }
+                List<String> roles = userToRoles.computeIfAbsent(user, k -> new ArrayList<>());
                 roles.add(role);
             }
         }
@@ -185,11 +178,7 @@ public class FileUserRolesStore {
         HashMap<String, List<String>> roleToUsers = new HashMap<>();
         for (Map.Entry<String, String[]> entry : userToRoles.entrySet()) {
             for (String role : entry.getValue()) {
-                List<String> users = roleToUsers.get(role);
-                if (users == null) {
-                    users = new ArrayList<>();
-                    roleToUsers.put(role, users);
-                }
+                List<String> users = roleToUsers.computeIfAbsent(role, k -> new ArrayList<>());
                 users.add(entry.getKey());
             }
         }

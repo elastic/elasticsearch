@@ -80,7 +80,7 @@ public class FileUserPasswdStore {
     }
 
     public AuthenticationResult verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
-        char[] hash = users.get(username);
+        final char[] hash = users.get(username);
         if (hash == null) {
             return AuthenticationResult.notHandled();
         }
@@ -91,7 +91,7 @@ public class FileUserPasswdStore {
     }
 
     public boolean userExists(String username) {
-        return users != null && users.containsKey(username);
+        return users.containsKey(username);
     }
 
     public static Path resolveFile(Environment env) {

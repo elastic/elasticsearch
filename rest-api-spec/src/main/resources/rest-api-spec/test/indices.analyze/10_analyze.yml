@@ -77,36 +77,6 @@
     - match:  { detail.tokenfilters.0.tokens.0.token: bar }
 
 ---
-"Synonym filter with tokenizer":
-    - do:
-        indices.create:
-          index: test_synonym
-          body:
-            settings:
-              index:
-                analysis:
-                  tokenizer:
-                    trigram:
-                      type: nGram
-                      min_gram: 3
-                      max_gram: 3
-                  filter:
-                    synonym:
-                      type: synonym
-                      synonyms: ["kimchy => shay"]
-
-    - do:
-        indices.analyze:
-          index: test_synonym
-          body:
-            tokenizer: trigram
-            filter: [synonym]
-            text: kimchy
-    - length: { tokens: 2 }
-    - match:  { tokens.0.token: sha }
-    - match:  { tokens.1.token: hay }
-
----
 "Custom normalizer in request":
     - do:
         indices.analyze:

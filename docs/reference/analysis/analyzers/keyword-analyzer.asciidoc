@@ -5,14 +5,6 @@ The `keyword` analyzer is a ``noop'' analyzer which returns the entire input
 string as a single token.
 
 [float]
-=== Definition
-
-It consists of:
-
-Tokenizer::
-* <<analysis-keyword-tokenizer,Keyword Tokenizer>>
-
-[float]
 === Example output
 
 [source,js]
@@ -57,3 +49,40 @@ The above sentence would produce the following single term:
 === Configuration
 
 The `keyword` analyzer is not configurable.
+
+[float]
+=== Definition
+
+The `keyword` analyzer consists of:
+
+Tokenizer::
+* <<analysis-keyword-tokenizer,Keyword Tokenizer>>
+
+If you need to customize the `keyword` analyzer then you need to
+recreate it as a `custom` analyzer and modify it, usually by adding
+token filters. Usually, you should prefer the
+<<keyword, Keyword type>> when you want strings that are not split
+into tokens, but just in case you need it, this would recreate the
+built-in `keyword` analyzer and you can use it as a starting point
+for further customization:
+
+[source,js]
+----------------------------------------------------
+PUT /keyword_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "rebuilt_keyword": {
+          "tokenizer": "keyword",
+          "filter": [         <1>
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// CONSOLE
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: keyword_example, first: keyword, second: rebuilt_keyword}\nendyaml\n/]
+<1> You'd add any token filters here.

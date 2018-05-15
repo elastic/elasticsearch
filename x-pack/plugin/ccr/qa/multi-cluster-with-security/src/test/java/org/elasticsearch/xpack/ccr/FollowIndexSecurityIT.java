@@ -84,7 +84,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             ensureYellow(indexName1);
             followIndex("leader_cluster:" + indexName1, indexName1);
             assertBusy(() -> verifyDocuments(client(), indexName1, numDocs));
-            assertThat(countCcrNodeTasks(), equalTo(5));
+            assertThat(countCcrNodeTasks(), equalTo(1));
             assertOK(client().performRequest("POST", "/_xpack/ccr/" + indexName1 + "/_unfollow"));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {

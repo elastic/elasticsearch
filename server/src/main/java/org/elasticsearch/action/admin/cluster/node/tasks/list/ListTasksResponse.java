@@ -70,7 +70,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
     }
 
-    public static final ConstructingObjectParser<ListTasksResponse, Void> PARSER =
+    private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER =
         new ConstructingObjectParser<>("list_tasks_response", true,
             constructingObjects -> {
                 int i = 0;
@@ -85,7 +85,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     static {
         PARSER.declareObjectArray(constructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
-        PARSER.declareObjectArray(optionalConstructorArg(), TaskOperationFailure.PARSER, new ParseField(TASK_FAILURES));
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
         PARSER.declareObjectArray(optionalConstructorArg(),
             (parser, c) -> ElasticsearchException.fromXContent(parser), new ParseField(NODE_FAILURES));
     }

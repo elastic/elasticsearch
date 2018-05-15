@@ -104,7 +104,9 @@ public class GoogleCloudStorageService extends AbstractComponent {
     /**
      * Pins the TLS trust certificates and, more importantly, overrides connection
      * URLs in the case of a custom endpoint setting because some connections don't
-     * fully honor this setting (bugs in the SDK).
+     * fully honor this setting (bugs in the SDK). The default connection factory
+     * opens a new connection for each request. This is required for the storage
+     * instance to be thread-safe.
      **/
     private static HttpTransport createHttpTransport(final String endpoint) throws Exception {
         final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();

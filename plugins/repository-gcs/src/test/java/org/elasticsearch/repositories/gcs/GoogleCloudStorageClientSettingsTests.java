@@ -128,12 +128,12 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final ServiceAccountCredentials credential = credentials.v1();
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), credentials.v2());
 
-        String host;
+        String endpoint;
         if (randomBoolean()) {
-            host = randomAlphaOfLength(5);
-            settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), host);
+            endpoint = randomAlphaOfLength(5);
+            settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         } else {
-            host = ENDPOINT_SETTING.getDefault(Settings.EMPTY);
+            endpoint = ENDPOINT_SETTING.getDefault(Settings.EMPTY);
         }
 
         String projectId;
@@ -169,7 +169,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             applicationName = APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY);
         }
 
-        return new GoogleCloudStorageClientSettings(credential, host, projectId, connectTimeout, readTimeout, applicationName, new URI(""));
+        return new GoogleCloudStorageClientSettings(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName,
+                new URI(""));
     }
 
     /** Generates a random GoogleCredential along with its corresponding Service Account file provided as a byte array **/

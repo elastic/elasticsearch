@@ -9,7 +9,7 @@
 password-protect your data as well as implement more advanced security measures
 such as encrypting communications, role-based access control, IP filtering, and
 auditing. For more information, see
-{xpack-ref}/xpack-security.html[Securing the Elastic Stack].
+{xpack-ref}/elasticsearch-security.html[Securing the Elastic Stack].
 
 To use {security} in {es}:
 
@@ -70,7 +70,7 @@ user API.
 
 --
 
-. Choose which types of realms you want to use to authenticate users. 
+. Choose which types of realms you want to use to authenticate users.
 ** <<configuring-ad-realm,Configure an Active Directory realm>>.
 ** <<configuring-file-realm,Configure a file realm>>.
 ** <<configuring-ldap-realm,Configure an LDAP realm>>.
@@ -121,14 +121,14 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content
 xpack.security.audit.enabled: true
 ----------------------------
 +
-For more information, see {xpack-ref}/auditing.html[Auditing Security Events] 
-and <<auditing-settings>>. 
+For more information, see {xpack-ref}/auditing.html[Auditing Security Events]
+and <<auditing-settings>>.
 
 .. Restart {es}.
 
 By default, events are logged to a dedicated `elasticsearch-access.log` file in
 `ES_HOME/logs`. You can also store the events in an {es} index for
-easier analysis and control what events are logged. 
+easier analysis and control what events are logged.
 --
 
 include::securing-communications/securing-elasticsearch.asciidoc[]

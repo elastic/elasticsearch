@@ -326,9 +326,15 @@ dependencyLicenses {
 }
 
 if (isEclipse == false || project.path == ":server-tests") {
-  task integTest(type: RandomizedTestingTask,group: JavaBasePlugin.VERIFICATION_GROUP) {
-    description = 'Multi-node tests'
-    basedOn tasks.test
+  task integTest(type: RandomizedTestingTask,
+                 group: JavaBasePlugin.VERIFICATION_GROUP,
+                 description: 'Multi-node tests',
+                 dependsOn: test.dependsOn) {
+    configure(BuildPlugin.commonTestConfig(project))
+    classpath = project.test.classpath
+    testClassesDirs = project.test.testClassesDirs
     include '**/*IT.class'
   }
+  check.dependsOn integTest
+  integTest.mustRunAfter test
 }

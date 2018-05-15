@@ -97,17 +97,6 @@ class RandomizedTestingTask extends DefaultTask {
         listenersConfig.listeners.add(new TestReportLogger(logger: logger, config: testLoggingConfig))
     }
 
-    void basedOn(RandomizedTestingTask other) {
-        configure(BuildPlugin.commonTestConfig(project))
-        classpath = other.classpath;
-        testClassesDirs = other.testClassesDirs;
-        dependsOn = other.dependsOn
-        other.mustRunAfter this
-        if (project.tasks.findByPath("check") != null) {
-            project.tasks.check.dependsOn this
-        }
-    }
-
     @Inject
     ProgressLoggerFactory getProgressLoggerFactory() {
         throw new UnsupportedOperationException()

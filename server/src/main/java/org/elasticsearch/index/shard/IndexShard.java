@@ -1584,10 +1584,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Acquires a lock on the translog files, preventing them from being trimmed.
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public Closeable acquireTranslogRetentionLock() {
-        return getEngine().acquireTranslogRetentionLock();
+    public Closeable acquireRetentionLockForPeerRecovery() {
+        return getEngine().acquireRetentionLockForPeerRecovery();
     }
 
     /**

@@ -580,9 +580,10 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public Closeable acquireTranslogRetentionLock() {
-        return getTranslog().acquireRetentionLock();
-    }
+    /**
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     */
+    public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
      * Creates a new translog snapshot from this engine for reading translog operations whose seq# in the provided range.

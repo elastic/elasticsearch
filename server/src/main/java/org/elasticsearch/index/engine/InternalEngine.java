@@ -84,6 +84,7 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2355,6 +2356,13 @@ public class InternalEngine extends Engine {
         } finally {
             IOUtils.close(searcher);
         }
+    }
+
+    @Override
+    public Closeable acquireRetentionLockForPeerRecovery() {
+        final Closeable translogLock = translog.acquireRetentionLock();
+        final Releasable softDeletesLock = softDeletesPolicy.acquireRetentionLock();
+        return () -> IOUtils.close(translogLock, softDeletesLock);
     }
 
     @Override

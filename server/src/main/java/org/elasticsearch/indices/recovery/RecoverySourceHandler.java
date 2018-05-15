@@ -146,7 +146,7 @@ public class RecoverySourceHandler {
             assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
         }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ", shard, cancellableThreads, logger);
 
-        try (Closeable ignored = shard.acquireTranslogRetentionLock()) {
+        try (Closeable ignored = shard.acquireRetentionLockForPeerRecovery()) {
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;
             final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&

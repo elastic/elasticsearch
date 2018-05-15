@@ -37,7 +37,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackClientActionPlugin;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
@@ -65,6 +64,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -122,7 +122,7 @@ public class NativeRolesStore extends AbstractComponent {
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SecurityLifecycleServiceField.SECURITY_INDEX_NAME)
+                    SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                             .setScroll(TimeValue.timeValueSeconds(10L))
                             .setQuery(query)
                             .setSize(1000)
@@ -141,7 +141,7 @@ public class NativeRolesStore extends AbstractComponent {
             listener.onFailure(new UnsupportedOperationException("roles may not be deleted using a tribe node"));
         } else {
             securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                DeleteRequest request = client.prepareDelete(SecurityLifecycleServiceField.SECURITY_INDEX_NAME,
+                DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
                         ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -185,7 +185,7 @@ public class NativeRolesStore extends AbstractComponent {
                 return;
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SecurityLifecycleServiceField.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
+                    client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
                             .setSource(xContentBuilder)
                             .setRefreshPolicy(request.getRefreshPolicy())
                             .request(),
@@ -216,10 +216,10 @@ public class NativeRolesStore extends AbstractComponent {
             securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                         client.prepareMultiSearch()
-                                .add(client.prepareSearch(SecurityLifecycleServiceField.SECURITY_INDEX_NAME)
+                                .add(client.prepareSearch(SECURITY_INDEX_NAME)
                                         .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                         .setSize(0))
-                                .add(client.prepareSearch(SecurityLifecycleServiceField.SECURITY_INDEX_NAME)
+                                .add(client.prepareSearch(SECURITY_INDEX_NAME)
                                         .setQuery(QueryBuilders.boolQuery()
                                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                                 .must(QueryBuilders.boolQuery()
@@ -229,7 +229,7 @@ public class NativeRolesStore extends AbstractComponent {
                                                         .should(existsQuery("indices.fields"))))
                                         .setSize(0)
                                         .setTerminateAfter(1))
-                                .add(client.prepareSearch(SecurityLifecycleServiceField.SECURITY_INDEX_NAME)
+                                .add(client.prepareSearch(SECURITY_INDEX_NAME)
                                         .setQuery(QueryBuilders.boolQuery()
                                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                                 .filter(existsQuery("indices.query")))
@@ -300,7 +300,7 @@ public class NativeRolesStore extends AbstractComponent {
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SecurityLifecycleServiceField.SECURITY_INDEX_NAME,
+                    client.prepareGet(SECURITY_INDEX_NAME,
                             ROLE_DOC_TYPE, getIdForUser(role)).request(),
                     listener,
                     client::get));

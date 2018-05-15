@@ -16,13 +16,13 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -66,7 +66,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Override
     public Set<String> excludeTemplates() {
         Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME); // don't remove the security index template
+        templates.add(SecurityIndexManager.SECURITY_TEMPLATE_NAME); // don't remove the security index template
         return templates;
     }
 

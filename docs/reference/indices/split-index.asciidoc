@@ -117,7 +117,7 @@ the following request:
 
 [source,js]
 --------------------------------------------------
-POST my_source_index/_split/my_target_index
+POST my_source_index/_split/my_target_index?copy_settings=true
 {
   "settings": {
     "index.number_of_shards": 2
@@ -152,7 +152,7 @@ and accepts `settings` and `aliases` parameters for the target index:
 
 [source,js]
 --------------------------------------------------
-POST my_source_index/_split/my_target_index
+POST my_source_index/_split/my_target_index?copy_settings=true
 {
   "settings": {
     "index.number_of_shards": 5 <1>
@@ -175,9 +175,11 @@ NOTE: By default, with the exception of `index.analysis`, `index.similarity`,
 and `index.sort` settings, index settings on the source index are not copied
 during a split operation. With the exception of non-copyable settings, settings
 from the source index can be copied to the target index by adding the URL
-parameter `copy_settings=true` to the request.
+parameter `copy_settings=true` to the request. Note that `copy_settings` can not
+be set to `false`. The parameter `copy_settings` will be removed in 8.0.0
 
-deprecated[6.4.0, `copy_settings` will default to `true` in 8.x and will be removed in 9.0.0]
+deprecated[6.4.0, not copying settings is deprecated, copying settings will be
+the default behavior in 7.x]
 
 [float]
 === Monitoring the split process

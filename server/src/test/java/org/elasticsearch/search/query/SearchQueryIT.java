@@ -30,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -351,7 +350,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .put(SETTING_NUMBER_OF_SHARDS,1)
                         .put("index.analysis.filter.syns.type","synonym")
                         .putList("index.analysis.filter.syns.synonyms","quick,fast")
-                        .put("index.analysis.analyzer.syns.tokenizer","whitespace")
+                        .put("index.analysis.analyzer.syns.tokenizer","standard")
                         .put("index.analysis.analyzer.syns.filter","syns")
                         )
                 .addMapping("type1", "field1", "type=text,analyzer=syns", "field2", "type=text,analyzer=syns"));
@@ -1797,56 +1796,6 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         refresh();
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-    }
-
-    // see #5120
-    public void testNGramCopyField() {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 9)
-                .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
-                .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
-                .putList("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
-        assertAcked(builder.addMapping("test", "origin", "type=text,copy_to=meta", "meta", "type=text,analyzer=my_ngram_analyzer"));
-        // we only have ngrams as the index analyzer so searches will get standard analyzer
-
-
-        client().prepareIndex("test", "test", "1").setSource("origin", "C.A1234.5678")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "1234"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "1234.56"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("meta", "A1234"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("meta", "a1234"))
-                .get();
-        assertHitCount(searchResponse, 0L); // it's upper case
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "A1234").analyzer("my_ngram_analyzer"))
-                .get(); // force ngram analyzer
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "a1234").analyzer("my_ngram_analyzer"))
-                .get(); // this one returns a hit since it's default operator is OR
-        assertHitCount(searchResponse, 1L);
     }
 
     public void testMatchPhrasePrefixQuery() throws ExecutionException, InterruptedException {

@@ -27,11 +27,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-
-import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
 
 /**
  * This class is used to provide a lifecycle for services that is based on the cluster's state
@@ -50,8 +45,6 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
     public static final String INTERNAL_SECURITY_INDEX = SecurityIndexManager.INTERNAL_SECURITY_INDEX;
     public static final String SECURITY_INDEX_NAME = ".security";
-
-    private static final Version MIN_READ_VERSION = Version.V_5_0_0;
 
     private final Settings settings;
     private final ThreadPool threadPool;
@@ -127,36 +120,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
     }
 
-    public static boolean securityIndexMappingSufficientToRead(ClusterState clusterState, Logger logger) {
-        return checkMappingVersions(clusterState, logger, MIN_READ_VERSION::onOrBefore);
-    }
-
-    static boolean securityIndexMappingUpToDate(ClusterState clusterState, Logger logger) {
-        return checkMappingVersions(clusterState, logger, Version.CURRENT::equals);
-    }
-
-    private static boolean checkMappingVersions(ClusterState clusterState, Logger logger, Predicate<Version> versionPredicate) {
-        return SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, versionPredicate);
-    }
-
     public static List<String> indexNames() {
         return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     }
-
-    /**
-     * Is the move from {@code previousHealth} to {@code currentHealth} a move from an unhealthy ("RED") index state to a healthy
-     * ("non-RED") state.
-     */
-    public static boolean isMoveFromRedToNonRed(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
-        return (previousHealth == null || previousHealth.getStatus() == ClusterHealthStatus.RED)
-                && currentHealth != null && currentHealth.getStatus() != ClusterHealthStatus.RED;
-    }
-
-    /**
-     * Is the move from {@code previousHealth} to {@code currentHealth} a move from index-exists to index-deleted
-     */
-    public static boolean isIndexDeleted(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
-        return previousHealth != null && currentHealth == null;
-    }
-
 }

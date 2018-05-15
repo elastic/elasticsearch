@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 
@@ -486,7 +487,7 @@ public class JobProvider {
         }
     }
 
-    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser, 
+    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser,
                                  Consumer<Exception> errorHandler) {
         BytesReference source = getResponse.getSourceAsBytesRef();
 
@@ -626,10 +627,11 @@ public class JobProvider {
      * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
      * Uses a supplied client, so may run as the currently authenticated user
      * @param jobId the job id
+     * @param augment Should the category definition be augmented with a Grok pattern?
      * @param from  Skip the first N categories. This parameter is for paging
      * @param size  Take only this number of categories
      */
-    public void categoryDefinitions(String jobId, Long categoryId, Integer from, Integer size,
+    public void categoryDefinitions(String jobId, Long categoryId, boolean augment, Integer from, Integer size,
                                     Consumer<QueryPage<CategoryDefinition>> handler,
                                     Consumer<Exception> errorHandler, Client client) {
         if (categoryId != null && (from != null || size != null)) {
@@ -663,6 +665,9 @@ public class JobProvider {
                              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             CategoryDefinition categoryDefinition = CategoryDefinition.LENIENT_PARSER.apply(parser, null);
+                            if (augment) {
+                                augmentWithGrokPattern(categoryDefinition);
+                            }
                             results.add(categoryDefinition);
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse category definition", e);
@@ -672,6 +677,17 @@ public class JobProvider {
                             new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
                     handler.accept(result);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))), client::search);
+    }
+
+    void augmentWithGrokPattern(CategoryDefinition categoryDefinition) {
+        List<String> examples = categoryDefinition.getExamples();
+        String regex = categoryDefinition.getRegex();
+        if (examples.isEmpty() || regex.isEmpty()) {
+            categoryDefinition.setGrokPattern("");
+        } else {
+            categoryDefinition.setGrokPattern(GrokPatternCreator.findBestGrokMatchFromExamples(categoryDefinition.getJobId(),
+                regex, examples));
+        }
     }
 
     /**

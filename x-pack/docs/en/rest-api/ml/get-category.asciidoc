@@ -62,11 +62,11 @@ roles provide these privileges. For more information, see
 ==== Examples
 
 The following example gets information about one category for the
-`it_ops_new_logs` job:
+`esxi_log` job:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/it_ops_new_logs/results/categories
+GET _xpack/ml/anomaly_detectors/esxi_log/results/categories
 {
   "page":{
     "size": 1
@@ -83,14 +83,18 @@ In this example, the API returns the following information:
   "count": 11,
   "categories": [
     {
-      "job_id": "it_ops_new_logs",
-      "category_id": 1,
-      "terms": "Actual Transaction Already Voided Reversed hostname dbserver.acme.com physicalhost esxserver1.acme.com vmhost app1.acme.com",
-      "regex": ".*?Actual.+?Transaction.+?Already.+?Voided.+?Reversed.+?hostname.+?dbserver.acme.com.+?physicalhost.+?esxserver1.acme.com.+?vmhost.+?app1.acme.com.*",
-      "max_matching_length": 137,
-      "examples": [
-        "Actual Transaction Already Voided / Reversed;hostname=dbserver.acme.com;physicalhost=esxserver1.acme.com;vmhost=app1.acme.com"
-      ]
+      "job_id" : "esxi_log",
+      "category_id" : 1,
+      "terms" : "Vpxa verbose vpxavpxaInvtVm opID VpxaInvtVmChangeListener Guest DiskInfo Changed",
+      "regex" : ".*?Vpxa.+?verbose.+?vpxavpxaInvtVm.+?opID.+?VpxaInvtVmChangeListener.+?Guest.+?DiskInfo.+?Changed.*",
+      "max_matching_length": 154,
+      "examples" : [
+        "Oct 19 17:04:44 esxi1.acme.com Vpxa: [3CB3FB90 verbose 'vpxavpxaInvtVm' opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed",
+        "Oct 19 17:04:45 esxi2.acme.com Vpxa: [3CA66B90 verbose 'vpxavpxaInvtVm' opID=WFU-33927856] [VpxaInvtVmChangeListener] Guest DiskInfo Changed",
+        "Oct 19 17:04:51 esxi1.acme.com Vpxa: [FFDBAB90 verbose 'vpxavpxaInvtVm' opID=WFU-25e0d447] [VpxaInvtVmChangeListener] Guest DiskInfo Changed",
+        "Oct 19 17:04:58 esxi2.acme.com Vpxa: [FFDDBB90 verbose 'vpxavpxaInvtVm' opID=WFU-bbff0134] [VpxaInvtVmChangeListener] Guest DiskInfo Changed"
+      ],
+      "grok_pattern" : ".*?%{SYSLOGTIMESTAMP:timestamp}.+?Vpxa.+?%{BASE16NUM:field}.+?verbose.+?vpxavpxaInvtVm.+?opID.+?VpxaInvtVmChangeListener.+?Guest.+?DiskInfo.+?Changed.*"
     }
   ]
 }

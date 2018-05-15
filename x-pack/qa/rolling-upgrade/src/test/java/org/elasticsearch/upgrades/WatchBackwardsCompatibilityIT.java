@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -97,8 +96,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
                 Response response = client().performRequest("GET", "/_cluster/state/metadata");
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
-                final String mappingsPath = "metadata.templates." + SECURITY_TEMPLATE_NAME + "" +
-                        ".mappings";
+                final String mappingsPath = "metadata.templates.security-index-template.mappings";
                 Map<String, Object> mappings = objectPath.evaluate(mappingsPath);
                 assertNotNull(mappings);
                 assertThat(mappings.size(), greaterThanOrEqualTo(1));

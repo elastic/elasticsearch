@@ -22,7 +22,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -31,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
  * Responsible for cleaning the invalidated tokens from the invalidated tokens index.
@@ -50,7 +50,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
 
     @Override
     public void doRun() {
-        SearchRequest searchRequest = new SearchRequest(SecurityLifecycleServiceField.SECURITY_INDEX_NAME);
+        SearchRequest searchRequest = new SearchRequest(SECURITY_INDEX_NAME);
         DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(searchRequest);
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);

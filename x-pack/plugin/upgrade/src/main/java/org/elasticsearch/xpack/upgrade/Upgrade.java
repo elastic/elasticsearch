@@ -78,7 +78,6 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
-import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.core.security.authc.esnative.NativeUserStoreField.INDEX_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.esnative.NativeUserStoreField.RESERVED_USER_TYPE;
 
@@ -89,6 +88,8 @@ public class Upgrade extends Plugin implements ActionPlugin {
     // this is the required index.format setting for 6.0 services (watcher and security) to start up
     // this index setting is set by the upgrade API or automatically when a 6.0 index template is created
     private static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
+
+    private static final String SECURITY_INDEX_NAME = ".security";
 
     private final Settings settings;
     private final List<BiFunction<Client, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;

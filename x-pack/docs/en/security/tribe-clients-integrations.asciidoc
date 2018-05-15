@@ -1,5 +1,5 @@
 [[ccs-tribe-clients-integrations]]
-== Cross Cluster Search, Tribe, Clients and Integrations
+== Cross cluster search, tribe, clients, and integrations
 
 When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search] or
 {ref}/modules-tribe.html[Tribe Nodes] you need to take extra steps to secure

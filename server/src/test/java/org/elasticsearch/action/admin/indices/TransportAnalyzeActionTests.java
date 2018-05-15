@@ -283,7 +283,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
                 new AnalyzeRequest()
-                    .tokenizer("whitespace")
+                    .tokenizer("standard")
                     .addTokenFilter("foobar")
                     .text("the qu1ck brown fox"),
                 AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null, registry, environment));
@@ -296,7 +296,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
                 new AnalyzeRequest()
-                    .tokenizer("whitespace")
+                    .tokenizer("standard")
                     .addTokenFilter("lowercase")
                     .addCharFilter("foobar")
                     .text("the qu1ck brown fox"),
@@ -318,7 +318,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
     public void testNonPreBuildTokenFilter() throws IOException {
         AnalyzeRequest request = new AnalyzeRequest();
-        request.tokenizer("whitespace");
+        request.tokenizer("standard");
         request.addTokenFilter("stop"); // stop token filter is not prebuilt in AnalysisModule#setupPreConfiguredTokenFilters()
         request.text("the quick brown fox");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);

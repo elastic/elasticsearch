@@ -19,9 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -39,6 +36,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
@@ -147,11 +145,10 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
-        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
-                stringEntity);
-        assertEquals(201, response.getStatusLine().getStatusCode());
+        IndexRequest index = new IndexRequest("index", "type", "id");
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index);
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
@@ -175,12 +172,11 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
-
+        IndexRequest index = new IndexRequest("index", "type", "id");
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
-                stringEntity);
-        assertEquals(201, response.getStatusLine().getStatusCode());
+        index.source(document, XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index);
         {
             GetRequest getRequest = new GetRequest("index", "type", "id").version(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
@@ -271,18 +267,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
         }
-
-        String document = "{\"field\":\"value1\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id1", Collections.singletonMap("refresh", "true"),
-                stringEntity);
-        assertEquals(201, r.getStatusLine().getStatusCode());
-
-        document = "{\"field\":\"value2\"}";
-        stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id2", Collections.singletonMap("refresh", "true"), stringEntity);
-        assertEquals(201, r.getStatusLine().getStatusCode());
-
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        IndexRequest index = new IndexRequest("index", "type", "id1");
+        index.source("{\"field\":\"value1\"}", XContentType.JSON);
+        bulk.add(index);
+        index = new IndexRequest("index", "type", "id2");
+        index.source("{\"field\":\"value2\"}", XContentType.JSON);
+        bulk.add(index);
+        highLevelClient().bulk(bulk);
         {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
             multiGetRequest.add("index", "type", "id1");

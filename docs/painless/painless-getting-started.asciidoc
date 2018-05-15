@@ -120,19 +120,25 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
+
 [float]
 ===== Missing values
 
-Currently by default, if a document is missing a numeric field `field`,
-`doc['field'].value` returns `0` for this document. This default behaviour
-will be changed in the next major version of elasticsearch:
-if a document is missing a field `field`, `doc['field']` for this document
-will return `null`. You can set a system property
-`export ES_JAVA_OPTS="-Des.script.null_for_missing_value=true"' on a node
-to make this node's behaviour compatible with the future major version.
-Otherwise, every time the node starts a deprecation warning will remind you
-about this forthcoming change.
+If you request the value from a field `field` that isn’t in
+the document, `doc['field'].value` for this document returns:
 
+- `0` if a `field` has a numeric datatype (long, double etc.)
+- `false` is a `field` has a boolean datatype
+- epoch date if a `field` has a date datatype
+- `null` if a `field` has a string datatype
+- `null` if a `field` has a geo datatype
+- `""` if a `field` has a binary datatype
+
+IMPORTANT: Starting in 7.0, `doc['field']` returns a value of null if
+the field is missing in a document. To enable this behavior now,
+set a <<jvm-options,`jvm.option`>>
+`-Des.script.null_for_missing_value=true` on a node. If you do not enable
+this behavior, a deprecation warning is logged on start up.
 
 ===== Multiple values
 

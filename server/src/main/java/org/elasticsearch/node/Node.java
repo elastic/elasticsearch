@@ -699,10 +699,6 @@ public class Node implements Closeable {
             writePortsFile("http", http.boundAddress());
         }
 
-        if (!ScriptModule.NULL_FOR_MISSING_VALUE)
-            logger.warn("Script: returning 0 for missing numeric values is deprecated. " +
-                "Set system property '-Des.script.null_for_missing_value=true' to make behaviour compatible with future major versions.");
-
         logger.info("started");
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);

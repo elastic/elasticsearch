@@ -93,7 +93,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         }
         try {
             boolean docHasValues = scriptValues.setNextDocId(docId);
-            if (!docHasValues && ScriptModule.NULL_FOR_MISSING_VALUE) return null;
+            if ((docHasValues == false) && ScriptModule.NULL_FOR_MISSING_VALUE) return null;
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

@@ -83,7 +83,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
             scripts.put("doc['random_score']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles randomScore = (ScriptDocValues.Doubles) doc.get("random_score");
-                if (randomScore != null) {return randomScore.getValue();} else return 0;
+                return randomScore == null ? 0 : randomScore.getValue();
             });
             return scripts;
         }

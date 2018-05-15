@@ -82,7 +82,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.perfect_match.tokenizer", "keyword")
                 .put("index.analysis.analyzer.perfect_match.filter", "lowercase")
                 .put("index.analysis.analyzer.category.type", "custom")
-                .put("index.analysis.analyzer.category.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.category.tokenizer", "standard")
                 .put("index.analysis.analyzer.category.filter", "lowercase")
         );
         assertAcked(builder.addMapping("test", createMapping()));

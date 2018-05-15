@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -204,6 +205,39 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
     }
 
+    public void testEmptyTemplateDeprecations() throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().endObject();
+
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
+
+            assertThat(parsed, equalTo(source));
+            assertWarnings("empty templates should no longer be used");
+        }
+
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().field("template", "").endObject();
+
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
+
+            assertThat(parsed, equalTo(source));
+            assertWarnings("empty templates should no longer be used");
+        }
+
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().field("script").startObject().field("lang", "mustache")
+                    .field("source", "").endObject().endObject();
+
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
+
+            assertThat(parsed, equalTo(source));
+            assertWarnings("empty templates should no longer be used");
+        }
+    }
+
     @Override
     protected StoredScriptSource createTestInstance() {
         return new StoredScriptSource(
@@ -219,7 +253,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     @Override
     protected StoredScriptSource doParseInstance(XContentParser parser) {
-        return StoredScriptSource.fromXContent(parser);
+        return StoredScriptSource.fromXContent(parser, false);
     }
 
     @Override

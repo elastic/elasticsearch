@@ -78,15 +78,15 @@ import java.util.stream.Stream;
  * different engine.
  * <p>
  * Each Translog has only one translog file open for writes at any time referenced by a translog generation ID. This ID is written to a
- * <tt>translog.ckp</tt> file that is designed to fit in a single disk block such that a write of the file is atomic. The checkpoint file
+ * {@code translog.ckp} file that is designed to fit in a single disk block such that a write of the file is atomic. The checkpoint file
  * is written on each fsync operation of the translog and records the number of operations written, the current translog's file generation,
  * its fsynced offset in bytes, and other important statistics.
  * </p>
  * <p>
  * When the current translog file reaches a certain size ({@link IndexSettings#INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING}, or when
  * a clear separation between old and new operations (upon change in primary term), the current file is reopened for read only and a new
- * write only file is created. Any non-current, read only translog file always has a <tt>translog-${gen}.ckp</tt> associated with it
- * which is an fsynced copy of its last <tt>translog.ckp</tt> such that in disaster recovery last fsynced offsets, number of
+ * write only file is created. Any non-current, read only translog file always has a {@code translog-${gen}.ckp} associated with it
+ * which is an fsynced copy of its last {@code translog.ckp} such that in disaster recovery last fsynced offsets, number of
  * operation etc. are still preserved.
  * </p>
  */
@@ -583,12 +583,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (current.generation == location.generation) {
                 // no need to fsync here the read operation will ensure that buffers are written to disk
                 // if they are still in RAM and we are reading onto that position
-                try {
-                    return current.read(location);
-                } catch (final Exception ex) {
-                    closeOnTragicEvent(ex);
-                    throw ex;
-                }
+                return current.read(location);
             } else {
                 // read backwards - it's likely we need to read on that is recent
                 for (int i = readers.size() - 1; i >= 0; i--) {
@@ -598,6 +593,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     }
                 }
             }
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
         }
         return null;
     }
@@ -735,15 +733,28 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Closes the translog if the current translog writer experienced a tragic exception.
+     *
+     * Note that in case this thread closes the translog it must not already be holding a read lock on the translog as it will acquire a
+     * write lock in the course of closing the translog
+     *
+     * @param ex if an exception occurs closing the translog, it will be suppressed into the provided exception
+     */
     private void closeOnTragicEvent(final Exception ex) {
+        // we can not hold a read lock here because closing will attempt to obtain a write lock and that would result in self-deadlock
+        assert readLock.isHeldByCurrentThread() == false : Thread.currentThread().getName();
         if (current.getTragicException() != null) {
             try {
                 close();
             } catch (final AlreadyClosedException inner) {
-                // don't do anything in this case. The AlreadyClosedException comes from TranslogWriter and we should not add it as suppressed because
-                // will contain the Exception ex as cause. See also https://github.com/elastic/elasticsearch/issues/15941
+                /*
+                 * Don't do anything in this case. The AlreadyClosedException comes from TranslogWriter and we should not add it as
+                 * suppressed because it will contain the provided exception as its cause. See also
+                 * https://github.com/elastic/elasticsearch/issues/15941.
+                 */
             } catch (final Exception inner) {
-                assert (ex != inner.getCause());
+                assert ex != inner.getCause();
                 ex.addSuppressed(inner);
             }
         }

@@ -640,7 +640,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             @Override
             public MetaData.Custom randomCreate(String name) {
                 if (randomBoolean()) {
-                    return new RepositoriesMetaData();
+                    return new RepositoriesMetaData(Collections.emptyList());
                 } else {
                     return IndexGraveyardTests.createRandom();
                 }

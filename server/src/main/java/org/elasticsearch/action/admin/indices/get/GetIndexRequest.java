@@ -66,7 +66,6 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
-    private transient boolean flatSettings = false;
     private transient boolean includeDefaults = false;
 
     public GetIndexRequest() {
@@ -116,28 +115,6 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     public boolean humanReadable() {
         return humanReadable;
-    }
-
-    /**
-     * Sets the value of "flat_settings".
-     * Used only by the high-level REST client.
-     * 
-     * @param flatSettings value of "flat_settings" flag to be set
-     * @return this request
-     */
-    public GetIndexRequest flatSettings(boolean flatSettings) {
-        this.flatSettings = flatSettings;
-        return this;
-    }
-
-    /**
-     * Return settings in flat format.
-     * Used only by the high-level REST client.
-     * 
-     * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
-     */
-    public boolean flatSettings() {
-        return flatSettings;
     }
 
     /**

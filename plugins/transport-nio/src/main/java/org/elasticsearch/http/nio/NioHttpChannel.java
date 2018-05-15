@@ -37,8 +37,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -92,9 +94,9 @@ public class NioHttpChannel extends AbstractRestChannel {
         addCustomHeaders(resp, response.getHeaders());
         addCustomHeaders(resp, threadContext.getResponseHeaders());
 
-        BytesReference content = response.content();
-        boolean releaseContent = content instanceof Releasable;
-        boolean releaseBytesStreamOutput = bytesOutputOrNull() instanceof ReleasableBytesStreamOutput;
+        ArrayList<Releasable> toClose = new ArrayList<>(3);
+
+        boolean success = false;
         try {
             // If our response doesn't specify a content-type header, set one
             setHeaderField(resp, HttpHeaderNames.CONTENT_TYPE.toString(), response.contentType(), false);
@@ -103,45 +105,26 @@ public class NioHttpChannel extends AbstractRestChannel {
 
             addCookies(resp);
 
-            ArrayList<Runnable> listeners = new ArrayList<>(3);
-
-            if (releaseContent) {
-                listeners.add(((Releasable) content)::close);
+            BytesReference content = response.content();
+            if (content instanceof Releasable) {
+                toClose.add((Releasable) content);
             }
-
-            if (releaseBytesStreamOutput) {
-                listeners.add(bytesOutputOrNull()::close);
+            BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
+            if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
+                toClose.add((Releasable) bytesStreamOutput);
             }
 
             if (isCloseConnection()) {
-                listeners.add(nioChannel::close);
+                toClose.add(nioChannel::close);
             }
 
             nioChannel.getContext().sendMessage(resp, (aVoid, throwable) -> {
-                RuntimeException listenerException = null;
-                for (Runnable listener : listeners) {
-                    try {
-                        listener.run();
-                    } catch (RuntimeException e) {
-                        if (listenerException == null) {
-                            listenerException = e;
-                        } else {
-                            listenerException.addSuppressed(e);
-                        }
-                    }
-                }
-                if (listenerException != null) {
-                    throw listenerException;
-                }
+                Releasables.close(toClose);
             });
-            releaseContent = false;
-            releaseBytesStreamOutput = false;
+            success = true;
         } finally {
-            if (releaseContent) {
-                ((Releasable) content).close();
-            }
-            if (releaseBytesStreamOutput) {
-                bytesOutputOrNull().close();
+            if (success == false) {
+                Releasables.close(toClose);
             }
         }
     }

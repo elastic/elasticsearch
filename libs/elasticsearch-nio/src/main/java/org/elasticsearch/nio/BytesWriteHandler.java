@@ -29,11 +29,9 @@ public abstract class BytesWriteHandler implements ReadWriteHandler {
     private static final List<FlushOperation> EMPTY_LIST = Collections.emptyList();
 
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
-        if (message instanceof ByteBuffer[]) {
-            return new FlushReadyWrite(context, (ByteBuffer[]) message, listener);
-        } else {
-            throw new IllegalArgumentException("This channel only supports messages that are of type: " + ByteBuffer[].class);
-        }
+        assert message instanceof ByteBuffer[] : "This channel only supports messages that are of type: " + ByteBuffer[].class
+            + ". Found type: " + message.getClass() + ".";
+        return new FlushReadyWrite(context, (ByteBuffer[]) message, listener);
     }
 
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {

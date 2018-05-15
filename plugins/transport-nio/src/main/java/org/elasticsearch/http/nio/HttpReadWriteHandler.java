@@ -94,11 +94,9 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
 
     @Override
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
-        if (message instanceof FullHttpResponse) {
-            return new HttpWriteOperation(context, (FullHttpResponse) message, listener);
-        } else {
-            throw new IllegalArgumentException("This channel only supports messages that are of type: " + FullHttpResponse.class);
-        }
+        assert message instanceof FullHttpResponse : "This channel only supports messages that are of type: " + FullHttpResponse.class
+            + ". Found type: " + message.getClass() + ".";
+        return new HttpWriteOperation(context, (FullHttpResponse) message, listener);
     }
 
     @Override

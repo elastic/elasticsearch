@@ -319,7 +319,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             }
         }
     }
-    
+
     /**
      * Verify that credentials continue to be sent even if a 401 (Unauthorized) response is received
      */

@@ -34,12 +34,16 @@ import org.apache.http.protocol.HttpContext;
  * The default handler in Apache HTTP client mimics standard browser behaviour of clearing authentication
  * credentials if it receives a 401 response from the server. While this can be useful for browser, it is
  * rarely the desired behaviour with the Elasticsearch REST API.
- * When an Elasticsearch node starts up with X-Pack enabled, the standard behaviour is to respond with a
- * 401 status until sufficient state as been recovered for it to determine whether security is enabled and
- * what users exist.
- * The desired behaviour under these circumstances is for the Rest client to retry with the same credentials.
+ * If the code using the REST client has configured credentials for the REST API, then we can and should
+ * assume that this is intentional, and those credentials represent the best possible authentication
+ * mechanism to the Elasticsearch node.
+ * If we receive a 401 status, a probably cause is that the authentication mechanism in place was unable
+ * to perform the requisite password checks (the node has not yet recovered its state, or an external
+ * authentication provider was unavailable).
+ * If this occurs, then the desired behaviour is for the Rest client to retry with the same credentials
+ * (rather than trying with no credentials, or expecting the calling code to provide alternate credentials).
  */
-class PersistentCredentialsAuthenticationStrategy extends TargetAuthenticationStrategy {
+final class PersistentCredentialsAuthenticationStrategy extends TargetAuthenticationStrategy {
 
     private final Log logger = LogFactory.getLog(PersistentCredentialsAuthenticationStrategy.class);
 

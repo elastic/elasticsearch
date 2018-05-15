@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -113,7 +112,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         }
     }
 
-    public void testExactNumDocs() throws Exception {
+    public void testExactNumDocsInStoreMetadataSnapshot() throws Exception {
         final IndexShard replica = newShard(false);
         recoveryEmptyReplica(replica);
         long flushedDocs = 0;
@@ -124,8 +123,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             docIds.add(id);
             indexDoc(replica, "_doc", id);
             if (randomBoolean()) {
-                Engine.CommitId commitId = replica.flush(new FlushRequest());
-                replica.syncFlush(UUIDs.randomBase64UUID(), commitId);
+                replica.flush(new FlushRequest());
                 flushedDocs = docIds.size();
             }
         }
@@ -133,8 +131,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             deleteDoc(replica, "_doc", id);
             docIds.remove(id);
             if (randomBoolean()) {
-                Engine.CommitId commitId = replica.flush(new FlushRequest());
-                replica.syncFlush(UUIDs.randomBase64UUID(), commitId);
+                replica.flush(new FlushRequest());
                 flushedDocs = docIds.size();
             }
         }

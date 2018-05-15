@@ -39,7 +39,6 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -342,7 +341,7 @@ public class RecoverySourceHandler {
                     recoverySourceSyncId.equals(recoveryTargetSyncId);
             if (recoverWithSyncId) {
                 final long numDocsTarget = request.metadataSnapshot().getNumDocs();
-                final long numDocsSource = Lucene.getExactNumDocs(snapshot);
+                final long numDocsSource = recoverySourceMetadata.getNumDocs();
                 if (numDocsTarget != numDocsSource) {
                     throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
                             "of docs differ: " + numDocsSource + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsTarget

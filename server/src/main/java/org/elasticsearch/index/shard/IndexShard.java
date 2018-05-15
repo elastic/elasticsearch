@@ -1591,11 +1591,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Creates a new translog snapshot for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new translog snapshot for reading operations whose seq# is in the provided range.
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return getEngine().newTranslogSnapshotBetween(minSeqNo, Long.MAX_VALUE);
+    public Translog.Snapshot newTranslogSnapshot(String source, long minSeqNo, long maxSeqNo) throws IOException {
+        return getEngine().newTranslogSnapshot(source, mapperService, minSeqNo, maxSeqNo);
     }
 
     /**

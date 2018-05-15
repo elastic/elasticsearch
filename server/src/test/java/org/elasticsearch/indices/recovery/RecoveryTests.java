@@ -69,7 +69,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.addReplica();
             shards.startAll();
             final IndexShard replica = shards.getReplicas().get(0);
-            assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(docs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(docs));
         }
     }
 
@@ -99,7 +99,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             releaseRecovery.countDown();
             future.get();
             // rolling/flushing is async
-            assertBusy(() -> assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(0)));
+            assertBusy(() -> assertThat(getTranslog(replica).totalOperations(), equalTo(0)));
         }
     }
 
@@ -167,7 +167,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(3);
 
-            assertThat(newReplica.estimateTranslogOperationsFromMinSeq(0), equalTo(translogOps));
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(translogOps));
         }
     }
 
@@ -323,7 +323,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(replica);
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
-            assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(numDocs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }
     }

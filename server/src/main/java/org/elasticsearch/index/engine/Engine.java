@@ -586,14 +586,6 @@ public abstract class Engine implements Closeable {
     public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new translog snapshot from this engine for reading translog operations whose seq# in the provided range.
-     * The caller has to close the returned snapshot after finishing the reading.
-     */
-    public Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
-        return getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo);
-    }
-
-    /**
      * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
      */
     public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
@@ -616,6 +608,24 @@ public abstract class Engine implements Closeable {
      */
     public abstract Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
                                                                long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException;
+
+    /**
+     * Creates a new translog snapshot for reading operations whose seq# is in the provided range.
+     * The returned snapshot can be retrieved from either Lucene index or translog files depending on
+     * {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING}
+     */
+    public Translog.Snapshot newTranslogSnapshot(String source, MapperService mapperService,
+                                                 long minSeqNo, long maxSeqNo) throws IOException {
+        if (useLuceneIndexForPeerRecovery()) {
+            return newLuceneChangesSnapshot(source, mapperService, minSeqNo, maxSeqNo, false);
+        } else {
+            return getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo);
+        }
+    }
+
+    private boolean useLuceneIndexForPeerRecovery() {
+        return engineConfig.getIndexSettings().isUseSoftDeletesInPeerRecovery();
+    }
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -63,13 +64,16 @@ public class ReservedRealmTests extends ESTestCase {
     private static final SecureString EMPTY_PASSWORD = new SecureString("".toCharArray());
     private NativeUsersStore usersStore;
     private SecurityLifecycleService securityLifecycleService;
+    private SecurityIndexManager securityIndex;
 
     @Before
     public void setupMocks() throws Exception {
         usersStore = mock(NativeUsersStore.class);
         securityLifecycleService = mock(SecurityLifecycleService.class);
-        when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
-        when(securityLifecycleService.checkSecurityMappingVersion(any())).thenReturn(true);
+        securityIndex = mock(SecurityIndexManager.class);
+        when(securityLifecycleService.securityIndex()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.checkMappingVersion(any())).thenReturn(true);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
     }
 
@@ -90,7 +94,7 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
         final boolean securityIndexExists = randomBoolean();
         if (securityIndexExists) {
-            when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+            when(securityIndex.indexExists()).thenReturn(true);
         }
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), settings, usersStore,
@@ -120,7 +124,7 @@ public class ReservedRealmTests extends ESTestCase {
         final User expectedUser = randomReservedUser(enabled);
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), enabled, false));
@@ -146,10 +150,10 @@ public class ReservedRealmTests extends ESTestCase {
         assertEquals(expectedUser, authenticated);
         assertThat(expectedUser.enabled(), is(enabled));
 
-        verify(securityLifecycleService, times(2)).isSecurityIndexExisting();
+        verify(securityIndex, times(2)).indexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityLifecycleService, times(2)).checkSecurityMappingVersion(predicateCaptor.capture());
+        verify(securityIndex, times(2)).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
     }
@@ -165,10 +169,10 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doLookupUser(principal, listener);
         final User user = listener.actionGet();
         assertEquals(expectedUser, user);
-        verify(securityLifecycleService).isSecurityIndexExisting();
+        verify(securityIndex).indexExists();
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityLifecycleService).checkSecurityMappingVersion(predicateCaptor.capture());
+        verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
@@ -199,7 +203,7 @@ public class ReservedRealmTests extends ESTestCase {
                         new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
         final RuntimeException e = new RuntimeException("store threw");
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
@@ -212,11 +216,11 @@ public class ReservedRealmTests extends ESTestCase {
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(securityException.getMessage(), containsString("failed to lookup"));
 
-        verify(securityLifecycleService).isSecurityIndexExisting();
+        verify(securityIndex).indexExists();
         verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityLifecycleService).checkSecurityMappingVersion(predicateCaptor.capture());
+        verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         verifyNoMoreInteractions(usersStore);
@@ -269,7 +273,7 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testFailedAuthentication() throws Exception {
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
         SecureString password = new SecureString("password".toCharArray());
         char[] hash = Hasher.BCRYPT.hash(password);
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
@@ -302,7 +306,7 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
@@ -324,7 +328,7 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
@@ -351,7 +355,7 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(false);
+        when(securityIndex.indexExists()).thenReturn(false);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
@@ -369,7 +373,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String password = randomAlphaOfLengthBetween(8, 24);
         mockSecureSettings.setString("bootstrap.password", password);
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
@@ -391,7 +395,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String password = randomAlphaOfLengthBetween(8, 24);
         mockSecureSettings.setString("bootstrap.password", password);
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(false);
+        when(securityIndex.indexExists()).thenReturn(false);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));

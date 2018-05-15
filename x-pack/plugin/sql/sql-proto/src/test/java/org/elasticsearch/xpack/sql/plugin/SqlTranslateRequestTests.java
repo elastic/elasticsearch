@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -25,11 +26,11 @@ import static org.elasticsearch.xpack.sql.plugin.SqlTestUtils.randomFilterOrNull
 
 public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTranslateRequest> {
 
-    public AbstractSqlRequest.Mode testMode;
+    public Mode testMode;
 
     @Before
     public void setup() {
-        testMode = randomFrom(AbstractSqlRequest.Mode.values());
+        testMode = randomFrom(Mode.values());
     }
 
     @Override
@@ -71,7 +72,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
-                request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), () -> randomTV())),
+                request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())))
         );

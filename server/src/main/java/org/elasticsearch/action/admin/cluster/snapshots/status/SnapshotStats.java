@@ -165,7 +165,7 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         static final String PROCESSED = "processed";
         static final String TOTAL = "total";
 
-        static final String COUNT = "count";
+        static final String FILE_COUNT = "file_count";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
 
@@ -188,7 +188,7 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         builder.startObject(Fields.STATS)
             //  incremental starts
             .startObject(Fields.INCREMENTAL)
-            .field(Fields.COUNT, getIncrementalFileCount())
+            .field(Fields.FILE_COUNT, getIncrementalFileCount())
             .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()))
             //  incremental ends
             .endObject();
@@ -196,14 +196,14 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         if (getProcessedFileCount() != getIncrementalFileCount()) {
             //  processed starts
             builder.startObject(Fields.PROCESSED)
-                .field(Fields.COUNT, getProcessedFileCount())
+                .field(Fields.FILE_COUNT, getProcessedFileCount())
                 .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()))
                 //  processed ends
                 .endObject();
         }
         //  total starts
         return builder.startObject(Fields.TOTAL)
-            .field(Fields.COUNT, getTotalFileCount())
+            .field(Fields.FILE_COUNT, getTotalFileCount())
             .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()))
             //  all_files ends
             .endObject()

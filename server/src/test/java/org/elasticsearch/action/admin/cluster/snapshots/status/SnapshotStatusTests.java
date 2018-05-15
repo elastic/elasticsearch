@@ -92,11 +92,11 @@ public class SnapshotStatusTests extends ESTestCase {
             "  },\n" +
             "  \"stats\" : {\n" +
             "    \"incremental\" : {\n" +
-            "      \"count\" : 0,\n" +
+            "      \"file_count\" : 0,\n" +
             "      \"size_in_bytes\" : 0\n" +
             "    },\n" +
             "    \"total\" : {\n" +
-            "      \"count\" : 0,\n" +
+            "      \"file_count\" : 0,\n" +
             "      \"size_in_bytes\" : 0\n" +
             "    },\n" +
             "    \"start_time_in_millis\" : 0,\n" +
@@ -118,11 +118,11 @@ public class SnapshotStatusTests extends ESTestCase {
             "      },\n" +
             "      \"stats\" : {\n" +
             "        \"incremental\" : {\n" +
-            "          \"count\" : 0,\n" +
+            "          \"file_count\" : 0,\n" +
             "          \"size_in_bytes\" : 0\n" +
             "        },\n" +
             "        \"total\" : {\n" +
-            "          \"count\" : 0,\n" +
+            "          \"file_count\" : 0,\n" +
             "          \"size_in_bytes\" : 0\n" +
             "        },\n" +
             "        \"start_time_in_millis\" : 0,\n" +
@@ -137,11 +137,11 @@ public class SnapshotStatusTests extends ESTestCase {
             "          \"stage\" : \"" + shardStage.toString() + "\",\n" +
             "          \"stats\" : {\n" +
             "            \"incremental\" : {\n" +
-            "              \"count\" : 0,\n" +
+            "              \"file_count\" : 0,\n" +
             "              \"size_in_bytes\" : 0\n" +
             "            },\n" +
             "            \"total\" : {\n" +
-            "              \"count\" : 0,\n" +
+            "              \"file_count\" : 0,\n" +
             "              \"size_in_bytes\" : 0\n" +
             "            },\n" +
             "            \"start_time_in_millis\" : 0,\n" +

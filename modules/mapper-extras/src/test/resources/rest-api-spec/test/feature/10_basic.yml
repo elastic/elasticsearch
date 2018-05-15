@@ -1,0 +1,187 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  pagerank:
+                     type: feature
+                  url_length:
+                     type: feature
+                     positive_score_impact: false
+
+  - do:
+      index:
+        index: test
+        type: _doc
+        id: 1
+        body:
+          pagerank: 10
+          url_length: 50
+
+  - do:
+      index:
+        index: test
+        type: _doc
+        id: 2
+        body: 
+          pagerank: 100
+          url_length: 20
+
+  - do:
+      indices.refresh: {}
+
+---
+"Positive log":
+
+  - do:
+      search:
+        body:
+          query:
+            feature:
+              field: pagerank
+              log:
+                scaling_factor: 3
+
+  - match:
+      hits.total: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.0._score: 4.634728908538818
+
+  - match:
+      hits.hits.1._id: "1"
+
+  - match:
+      hits.hits.1._score: 2.5649492740631104
+
+
+---
+"Positive saturation":
+
+  - do:
+      search:
+        body:
+          query:
+            feature:
+              field: pagerank
+              saturation:
+                pivot: 20
+
+  - match:
+      hits.total: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.0._score: 0.8333333134651184
+
+  - match:
+      hits.hits.1._id: "1"
+
+  - match:
+      hits.hits.1._score: 0.3333333134651184
+
+---
+"Positive sigmoid":
+
+  - do:
+      search:
+        body:
+          query:
+            feature:
+              field: pagerank
+              sigmoid:
+                pivot: 20
+                exponent: 0.6
+
+  - match:
+      hits.total: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.0._score: 0.7242541313171387
+
+  - match:
+      hits.hits.1._id: "1"
+
+  - match:
+      hits.hits.1._score: 0.39750105142593384
+
+---
+"Negative log":
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            feature:
+              field: url_length
+              log:
+                scaling_factor: 3
+
+---
+"Negative saturation":
+
+  - do:
+      search:
+        body:
+          query:
+            feature:
+              field: url_length
+              saturation:
+                pivot: 20
+
+  - match:
+      hits.total: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.0._score: 0.4996334910392761
+
+  - match:
+      hits.hits.1._id: "1"
+
+  - match:
+      hits.hits.1._score: 0.2852904796600342
+
+---
+"Negative sigmoid":
+
+  - do:
+      search:
+        body:
+          query:
+            feature:
+              field: url_length
+              sigmoid:
+                pivot: 20
+                exponent: 0.6
+
+  - match:
+      hits.total: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.0._score: 0.4997801184654236
+
+  - match:
+      hits.hits.1._id: "1"
+
+  - match:
+      hits.hits.1._score: 0.36562758684158325

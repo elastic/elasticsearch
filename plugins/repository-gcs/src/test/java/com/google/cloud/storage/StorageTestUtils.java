@@ -17,14 +17,21 @@
  * under the License.
  */
 
-grant {
-  // required by: com.google.api.client.json.JsonParser#parseValue
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  // required by: com.google.api.client.json.GenericJson#<init>
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  // required to add google certs to the gcs client trustore
-  permission java.lang.RuntimePermission "setFactory";
+package com.google.cloud.storage;
 
-  // gcs client opens socket connections for to access repository
-  permission java.net.SocketPermission "*", "connect";
-};
+/**
+ * Utility class that exposed Google SDK package protected methods to
+ * create buckets and blobs objects in unit tests.
+ */
+public class StorageTestUtils {
+
+    private StorageTestUtils(){}
+
+    public static Bucket createBucket(final Storage storage, final String bucketName) {
+        return new Bucket(storage, (BucketInfo.BuilderImpl) BucketInfo.newBuilder(bucketName));
+    }
+
+    public static Blob createBlob(final Storage storage, final String bucketName, final String blobName, final long blobSize) {
+        return new Blob(storage, (BlobInfo.BuilderImpl) BlobInfo.newBuilder(bucketName, blobName).setSize(blobSize));
+    }
+}

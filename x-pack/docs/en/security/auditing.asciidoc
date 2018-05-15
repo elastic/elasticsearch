@@ -1,5 +1,6 @@
+[role="xpack"]
 [[auditing]]
-== Auditing Security Events
+== Auditing security events
 
 You can enable auditing to keep track of security-related events such as
 authentication failures and refused connections. Logging these events enables you
@@ -40,7 +41,7 @@ events are pushed to the index by setting
 
 [float]
 [[audit-event-types]]
-=== Audit Event Types
+=== Audit event types
 
 Each request may generate multiple audit events.
 The following is a list of the events that can be generated:
@@ -81,11 +82,11 @@ The following is a list of the events that can be generated:
 
 [float]
 [[audit-event-attributes]]
-=== Audit Event Attributes
+=== Audit event attributes
 
 The following table shows the common attributes that can be associated with every event.
 
-.Common Attributes
+.Common attributes
 [cols="2,7",options="header"]
 |======
 | Attribute           | Description
@@ -103,7 +104,7 @@ The following table shows the common attributes that can be associated with ever
 The following tables show the attributes that can be associated with each type of event.
 The log level determines  which attributes are included in a log entry.
 
-.REST anonymous_access_denied Attributes
+.REST anonymous_access_denied attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -112,7 +113,7 @@ The log level determines  which attributes are included in a log entry.
 | `request_body`    | The body of the request, if enabled.
 |======
 
-.REST authentication_success Attributes
+.REST authentication_success attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -123,7 +124,7 @@ The log level determines  which attributes are included in a log entry.
 | `request_body`    | The body of the request, if enabled.
 |======
 
-.REST authentication_failed Attributes
+.REST authentication_failed attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -133,7 +134,7 @@ The log level determines  which attributes are included in a log entry.
 | `request_body`    | The body of the request, if enabled.
 |======
 
-.REST realm_authentication_failed Attributes
+.REST realm_authentication_failed attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -146,7 +147,7 @@ The log level determines  which attributes are included in a log entry.
                             consulted realm.
 |======
 
-.Transport anonymous_access_denied Attributes
+.Transport anonymous_access_denied attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -161,7 +162,7 @@ The log level determines  which attributes are included in a log entry.
                       pertains to (when applicable).
 |======
 
-.Transport authentication_success Attributes
+.Transport authentication_success attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -176,7 +177,7 @@ The log level determines  which attributes are included in a log entry.
 | `request`         | The type of request that was executed.
 |======
 
-.Transport authentication_failed Attributes
+.Transport authentication_failed attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -192,7 +193,7 @@ The log level determines  which attributes are included in a log entry.
                       pertains to (when applicable).
 |======
 
-.Transport realm_authentication_failed Attributes
+.Transport realm_authentication_failed attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -211,7 +212,7 @@ The log level determines  which attributes are included in a log entry.
                             consulted realm.
 |======
 
-.Transport access_granted Attributes
+.Transport access_granted attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -228,7 +229,7 @@ The log level determines  which attributes are included in a log entry.
                       pertains to (when applicable).
 |======
 
-.Transport access_denied Attributes
+.Transport access_denied attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -245,7 +246,7 @@ The log level determines  which attributes are included in a log entry.
                       relates to (when applicable).
 |======
 
-.Transport tampered_request Attributes
+.Transport tampered_request attributes
 [cols="2,7",options="header"]
 |======
 | Attribute         | Description
@@ -261,7 +262,7 @@ The log level determines  which attributes are included in a log entry.
                       pertains to (when applicable).
 |======
 
-.IP Filter connection_granted Attributes
+.IP filter connection_granted attributes
 [cols="2,7",options="header"]
 |======
 | Attribute           | Description
@@ -271,7 +272,7 @@ The log level determines  which attributes are included in a log entry.
                         the request.
 |======
 
-.IP Filter connection_denied Attributes
+.IP filter connection_denied attributes
 [cols="2,7",options="header"]
 |======
 | Attribute           | Description
@@ -283,14 +284,14 @@ The log level determines  which attributes are included in a log entry.
 
 [float]
 [[audit-log-output]]
-=== Logfile Audit Output
+=== Logfile audit output
 
 The `logfile` audit output is the default output for auditing. It writes data to
 the `<clustername>_access.log` file in the logs directory.
 
 [float]
 [[audit-log-entry-format]]
-=== Log Entry Format
+=== Log entry format
 
 The format of a log entry is:
 
@@ -318,7 +319,7 @@ The format of a log entry is:
 
 [float]
 [[audit-log-settings]]
-=== Logfile Output Settings
+=== Logfile output settings
 
 The events and some other information about what gets logged can be
 controlled using settings in the `elasticsearch.yml` file. See
@@ -330,13 +331,13 @@ audited in plain text when including the request body in audit events.
 
 [[logging-file]]
 You can also configure how the logfile is written in the `log4j2.properties`
-file located in `CONFIG_DIR/x-pack`. By default, audit information is appended to the
+file located in `CONFIG_DIR`. By default, audit information is appended to the
 `<clustername>_access.log` file located in the standard Elasticsearch `logs` directory
 (typically located at `$ES_HOME/logs`). The file rolls over on a daily basis.
 
 [float]
 [[audit-log-ignore-policy]]
-=== Logfile Audit Events Ignore Policies
+=== Logfile audit events ignore policies
 
 The comprehensive audit trail is necessary to ensure accountability. It offers tremendous
 value during incident response and can even be required for demonstrating compliance.
@@ -414,7 +415,7 @@ xpack.security.audit.logfile.events.ignore_filters:
 
 [float]
 [[audit-index]]
-=== Index Audit Output
+=== Index audit output
 
 In addition to logging to a file, you can store audit logs in Elasticsearch
 rolling indices. These indices can be either on the same cluster, or on a
@@ -429,13 +430,13 @@ xpack.security.audit.outputs: [ index, logfile ]
 ----------------------------
 
 For more configuration options, see
-{ref}/auditing-settings.html#index-audit-settings[Audit Log Indexing Configuration Settings].
+{ref}/auditing-settings.html#index-audit-settings[Audit log indexing configuration settings].
 
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
 audited in plain text when including the request body in audit events.
 
 [float]
-==== Audit Index Settings
+==== Audit index settings
 
 You can also configure settings for the indices that the events are stored in.
 These settings are configured in the `xpack.security.audit.index.settings` namespace
@@ -451,7 +452,7 @@ xpack.security.audit.index.settings:
 ----------------------------
 
 [float]
-==== Forwarding Audit Logs to a Remote Cluster
+==== Forwarding audit logs to a remote cluster
 
 To index audit events to a remote Elasticsearch cluster, you configure
 the following `xpack.security.audit.index.client` settings:

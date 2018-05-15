@@ -3,7 +3,7 @@
 
 The cluster health API allows to get a very simple status on the health
 of the cluster. For example, on a quiet single node cluster with a single index
-with 5 shards and one replica, this:
+with one shard and one replica, this:
 
 [source,js]
 --------------------------------------------------
@@ -22,11 +22,11 @@ Returns this:
   "timed_out" : false,
   "number_of_nodes" : 1,
   "number_of_data_nodes" : 1,
-  "active_primary_shards" : 5,
-  "active_shards" : 5,
+  "active_primary_shards" : 1,
+  "active_shards" : 1,
   "relocating_shards" : 0,
   "initializing_shards" : 0,
-  "unassigned_shards" : 5,
+  "unassigned_shards" : 1,
   "delayed_unassigned_shards": 0,
   "number_of_pending_tasks" : 0,
   "number_of_in_flight_fetch": 0,

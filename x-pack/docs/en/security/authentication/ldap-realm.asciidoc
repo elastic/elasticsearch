@@ -1,3 +1,4 @@
+[role="xpack"]
 [[ldap-realm]]
 === LDAP user authentication
 

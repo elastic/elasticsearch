@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -149,7 +150,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             final BytesArray bytesArray = new BytesArray(data);
             writeBlob(container, blobName, bytesArray);
             // should not be able to overwrite existing blob
-            expectThrows(IOException.class, () -> writeBlob(container, blobName, bytesArray));
+            expectThrows(FileAlreadyExistsException.class, () -> writeBlob(container, blobName, bytesArray));
             container.deleteBlob(blobName);
             writeBlob(container, blobName, bytesArray); // after deleting the previous blob, we should be able to write to it again
         }

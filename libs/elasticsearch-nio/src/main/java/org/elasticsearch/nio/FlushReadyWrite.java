@@ -16,21 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.nio;
 
+import java.nio.ByteBuffer;
 import java.util.function.BiConsumer;
 
-/**
- * This is a basic write operation that can be queued with a channel. The only requirements of a write
- * operation is that is has a listener and a reference to its channel. The actual conversion of the write
- * operation implementation to bytes will be performed by the {@link ReadWriteHandler}.
- */
-public interface WriteOperation {
+public class FlushReadyWrite extends FlushOperation implements WriteOperation {
 
-    BiConsumer<Void, Throwable> getListener();
+    private final SocketChannelContext channelContext;
+    private final ByteBuffer[] buffers;
 
-    SocketChannelContext getChannel();
+    FlushReadyWrite(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
+        super(buffers, listener);
+        this.channelContext = channelContext;
+        this.buffers = buffers;
+    }
 
-    Object getObject();
+    @Override
+    public SocketChannelContext getChannel() {
+        return channelContext;
+    }
 
+    @Override
+    public ByteBuffer[] getObject() {
+        return buffers;
+    }
 }

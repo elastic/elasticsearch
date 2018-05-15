@@ -366,20 +366,20 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 // now, put the request settings, so they override templates
                 indexSettingsBuilder.put(request.settings());
+                if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
+                    DiscoveryNodes nodes = currentState.nodes();
+                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
+                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
+                }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                    final int numberOfShards = getNumberOfShards(indexSettingsBuilder);
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, numberOfShards));
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                 }
                 if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
                     indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
-                }
-
-                if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
-                    DiscoveryNodes nodes = currentState.nodes();
-                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
-                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
                 }
 
                 if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
@@ -571,6 +571,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
                 }
             }
+        }
+
+        static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
+            // TODO: this logic can be removed when the current major version is 8
+            assert Version.CURRENT.major == 7;
+            final int numberOfShards;
+            if (Version.fromId(Integer.parseInt(indexSettingsBuilder.get(SETTING_VERSION_CREATED))).before(Version.V_7_0_0_alpha1)) {
+                numberOfShards = 5;
+            } else {
+                numberOfShards = 1;
+            }
+            return numberOfShards;
         }
 
         @Override

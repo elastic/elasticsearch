@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.NULL;
  */
 public abstract class DataTypeConversion {
 
-    private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateTimeNoMillis().withZoneUTC();
+    private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
     /**
      * Returns the type compatible with both left and right types

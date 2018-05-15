@@ -38,6 +38,13 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
 
+        row = rows.get(4);
+        assertEquals("date", name(row));
+        assertEquals(Types.TIMESTAMP, sqlType(row));
+        assertEquals(null, radix(row));
+        assertEquals(24, precision(row));
+        assertEquals(8, bufferLength(row));
+
         row = rows.get(7);
         assertEquals("some.dotted", name(row));
         assertEquals(Types.STRUCT, sqlType(row));
@@ -57,6 +64,10 @@ public class SysColumnsTests extends ESTestCase {
 
     private static Object sqlType(List<?> list) {
         return list.get(4);
+    }
+
+    private static Object precision(List<?> list) {
+        return list.get(6);
     }
 
     private static Object bufferLength(List<?> list) {

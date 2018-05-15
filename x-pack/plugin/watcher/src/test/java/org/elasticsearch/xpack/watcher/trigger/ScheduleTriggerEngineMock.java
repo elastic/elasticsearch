@@ -72,11 +72,6 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public int getJobCount() {
-        return watches.size();
-    }
-
-    @Override
     public boolean remove(String jobId) {
         return watches.remove(jobId) != null;
     }

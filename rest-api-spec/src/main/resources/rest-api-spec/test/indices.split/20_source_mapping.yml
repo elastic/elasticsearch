@@ -1,8 +1,9 @@
 ---
 "Split index ignores target template mapping":
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: " - 6.3.99"
+      reason: expects warnings that pre-6.4.0 will not send
+      features: "warnings"
 
   # create index
   - do:
@@ -64,6 +65,8 @@
           settings:
             index.number_of_shards: 2
             index.number_of_replicas: 0
+      warnings:
+        - "resize operations without copying settings is deprecated; set parameter [copy_settings] to [true] for future default behavior"
 
   - do:
       cluster.health:

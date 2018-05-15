@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -222,8 +223,10 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws IOException {
         final String IRRELEVANT_HEADER = "SomeIrrelevantHeader";
-        Response response = getRestClient().performRequest("GET", "/" + queryIndex + "/_search",
-                new BasicHeader(CUSTOM_HEADER, randomHeaderValue), new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue));
+        Request request = new Request("GET", "/" + queryIndex + "/_search");
+        request.setHeaders(new BasicHeader(CUSTOM_HEADER, randomHeaderValue),
+                new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue));
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
         assertThat(searchRequests, hasSize(greaterThan(0)));

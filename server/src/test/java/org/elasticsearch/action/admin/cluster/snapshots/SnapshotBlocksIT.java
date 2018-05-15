@@ -176,6 +176,4 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
             setClusterReadOnly(false);
         }
     }
-
-
 }

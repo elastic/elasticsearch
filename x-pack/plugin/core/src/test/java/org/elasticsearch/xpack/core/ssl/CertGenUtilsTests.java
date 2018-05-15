@@ -48,8 +48,6 @@ public class CertGenUtilsTests extends ESTestCase {
         assertThat(keyPair.getPublic().getAlgorithm(), is("RSA"));
     }
 
-
-
     public void testSubjectAlternativeNames() throws Exception {
         final boolean resolveName = randomBoolean();
         InetAddress address = InetAddresses.forString("127.0.0.1");

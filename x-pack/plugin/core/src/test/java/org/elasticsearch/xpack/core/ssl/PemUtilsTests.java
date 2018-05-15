@@ -198,6 +198,7 @@ public class PemUtilsTests extends ESTestCase {
                 "testnode"::toCharArray));
         assertThat(e.getMessage(), containsString("File is empty"));
     }
+
     private Key getKeyFromKeystore(String algo) throws Exception {
         Path keystorePath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         try (InputStream in = Files.newInputStream(keystorePath)) {

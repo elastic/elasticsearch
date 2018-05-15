@@ -47,6 +47,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
 
 public class CertParsingUtils {
+
+    private CertParsingUtils() {
+        throw new IllegalStateException("Utility class should not be instantiated");
+    }
     /**
      * Resolves a path with or without an {@link Environment} as we may be running in a transport client where we do not have access to
      * the environment
@@ -109,7 +113,6 @@ public class CertParsingUtils {
         Collection<Certificate> certificates = (Collection<Certificate>) certFactory.generateCertificates(input);
         return new ArrayList<>(certificates);
     }
-
 
     /**
      * Read all certificate-key pairs from a PKCS#12 container.

@@ -37,10 +37,10 @@ import java.util.stream.Collectors;
 public final class RestrictedTrustManager extends X509ExtendedTrustManager {
 
     private static final String CN_OID = "2.5.4.3";
+    private static final int SAN_CODE_OTHERNAME = 0;
     private final Logger logger;
     private final X509ExtendedTrustManager delegate;
     private final CertificateTrustRestrictions trustRestrictions;
-    private static final int SAN_CODE_OTHERNAME = 0;
 
     public RestrictedTrustManager(Settings settings, X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions) {
         this.logger = Loggers.getLogger(getClass(), settings);

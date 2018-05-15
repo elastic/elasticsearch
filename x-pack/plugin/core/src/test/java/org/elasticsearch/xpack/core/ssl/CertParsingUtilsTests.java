@@ -70,7 +70,6 @@ public class CertParsingUtilsTests extends ESTestCase {
         assertThat(pemCert, equalTo(certificate));
     }
 
-
     public void testReadEllipticCurveCertificateAndKey() throws Exception {
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         verifyPrime256v1ECKey(keyPath);

@@ -68,7 +68,7 @@ public class PemUtils {
      * encoded formats of encrypted and plaintext RSA, DSA and EC(secp256r1) keys
      *
      * @param keyPath           the path for the key file
-     * @param passwordSupplier A supplier for the potentially encrypted (password protected key)
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
      * @return a private key from the contents of the file
      */
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) {
@@ -154,6 +154,15 @@ public class PemUtils {
         return bReader;
     }
 
+    /**
+     * Creates a {@link PrivateKey} from the contents of {@code bReader} that contains an plaintext private key encoded in
+     * PKCS#8
+     *
+     * @param bReader the {@link BufferedReader} containing the key file contents
+     * @return {@link PrivateKey}
+     * @throws IOException              if the file can't be read
+     * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
+     */
     private static PrivateKey parsePKCS8(BufferedReader bReader) throws IOException, GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
@@ -173,8 +182,18 @@ public class PemUtils {
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
     }
 
+    /**
+     * Creates a {@link PrivateKey} from the contents of {@code bReader} that contains an EC private key encoded in
+     * OpenSSL traditional format.
+     *
+     * @param bReader          the {@link BufferedReader} containing the key file contents
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
+     * @return {@link PrivateKey}
+     * @throws IOException              if the file can't be read
+     * @throws GeneralSecurityException if the private key can't be generated from the {@link ECPrivateKeySpec}
+     */
     private static PrivateKey parseOpenSslEC(BufferedReader bReader, Supplier<char[]> passwordSupplier) throws IOException,
-            GeneralSecurityException {
+        GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
         Map<String, String> pemHeaders = new HashMap<>();
@@ -198,11 +217,20 @@ public class PemUtils {
         KeyFactory keyFactory = KeyFactory.getInstance("EC");
         ECPrivateKeySpec ecSpec = parseEcDer(keyBytes);
         return keyFactory.generatePrivate(ecSpec);
-
     }
 
+    /**
+     * Creates a {@link PrivateKey} from the contents of {@code bReader} that contains an RSA private key encoded in
+     * OpenSSL traditional format.
+     *
+     * @param bReader          the {@link BufferedReader} containing the key file contents
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
+     * @return {@link PrivateKey}
+     * @throws IOException              if the file can't be read
+     * @throws GeneralSecurityException if the private key can't be generated from the {@link RSAPrivateCrtKeySpec}
+     */
     private static PrivateKey parsePKCS1Rsa(BufferedReader bReader, Supplier<char[]> passwordSupplier) throws IOException,
-            GeneralSecurityException {
+        GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
         Map<String, String> pemHeaders = new HashMap<>();
@@ -230,8 +258,18 @@ public class PemUtils {
         return keyFactory.generatePrivate(spec);
     }
 
+    /**
+     * Creates a {@link PrivateKey} from the contents of {@code bReader} that contains an DSA private key encoded in
+     * OpenSSL traditional format.
+     *
+     * @param bReader          the {@link BufferedReader} containing the key file contents
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
+     * @return {@link PrivateKey}
+     * @throws IOException              if the file can't be read
+     * @throws GeneralSecurityException if the private key can't be generated from the {@link DSAPrivateKeySpec}
+     */
     private static PrivateKey parseOpenSslDsa(BufferedReader bReader, Supplier<char[]> passwordSupplier) throws IOException,
-            GeneralSecurityException {
+        GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
         Map<String, String> pemHeaders = new HashMap<>();
@@ -259,8 +297,56 @@ public class PemUtils {
         return keyFactory.generatePrivate(spec);
     }
 
+    /**
+     * Creates a {@link PrivateKey} from the contents of {@code bReader} that contains an encrypted private key encoded in
+     * PKCS#8
+     *
+     * @param bReader     the {@link BufferedReader} containing the key file contents
+     * @param keyPassword The password for the encrypted (password protected) key
+     * @return {@link PrivateKey}
+     * @throws IOException              if the file can't be read
+     * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
+     */
+    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException,
+        GeneralSecurityException {
+        StringBuilder sb = new StringBuilder();
+        String line = bReader.readLine();
+        while (line != null) {
+            if (PKCS8_ENCRYPTED_FOOTER.equals(line.trim())) {
+                break;
+            }
+            sb.append(line.trim());
+            line = bReader.readLine();
+        }
+        if (null == line || PKCS8_ENCRYPTED_FOOTER.equals(line.trim()) == false) {
+            throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
+        }
+        byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
+
+        EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
+        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
+        SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
+        Arrays.fill(keyPassword, '\u0000');
+        Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
+        PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
+        String keyAlgo = getKeyAlgorithmIdentifier(keySpec.getEncoded());
+        KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
+        return keyFactory.generatePrivate(keySpec);
+    }
+
+    /**
+     * Decrypts the password protected contents using the algorithm and IV that is specified in the PEM Headers of the file
+     *
+     * @param pemHeaders       The Proc-Type and DEK-Info PEM headers that have been extracted from the key file
+     * @param keyContents      The key as a base64 encoded String
+     * @param passwordSupplier A password supplier for the encrypted (password protected) key
+     * @return the decrypted key bytes
+     * @throws GeneralSecurityException if the key can't be decrypted
+     * @throws IOException              if the PEM headers are missing or malformed
+     */
     private static byte[] possiblyDecryptPKCS1Key(Map<String, String> pemHeaders, String keyContents, Supplier<char[]> passwordSupplier)
-            throws GeneralSecurityException, IOException {
+        throws GeneralSecurityException, IOException {
         byte[] keyBytes = Base64.getDecoder().decode(keyContents);
         String procType = pemHeaders.get("Proc-Type");
         if ("4,ENCRYPTED".equals(procType)) {
@@ -289,10 +375,12 @@ public class PemUtils {
      * @param dekHeaderValue The value of the the DEK-Info PEM header
      * @param password       The password with which the key is encrypted
      * @return a cipher of the appropriate algorithm and parameters to be used for decryption
-     * @throws Exception if the algorithm is not available in the used security provider, or if the key is inappropriate for the cipher
+     * @throws GeneralSecurityException if the algorithm is not available in the used security provider, or if the key is inappropriate
+     * for the cipher
+     * @throws IOException if the DEK-Info PEM header is invalid
      */
     private static Cipher getCipherFromParameters(String dekHeaderValue, char[] password) throws
-            GeneralSecurityException, IOException {
+        GeneralSecurityException, IOException {
         String padding = "PKCS5Padding";
         SecretKey encryptionKey;
         String[] valueTokens = dekHeaderValue.split(",");
@@ -355,34 +443,9 @@ public class PemUtils {
         return key;
     }
 
-    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException,
-            GeneralSecurityException {
-        StringBuilder sb = new StringBuilder();
-        String line = bReader.readLine();
-        while (line != null) {
-            if (PKCS8_ENCRYPTED_FOOTER.equals(line.trim())) {
-                break;
-            }
-            sb.append(line.trim());
-            line = bReader.readLine();
-        }
-        if (null == line || PKCS8_ENCRYPTED_FOOTER.equals(line.trim()) == false) {
-            throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
-        }
-        byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
-
-        EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
-        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
-        SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Arrays.fill(keyPassword, '\u0000');
-        Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
-        PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
-        String keyAlgo = getKeyAlgorithmIdentifier(keySpec.getEncoded());
-        KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
-        return keyFactory.generatePrivate(keySpec);
-    }
-
+    /**
+     * Converts a hexadecimal string to a byte array
+     */
     private static byte[] hexStringToByteArray(String hexString) {
         int len = hexString.length();
         if (len % 2 == 0) {
@@ -403,6 +466,10 @@ public class PemUtils {
 
     /**
      * Parses a DER encoded EC key to an {@link ECPrivateKeySpec} using a minimal {@link DerParser}
+     *
+     * @param keyBytes the private key raw bytes
+     * @return {@link ECPrivateKeySpec}
+     * @throws IOException if the DER encoded key can't be parsed
      */
     private static ECPrivateKeySpec parseEcDer(byte[] keyBytes) throws IOException,
             GeneralSecurityException {
@@ -421,6 +488,10 @@ public class PemUtils {
 
     /**
      * Parses a DER encoded RSA key to a {@link RSAPrivateCrtKeySpec} using a minimal {@link DerParser}
+     *
+     * @param keyBytes the private key raw bytes
+     * @return {@link RSAPrivateCrtKeySpec}
+     * @throws IOException if the DER encoded key can't be parsed
      */
     private static RSAPrivateCrtKeySpec parseRsaDer(byte[] keyBytes) throws IOException {
         DerParser parser = new DerParser(keyBytes);
@@ -435,12 +506,15 @@ public class PemUtils {
         BigInteger exponent1 = parser.readAsn1Object().getInteger();
         BigInteger exponent2 = parser.readAsn1Object().getInteger();
         BigInteger coefficient = parser.readAsn1Object().getInteger();
-
         return new RSAPrivateCrtKeySpec(modulus, publicExponent, privateExponent, prime1, prime2, exponent1, exponent2, coefficient);
     }
 
     /**
      * Parses a DER encoded DSA key to a {@link DSAPrivateKeySpec} using a minimal {@link DerParser}
+     *
+     * @param keyBytes the private key raw bytes
+     * @return {@link DSAPrivateKeySpec}
+     * @throws IOException if the DER encoded key can't be parsed
      */
     private static DSAPrivateKeySpec parseDsaDer(byte[] keyBytes) throws IOException {
         DerParser parser = new DerParser(keyBytes);
@@ -452,7 +526,6 @@ public class PemUtils {
         BigInteger g = parser.readAsn1Object().getInteger();
         parser.readAsn1Object().getInteger(); // we don't need x
         BigInteger x = parser.readAsn1Object().getInteger();
-
         return new DSAPrivateKeySpec(x, p, q, g);
     }
 
@@ -462,6 +535,7 @@ public class PemUtils {
      * @param keyBytes the private key raw bytes
      * @return A string identifier for the key algorithm (RSA, DSA, or EC)
      * @throws GeneralSecurityException if the algorithm oid that is parsed from ASN.1 is unknown
+     * @throws IOException if the DER encoded key can't be parsed
      */
     private static String getKeyAlgorithmIdentifier(byte[] keyBytes) throws IOException, GeneralSecurityException {
         DerParser parser = new DerParser(keyBytes);

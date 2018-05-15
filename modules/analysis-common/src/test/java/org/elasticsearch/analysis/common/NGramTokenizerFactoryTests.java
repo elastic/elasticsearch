@@ -30,8 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 

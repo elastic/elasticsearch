@@ -243,7 +243,9 @@ abstract class Verifier {
                         return;
                     }
 
-                    if (Expressions.anyMatch(a.groupings(), e::semanticEquals)) {
+                    // make sure to compare attributes directly
+                    if (Expressions.anyMatch(a.groupings(), 
+                            g -> e.semanticEquals(e instanceof Attribute ? Expressions.attribute(g) : g))) {
                         return;
                     }
 

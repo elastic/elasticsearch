@@ -73,7 +73,7 @@ public class IndicesOptions {
     }
 
     public enum Option {
-        IGNORE_UNAVALIBLE,
+        IGNORE_UNAVAILABLE,
         IGNORE_ALIASES,
         ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
@@ -85,7 +85,7 @@ public class IndicesOptions {
     public static final IndicesOptions STRICT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN));
     public static final IndicesOptions LENIENT_EXPAND_OPEN =
-        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVALIBLE), EnumSet.of(WildcardStates.OPEN));
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE), EnumSet.of(WildcardStates.OPEN));
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED));
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED =
@@ -120,7 +120,7 @@ public class IndicesOptions {
         Set<Option> opts = new HashSet<>();
         Set<WildcardStates> wildcards = new HashSet<>();
         if ((id & 1) != 0) {
-            opts.add(Option.IGNORE_UNAVALIBLE);
+            opts.add(Option.IGNORE_UNAVAILABLE);
         }
         if ((id & 2) != 0) {
             opts.add(Option.ALLOW_NO_INDICES);
@@ -188,7 +188,7 @@ public class IndicesOptions {
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
     public boolean ignoreUnavailable() {
-        return options.contains(Option.IGNORE_UNAVALIBLE);
+        return options.contains(Option.IGNORE_UNAVAILABLE);
     }
 
     /**
@@ -273,7 +273,7 @@ public class IndicesOptions {
         final Set<WildcardStates> wildcards = new HashSet<>();
 
         if (ignoreUnavailable) {
-            opts.add(Option.IGNORE_UNAVALIBLE);
+            opts.add(Option.IGNORE_UNAVAILABLE);
         }
         if (allowNoIndices) {
             opts.add(Option.ALLOW_NO_INDICES);

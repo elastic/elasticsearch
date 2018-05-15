@@ -98,7 +98,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -725,21 +724,25 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::field-caps-execute
 
         // tag::field-caps-response
-        assertThat(response.get().keySet(), contains("user"));
-        Map<String, FieldCapabilities> userResponse = response.getField("user");
-
-        assertThat(userResponse.keySet(), containsInAnyOrder("keyword", "text")); // <1>
+        Map<String, FieldCapabilities> userResponse = response.getField("user");  // <1>
         FieldCapabilities textCapabilities = userResponse.get("keyword");
 
-        assertTrue(textCapabilities.isSearchable());
-        assertFalse(textCapabilities.isAggregatable());
+        boolean isSearchable = textCapabilities.isSearchable();
+        boolean isAggregatable = textCapabilities.isAggregatable();
 
-        assertArrayEquals(textCapabilities.indices(), // <2>
-                          new String[]{"authors", "contributors"});
-        assertNull(textCapabilities.nonSearchableIndices()); // <3>
-        assertArrayEquals(textCapabilities.nonAggregatableIndices(), // <4>
-                          new String[]{"authors"});
+        String[] indices = textCapabilities.indices(); // <2>
+        String[] nonSearchableIndices = textCapabilities.nonSearchableIndices(); // <3>
+        String[] nonAggregatableIndices = textCapabilities.nonAggregatableIndices();//<4>
         // end::field-caps-response
+
+        assertThat(userResponse.keySet(), containsInAnyOrder("keyword", "text"));
+
+        assertTrue(isSearchable);
+        assertFalse(isAggregatable);
+
+        assertArrayEquals(indices, new String[]{"authors", "contributors"});
+        assertNull(nonSearchableIndices);
+        assertArrayEquals(nonAggregatableIndices, new String[]{"authors"});
 
         // tag::field-caps-execute-listener
         ActionListener<FieldCapabilitiesResponse> listener = new ActionListener<FieldCapabilitiesResponse>() {

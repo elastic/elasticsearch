@@ -120,10 +120,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
-
         assertThat(result.metaData().index("test").getAliases(), hasAllKeys("alias_from_template_1", "alias_from_template_2"));
         assertThat(result.metaData().index("test").getAliases(), not(hasKey("alias_from_template_3")));
     }
@@ -138,10 +134,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
-
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getCustoms(), hasKey("custom1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
@@ -155,10 +147,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
-
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getCustoms(), hasKey("custom1"));
@@ -189,10 +177,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
-
         assertThat(result.metaData().index("test").getCustoms().get("custom1"), equalTo(mergedCustom));
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
@@ -202,10 +186,6 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testDefaultSettings() throws Exception {
         final ClusterState result = executeTask();
 
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
-
         assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("5"));
     }
 
@@ -213,10 +193,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         clusterStateSettings.put(SETTING_NUMBER_OF_SHARDS, 15);
 
         final ClusterState result = executeTask();
-
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
 
         assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
     }
@@ -270,10 +246,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         executeTask();
 
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
-
         verify(allocationService, times(1)).reroute(anyObject(), anyObject());
     }
 
@@ -282,10 +254,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         doThrow(new RuntimeException("oops")).when(mapper).merge(anyMap(), anyObject(), anyBoolean());
 
         expectThrows(RuntimeException.class, this::executeTask);
-
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
 
         verify(indicesService, times(1)).removeIndex(anyObject(), anyObject(), anyObject());
     }
@@ -321,10 +289,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         waitForActiveShardsNum = ActiveShardCount.from(1000);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, this::executeTask);
-
-        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
-                + "if you wish to continue using the default of [5] shards, "
-                + "you must manage this on the create index request or with an index template");
 
         assertThat(e.getMessage(), containsString("invalid wait_for_active_shards"));
     }

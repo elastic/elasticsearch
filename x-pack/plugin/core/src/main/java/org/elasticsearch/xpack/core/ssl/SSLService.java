@@ -398,10 +398,8 @@ public class SSLService extends AbstractComponent {
         if (logger.isDebugEnabled()) {
             logger.debug("using ssl settings [{}]", sslConfiguration);
         }
-        X509ExtendedTrustManager trustManager =
-                sslConfiguration.trustConfig().createTrustManager(env);
-        X509ExtendedKeyManager keyManager =
-                sslConfiguration.keyConfig().createKeyManager(env);
+        X509ExtendedTrustManager trustManager = sslConfiguration.trustConfig().createTrustManager(env);
+        X509ExtendedKeyManager keyManager = sslConfiguration.keyConfig().createKeyManager(env);
         return createSslContext(keyManager, trustManager, sslConfiguration);
     }
 
@@ -597,7 +595,7 @@ public class SSLService extends AbstractComponent {
                 SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
                 loadedSslContext.init(new X509ExtendedKeyManager[]{loadedKeyManager},
                     new X509ExtendedTrustManager[]{loadedTrustManager}, null);
-                supportedCiphers(loadedSslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.cipherSuites(), true);
+                supportedCiphers(loadedSslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.cipherSuites(), false);
                 this.context = loadedSslContext;
             } catch (GeneralSecurityException | IOException e) {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);

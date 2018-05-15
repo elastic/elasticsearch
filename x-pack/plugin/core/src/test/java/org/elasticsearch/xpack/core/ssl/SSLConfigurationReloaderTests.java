@@ -97,7 +97,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .build();
         final Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         //Load HTTPClient only once. Client uses the same store as a truststore
-        try(CloseableHttpClient client = getSSLClient(keystorePath, "testnode")) {
+        try (CloseableHttpClient client = getSSLClient(keystorePath, "testnode")) {
             final Consumer<SSLContext> keyMaterialPreChecks = (context) -> {
                 try (MockWebServer server = new MockWebServer(context, true)) {
                     server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));

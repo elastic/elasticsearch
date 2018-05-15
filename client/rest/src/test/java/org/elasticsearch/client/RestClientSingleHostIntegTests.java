@@ -377,11 +377,13 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     private Response bodyTest(RestClient restClient, String method, int statusCode, Header[] headers) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
-        StringEntity entity = new StringEntity(requestBody, ContentType.APPLICATION_JSON);
+        Request request = new Request(method, "/" + statusCode);
+        request.setJsonEntity(requestBody);
+        request.setHeaders(headers);
         Response esResponse;
         try {
-            esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), entity, headers);
-        } catch (ResponseException e) {
+            esResponse = restClient.performRequest(request);
+        } catch(ResponseException e) {
             esResponse = e.getResponse();
         }
         assertEquals(method, esResponse.getRequestLine().getMethod());

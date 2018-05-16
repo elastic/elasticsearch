@@ -216,11 +216,16 @@ public class FeatureFieldMapper extends FieldMapper {
             value = context.parser().floatValue();
         }
 
+        if (context.doc().getByKey(name()) != null) {
+            throw new IllegalArgumentException("[feature] fields do not support indexing multiple values for the same field [" + name() +
+                    "] in the same document");
+        }
+
         if (fieldType().positiveScoreImpact() == false) {
             value = 1 / value;
         }
 
-        context.doc().add(new FeatureField("_feature", name(), value));
+        context.doc().addWithKey(name(), new FeatureField("_feature", name(), value));
     }
 
     @Override

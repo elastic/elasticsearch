@@ -132,4 +132,42 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 > freq2);
     }
+
+    public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "feature").endObject().startObject("foo")
+                .startObject("properties").startObject("field").field("type", "feature").endObject().endObject()
+                .endObject().endObject().endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        MapperParsingException e = null;/*expectThrows(MapperParsingException.class,
+                () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                        .bytes(XContentFactory.jsonBuilder()
+                                .startObject()
+                                .field("field", Arrays.asList(10, 20))
+                                .endObject()),
+                        XContentType.JSON)));
+        assertEquals("[feature] fields do not support indexing multiple values for the same field [field] in the same document",
+                e.getCause().getMessage());*/
+
+        e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                        .bytes(XContentFactory.jsonBuilder()
+                                .startObject()
+                                    .startArray("foo")
+                                        .startObject()
+                                            .field("field", 10)
+                                        .endObject()
+                                        .startObject()
+                                            .field("field", 20)
+                                        .endObject()
+                                    .endArray()
+                                .endObject()),
+                        XContentType.JSON)));
+        assertEquals("[feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
+                e.getCause().getMessage());
+    }
 }

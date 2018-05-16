@@ -42,8 +42,8 @@ GET my_index/_search
 <1> Feature fields must use the `feature` field type
 <2> Features that correlate negatively with the score need to declare it
 
-NOTE: `feature` fields only support strictly positive values. Negative values
-will be rejected.
+NOTE: `feature` fields only support single-valued fields and strictly positive
+values. Multi-valued fields and negative values will be rejected.
 
 NOTE: `feature` fields do not support querying, sorting or aggregating. They may
 only be used within <<query-dsl-feature-query,`feature`>> queries.

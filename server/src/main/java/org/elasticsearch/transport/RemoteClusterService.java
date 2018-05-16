@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +54,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -79,9 +78,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     /**
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
-     * For instance a node can be configured with <tt>node.attr.gateway: true</tt> in order to be eligible as a gateway node between
-     * clusters. In that case <tt>search.remote.node.attr: gateway</tt> can be used to filter out other nodes in the remote cluster.
-     * The value of the setting is expected to be a boolean, <tt>true</tt> for nodes that can become gateways, <tt>false</tt> otherwise.
+     * For instance a node can be configured with {@code node.attr.gateway: true} in order to be eligible as a gateway node between
+     * clusters. In that case {@code search.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
+     * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node.attr",
         Setting.Property.NodeScope);
@@ -348,17 +347,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         IOUtils.close(remoteClusters.values());
     }
 
-    public void getRemoteConnectionInfos(ActionListener<Collection<RemoteConnectionInfo>> listener) {
-        final Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
-        if (remoteClusters.isEmpty()) {
-            listener.onResponse(Collections.emptyList());
-        } else {
-            final GroupedActionListener<RemoteConnectionInfo> actionListener = new GroupedActionListener<>(listener,
-                remoteClusters.size(), Collections.emptyList());
-            for (RemoteClusterConnection connection : remoteClusters.values()) {
-                connection.getConnectionInfo(actionListener);
-            }
-        }
+    public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
+        return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
     }
 
     /**

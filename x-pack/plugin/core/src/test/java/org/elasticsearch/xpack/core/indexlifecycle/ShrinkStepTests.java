@@ -42,8 +42,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
     @Override
     public ShrinkStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int numberOfShards = randomIntBetween(1, 20);
         String shrunkIndexPrefix = randomAlphaOfLength(10);
         return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, shrunkIndexPrefix);
@@ -133,7 +133,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(sourceIndexMetaData, new Listener() {
+        step.performAction(sourceIndexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -178,7 +178,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, new Listener() {
+        step.performAction(indexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -222,7 +222,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, new Listener() {
+        step.performAction(indexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

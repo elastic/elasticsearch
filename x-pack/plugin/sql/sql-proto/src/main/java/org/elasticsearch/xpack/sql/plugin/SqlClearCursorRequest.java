@@ -10,9 +10,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,13 +23,13 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * Request to clean all SQL resources associated with the cursor
  */
-public class SqlClearCursorRequest extends AbstractSqlRequest implements ToXContentObject {
+public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     private static final ConstructingObjectParser<SqlClearCursorRequest, Mode> PARSER =
-            new ConstructingObjectParser<>(SqlClearCursorAction.NAME, true, (objects, mode) -> new SqlClearCursorRequest(
-                    mode,
-                    (String) objects[0]
-            ));
+        new ConstructingObjectParser<>(SqlClearCursorAction.NAME, true, (objects, mode) -> new SqlClearCursorRequest(
+            mode,
+            (String) objects[0]
+        ));
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("cursor"));
@@ -96,10 +96,8 @@ public class SqlClearCursorRequest extends AbstractSqlRequest implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("cursor", cursor);
-        builder.endObject();
-        return builder;
+        // This is needed just to test round-trip compatibility with proto.SqlClearCursorRequest
+        return new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(mode(), cursor).toXContent(builder, params);
     }
 
     public static SqlClearCursorRequest fromXContent(XContentParser parser, Mode mode) {

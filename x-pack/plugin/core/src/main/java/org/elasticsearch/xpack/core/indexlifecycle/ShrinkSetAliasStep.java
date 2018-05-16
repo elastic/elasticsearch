@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Objects;
@@ -26,7 +27,7 @@ public class ShrinkSetAliasStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         // get source index
         String index = indexMetaData.getIndex().getName();
         // get target shrink index
@@ -38,6 +39,11 @@ public class ShrinkSetAliasStep extends AsyncActionStep {
 
         getClient().admin().indices().aliases(aliasesRequest, ActionListener.wrap(response ->
             listener.onResponse(true), listener::onFailure));
+    }
+
+    @Override
+    public boolean indexSurvives() {
+        return false;
     }
 
     @Override

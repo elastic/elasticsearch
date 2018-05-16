@@ -6,7 +6,7 @@ dependencies {
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }
 
-String outputDir = "generated-resources/${project.name}"
+String outputDir = "${buildDir}/generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties

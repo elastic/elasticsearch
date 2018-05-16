@@ -5,18 +5,27 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -27,6 +36,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -53,14 +63,31 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, false);
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
         Mockito.verifyZeroInteractions(clusterService);
     }
 
-    public void testRunPolicyClusterStateActionStep() {
+    public void testRunPolicyErrorStep() {
+        String policyName = "async_action_policy";
+        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
+        MockClusterStateWaitStep step = new MockClusterStateWaitStep(stepKey, null);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
+        IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, stepKey.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, stepKey.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, ErrorStep.NAME))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        runner.runPolicy(policyName, indexMetaData, null, false);
+
+        Mockito.verifyZeroInteractions(clusterService);
+    }
+
+    public void testRunPolicyInitializePolicyContextStep() {
         String policyName = "cluster_state_action_policy";
         StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
         MockInitializePolicyContextStep step = new MockInitializePolicyContextStep(stepKey, null);
@@ -69,9 +96,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, randomBoolean());
+        runner.runPolicy(policyName, indexMetaData, null, randomBoolean());
 
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetaData.getIndex(), policyName, step)));
@@ -88,9 +114,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, randomBoolean());
+        runner.runPolicy(policyName, indexMetaData, null, randomBoolean());
 
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetaData.getIndex(), policyName, step)));
@@ -107,9 +132,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, false);
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
@@ -128,9 +152,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, false);
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -146,9 +169,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, false);
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -164,15 +186,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> runner.runPolicy(policyName, indexMetaData, indexSettings, false));
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
-        assertSame(expectedException, exception.getCause());
         assertEquals(1, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+                Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, expectedException)));
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyAsyncActionStepClusterStateChangeIgnored() {
@@ -186,9 +207,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, true);
+        runner.runPolicy(policyName, indexMetaData, null, true);
 
         assertEquals(0, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -204,9 +224,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, false);
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
@@ -218,15 +237,37 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String policyName = "async_wait_policy";
         StepKey stepKey = new StepKey("phase", "action", "async_wait_step");
         MockAsyncWaitStep step = new MockAsyncWaitStep(stepKey, null);
+        RandomStepInfo stepInfo = new RandomStepInfo();
+        step.expectedInfo(stepInfo);
         step.setWillComplete(false);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, false);
+        runner.runPolicy(policyName, indexMetaData, null, false);
+
+        assertEquals(1, step.getExecuteCount());
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+                Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, stepInfo)));
+        Mockito.verifyNoMoreInteractions(clusterService);
+    }
+
+    public void testRunPolicyAsyncWaitStepNotCompleteNoStepInfo() {
+        String policyName = "async_wait_policy";
+        StepKey stepKey = new StepKey("phase", "action", "async_wait_step");
+        MockAsyncWaitStep step = new MockAsyncWaitStep(stepKey, null);
+        RandomStepInfo stepInfo = null;
+        step.expectedInfo(stepInfo);
+        step.setWillComplete(false);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
+        IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -243,14 +284,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> runner.runPolicy(policyName, indexMetaData, indexSettings, false));
+        runner.runPolicy(policyName, indexMetaData, null, false);
 
-        assertSame(expectedException, exception.getCause());
         assertEquals(1, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+                Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, expectedException)));
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyAsyncWaitStepClusterStateChangeIgnored() {
@@ -264,9 +304,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, indexMetaData, indexSettings, true);
+        runner.runPolicy(policyName, indexMetaData, null, true);
 
         assertEquals(0, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -281,10 +320,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Settings indexSettings = Settings.builder().build();
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> runner.runPolicy(policyName, indexMetaData, indexSettings, randomBoolean()));
+                () -> runner.runPolicy(policyName, indexMetaData, null, randomBoolean()));
         assertEquals("Step with key [" + stepKey + "] is not a recognised type: [" + step.getClass().getName() + "]",
                 exception.getMessage());
         Mockito.verifyZeroInteractions(clusterService);
@@ -472,10 +510,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(LifecycleSettings.LIFECYCLE_STEP_INFO, randomAlphaOfLength(20));
+        }
         clusterState = buildClusterState(indexName,
-                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
-                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+                indexSettingsBuilder);
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
@@ -493,10 +535,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(LifecycleSettings.LIFECYCLE_STEP_INFO, randomAlphaOfLength(20));
+        }
         clusterState = buildClusterState(indexName,
-                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
-                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+                indexSettingsBuilder);
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
@@ -514,13 +560,46 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(LifecycleSettings.LIFECYCLE_STEP_INFO, randomAlphaOfLength(20));
+        }
         clusterState = buildClusterState(indexName,
-                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
-                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+                indexSettingsBuilder);
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
+    }
+
+    public void testMoveClusterStateToErrorStep() throws IOException {
+        String indexName = "my_index";
+        StepKey currentStep = new StepKey("current_phase", "current_action", "current_step");
+        long now = randomNonNegativeLong();
+        Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
+
+        ClusterState clusterState = buildClusterState(indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, cause, now);
+    }
+
+    public void testAddStepInfoToClusterState() throws IOException {
+        String indexName = "my_index";
+        StepKey currentStep = new StepKey("current_phase", "current_action", "current_step");
+        RandomStepInfo stepInfo = new RandomStepInfo();
+
+        ClusterState clusterState = buildClusterState(indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        ClusterState newClusterState = IndexLifecycleRunner.addStepInfoToClusterState(index, clusterState, stepInfo);
+        assertClusterStateStepInfo(clusterState, index, currentStep, newClusterState, stepInfo);
     }
 
     private ClusterState buildClusterState(String indexName, Settings.Builder indexSettingsBuilder) {
@@ -555,6 +634,100 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
         } else {
             assertEquals(now, (long) LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
+        }
+        assertEquals(now, (long) LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
+        assertFalse(LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.exists(newIndexSettings));
+        assertEquals("", LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
+    }
+
+    private void assertClusterStateOnErrorStep(ClusterState oldClusterState, Index index, StepKey currentStep, ClusterState newClusterState,
+            Exception cause, long now) throws IOException {
+        XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
+        causeXContentBuilder.startObject();
+        ElasticsearchException.generateFailureXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause, false);
+        causeXContentBuilder.endObject();
+        String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
+        assertNotSame(oldClusterState, newClusterState);
+        MetaData newMetadata = newClusterState.metaData();
+        assertNotSame(oldClusterState.metaData(), newMetadata);
+        IndexMetaData newIndexMetadata = newMetadata.getIndexSafe(index);
+        assertNotSame(oldClusterState.metaData().index(index), newIndexMetadata);
+        Settings newIndexSettings = newIndexMetadata.getSettings();
+        assertNotSame(oldClusterState.metaData().index(index).getSettings(), newIndexSettings);
+        assertEquals(currentStep.getPhase(), LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(newIndexSettings));
+        assertEquals(currentStep.getAction(), LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(newIndexSettings));
+        assertEquals(ErrorStep.NAME, LifecycleSettings.LIFECYCLE_STEP_SETTING.get(newIndexSettings));
+        assertEquals(currentStep.getName(), LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(newIndexSettings));
+        assertEquals(expectedCauseValue, LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
+        assertEquals(now, (long) LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
+    }
+
+    private void assertClusterStateStepInfo(ClusterState oldClusterState, Index index, StepKey currentStep, ClusterState newClusterState,
+            ToXContentObject stepInfo) throws IOException {
+        XContentBuilder stepInfoXContentBuilder = JsonXContent.contentBuilder();
+        stepInfo.toXContent(stepInfoXContentBuilder, ToXContent.EMPTY_PARAMS);
+        String expectedstepInfoValue = BytesReference.bytes(stepInfoXContentBuilder).utf8ToString();
+        assertNotSame(oldClusterState, newClusterState);
+        MetaData newMetadata = newClusterState.metaData();
+        assertNotSame(oldClusterState.metaData(), newMetadata);
+        IndexMetaData newIndexMetadata = newMetadata.getIndexSafe(index);
+        assertNotSame(oldClusterState.metaData().index(index), newIndexMetadata);
+        Settings newIndexSettings = newIndexMetadata.getSettings();
+        assertNotSame(oldClusterState.metaData().index(index).getSettings(), newIndexSettings);
+        assertEquals(currentStep.getPhase(), LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(newIndexSettings));
+        assertEquals(currentStep.getAction(), LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(newIndexSettings));
+        assertEquals(currentStep.getName(), LifecycleSettings.LIFECYCLE_STEP_SETTING.get(newIndexSettings));
+        assertEquals(expectedstepInfoValue, LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
+    }
+
+    static class RandomStepInfo implements ToXContentObject {
+
+        private final String key;
+        private final String value;
+
+        RandomStepInfo() {
+            this.key = randomAlphaOfLength(20);
+            this.value = randomAlphaOfLength(20);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(key, value);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            RandomStepInfo other = (RandomStepInfo) obj;
+            return Objects.equals(key, other.key) && Objects.equals(value, other.value);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 
@@ -591,7 +764,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public void performAction(IndexMetaData indexMetaData, Listener listener) {
+        public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
             executeCount++;
             if (exception == null) {
                 listener.onResponse(willComplete);
@@ -607,6 +780,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private Exception exception;
         private boolean willComplete;
         private long executeCount = 0;
+        private ToXContentObject expectedInfo = null;
 
         MockAsyncWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey, null);
@@ -620,6 +794,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             this.willComplete = willComplete;
         }
 
+        void expectedInfo(ToXContentObject expectedInfo) {
+            this.expectedInfo = expectedInfo;
+        }
+
         long getExecuteCount() {
             return executeCount;
         }
@@ -628,7 +806,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         public void evaluateCondition(Index index, Listener listener) {
             executeCount++;
             if (exception == null) {
-                listener.onResponse(willComplete);
+                listener.onResponse(willComplete, expectedInfo);
             } else {
                 listener.onFailure(exception);
             }
@@ -668,6 +846,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private RuntimeException exception;
         private boolean willComplete;
         private long executeCount = 0;
+        private ToXContentObject expectedInfo = null;
 
         MockClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey);
@@ -681,17 +860,21 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             this.willComplete = willComplete;
         }
 
+        void expectedInfo(ToXContentObject expectedInfo) {
+            this.expectedInfo = expectedInfo;
+        }
+
         public long getExecuteCount() {
             return executeCount;
         }
 
         @Override
-        public boolean isConditionMet(Index index, ClusterState clusterState) {
+        public Result isConditionMet(Index index, ClusterState clusterState) {
             executeCount++;
             if (exception != null) {
                 throw exception;
             }
-            return willComplete;
+            return new Result(willComplete, expectedInfo);
         }
 
     }
@@ -720,6 +903,63 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     Objects.equals(policy, task.getPolicy()) &&
                     Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
                     Objects.equals(nextStepKey, task.getNextStepKey());
+        }
+
+    }
+
+    private static class MoveToErrorStepUpdateTaskMatcher extends ArgumentMatcher<MoveToErrorStepUpdateTask> {
+
+        private Index index;
+        private String policy;
+        private StepKey currentStepKey;
+        private Exception cause;
+
+        MoveToErrorStepUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, Exception cause) {
+            this.index = index;
+            this.policy = policy;
+            this.currentStepKey = currentStepKey;
+            this.cause = cause;
+        }
+
+        @Override
+        public boolean matches(Object argument) {
+            if (argument == null || argument instanceof MoveToErrorStepUpdateTask == false) {
+                return false;
+            }
+            MoveToErrorStepUpdateTask task = (MoveToErrorStepUpdateTask) argument;
+            return Objects.equals(index, task.getIndex()) && 
+                    Objects.equals(policy, task.getPolicy())&& 
+                    Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
+                    Objects.equals(cause.getClass(), task.getCause().getClass()) &&
+                    Objects.equals(cause.getMessage(), task.getCause().getMessage());
+        }
+
+    }
+    
+    private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
+
+        private Index index;
+        private String policy;
+        private StepKey currentStepKey;
+        private ToXContentObject stepInfo;
+
+        SetStepInfoUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
+            this.index = index;
+            this.policy = policy;
+            this.currentStepKey = currentStepKey;
+            this.stepInfo = stepInfo;
+        }
+
+        @Override
+        public boolean matches(Object argument) {
+            if (argument == null || argument instanceof SetStepInfoUpdateTask == false) {
+                return false;
+            }
+            SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
+            return Objects.equals(index, task.getIndex()) && 
+                    Objects.equals(policy, task.getPolicy())&& 
+                    Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
+                    Objects.equals(stepInfo, task.getStepInfo());
         }
 
     }

@@ -13,7 +13,7 @@
     - match:  { nodes.$master.modules.13.name: x-pack-core  }
     - match:  { nodes.$master.modules.14.name: x-pack-deprecation  }
     - match:  { nodes.$master.modules.15.name: x-pack-graph  }
-    - match:  { nodes.$master.plugins.16.name: x-pack-index-lifecycle  }
+    - match:  { nodes.$master.modules.16.name: x-pack-index-lifecycle  }
     - match:  { nodes.$master.modules.17.name: x-pack-logstash  }
     - match:  { nodes.$master.modules.18.name: x-pack-ml  }
     - match:  { nodes.$master.modules.19.name: x-pack-monitoring  }

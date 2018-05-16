@@ -99,6 +99,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -107,7 +108,6 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -342,7 +342,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
             SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
-            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
@@ -379,7 +379,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.translog.generation_threshold_size", generationThreshold + "b")
                         .build();
-        createIndex("test", settings);
+        createIndex("test", settings, "test");
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -392,7 +392,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
             final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
                 SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
             if (location.translogLocation + location.size > generationThreshold) {

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -57,20 +58,28 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertThat(actualKey, equalTo(nextStepKey));
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
         task.clusterStateProcessed("source", clusterState, newState);
         assertTrue(changed.get());
     }
 
-    public void testExecuteNoop() {
+    public void testExecuteNoopifferentStep() {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         long now = randomNonNegativeLong();
+        setStateToKey(notCurrentStepKey);
+        MoveToNextStepUpdateTask.Listener listener = (c) -> {
+        };
+        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, listener);
+        ClusterState newState = task.execute(clusterState);
+        assertThat(newState, sameInstance(clusterState));
+    }
+
+    public void testExecuteNoopDifferentPolicy() {
+        StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
+        long now = randomNonNegativeLong();
         setStateToKey(currentStepKey);
-        if (randomBoolean()) {
-            setStateToKey(notCurrentStepKey);
-        } else {
-            setStatePolicy("not-" + policy);
-        }
+        setStatePolicy("not-" + policy);
         MoveToNextStepUpdateTask.Listener listener = (c) -> {};
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, listener);
         ClusterState newState = task.execute(clusterState);
@@ -86,6 +95,24 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, listener);
         task.clusterStateProcessed("source", clusterState, clusterState);
         assertNull(changed.get());
+    }
+
+    public void testOnFailure() {
+        StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
+        StepKey nextStepKey = new StepKey("next-phase", "next-action", "next-name");
+        long now = randomNonNegativeLong();
+
+        setStateToKey(currentStepKey);
+
+        SetOnce<Boolean> changed = new SetOnce<>();
+        MoveToNextStepUpdateTask.Listener listener = (c) -> changed.set(true);
+        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now, listener);
+        Exception expectedException = new RuntimeException();
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
+        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
+                + "] to step [" + nextStepKey + "].", exception.getMessage());
+        assertSame(expectedException, exception.getCause());
     }
 
     private void setStatePolicy(String policy) {

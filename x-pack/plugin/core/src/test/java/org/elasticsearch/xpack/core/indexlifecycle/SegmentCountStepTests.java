@@ -14,11 +14,11 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
-
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -34,8 +34,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
     @Override
     public SegmentCountStep createRandomInstance() {
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
         boolean bestCompression = randomBoolean();
 
@@ -101,8 +101,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         boolean bestCompression = randomBoolean();
 
         Mockito.doAnswer(invocationOnMock -> {
@@ -113,12 +113,14 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         }).when(indicesClient).segments(any(), any());
 
         SetOnce<Boolean> conditionMetResult = new SetOnce<>();
+        SetOnce<ToXContentObject> conditionInfo = new SetOnce<>();
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments, bestCompression);
         step.evaluateCondition(index, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet) {
+            public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
+                conditionInfo.set(info);
             }
 
             @Override
@@ -128,6 +130,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         });
 
         assertTrue(conditionMetResult.get());
+        assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
     }
 
     public void testIsConditionFails() {
@@ -156,8 +159,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         boolean bestCompression = randomBoolean();
 
         Mockito.doAnswer(invocationOnMock -> {
@@ -168,12 +171,14 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         }).when(indicesClient).segments(any(), any());
 
         SetOnce<Boolean> conditionMetResult = new SetOnce<>();
+        SetOnce<ToXContentObject> conditionInfo = new SetOnce<>();
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments, bestCompression);
         step.evaluateCondition(index, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet) {
+            public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
+                conditionInfo.set(info);
             }
 
             @Override
@@ -183,6 +188,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         });
 
         assertFalse(conditionMetResult.get());
+        assertEquals(new SegmentCountStep.Info(1L), conditionInfo.get());
     }
 
     public void testThrowsException() {
@@ -194,8 +200,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(3, 10);
         boolean bestCompression = randomBoolean();
 
@@ -211,7 +217,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments, bestCompression);
         step.evaluateCondition(index, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet) {
+            public void onResponse(boolean conditionMet, ToXContentObject info) {
                 throw new AssertionError("unexpected method call");
             }
 

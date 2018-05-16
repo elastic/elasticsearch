@@ -20,14 +20,15 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkShardsAllocatedStep> {
 
     @Override
     public ShrunkShardsAllocatedStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int numberOfShards = randomIntBetween(1, 10);
         String shrunkIndexPrefix = randomAlphaOfLength(10);
         return new ShrunkShardsAllocatedStep(stepKey, nextStepKey, numberOfShards, shrunkIndexPrefix);
@@ -101,7 +102,9 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .routingTable(RoutingTable.builder().add(builder.build()).build()).build();
 
-        assertTrue(step.isConditionMet(originalIndexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
+        assertTrue(result.isComplete());
+        assertNull(result.getInfomationContext());
     }
 
     public void testConditionNotMetBecauseOfActive() {
@@ -139,7 +142,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .routingTable(RoutingTable.builder().add(builder.build()).build()).build();
 
-        assertFalse(step.isConditionMet(originalIndexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
+        assertFalse(result.isComplete());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, shrinkNumberOfShards, false),
+                result.getInfomationContext());
     }
 
     public void testConditionNotMetBecauseOfShardCount() {
@@ -178,7 +184,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .routingTable(RoutingTable.builder().add(builder.build()).build()).build();
 
-        assertFalse(step.isConditionMet(originalIndexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
+        assertFalse(result.isComplete());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, actualShrinkNumberShards, true),
+                result.getInfomationContext());
     }
 
     public void testConditionNotMetBecauseOfShrunkIndexDoesntExistYet() {
@@ -203,6 +212,8 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
-        assertFalse(step.isConditionMet(originalIndexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
+        assertFalse(result.isComplete());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(false, -1, -1, false), result.getInfomationContext());
     }
 }

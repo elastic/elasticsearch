@@ -32,10 +32,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockHttpTransport;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,7 +58,7 @@ public class NodeTests extends ESTestCase {
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             if (name == null) {
                 assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(node.getNodeEnvironment().nodeId().substring(0, 7)));
@@ -63,7 +66,6 @@ public class NodeTests extends ESTestCase {
                 assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(name));
             }
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public static class CheckPlugin extends Plugin {
@@ -75,6 +77,13 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    private List<Class<? extends Plugin>> basePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(getTestTransportPlugin());
+        plugins.add(MockHttpTransport.TestPlugin.class);
+        return plugins;
+    }
+
     public void testLoadPluginBootstrapChecks() throws IOException {
         final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
         Settings.Builder settings = baseSettings();
@@ -82,7 +91,9 @@ public class NodeTests extends ESTestCase {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
         AtomicBoolean executed = new AtomicBoolean(false);
-        try (Node node = new MockNode(settings.build(), Arrays.asList(getTestTransportPlugin(), CheckPlugin.class)) {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(CheckPlugin.class);
+        try (Node node = new MockNode(settings.build(), plugins) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(BootstrapContext context, BoundTransportAddress boundTransportAddress,
                                                                List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
@@ -95,7 +106,6 @@ public class NodeTests extends ESTestCase {
             expectThrows(NodeValidationException.class, () -> node.start());
             assertTrue(executed.get());
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testWarnIfPreRelease() {
@@ -125,7 +135,7 @@ public class NodeTests extends ESTestCase {
     public void testNodeAttributes() throws IOException {
         String attr = randomAlphaOfLength(5);
         Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("test_attr"));
         }
@@ -133,7 +143,7 @@ public class NodeTests extends ESTestCase {
         // leading whitespace not allowed
         attr = " leading";
         settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
             fail("should not allow a node attribute with leading whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [ leading]", e.getMessage());
@@ -142,12 +152,11 @@ public class NodeTests extends ESTestCase {
         // trailing whitespace not allowed
         attr = "trailing ";
         settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
             fail("should not allow a node attribute with trailing whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [trailing ]", e.getMessage());
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     private static Settings.Builder baseSettings() {
@@ -155,7 +164,6 @@ public class NodeTests extends ESTestCase {
         return Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                 .put(Node.NODE_DATA_SETTING.getKey(), true);
     }

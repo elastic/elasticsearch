@@ -38,8 +38,7 @@ Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 `docker`::
 
 Images are available for running Elasticsearch as Docker containers. They may be
-downloaded from the Elastic Docker Registry. The default image ships with
-{xpack-ref}/index.html[X-Pack] pre-installed.
+downloaded from the Elastic Docker Registry. 
 +
 {ref}/docker.html[Install {es} with Docker]
 
@@ -67,8 +66,5 @@ include::install/rpm.asciidoc[]
 include::install/windows.asciidoc[]
 
 ifdef::include-xpack[]
-:edit_url!:
 include::{xes-repo-dir}/setup/docker.asciidoc[]
-
-:edit_url:
 endif::include-xpack[]

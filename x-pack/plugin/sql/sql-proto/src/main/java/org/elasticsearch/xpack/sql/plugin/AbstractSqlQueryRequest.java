@@ -10,12 +10,17 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,20 +33,12 @@ import java.util.function.Supplier;
  * Base class for requests that contain sql queries (Query and Translate)
  */
 public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest, ToXContentFragment {
-    public static final TimeZone DEFAULT_TIME_ZONE = TimeZone.getTimeZone("UTC");
-
-    /**
-     * Global choice for the default fetch size.
-     */
-    public static final int DEFAULT_FETCH_SIZE = 1000;
-    public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(90);
-    public static final TimeValue DEFAULT_PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
 
     private String query = "";
-    private TimeZone timeZone = DEFAULT_TIME_ZONE;
-    private int fetchSize = DEFAULT_FETCH_SIZE;
-    private TimeValue requestTimeout = DEFAULT_REQUEST_TIMEOUT;
-    private TimeValue pageTimeout = DEFAULT_PAGE_TIMEOUT;
+    private TimeZone timeZone = Protocol.TIME_ZONE;
+    private int fetchSize = Protocol.FETCH_SIZE;
+    private TimeValue requestTimeout = Protocol.REQUEST_TIMEOUT;
+    private TimeValue pageTimeout = Protocol.PAGE_TIMEOUT;
     @Nullable
     private QueryBuilder filter = null;
     private List<SqlTypedParamValue> params = Collections.emptyList();
@@ -69,11 +66,10 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), new ParseField("params"));
         parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), new ParseField("time_zone"));
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, new ParseField("fetch_size"));
+        parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
+            "request_timeout")), new ParseField("request_timeout"));
         parser.declareString(
-                (request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, DEFAULT_REQUEST_TIMEOUT, "request_timeout")),
-                new ParseField("request_timeout"));
-        parser.declareString(
-                (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, DEFAULT_PAGE_TIMEOUT, "page_timeout")),
+                (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, "page_timeout")),
                 new ParseField("page_timeout"));
         parser.declareObject(AbstractSqlQueryRequest::filter,
                 (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("filter"));
@@ -185,7 +181,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public AbstractSqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readString();
-        params = in.readList(SqlTypedParamValue::new);
+        params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         timeZone = TimeZone.getTimeZone(in.readString());
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
@@ -193,11 +189,23 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
+    public static void writeSqlTypedParamValue(StreamOutput out, SqlTypedParamValue value) throws IOException {
+        out.writeEnum(value.dataType);
+        out.writeGenericValue(value.value);
+    }
+
+    public static SqlTypedParamValue readSqlTypedParamValue(StreamInput in) throws IOException {
+        return new SqlTypedParamValue(in.readEnum(DataType.class), in.readGenericValue());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(query);
-        out.writeList(params);
+        out.writeVInt(params.size());
+        for (SqlTypedParamValue param: params) {
+            writeSqlTypedParamValue(out, param);
+        }
         out.writeString(timeZone.getID());
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
@@ -224,36 +232,4 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public int hashCode() {
         return Objects.hash(super.hashCode(), query, timeZone, fetchSize, requestTimeout, pageTimeout, filter);
     }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (query != null) {
-            builder.field("query", query);
-        }
-        if (this.params.isEmpty() == false) {
-            builder.startArray("params");
-            for (SqlTypedParamValue val : this.params) {
-                val.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-        if (timeZone != null) {
-            builder.field("time_zone", timeZone.getID());
-        }
-        if (fetchSize != DEFAULT_FETCH_SIZE) {
-            builder.field("fetch_size", fetchSize);
-        }
-        if (requestTimeout != DEFAULT_REQUEST_TIMEOUT) {
-            builder.field("request_timeout", requestTimeout.getStringRep());
-        }
-        if (pageTimeout != DEFAULT_PAGE_TIMEOUT) {
-            builder.field("page_timeout", pageTimeout.getStringRep());
-        }
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-        return builder;
-    }
-
 }

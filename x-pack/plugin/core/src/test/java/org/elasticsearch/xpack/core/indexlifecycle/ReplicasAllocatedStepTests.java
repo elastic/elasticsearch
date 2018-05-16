@@ -22,14 +22,15 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAllocatedStep> {
 
     @Override
     public ReplicasAllocatedStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int numberReplicas = randomIntBetween(0, 100);
         return new ReplicasAllocatedStep(stepKey, nextStepKey, numberReplicas);
     }
@@ -87,7 +88,9 @@ public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAll
                         nodeId, true, ShardRoutingState.STARTED)))
                 .build())
             .build();
-        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        assertTrue(result.isComplete());
+        assertNull(result.getInfomationContext());
     }
 
     public void testConditionNotMetAllocation() {
@@ -117,7 +120,10 @@ public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAll
                 .build())
             .build();
 
-        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        assertFalse(result.isComplete());
+        assertEquals(new ReplicasAllocatedStep.Info(step.getNumberReplicas(), step.getNumberReplicas(), false),
+                result.getInfomationContext());
     }
 
     public void testConditionNotMetNumberReplicas() {
@@ -147,7 +153,10 @@ public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAll
                 .build())
             .build();
 
-        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        assertFalse(result.isComplete());
+        assertEquals(new ReplicasAllocatedStep.Info(step.getNumberReplicas(), indexMetadata.getNumberOfReplicas(), true),
+                result.getInfomationContext());
     }
 
     public void testConditionIndexMissing() throws Exception {

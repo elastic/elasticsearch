@@ -35,8 +35,8 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
 
     @Override
     public UpdateSettingsStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         Settings settings = Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build();
 
         return new UpdateSettingsStep(stepKey, nextStepKey, client, settings);
@@ -97,7 +97,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        step.performAction(indexMetaData, new Listener() {
+        step.performAction(indexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -143,7 +143,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, new Listener() {
+        step.performAction(indexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

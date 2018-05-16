@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +38,7 @@ public class FollowExistingIndexActionTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
-            IndexMetaData leaderIMD = createIMD("index1", 5, IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true");
+            IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 4);
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowExistingIndexAction.validate(leaderIMD, followIMD, request));
@@ -45,17 +46,16 @@ public class FollowExistingIndexActionTests extends ESTestCase {
                 equalTo("leader index primary shards [5] does not match with the number of shards of the follow index [4]"));
         }
         {
-            IndexMetaData leaderIMD = createIMD("index1", 5, IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true");
+            IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 5);
             FollowExistingIndexAction.validate(leaderIMD, followIMD, request);
         }
     }
 
-    private static IndexMetaData createIMD(String index, int numShards, String... settings) {
-        assert settings.length % 2 == 0;
+    private static IndexMetaData createIMD(String index, int numShards, Tuple<String, String>... settings) {
         Settings.Builder settingsBuilder = settings(Version.CURRENT);
-        for (int i = 0; i < settings.length; i += 2) {
-            settingsBuilder.put(settings[i], settings[i + 1]);
+        for (Tuple<String, String> setting : settings) {
+            settingsBuilder.put(setting.v1(), setting.v2());
         }
         return IndexMetaData.builder(index).settings(settingsBuilder)
             .numberOfShards(numShards)

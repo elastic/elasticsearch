@@ -289,7 +289,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * @param recoveryTarget the target of the recovery
      * @return a snapshot of the store metadata
      */
-    private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
+    static Store.MetadataSnapshot getStoreMetadataSnapshot(final Logger logger, final RecoveryTarget recoveryTarget) {
         try {
             return recoveryTarget.indexShard().snapshotStoreMetadata();
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
@@ -312,7 +312,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
-        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
+        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(logger, recoveryTarget);
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
 
         final long startingSeqNo;

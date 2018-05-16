@@ -24,8 +24,8 @@ public class SqlSourceBuilderTests extends ESTestCase {
         ssb.trackScores();
         ssb.addSourceField("foo");
         ssb.addSourceField("foo2");
-        ssb.addDocField("bar");
-        ssb.addDocField("bar2");
+        ssb.addDocField("bar", null);
+        ssb.addDocField("bar2", null);
         final Script s = new Script("eggplant");
         ssb.addScriptField("baz", s);
         final Script s2 = new Script("potato");

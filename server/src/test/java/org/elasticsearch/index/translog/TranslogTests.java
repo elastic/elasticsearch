@@ -1552,9 +1552,10 @@ public class TranslogTests extends ESTestCase {
 
             // TODO: add duplicates with the same seq# but diff term
 
+            // add some duplicate ops (seq#, term) that have to be identical
             int duplicates = randomInt(5);
             for(int i = 0; i < duplicates; i++) {
-                operations.add(operations.get(randomInt(extraDocs)));
+                operations.add(operations.get(randomInt(extraDocs - 1)));
             }
             skipped += duplicates;
 

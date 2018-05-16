@@ -19,54 +19,54 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
-    public void testModulesGetRepositoriesUsingParams() throws IOException {
-        String repository = "test";
-        String repositorySettings = "{\"type\":\"fs\", \"settings\":{\"location\": \".\"}}";
-        highLevelClient().getLowLevelClient().performRequest("put", "_snapshot/" + repository, Collections.emptyMap(),
-            new StringEntity(repositorySettings, ContentType.APPLICATION_JSON));
+    private PutRepositoryResponse createTestRepository(String repository, String type, String settings) throws IOException {
+        PutRepositoryRequest request = new PutRepositoryRequest(repository);
+        request.settings(settings, XContentType.JSON);
+        request.type(type);
+        return execute(request, highLevelClient().snapshot()::createRepository,
+            highLevelClient().snapshot()::createRepositoryAsync);
 
-        highLevelClient().getLowLevelClient().performRequest("put", "_snapshot/" + repository + "_other", Collections.emptyMap(),
-            new StringEntity(repositorySettings, ContentType.APPLICATION_JSON));
-
-        {
-            GetRepositoriesRequest request = new GetRepositoriesRequest();
-            request.repositories(new String[]{repository});
-            GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
-                highLevelClient().snapshot()::getRepositoriesAsync);
-            assertThat(1, equalTo(response.repositories().size()));
-        }
-        {
-            GetRepositoriesRequest request = new GetRepositoriesRequest();
-            GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
-                highLevelClient().snapshot()::getRepositoriesAsync);
-            assertThat(2, equalTo(response.repositories().size()));
-        }
     }
 
-    public void testModulesGetDefaultRepositories() throws IOException {
-        String repositorySettings = "{\"type\":\"fs\", \"settings\":{\"location\": \".\"}}";
+    public void testCreateRepository() throws IOException {
+        PutRepositoryResponse response = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testModulesGetRepositoriesUsingParams() throws IOException {
+        String testRepository = "test";
+        assertTrue(createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
+        assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
+
         GetRepositoriesRequest request = new GetRepositoriesRequest();
-
-        highLevelClient().getLowLevelClient().performRequest("put", "_snapshot/test", Collections.emptyMap(),
-        new StringEntity(repositorySettings, ContentType.APPLICATION_JSON));
-
+        request.repositories(new String[]{testRepository});
         GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
             highLevelClient().snapshot()::getRepositoriesAsync);
         assertThat(1, equalTo(response.repositories().size()));
+    }
+
+    public void testModulesGetDefaultRepositories() throws IOException {
+        assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
+        assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
+
+        GetRepositoriesResponse response = execute(new GetRepositoriesRequest(), highLevelClient().snapshot()::getRepositories,
+            highLevelClient().snapshot()::getRepositoriesAsync);
+        assertThat(2, equalTo(response.repositories().size()));
     }
 
     public void testModulesGetRepositoriesNonExistent() throws IOException {

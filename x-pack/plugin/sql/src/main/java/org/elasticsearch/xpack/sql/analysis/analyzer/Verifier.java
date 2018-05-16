@@ -211,12 +211,13 @@ abstract class Verifier {
 
     /**
      * Check validity of Aggregate/GroupBy.
-     * This rule is needed for two reasons:
+     * This rule is needed for multiple reasons:
      * 1. a user might specify an invalid aggregate (SELECT foo GROUP BY bar)
      * 2. the order/having might contain a non-grouped attribute. This is typically
      * caught by the Analyzer however if wrapped in a function (ABS()) it gets resolved
      * (because the expression gets resolved little by little without being pushed down,
      * without the Analyzer modifying anything.
+     * 3. composite agg (used for GROUP BY) allows ordering only on the group keys
      */
     private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
             Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
@@ -225,7 +226,7 @@ abstract class Verifier {
                 && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
     }
 
-    // check whether an orderBy failed
+    // check whether an orderBy failed or if it occurs on a non-key
     private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures,
             Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof OrderBy) {
@@ -234,7 +235,23 @@ abstract class Verifier {
                 Aggregate a = (Aggregate) o.child();
 
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
-                o.order().forEach(oe -> oe.collectFirstChildren(c -> checkGroupMatch(c, oe, a.groupings(), missing, functions)));
+                o.order().forEach(oe -> {
+                    Expression e = oe.child();
+                    // cannot order by aggregates (not supported by composite)
+                    if (Functions.isAggregate(e)) {
+                        missing.put(e, oe);
+                        return;
+                    }
+
+                    // make sure to compare attributes directly
+                    if (Expressions.anyMatch(a.groupings(), 
+                            g -> e.semanticEquals(e instanceof Attribute ? Expressions.attribute(g) : g))) {
+                        return;
+                    }
+
+                    // nothing matched, cannot group by it
+                    missing.put(e, oe);
+                });
 
                 if (!missing.isEmpty()) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;

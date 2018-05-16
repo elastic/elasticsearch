@@ -111,7 +111,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [date], expected [text]",
+        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
@@ -143,5 +143,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testUnsupportedType() {
         assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
                 verify("SELECT unsupported FROM test"));
+    }
+
+    public void testGroupByOrderByNonKey() {
+        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
+                verify("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    }
+
+    public void testGroupByOrderByFunctionOverKey() {
+        assertEquals("1:44: Cannot order by non-grouped column [MAX(int)], expected [int]",
+                verify("SELECT int FROM test GROUP BY int ORDER BY MAX(int)"));
+    }
+
+    public void testGroupByOrderByScore() {
+        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
+                verify("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
 }

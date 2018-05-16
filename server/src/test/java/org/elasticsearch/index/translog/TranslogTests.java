@@ -1582,7 +1582,7 @@ public class TranslogTests extends ESTestCase {
         expectThrows(IOException.class,
             () -> {
                 int translogOperations = 0;
-                for(int attempt = 0; attempt < 5; attempt++) {
+                for(int attempt = 0; attempt < 10; attempt++) {
                     int maxTrimmedSeqNo;
                     try {
                         fail.failNever();
@@ -1613,7 +1613,8 @@ public class TranslogTests extends ESTestCase {
                         throw new RuntimeException(e);
                     }
 
-                    fail.failRate(30);
+                    // chance to fail is proportional to number of attempt to get on the last attempt 100% chance of failure
+                    fail.failRate(10 + 10 * attempt);
                     failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
                 }
             });
@@ -1630,10 +1631,7 @@ public class TranslogTests extends ESTestCase {
         fail.failNever();
 
         // check that despite of IO exception translog is not corrupted
-        try(Translog reopenedTranslog =
-            getFailableTranslog(fail, config, randomBoolean(), false,
-                failableTLog.getTranslogUUID(), createTranslogDeletionPolicy(), fileChannels)) {
-
+        try(Translog reopenedTranslog = openTranslog(config, failableTLog.getTranslogUUID())) {
             try (Translog.Snapshot snapshot = reopenedTranslog.newSnapshot()) {
                 assertThat(snapshot.totalOperations(), greaterThan(0));
                 Translog.Operation operation;

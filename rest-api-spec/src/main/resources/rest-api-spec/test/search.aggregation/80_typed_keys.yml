@@ -197,7 +197,7 @@ setup:
 "Test typed keys parameter for date_histogram aggregation and max_bucket pipeline aggregation":
   - skip:
       features: warnings
-      version: " - 6.4.0"
+      version: " - 6.3.99"
       reason:  "deprecation added in 6.4.0"
   - do:
       warnings:

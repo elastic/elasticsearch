@@ -20,9 +20,9 @@ PUT my_index
     "analysis": {
       "filter": {
         "autocomplete_filter": {
-          "type": "edge_ngram",
-          "min_gram": 1,
-          "max_gram": 20
+          "type": "edgeNGram",
+          "min_gram": "1",
+          "max_gram": "20"
         }
       },
       "analyzer": {

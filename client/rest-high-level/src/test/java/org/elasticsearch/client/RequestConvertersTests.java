@@ -30,6 +30,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -77,9 +78,11 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -94,7 +97,10 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -110,6 +116,7 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1011,36 +1018,7 @@ public class RequestConvertersTests extends ESTestCase {
         searchRequest.types(types);
 
         Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
-        if (randomBoolean()) {
-            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("routing", searchRequest.routing());
-        }
-        if (randomBoolean()) {
-            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("preference", searchRequest.preference());
-        }
-        if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.values()));
-        }
-        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        if (randomBoolean()) {
-            searchRequest.requestCache(randomBoolean());
-            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
-        }
-        if (randomBoolean()) {
-            searchRequest.allowPartialSearchResults(randomBoolean());
-            expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
-        }
-        if (randomBoolean()) {
-            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
-        }
-        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
-        if (randomBoolean()) {
-            searchRequest.scroll(randomTimeValue());
-            expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
-        }
-
+        setRandomSearchParams(searchRequest, expectedParams);
         setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -1187,6 +1165,65 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(clearScrollRequest, request.getEntity());
         assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+    }
+
+    public void testSearchTemplate() throws Exception {
+        // Create a random request.
+        String[] indices = randomIndicesNames(0, 5);
+        SearchRequest searchRequest = new SearchRequest(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomSearchParams(searchRequest, expectedParams);
+        setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
+
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
+
+        searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
+        searchTemplateRequest.setScriptType(ScriptType.INLINE);
+        searchTemplateRequest.setProfile(randomBoolean());
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("field", "name");
+        scriptParams.put("value", "soren");
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        // Verify that the resulting REST request looks as expected.
+        Request request = RequestConverters.searchTemplate(searchTemplateRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_search/template");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(searchTemplateRequest, request.getEntity());
+    }
+
+    public void testRenderSearchTemplate() throws Exception {
+        // Create a simple request.
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+        searchTemplateRequest.setSimulate(true); // Setting simulate true means the template should only be rendered.
+
+        searchTemplateRequest.setScript("template1");
+        searchTemplateRequest.setScriptType(ScriptType.STORED);
+        searchTemplateRequest.setProfile(randomBoolean());
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("field", "name");
+        scriptParams.put("value", "soren");
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        // Verify that the resulting REST request looks as expected.
+        Request request = RequestConverters.searchTemplate(searchTemplateRequest);
+        String endpoint = "_render/template";
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertToXContentBody(searchTemplateRequest, request.getEntity());
     }
 
     public void testExistsAlias() {
@@ -1448,6 +1485,27 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
+    public void testCreateRepository() throws IOException {
+        String repository = "repo";
+        String endpoint = "/_snapshot/" + repository;
+        Path repositoryLocation = PathUtils.get(".");
+        PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
+        putRepositoryRequest.type(FsRepository.TYPE);
+        putRepositoryRequest.verify(randomBoolean());
+
+        putRepositoryRequest.settings(
+            Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .build());
+
+        Request request = RequestConverters.createRepository(putRepositoryRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
+        assertToXContentBody(putRepositoryRequest, request.getEntity());
+    }
+
     public void testPutTemplateRequest() throws Exception {
         Map<String, String> names = new HashMap<>();
         names.put("log", "log");
@@ -1659,6 +1717,39 @@ public class RequestConvertersTests extends ESTestCase {
                 }
                 consumer.accept(new FetchSourceContext(true, includes, excludes));
             }
+        }
+    }
+
+    private static void setRandomSearchParams(SearchRequest searchRequest,
+                                              Map<String, String> expectedParams) {
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (randomBoolean()) {
+            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", searchRequest.routing());
+        }
+        if (randomBoolean()) {
+            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", searchRequest.preference());
+        }
+        if (randomBoolean()) {
+            searchRequest.searchType(randomFrom(SearchType.values()));
+        }
+        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        if (randomBoolean()) {
+            searchRequest.requestCache(randomBoolean());
+            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
+        }
+        if (randomBoolean()) {
+            searchRequest.allowPartialSearchResults(randomBoolean());
+            expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+        }
+        if (randomBoolean()) {
+            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        if (randomBoolean()) {
+            searchRequest.scroll(randomTimeValue());
+            expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
     }
 

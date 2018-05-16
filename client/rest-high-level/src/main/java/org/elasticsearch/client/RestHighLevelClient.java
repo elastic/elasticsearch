@@ -64,6 +64,8 @@ import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
+import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
@@ -500,6 +502,32 @@ public class RestHighLevelClient implements Closeable {
         performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, ClearScrollResponse::fromXContent,
                 listener, emptySet(), headers);
     }
+
+    /**
+     * Executes a request using the Search Template API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     */
+    public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
+                                                       Header... headers) throws IOException {
+        return performRequestAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate,
+            SearchTemplateResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a request using the Search Template API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     */
+    public final void searchTemplateAsync(SearchTemplateRequest searchTemplateRequest,
+                                          ActionListener<SearchTemplateResponse> listener,
+                                          Header... headers) {
+        performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate,
+            SearchTemplateResponse::fromXContent, listener, emptySet(), headers);
+    }
+
 
     /**
      * Executes a request using the Ranking Evaluation API.

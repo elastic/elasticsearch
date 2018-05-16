@@ -56,6 +56,7 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -993,6 +994,16 @@ public abstract class StreamOutput extends OutputStream {
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         writeVInt(enumValue.ordinal());
+    }
+
+    /**
+     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     */
+    public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
+        writeVInt(enumSet.size());
+        for (E e : enumSet) {
+            writeEnum(e);
+        }
     }
 
     /**

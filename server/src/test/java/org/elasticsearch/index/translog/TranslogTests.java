@@ -108,6 +108,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -125,6 +126,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.stub;
 
@@ -1518,17 +1520,14 @@ public class TranslogTests extends ESTestCase {
         for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
             int extraDocs = randomIntBetween(10, 15);
 
-            List<Translog.Index> operations = new ArrayList<>();
-            for (int op = 0; op < extraDocs; op++) {
+            List<Integer> ops = IntStream.range(0, extraDocs).boxed().collect(Collectors.toList());
+            Randomness.shuffle(ops);
+            for (int op : ops) {
                 String ascii = randomAlphaOfLengthBetween(1, 50);
                 int seqNo = translogOperations + op;
                 Translog.Index operation = new Translog.Index("test", "" + seqNo, seqNo,
                     this.primaryTerm.get(), ascii.getBytes("UTF-8"));
-                operations.add(operation);
-            }
-            Randomness.shuffle(operations);
 
-            for (Translog.Index operation : operations) {
                 translog.add(operation);
             }
 
@@ -1579,45 +1578,44 @@ public class TranslogTests extends ESTestCase {
         final Translog failableTLog =
             getFailableTranslog(fail, config, randomBoolean(), false, null, createTranslogDeletionPolicy(), fileChannels);
 
-        expectThrows(IOException.class,
-            () -> {
-                int translogOperations = 0;
-                for(int attempt = 0; attempt < 10; attempt++) {
-                    int maxTrimmedSeqNo;
-                    try {
-                        fail.failNever();
-                        int extraTranslogOperations = randomIntBetween(10, 100);
+        IOException expectedException = null;
+        int translogOperations = 0;
+        for(int attempt = 0; attempt < 10; attempt++) {
+            int maxTrimmedSeqNo;
+            fail.failNever();
+            int extraTranslogOperations = randomIntBetween(10, 100);
 
-                        List<Translog.Index> operations = new ArrayList<>();
-                        for (int op = translogOperations; op < translogOperations + extraTranslogOperations; op++) {
-                            String ascii = randomAlphaOfLengthBetween(1, 50);
-                            Translog.Index operation = new Translog.Index("test", "" + op, op,
-                                primaryTerm.get(), ascii.getBytes("UTF-8"));
-                            operations.add(operation);
-                        }
-                        Randomness.shuffle(operations);
+            List<Integer> ops = IntStream.range(translogOperations, translogOperations + extraTranslogOperations)
+                .boxed().collect(Collectors.toList());
+            Randomness.shuffle(ops);
+            for (int op : ops) {
+                String ascii = randomAlphaOfLengthBetween(1, 50);
+                Translog.Index operation = new Translog.Index("test", "" + op, op,
+                    primaryTerm.get(), ascii.getBytes("UTF-8"));
 
-                        translogOperations += extraTranslogOperations;
-                        maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
+                failableTLog.add(operation);
+            }
 
-                        for (Translog.Index operation : operations) {
-                            failableTLog.add(operation);
-                        }
+            translogOperations += extraTranslogOperations;
+            maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
 
-                        // at least one roll + inc of primary term has to be there - otherwise trim would not take place at all
-                        if (attempt == 0 || randomBoolean()) {
-                            primaryTerm.incrementAndGet();
-                            failableTLog.rollGeneration();
-                        }
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+            // at least one roll + inc of primary term has to be there - otherwise trim would not take place at all
+            if (attempt == 0 || randomBoolean()) {
+                primaryTerm.incrementAndGet();
+                failableTLog.rollGeneration();
+            }
 
-                    // chance to fail is proportional to number of attempt to get on the last attempt 100% chance of failure
-                    fail.failRate(10 + 10 * attempt);
-                    failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
-                }
-            });
+            // chance to fail is proportional to number of attempt to get on the last attempt 100% chance of failure
+            fail.failRate(10 + 10 * attempt);
+            try {
+                failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            } catch (IOException e){
+                expectedException = e;
+                break;
+            }
+        }
+
+        assertThat(expectedException, is(not(nullValue())));
 
         assertThat(fileChannels, is(not(empty())));
         assertThat("all file channels have to be closed",

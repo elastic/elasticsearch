@@ -40,7 +40,7 @@ public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromis
 
     private final ChannelPromise promise;
 
-    NettyListener(ChannelPromise promise) {
+    public NettyListener(ChannelPromise promise) {
         this.promise = promise;
     }
 

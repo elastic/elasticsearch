@@ -35,6 +35,9 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
+import org.elasticsearch.http.nio.pipelining.NioHttpPipeliningHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.ReadWriteHandler;
@@ -77,6 +80,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         if (settings.isCompression()) {
             handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
         }
+        handlers.add(new NioHttpPipeliningHandler(transport.getLogger(), settings.getPipeliningMaxEvents()));
 
         adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
         adaptor.addCloseListener((v, e) -> nioChannel.close());
@@ -94,10 +98,11 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
-        assert message instanceof FullHttpResponse : "This channel only supports messages that are of type: " + FullHttpResponse.class
-            + ". Found type: " + message.getClass() + ".";
-        return new HttpWriteOperation(context, (FullHttpResponse) message, listener);
+        assert message instanceof HttpPipelinedResponse : "This channel only supports messages that are of type: "
+            + HttpPipelinedResponse.class + ". Found type: " + message.getClass() + ".";
+        return new HttpWriteOperation(context, (HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>>) message, listener);
     }
 
     @Override
@@ -125,8 +130,10 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
-        final FullHttpRequest request = (FullHttpRequest) msg;
+        final HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = (HttpPipelinedRequest<FullHttpRequest>) msg;
+        FullHttpRequest request = pipelinedRequest.getRequest();
 
         final FullHttpRequest copiedRequest =
             new DefaultFullHttpRequest(
@@ -170,8 +177,9 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         final NioHttpChannel channel;
         {
             NioHttpChannel innerChannel;
+            int sequence = pipelinedRequest.getSequence();
             try {
-                innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), httpRequest, settings, threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), httpRequest, sequence, settings, threadContext);
             } catch (final IllegalArgumentException e) {
                 if (badRequestCause == null) {
                     badRequestCause = e;
@@ -184,7 +192,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
                         Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
                         copiedRequest.uri(),
                         copiedRequest);
-                innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), innerRequest, settings, threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), innerRequest, sequence, settings, threadContext);
             }
             channel = innerChannel;
         }

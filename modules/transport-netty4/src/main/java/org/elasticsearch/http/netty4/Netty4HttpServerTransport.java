@@ -201,6 +201,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
+        this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
         this.httpHandlingSettings = new HttpHandlingSettings(Math.toIntExact(maxContentLength.getBytes()),
             Math.toIntExact(maxChunkSize.getBytes()),
             Math.toIntExact(maxHeaderSize.getBytes()),
@@ -208,7 +209,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             SETTING_HTTP_RESET_COOKIES.get(settings),
             SETTING_HTTP_COMPRESSION.get(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
-            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings));
+            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
+            pipeliningMaxEvents);
 
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
@@ -223,12 +225,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
-        this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
         this.corsConfig = buildCorsConfig(settings);
 
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
                 "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",
-            maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictor, maxCompositeBufferComponents,
+            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, receivePredictor, maxCompositeBufferComponents,
             pipeliningMaxEvents);
     }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4.pipelining;
+package org.elasticsearch.http.nio.pipelining;
 
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -28,20 +28,20 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpPipeliningAggregator;
-import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.http.nio.NettyListener;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
-public class HttpPipeliningHandler extends ChannelDuplexHandler {
+public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<FullHttpResponse, ChannelPromise> aggregator;
+    private final HttpPipeliningAggregator<FullHttpResponse, BiConsumer<Void, Throwable>> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -50,7 +50,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
+    public NioHttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
         this.logger = logger;
         this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
     }
@@ -66,22 +66,23 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
         if (msg instanceof HttpPipelinedResponse) {
-            HttpPipelinedResponse<FullHttpResponse, ChannelPromise> response = (HttpPipelinedResponse<FullHttpResponse, ChannelPromise>) msg;
+            HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>> response =
+                (HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>>) msg;
             boolean success = false;
             try {
-                ArrayList<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> responsesToWrite = aggregator.write(response);
+                List<HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>>> responsesToWrite = aggregator.write(response);
                 success = true;
-                for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> responseToWrite : responsesToWrite) {
-                    ctx.write(responseToWrite.getResponse(), responseToWrite.getListener());
+                for (HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>> responseToWrite : responsesToWrite) {
+//                    ctx.write(responseToWrite.getResponse(), new NettyListener(responseToWrite.getListener()));
                 }
             } catch (IllegalStateException e) {
                 ctx.channel().close();
-                Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
             } finally {
                 if (success == false) {
-                    response.getListener().setFailure(new ClosedChannelException());
+                    response.getListener().accept(null, new ClosedChannelException());
                 }
             }
         } else {
@@ -91,13 +92,14 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+        List<HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>>> inflightResponses =
+            aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
+            for (HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>> inflightResponse : inflightResponses) {
                 try {
-                    inflightResponse.getListener().setFailure(closedChannelException);
+                    inflightResponse.getListener().accept(null, closedChannelException);
                 } catch (RuntimeException e) {
                     logger.error("unexpected error while releasing pipelined http responses", e);
                 }

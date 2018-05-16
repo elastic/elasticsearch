@@ -41,6 +41,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -52,20 +53,23 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 public class NioHttpChannel extends AbstractRestChannel {
 
     private final BigArrays bigArrays;
+    private final int sequence;
     private final ThreadContext threadContext;
     private final FullHttpRequest nettyRequest;
     private final NioSocketChannel nioChannel;
     private final boolean resetCookies;
 
-    NioHttpChannel(NioSocketChannel nioChannel, BigArrays bigArrays, NioHttpRequest request,
+    NioHttpChannel(NioSocketChannel nioChannel, BigArrays bigArrays, NioHttpRequest request, int sequence,
                    HttpHandlingSettings settings, ThreadContext threadContext) {
         super(request, settings.getDetailedErrorsEnabled());
         this.nioChannel = nioChannel;
         this.bigArrays = bigArrays;
+        this.sequence = sequence;
         this.threadContext = threadContext;
         this.nettyRequest = request.getRequest();
         this.resetCookies = settings.isResetCookies();
@@ -117,9 +121,10 @@ public class NioHttpChannel extends AbstractRestChannel {
                 toClose.add(nioChannel::close);
             }
 
-            nioChannel.getContext().sendMessage(resp, (aVoid, throwable) -> {
+            BiConsumer<Void, Throwable> listener = (aVoid, throwable) -> {
                 Releasables.close(toClose);
-            });
+            };
+            nioChannel.getContext().sendMessage(new HttpPipelinedResponse<>(sequence, resp, listener), listener);
             success = true;
         } finally {
             if (success == false) {

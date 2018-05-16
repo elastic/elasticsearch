@@ -94,7 +94,7 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
-        assertOK(client().performRequest("POST", "/_xpack/ccr/" + followIndex + "/_follow", params));
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_follow", params));
     }
 
     private static void verifyDocuments(String index, int expectedNumDocs) throws IOException {

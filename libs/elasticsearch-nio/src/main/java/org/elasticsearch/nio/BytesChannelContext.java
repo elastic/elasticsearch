@@ -20,25 +20,13 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
-import java.util.LinkedList;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class BytesChannelContext extends SocketChannelContext {
 
-    private final ReadConsumer readConsumer;
-    private final InboundChannelBuffer channelBuffer;
-    private final LinkedList<BytesWriteOperation> queued = new LinkedList<>();
-    private final AtomicBoolean isClosing = new AtomicBoolean(false);
-
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, exceptionHandler);
-        this.readConsumer = readConsumer;
-        this.channelBuffer = channelBuffer;
+                               ReadWriteHandler handler, InboundChannelBuffer channelBuffer) {
+        super(channel, selector, exceptionHandler, handler, channelBuffer);
     }
 
     @Override
@@ -56,53 +44,28 @@ public class BytesChannelContext extends SocketChannelContext {
 
         channelBuffer.incrementIndex(bytesRead);
 
-        int bytesConsumed = Integer.MAX_VALUE;
-        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
-            bytesConsumed = readConsumer.consumeReads(channelBuffer);
-            channelBuffer.release(bytesConsumed);
-        }
+        handleReadBytes();
 
         return bytesRead;
     }
 
     @Override
-    public void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
-        if (isClosing.get()) {
-            listener.accept(null, new ClosedChannelException());
-            return;
-        }
-
-        BytesWriteOperation writeOperation = new BytesWriteOperation(this, buffers, listener);
-        SocketSelector selector = getSelector();
-        if (selector.isOnCurrentThread() == false) {
-            selector.queueWrite(writeOperation);
-            return;
-        }
-
-        selector.queueWriteInChannelBuffer(writeOperation);
-    }
-
-    @Override
-    public void queueWriteOperation(WriteOperation writeOperation) {
-        getSelector().assertOnSelectorThread();
-        queued.add((BytesWriteOperation) writeOperation);
-    }
-
-    @Override
     public void flushChannel() throws IOException {
         getSelector().assertOnSelectorThread();
-        int ops = queued.size();
-        if (ops == 1) {
-            singleFlush(queued.pop());
-        } else if (ops > 1) {
-            multiFlush();
+        boolean lastOpCompleted = true;
+        FlushOperation flushOperation;
+        while (lastOpCompleted && (flushOperation = getPendingFlush()) != null) {
+            try {
+                if (singleFlush(flushOperation)) {
+                    currentFlushOperationComplete();
+                } else {
+                    lastOpCompleted = false;
+                }
+            } catch (IOException e) {
+                currentFlushOperationFailed(e);
+                throw e;
+            }
         }
-    }
-
-    @Override
-    public boolean hasQueuedWriteOps() {
-        getSelector().assertOnSelectorThread();
-        return queued.isEmpty() == false;
     }
 
     @Override
@@ -117,51 +80,12 @@ public class BytesChannelContext extends SocketChannelContext {
         return isPeerClosed() || hasIOException() || isClosing.get();
     }
 
-    @Override
-    public void closeFromSelector() throws IOException {
-        getSelector().assertOnSelectorThread();
-        if (channel.isOpen()) {
-            IOException channelCloseException = null;
-            try {
-                super.closeFromSelector();
-            } catch (IOException e) {
-                channelCloseException = e;
-            }
-            // Set to true in order to reject new writes before queuing with selector
-            isClosing.set(true);
-            channelBuffer.close();
-            for (BytesWriteOperation op : queued) {
-                getSelector().executeFailedListener(op.getListener(), new ClosedChannelException());
-            }
-            queued.clear();
-            if (channelCloseException != null) {
-                throw channelCloseException;
-            }
-        }
-    }
-
-    private void singleFlush(BytesWriteOperation headOp) throws IOException {
-        try {
-            int written = flushToChannel(headOp.getBuffersToWrite());
-            headOp.incrementIndex(written);
-        } catch (IOException e) {
-            getSelector().executeFailedListener(headOp.getListener(), e);
-            throw e;
-        }
-
-        if (headOp.isFullyFlushed()) {
-            getSelector().executeListener(headOp.getListener(), null);
-        } else {
-            queued.push(headOp);
-        }
-    }
-
-    private void multiFlush() throws IOException {
-        boolean lastOpCompleted = true;
-        while (lastOpCompleted && queued.isEmpty() == false) {
-            BytesWriteOperation op = queued.pop();
-            singleFlush(op);
-            lastOpCompleted = op.isFullyFlushed();
-        }
+    /**
+     * Returns a boolean indicating if the operation was fully flushed.
+     */
+    private boolean singleFlush(FlushOperation flushOperation) throws IOException {
+        int written = flushToChannel(flushOperation.getBuffersToWrite());
+        flushOperation.incrementIndex(written);
+        return flushOperation.isFullyFlushed();
     }
 }

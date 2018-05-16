@@ -45,6 +45,10 @@ import java.util.Objects;
  * Removes up to {@link #MAX_FORECASTS} forecasts (stats + forecasts docs) that have expired.
  * A forecast is deleted if its expiration timestamp is earlier
  * than the start of the current day (local time-zone).
+ *
+ * This is expected to be used by actions requiring admin rights. Thus,
+ * it is also expected that the provided client will be a client with the
+ * ML origin so that permissions to manage ML indices are met.
  */
 public class ExpiredForecastsRemover implements MlDataRemover {
 

@@ -38,6 +38,10 @@ import java.util.Objects;
  * of their respective job. A result is deleted if its timestamp is earlier
  * than the start of the current day (local time-zone) minus the retention
  * period.
+ *
+ * This is expected to be used by actions requiring admin rights. Thus,
+ * it is also expected that the provided client will be a client with the
+ * ML origin so that permissions to manage ML indices are met.
  */
 public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 

@@ -29,6 +29,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,6 +47,11 @@ import java.util.Map;
  * as part of the {@link ClusterState} using only an id as the key.
  */
 public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXContentFragment {
+
+    /**
+     * Standard deprecation logger for used to deprecate allowance of empty templates.
+     */
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptMetaData.class));
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -161,8 +168,8 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      *
      * {@code
      * {
-     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
-     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser, boolean)}>",
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser, boolean)}>",
      *     ...
      * }
      * }
@@ -209,6 +216,14 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                         lang = id.substring(0, split);
                         id = id.substring(split + 1);
                         source = new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
+
+                        if (source.getSource().isEmpty()) {
+                            if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
+                                DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
+                            } else {
+                                DEPRECATION_LOGGER.deprecated("empty scripts should no longer be used");
+                            }
+                        }
                     }
 
                     exists = scripts.get(id);
@@ -231,7 +246,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     }
 
                     exists = scripts.get(id);
-                    source = StoredScriptSource.fromXContent(parser);
+                    source = StoredScriptSource.fromXContent(parser, true);
 
                     if (exists == null) {
                         scripts.put(id, source);

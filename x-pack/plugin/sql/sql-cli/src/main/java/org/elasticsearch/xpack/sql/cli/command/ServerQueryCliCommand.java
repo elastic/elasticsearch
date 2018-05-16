@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.plugin.CliFormatter;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
 import java.sql.SQLException;
 
@@ -23,8 +23,8 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         String data;
         try {
             response = cliClient.queryInit(line, cliSession.getFetchSize());
-            cliFormatter = new CliFormatter(response);
-            data = cliFormatter.formatWithHeader(response);
+            cliFormatter = new CliFormatter(response.columns(), response.rows());
+            data = cliFormatter.formatWithHeader(response.columns(), response.rows());
             while (true) {
                 handleText(terminal, data);
                 if (response.cursor().isEmpty()) {
@@ -36,7 +36,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
                     terminal.println(cliSession.getFetchSeparator());
                 }
                 response = cliSession.getClient().nextPage(response.cursor());
-                data = cliFormatter.formatWithoutHeader(response);
+                data = cliFormatter.formatWithoutHeader(response.rows());
             }
         } catch (SQLException e) {
             if (JreHttpUrlConnection.SQL_STATE_BAD_SERVER.equals(e.getSQLState())) {

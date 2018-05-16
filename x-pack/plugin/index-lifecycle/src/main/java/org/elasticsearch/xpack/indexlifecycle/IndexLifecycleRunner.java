@@ -146,11 +146,36 @@ public class IndexLifecycleRunner {
         }
     }
 
+    static ClusterState validatedMoveClusterStateToNextStep(String indexName, ClusterState currentState, StepKey currentStepKey,
+                                                            StepKey nextStepKey, LongSupplier nowSupplier,
+                                                            PolicyStepsRegistry stepRegistry) {
+        IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
+        Settings indexSettings = idxMeta.getSettings();
+        String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
+
+        // policy could be updated in-between execution
+        if (Strings.isNullOrEmpty(indexPolicySetting)) {
+            throw new IllegalArgumentException("index [" + indexName + "] is not associated with an Index Lifecycle Policy");
+        }
+
+        if (currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings)) == false) {
+            throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
+        }
+
+        try {
+            stepRegistry.getStep(indexPolicySetting, nextStepKey);
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+
+        return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey, nextStepKey, nowSupplier);
+    }
+
     static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey currentStep, StepKey nextStep,
             LongSupplier nowSupplier) {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         Settings.Builder indexSettings = moveIndexSettingsToNextStep(idxMeta.getSettings(), currentStep, nextStep, nowSupplier);
-        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(idxMeta.getIndex(), clusterState, indexSettings);
+        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
         return newClusterStateBuilder.build();
     }
 

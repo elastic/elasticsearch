@@ -132,6 +132,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
+        if (enabled == false) {
+            return emptyList();
+        }
         return Arrays.asList(
                 new RestPutLifecycleAction(settings, restController),
                 new RestGetLifecycleAction(settings, restController),
@@ -141,6 +144,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (enabled == false) {
+            return emptyList();
+        }
         return Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),

@@ -166,7 +166,7 @@ teardown:
             action: "forcemerge"
             name: "forcemerge"
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "index [my_index_no_policy] is not associated with a lifecycle policy" }
+  - match: { error.root_cause.0.reason: "index [my_index_no_policy] is not associated with an Index Lifecycle Policy" }
 
 ---
 "Test Invalid Move To Step With Invalid Index":

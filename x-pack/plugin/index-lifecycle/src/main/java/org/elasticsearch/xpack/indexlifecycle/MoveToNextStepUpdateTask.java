@@ -54,25 +54,15 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) {
         Settings indexSettings = currentState.getMetaData().index(index).getSettings();
-        String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-
-        // policy could be updated in-between execution
-        if (policy.equals(indexPolicySetting) == false) {
-            throw new IllegalArgumentException("policy [" + policy + "] does not match " + LifecycleSettings.LIFECYCLE_NAME
-                + " [" + indexPolicySetting + "]");
+        if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
+            && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
+            return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);
+        } else {
+            // either the policy has changed or the step is now
+            // not the same as when we submitted the update task. In
+            // either case we don't want to do anything now
+            return currentState;
         }
-
-        if (currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings)) == false) {
-            throw new IllegalArgumentException("index [" + index.getName() + "] is not on current step [" + currentStepKey + "]");
-        }
-
-        try {
-            policyStepsRegistry.getStep(policy, nextStepKey);
-        } catch (IllegalStateException e) {
-            throw new IllegalArgumentException(e.getMessage());
-        }
-
-        return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);
     }
 
     @Override

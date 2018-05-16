@@ -93,8 +93,8 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         };
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now,
             stepsRegistry, listener);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> task.execute(clusterState));
-        assertThat(exception.getMessage(), equalTo("index [" + index.getName() + "] is not on current step [" + currentStepKey + "]"));
+        ClusterState newState = task.execute(clusterState);
+        assertSame(newState, clusterState);
     }
 
     public void testExecuteDifferentPolicy() {
@@ -105,11 +105,11 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         MoveToNextStepUpdateTask.Listener listener = (c) -> {};
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now,
             stepsRegistry, listener);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> task.execute(clusterState));
-        assertThat(exception.getMessage(), equalTo("policy [" + policy + "] does not match index.lifecycle.name [not-" + policy + "]"));
+        ClusterState newState = task.execute(clusterState);
+        assertSame(newState, clusterState);
     }
 
-    public void testExecuteInvalidNextStep() {
+    public void testExecuteSuccessfulMoveWithInvalidNextStep() {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         StepKey invalidNextStep = new StepKey("next-invalid", "next-invalid", "next-invalid");
         long now = randomNonNegativeLong();
@@ -120,10 +120,14 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         MoveToNextStepUpdateTask.Listener listener = (c) -> changed.set(true);
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, invalidNextStep, () -> now,
             stepsRegistry, listener);
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> task.execute(clusterState));
-        assertThat(exception.getMessage(),
-            equalTo("step [{\"phase\":\"next-invalid\",\"action\":\"next-invalid\",\"name\":\"next-invalid\"}] does not exist"));
+        ClusterState newState = task.execute(clusterState);
+        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
+        assertThat(actualKey, equalTo(invalidNextStep));
+        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        task.clusterStateProcessed("source", clusterState, newState);
+        assertTrue(changed.get());
     }
 
     public void testClusterProcessedWithNoChange() {

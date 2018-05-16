@@ -62,22 +62,12 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
             return;
         }
-        String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings());
-        if (Strings.isNullOrEmpty(policy)) {
-            listener.onFailure(new IllegalArgumentException("index [" + request.getIndex()
-                + "] is not associated with a lifecycle policy"));
-            return;
-        }
-
-        MoveToNextStepUpdateTask innerTask = new MoveToNextStepUpdateTask(indexMetaData.getIndex(), policy, request.getCurrentStepKey(),
-            request.getNextStepKey(), System::currentTimeMillis, indexLifecycleService.getStepsRegistry(),
-            clusterState -> listener.onResponse(new Response(true)));
-
         clusterService.submitStateUpdateTask("index[" + request.getIndex() + "]-move-to-step",
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerTask.execute(currentState);
+                    return indexLifecycleService.moveToNextStep(currentState, request.getIndex(), request.getCurrentStepKey(),
+                        request.getNextStepKey());
                 }
 
                 @Override

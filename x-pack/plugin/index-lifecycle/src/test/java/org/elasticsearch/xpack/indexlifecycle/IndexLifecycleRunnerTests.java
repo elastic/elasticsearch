@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class IndexLifecycleRunnerTests extends ESTestCase {
 
     private PolicyStepsRegistry createOneStepPolicyStepRegistry(String policyName, Step step) {
@@ -571,6 +573,89 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
+    }
+
+    public void testSuccessfulValidatedMoveClusterStateToNextStep() {
+        String indexName = "my_index";
+        String policyName = "my_policy";
+        StepKey currentStepKey = new StepKey("current_phase", "current_action", "current_step");
+        StepKey nextStepKey = new StepKey("next_phase", "next_action", "next_step");
+        long now = randomNonNegativeLong();
+        Step step = new MockStep(nextStepKey, nextStepKey);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, currentStepKey.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, currentStepKey.getName());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        ClusterState newClusterState = IndexLifecycleRunner.validatedMoveClusterStateToNextStep(indexName, clusterState, currentStepKey,
+            nextStepKey, () -> now, stepRegistry);
+        assertClusterStateOnNextStep(clusterState, index, currentStepKey, nextStepKey, newClusterState, now);
+    }
+
+    public void testValidatedMoveClusterStateToNextStepWithoutPolicy() {
+        String indexName = "my_index";
+        String policyName = randomBoolean() ? null : "";
+        StepKey currentStepKey = new StepKey("current_phase", "current_action", "current_step");
+        StepKey nextStepKey = new StepKey("next_phase", "next_action", "next_step");
+        long now = randomNonNegativeLong();
+        Step step = new MockStep(nextStepKey, nextStepKey);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, currentStepKey.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, currentStepKey.getName());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> IndexLifecycleRunner.validatedMoveClusterStateToNextStep(indexName, clusterState, currentStepKey,
+                nextStepKey, () -> now, stepRegistry));
+        assertThat(exception.getMessage(), equalTo("index [my_index] is not associated with an Index Lifecycle Policy"));
+    }
+
+    public void testValidatedMoveClusterStateToNextStepInvalidCurrentStep() {
+        String indexName = "my_index";
+        String policyName = "my_policy";
+        StepKey currentStepKey = new StepKey("current_phase", "current_action", "current_step");
+        StepKey notCurrentStepKey = new StepKey("not_current_phase", "not_current_action", "not_current_step");
+        StepKey nextStepKey = new StepKey("next_phase", "next_action", "next_step");
+        long now = randomNonNegativeLong();
+        Step step = new MockStep(nextStepKey, nextStepKey);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, currentStepKey.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, currentStepKey.getName());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> IndexLifecycleRunner.validatedMoveClusterStateToNextStep(indexName, clusterState, notCurrentStepKey,
+                nextStepKey, () -> now, stepRegistry));
+        assertThat(exception.getMessage(), equalTo("index [my_index] is not on current step " +
+            "[{\"phase\":\"not_current_phase\",\"action\":\"not_current_action\",\"name\":\"not_current_step\"}]"));
+    }
+
+    public void testValidatedMoveClusterStateToNextStepInvalidNextStep() {
+        String indexName = "my_index";
+        String policyName = "my_policy";
+        StepKey currentStepKey = new StepKey("current_phase", "current_action", "current_step");
+        StepKey nextStepKey = new StepKey("next_phase", "next_action", "next_step");
+        long now = randomNonNegativeLong();
+        Step step = new MockStep(currentStepKey, nextStepKey);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, currentStepKey.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, currentStepKey.getName());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> IndexLifecycleRunner.validatedMoveClusterStateToNextStep(indexName, clusterState, currentStepKey,
+                nextStepKey, () -> now, stepRegistry));
+        assertThat(exception.getMessage(),
+            equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] does not exist"));
     }
 
     public void testMoveClusterStateToErrorStep() throws IOException {

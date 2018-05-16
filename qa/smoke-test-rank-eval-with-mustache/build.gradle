@@ -26,3 +26,11 @@ dependencies {
     testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
 }
 
+/*
+ * One of the integration tests doesn't work with the zip distribution
+ * and will be fixed later.
+ * Tracked by https://github.com/elastic/elasticsearch/issues/30628
+ */
+if ("zip".equals(integTestCluster.distribution)) {
+    integTestRunner.enabled = false
+}

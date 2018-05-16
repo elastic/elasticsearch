@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,13 +90,13 @@ public final class InternalRealms {
     public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
                                                           SSLService sslService, NativeUsersStore nativeUsersStore,
                                                           NativeRoleMappingStore nativeRoleMappingStore,
-                                                          SecurityLifecycleService securityLifecycleService) {
+                                                          SecurityIndexManager securityIndex) {
 
         Map<String, Realm.Factory> map = new HashMap<>();
         map.put(FileRealmSettings.TYPE, config -> new FileRealm(config, resourceWatcherService));
         map.put(NativeRealmSettings.TYPE, config -> {
             final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore);
-            securityLifecycleService.securityIndex().addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
+            securityIndex.addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
             return nativeRealm;
         });
         map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(LdapRealmSettings.AD_TYPE, config, sslService,

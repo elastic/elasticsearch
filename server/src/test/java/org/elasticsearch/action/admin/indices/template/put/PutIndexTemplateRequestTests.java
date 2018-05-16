@@ -23,18 +23,18 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-public class PutIndexTemplateRequestTests extends ESTestCase {
+public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIndexTemplateRequest> {
 
     // bwc for #21009
     public void testPutIndexTemplateRequest510() throws IOException {
@@ -137,13 +137,14 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         assertThat(noError, is(nullValue()));
     }
 
-    private PutIndexTemplateRequest randomPutIndexTemplateRequest() throws IOException {
+    @Override
+    protected PutIndexTemplateRequest createTestInstance() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.name("test");
-        if (randomBoolean()){
+        if (randomBoolean()) {
             request.version(randomInt());
         }
-        if (randomBoolean()){
+        if (randomBoolean()) {
             request.order(randomInt());
         }
         request.patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
@@ -159,30 +160,39 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
             request.alias(alias);
         }
         if (randomBoolean()) {
-            request.mapping("doc", XContentFactory.jsonBuilder().startObject()
-                .startObject("doc").startObject("properties")
-                .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                .endObject().endObject().endObject());
+            try {
+                request.mapping("doc", XContentFactory.jsonBuilder().startObject()
+                    .startObject("doc").startObject("properties")
+                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
+                    .endObject().endObject().endObject());
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
         }
-        if (randomBoolean()){
+        if (randomBoolean()) {
             request.settings(Settings.builder().put("setting1", randomLong()).put("setting2", randomTimeValue()).build());
         }
         return request;
     }
 
-    public void testFromToXContentPutTemplateRequest() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            PutIndexTemplateRequest expected = randomPutIndexTemplateRequest();
-            XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-            PutIndexTemplateRequest parsed = new PutIndexTemplateRequest().source(shuffled, xContentType);
-            assertNotSame(expected, parsed);
-            assertThat(parsed.version(), equalTo(expected.version()));
-            assertThat(parsed.order(), equalTo(expected.order()));
-            assertThat(parsed.patterns(), equalTo(expected.patterns()));
-            assertThat(parsed.aliases(), equalTo(expected.aliases()));
-            assertThat(parsed.mappings(), equalTo(expected.mappings()));
-            assertThat(parsed.settings(), equalTo(expected.settings()));
-        }
+    @Override
+    protected PutIndexTemplateRequest doParseInstance(XContentParser parser) throws IOException {
+        return new PutIndexTemplateRequest().source(parser.map());
+    }
+
+    @Override
+    protected void assertEqualInstances(PutIndexTemplateRequest expected, PutIndexTemplateRequest actual) {
+        assertNotSame(expected, actual);
+        assertThat(actual.version(), equalTo(expected.version()));
+        assertThat(actual.order(), equalTo(expected.order()));
+        assertThat(actual.patterns(), equalTo(expected.patterns()));
+        assertThat(actual.aliases(), equalTo(expected.aliases()));
+        assertThat(actual.mappings(), equalTo(expected.mappings()));
+        assertThat(actual.settings(), equalTo(expected.settings()));
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }

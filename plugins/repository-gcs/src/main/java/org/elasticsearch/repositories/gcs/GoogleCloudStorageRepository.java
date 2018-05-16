@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.services.storage.Storage;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -44,6 +43,8 @@ import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+
+import com.google.cloud.storage.Storage;
 
 class GoogleCloudStorageRepository extends BlobStoreRepository {
 

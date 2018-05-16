@@ -271,7 +271,16 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = matcher.group(1);
-                if (expected.remove(message) == false) {
+                // noinspection StatementWithEmptyBody
+                if (message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
+                        + "if you wish to continue using the default of [5] shards, "
+                        + "you must manage this on the create index request or with an index template")) {
+                    /*
+                     * This warning header will come back in the vast majority of our tests that create an index. Rather than rewrite our
+                     * tests to assert this warning header, we assume that it is expected.
+                     */
+                }
+                else if (expected.remove(message) == false) {
                     unexpected.add(header);
                 }
             } else {

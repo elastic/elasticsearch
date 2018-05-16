@@ -54,6 +54,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     private final WatchParser parser;
     private final Client client;
     private final TriggerService triggerService;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportActivateWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -64,6 +65,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
                 licenseState, clusterService, ActivateWatchRequest::new, ActivateWatchResponse::new);
         this.clock = clock;
         this.parser = parser;
+        this.clusterService = clusterService;
         this.client = client;
         this.triggerService = triggerService;
     }
@@ -95,7 +97,8 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
                                         XContentType.JSON);
                                 watch.version(getResponse.getVersion());
                                 watch.status().version(getResponse.getVersion());
-                                if (localExecute(request)) {
+                                // if we are not yet running in distributed mode, only call triggerservice, if we are on the master node
+                                if (localExecute(request) == false && this.clusterService.state().nodes().isLocalNodeElectedMaster()) {
                                     if (watch.status().state().isActive()) {
                                         triggerService.add(watch);
                                     } else {

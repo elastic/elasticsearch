@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -224,29 +225,13 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
          */
         void start(Request request, String clusterNameAlias, IndexMetaData leaderIndexMetadata, IndexMetaData followIndexMetadata,
                    ActionListener<Response> handler) {
-            if (leaderIndexMetadata == null) {
-                handler.onFailure(new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not exist"));
-                return;
-            }
-
-            if (followIndexMetadata == null) {
-                handler.onFailure(new IllegalArgumentException("follow index [" + request.followIndex + "] does not exist"));
-                return;
-            }
-
-            if (leaderIndexMetadata.getNumberOfShards() != followIndexMetadata.getNumberOfShards()) {
-                handler.onFailure(new IllegalArgumentException("leader index primary shards [" +
-                        leaderIndexMetadata.getNumberOfShards() +  "] does not match with the number of " +
-                        "shards of the follow index [" + followIndexMetadata.getNumberOfShards() + "]"));
-                // TODO: other validation checks
-            } else {
+            validate (leaderIndexMetadata ,followIndexMetadata , request);
                 final int numShards = followIndexMetadata.getNumberOfShards();
                 final AtomicInteger counter = new AtomicInteger(numShards);
                 final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
                 Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                     .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                for (int i = 0; i < numShards; i++) {
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));for (int i = 0; i < numShards; i++) {
                     final int shardId = i;
                     String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
                     ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
@@ -261,39 +246,59 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
                                     finalizeResponse();
                                 }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    responses.set(shardId, e);
-                                    finalizeResponse();
-                                }
+                            @Override
+                            public void onFailure(Exception e) {
+                                responses.set(shardId, e);
+                                finalizeResponse();
+                            }
 
-                                void finalizeResponse() {
-                                    Exception error = null;
-                                    if (counter.decrementAndGet() == 0) {
-                                        for (int j = 0; j < responses.length(); j++) {
-                                            Object response = responses.get(j);
-                                            if (response instanceof Exception) {
-                                                if (error == null) {
-                                                    error = (Exception) response;
-                                                } else {
-                                                    error.addSuppressed((Throwable) response);
-                                                }
+                            void finalizeResponse() {
+                                Exception error = null;
+                                if (counter.decrementAndGet() == 0) {
+                                    for (int j = 0; j < responses.length(); j++) {
+                                        Object response = responses.get(j);
+                                        if (response instanceof Exception) {
+                                            if (error == null) {
+                                                error = (Exception) response;
+                                            } else {
+                                                error.addSuppressed((Throwable) response);
                                             }
                                         }
+                                    }
 
-                                        if (error == null) {
-                                            // include task ids?
-                                            handler.onResponse(new Response(true));
-                                        } else {
-                                            // TODO: cancel all started tasks
-                                            handler.onFailure(error);
-                                        }
+                                    if (error == null) {
+                                        // include task ids?
+                                        handler.onResponse(new Response(true));
+                                    } else {
+                                        // TODO: cancel all started tasks
+                                        handler.onFailure(error);
                                     }
                                 }
                             }
-                    );
-                }
+                        }
+                );
             }
         }
     }
+
+
+    static void validate(IndexMetaData leaderIndex, IndexMetaData followIndex, Request request) {
+        if (leaderIndex == null) {
+            throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not exist");
+        }
+
+        if (followIndex == null) {
+            throw new IllegalArgumentException("follow index [" + request.followIndex + "] does not exist");
+        }
+        if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not have soft deletes enabled");
+        }
+
+        if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
+            throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
+                "] does not match with the number of shards of the follow index [" + followIndex.getNumberOfShards() + "]");
+        }
+        // TODO: other validation checks
+    }
+
 }

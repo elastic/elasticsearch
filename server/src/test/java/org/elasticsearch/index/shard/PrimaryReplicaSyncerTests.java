@@ -37,11 +37,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,15 +62,17 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(true);
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         AtomicBoolean syncActionCalled = new AtomicBoolean();
+        List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction =
             (request, parentTask, allocationId, primaryTerm, listener) -> {
                 logger.info("Sending off {} operations", request.getOperations().length);
                 syncActionCalled.set(true);
+                resyncRequests.add(request);
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
                 listener.onResponse(new ResyncReplicationResponse());
             };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, taskManager, syncAction);
-        syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 100)));
+        syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
 
         int numDocs = randomInt(10);
         for (int i = 0; i < numDocs; i++) {
@@ -92,9 +97,19 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         syncer.resync(shard, fut);
         fut.get();
 
-        if (syncNeeded) {
+        if (numDocs > 0) {
             assertTrue("Sync action was not called", syncActionCalled.get());
+            ResyncReplicationRequest resyncRequest = resyncRequests.remove(0);
+            assertThat(resyncRequest.getTrimAboveSeqNo(), equalTo(numDocs - 1L));
+
+            assertThat("trimAboveSeqNo has to be specified in request #0 only", resyncRequests.stream()
+                    .mapToLong(ResyncReplicationRequest::getTrimAboveSeqNo)
+                    .filter(seqNo -> seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO)
+                    .findFirst()
+                    .isPresent(),
+                is(false));
         }
+
         assertEquals(globalCheckPoint == numDocs - 1 ? 0 : numDocs, fut.get().getTotalOperations());
         if (syncNeeded) {
             long skippedOps = globalCheckPoint + 1; // everything up to global checkpoint included

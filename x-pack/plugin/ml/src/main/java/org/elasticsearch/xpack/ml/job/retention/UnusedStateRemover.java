@@ -18,13 +18,24 @@ import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
+/**
+ * If for any reason a job is deleted by some of its state documents
+ * are left behind, this class deletes any unused documents stored
+ * in the .ml-state index.
+ */
 public class UnusedStateRemover implements MlDataRemover {
 
     private static final Logger LOGGER = Loggers.getLogger(UnusedStateRemover.class);
@@ -58,12 +69,11 @@ public class UnusedStateRemover implements MlDataRemover {
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
             for (String stateDocId : stateDocIds) {
-                int modelStateSuffixIndex = stateDocId.indexOf("_model_state_");
-                if (modelStateSuffixIndex < 0) {
-                    // e.g. quantiles, etc.
+                String jobId = JobIdExtractor.extractJobId(stateDocId);
+                if (jobId == null) {
+                    // not a managed state document id
                     continue;
                 }
-                String jobId = stateDocId.substring(0, modelStateSuffixIndex);
                 if (jobIds.contains(jobId) == false) {
                     deleteUnusedStateRequestBuilder.add(new DeleteRequest(
                             AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, stateDocId));
@@ -83,16 +93,16 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStateDocs(BulkRequestBuilder deleteUnusedStateRequestBuilder, ActionListener<Boolean> listener) {
-        LOGGER.info("Found {} unused model state documents; attempting to delete",
+        LOGGER.info("Found [{}] unused state documents; attempting to delete",
                 deleteUnusedStateRequestBuilder.numberOfActions());
         deleteUnusedStateRequestBuilder.execute(new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 if (bulkItemResponses.hasFailures()) {
-                    LOGGER.error("Some unused model state documents could not be deleted due to failures: {}",
+                    LOGGER.error("Some unused state documents could not be deleted due to failures: {}",
                             bulkItemResponses.buildFailureMessage());
                 } else {
-                    LOGGER.info("Successfully deleted unused model state documents");
+                    LOGGER.info("Successfully deleted all unused state documents");
                 }
                 listener.onResponse(true);
             }
@@ -103,5 +113,22 @@ public class UnusedStateRemover implements MlDataRemover {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private static class JobIdExtractor {
+
+        private static List<Function<String, String>> extractors = Arrays.asList(
+            ModelState::extractJobId, Quantiles::extractJobId, CategorizerState::extractJobId);
+
+        private static String extractJobId(String docId) {
+            String jobId;
+            for (Function<String, String> extractor : extractors) {
+                jobId = extractor.apply(docId);
+                if (jobId != null) {
+                    return jobId;
+                }
+            }
+            return null;
+        }
     }
 }

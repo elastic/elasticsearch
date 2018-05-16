@@ -20,10 +20,10 @@ package org.elasticsearch.client.response.indices.flush;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -37,9 +37,7 @@ import java.util.ArrayList;
 
 public class SyncedFlushResponse extends ActionResponse implements ToXContentFragment {
 
-    // Field name declaration
-    public static final String SHARDS = "_shards";
-    // End field name declaration
+    public static final String SHARDS_FIELD = "_shards";
 
     private ShardCounts totalCounts;
     private Map<String, IndexResult> indexResults;
@@ -49,29 +47,42 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         this.indexResults = Collections.unmodifiableMap(indexResults);
     }
 
+    /**
+     * @return The total number of shard copies that were processed across all indexes
+     */
     public int totalShards() {
         return totalCounts.total;
     }
 
+    /**
+     * @return The number of successful shard copies that were processed across all indexes
+     */
     public int successfulShards() {
         return totalCounts.successful;
     }
 
+    /**
+     * @return The number of failed shard copies that were processed across all indexes
+     */
     public int failedShards() {
         return totalCounts.failed;
     }
 
+    /**
+     * @return A map of results for each index where the keys of the map are the index names
+     *          and the values are the results encapsulated in {@link IndexResult}.
+     */
     public Map<String, IndexResult> getIndexResults() {
         return indexResults;
     }
 
-    protected ShardCounts getShardCounts() {
+    ShardCounts getShardCounts() {
         return totalCounts;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SHARDS);
+        builder.startObject(SHARDS_FIELD);
         totalCounts.toXContent(builder, params);
         builder.endObject();
         for (Map.Entry<String, IndexResult> entry: indexResults.entrySet()) {
@@ -90,7 +101,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         Map<String, IndexResult> indexResults = new HashMap<>();
         XContentLocation startLoc = parser.getTokenLocation();
         while (parser.nextToken().equals(Token.FIELD_NAME)) {
-            if (parser.currentName().equals(SHARDS)) {
+            if (parser.currentName().equals(SHARDS_FIELD)) {
                 ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                 totalCounts = ShardCounts.fromXContent(parser);
                 parser.nextToken();
@@ -150,13 +161,14 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         );
     }
 
+    /**
+     * Encapsulates the number of total successful and failed shard copies
+     */
     public static final class ShardCounts implements ToXContentFragment {
 
-        // Field name declaration
-        public static final String TOTAL = "total";
-        public static final String SUCCESSFUL = "successful";
-        public static final String FAILED = "failed";
-        // End field name declaration
+        public static final String TOTAL_FIELD = "total";
+        public static final String SUCCESSFUL_FIELD = "successful";
+        public static final String FAILED_FIELD = "failed";
 
         private int total;
         private int successful;
@@ -171,16 +183,16 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(TOTAL, total);
-            builder.field(SUCCESSFUL, successful);
-            builder.field(FAILED, failed);
+            builder.field(TOTAL_FIELD, total);
+            builder.field(SUCCESSFUL_FIELD, successful);
+            builder.field(FAILED_FIELD, failed);
             return builder;
         }
 
         public static ShardCounts fromXContent(XContentParser parser) throws IOException {
-            int total = getIntValueFromField(parser, TOTAL);
-            int successful = getIntValueFromField(parser, SUCCESSFUL);
-            int failed = getIntValueFromField(parser, FAILED);
+            int total = getIntValueFromField(parser, TOTAL_FIELD);
+            int successful = getIntValueFromField(parser, SUCCESSFUL_FIELD);
+            int failed = getIntValueFromField(parser, FAILED_FIELD);
             return new ShardCounts(total, successful, failed);
         }
 
@@ -197,37 +209,51 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
 
     }
 
+    /**
+     * Description for the flush/synced results for a particular index.
+     * This includes total, successful and failed copies along with failure description for each failed copy.
+     */
     public static final class IndexResult implements ToXContentFragment {
 
-        // Field name declaration
-        public static final String FAILURES = "failures";
-        // End field name declaration
+        public static final String FAILURES_FIELD = "failures";
 
         private ShardCounts counts;
         private List<ShardFailure> failures;
 
-        public IndexResult(ShardCounts counts, List<ShardFailure> failures) {
+        IndexResult(ShardCounts counts, List<ShardFailure> failures) {
             this.counts = new ShardCounts(counts.total, counts.successful, counts.failed);
             this.failures = Collections.unmodifiableList(failures);
         }
 
+        /**
+         * @return The total number of shard copies that were processed for this index.
+         */
         public int totalShards() {
             return counts.total;
         }
 
+        /**
+         * @return The number of successful shard copies that were processed for this index.
+         */
         public int successfulShards() {
             return counts.successful;
         }
 
+        /**
+         * @return The number of failed shard copies that were processed for this index.
+         */
         public int failedShards() {
             return counts.failed;
         }
 
+        /**
+         * @return A list of {@link ShardFailure} objects that describe each of the failed shard copies for this index.
+         */
         public List<ShardFailure> failures() {
             return failures;
         }
 
-        protected ShardCounts getShardCounts() {
+        ShardCounts getShardCounts() {
             return counts;
         }
 
@@ -235,7 +261,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             counts.toXContent(builder, params);
             if (failures.size() > 0) {
-                builder.startArray(FAILURES);
+                builder.startArray(FAILURES_FIELD);
                 for (ShardFailure failure : failures) {
                     failure.toXContent(builder, params);
                 }
@@ -249,7 +275,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             ShardCounts counts = ShardCounts.fromXContent(parser);
             List<ShardFailure> failures = new ArrayList<>();
             while (parser.nextToken().equals(Token.FIELD_NAME)) {
-                if (parser.currentName().equals(FAILURES)) {
+                if (parser.currentName().equals(FAILURES_FIELD)) {
                     ensureExpectedToken(Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
                     while (parser.nextToken().equals(Token.START_OBJECT)) {
                         failures.add(ShardFailure.fromXContent(parser));
@@ -264,14 +290,14 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         }
     }
 
-    // Only used as a container for XContent
+    /**
+     * Description of a failed shard copy for an index.
+     */
     public static final class ShardFailure implements ToXContentFragment {
 
-        // Field name declaration
-        public static String SHARD_ID = "shard";
-        public static String FAILURE_REASON = "reason";
-        public static String ROUTING = "routing";
-        // End field name declaration
+        public static String SHARD_ID_FIELD = "shard";
+        public static String FAILURE_REASON_FIELD = "reason";
+        public static String ROUTING_FIELD = "routing";
 
         private int shardId;
         private String failureReason;
@@ -283,14 +309,23 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             this.routing = Collections.unmodifiableMap(routing);
         }
 
+        /**
+         * @return Id of the shard whose copy failed
+         */
         public int getShardId() {
             return shardId;
         }
 
+        /**
+         * @return Reason for failure of the shard copy
+         */
         public String getFailureReason() {
             return failureReason;
         }
 
+        /**
+         * @return Additional information about the failure.
+         */
         public Map<String, Object> getRouting() {
             return routing;
         }
@@ -298,10 +333,10 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(SHARD_ID, shardId);
-            builder.field(FAILURE_REASON, failureReason);
+            builder.field(SHARD_ID_FIELD, shardId);
+            builder.field(FAILURE_REASON_FIELD, failureReason);
             if (routing.size() > 0) {
-                builder.field(ROUTING, routing);
+                builder.field(ROUTING_FIELD, routing);
             }
             builder.endObject();
             return builder;
@@ -309,11 +344,11 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
 
         public static ShardFailure fromXContent(XContentParser parser) throws IOException {
             ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            int shardId = getIntValueFromField(parser, SHARD_ID);
-            String failureReason = getStringValueFromField(parser, FAILURE_REASON);
+            int shardId = getIntValueFromField(parser, SHARD_ID_FIELD);
+            String failureReason = getStringValueFromField(parser, FAILURE_REASON_FIELD);
             Map<String, Object> routing = new HashMap<>();
             while (parser.nextToken().equals(Token.FIELD_NAME)) {
-                if (parser.currentName().equals(ROUTING)) {
+                if (parser.currentName().equals(ROUTING_FIELD)) {
                     ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                     routing = parser.map();
                 } else {

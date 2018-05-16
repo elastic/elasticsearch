@@ -19,7 +19,12 @@
 package org.elasticsearch.client.response.indices.flush;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
+import java.util.HashSet;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
@@ -237,7 +242,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
     public Map<String, Object> convertFailureListToSet(Map<String, Object> input) {
         Map<String, Object> retMap = new HashMap<>();
         for (Map.Entry<String, Object> entry: input.entrySet()) {
-            if (entry.getKey().equals(SyncedFlushResponse.SHARDS)) {
+            if (entry.getKey().equals(SyncedFlushResponse.SHARDS_FIELD)) {
                 retMap.put(entry.getKey(), entry.getValue());
             } else {
                 // This was an index entry.
@@ -245,7 +250,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
                 Map<String, Object> indexResult = (Map<String, Object>)entry.getValue();
                 Map<String, Object> retResult = new HashMap<>();
                 for (Map.Entry<String, Object> entry2: indexResult.entrySet()) {
-                    if (entry2.getKey().equals(SyncedFlushResponse.IndexResult.FAILURES)) {
+                    if (entry2.getKey().equals(SyncedFlushResponse.IndexResult.FAILURES_FIELD)) {
                         @SuppressWarnings("unchecked")
                         List<Object> failures = (List<Object>)entry2.getValue();
                         Set<Object> retSet = new HashSet<>(failures);

@@ -208,25 +208,32 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param inputStream the stream containing the blob data
      */
     private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream) throws IOException {
-        final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(
-            () -> storage.writer(blobInfo, Storage.BlobWriteOption.doesNotExist()));
-        Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
-            @Override
-            public boolean isOpen() {
-                return writeChannel.isOpen();
-            }
+        try {
+            final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(
+                () -> storage.writer(blobInfo, Storage.BlobWriteOption.doesNotExist()));
+            Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+                @Override
+                public boolean isOpen() {
+                    return writeChannel.isOpen();
+                }
 
-            @Override
-            public void close() throws IOException {
-                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-            }
+                @Override
+                public void close() throws IOException {
+                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                }
 
-            @SuppressForbidden(reason = "Channel is based of a socket not a file")
-            @Override
-            public int write(ByteBuffer src) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                @SuppressForbidden(reason = "Channel is based of a socket not a file")
+                @Override
+                public int write(ByteBuffer src) throws IOException {
+                    return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                }
+            }));
+        } catch (StorageException se) {
+            if (se.getCode() == HTTP_PRECON_FAILED) {
+                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
             }
-        }));
+            throw se;
+        }
     }
 
     /**

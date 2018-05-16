@@ -251,9 +251,16 @@ class MockStorage implements Storage {
                 }
 
                 @Override
-                public void close() throws IOException {
+                public void close() {
                     IOUtils.closeWhileHandlingException(writableByteChannel);
-                    blobs.put(blobInfo.getName(), output.toByteArray());
+                    if (Stream.of(options).anyMatch(option -> option.equals(BlobWriteOption.doesNotExist()))) {
+                        byte[] existingBytes = blobs.putIfAbsent(blobInfo.getName(), output.toByteArray());
+                        if (existingBytes != null) {
+                            throw new StorageException(412, "Blob already exists");
+                        }
+                    } else {
+                        blobs.put(blobInfo.getName(), output.toByteArray());
+                    }
                 }
             };
         }

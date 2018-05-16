@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -61,6 +62,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -188,9 +190,16 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             additions.put("add_template_" + i, new BytesArray("{\"index_patterns\" : \"*\", \"order\" : " + i + "}"));
         }
 
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, null,
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
             Collections.emptyList());
 
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.updateTemplates(additions, deletions));
+        assertThat(ise.getMessage(), containsString("template upgrade service should always happen in a system context"));
+
+        threadContext.markAsSystemContext();
         service.updateTemplates(additions, deletions);
         int updatesInProgress = service.getUpdatesInProgress();
 
@@ -241,11 +250,14 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         );
 
         ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         ExecutorService executorService = mock(ExecutorService.class);
         when(threadPool.generic()).thenReturn(executorService);
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 1;
+            assertTrue(threadContext.isSystemContext());
             Runnable runnable = (Runnable) args[0];
             runnable.run();
             updateInvocation.incrementAndGet();

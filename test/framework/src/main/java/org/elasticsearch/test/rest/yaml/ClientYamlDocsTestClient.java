@@ -40,9 +40,13 @@ import java.util.Objects;
  */
 public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
 
-    public ClientYamlDocsTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts, Version esVersion)
-            throws IOException {
-        super(restSpec, restClient, hosts, esVersion);
+    public ClientYamlDocsTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
+        super(restSpec, restClient, hosts, esVersion, masterVersion);
     }
 
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity, Map<String, String> headers)

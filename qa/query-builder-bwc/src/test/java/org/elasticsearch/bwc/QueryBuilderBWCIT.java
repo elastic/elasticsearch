@@ -19,10 +19,9 @@
 
 package org.elasticsearch.bwc;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -189,13 +188,15 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            Response rsp = client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+            Request request = new Request("PUT", "/" + index);
+            request.setJsonEntity(Strings.toString(mappingsAndSettings));
+            Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
-                rsp = client().performRequest("PUT", "/" + index + "/doc/" + Integer.toString(i), Collections.emptyMap(),
-                    new StringEntity((String) CANDIDATES.get(i)[0], ContentType.APPLICATION_JSON));
+                request = new Request("PUT", "/" + index + "/doc/" + Integer.toString(i));
+                request.setJsonEntity((String) CANDIDATES.get(i)[0]);
+                rsp = client().performRequest(request);
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
@@ -204,9 +205,10 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
-                Response rsp = client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
-                    new StringEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
-                        "\"docvalue_fields\" : [\"query.query_builder_field\"]}", ContentType.APPLICATION_JSON));
+                Request request = new Request("GET", "/" + index + "/_search");
+                request.setJsonEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
+                        "\"docvalue_fields\" : [\"query.query_builder_field\"]}");
+                Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
                 Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>)toMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);

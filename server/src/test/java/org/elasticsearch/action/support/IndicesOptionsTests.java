@@ -28,23 +28,51 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndicesOptionsTests extends ESTestCase {
+
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
+            Version version = randomVersionBetween(random(), Version.V_7_0_0_alpha1, null);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
-            Version outputVersion = randomVersion(random());
-            output.setVersion(outputVersion);
+            output.setVersion(version);
             indicesOptions.writeIndicesOptions(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(randomVersion(random()));
+            streamInput.setVersion(version);
+            IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
+
+            assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
+            assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
+            assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
+            assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
+
+            assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
+            assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+
+            assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
+        }
+    }
+
+    public void testSerializationPre70() throws Exception {
+        int iterations = randomIntBetween(5, 20);
+        for (int i = 0; i < iterations; i++) {
+            Version version = randomVersionBetween(random(), null, Version.V_6_4_0);
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+                    randomBoolean(), randomBoolean(), randomBoolean());
+
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setVersion(version);
+            indicesOptions.writeIndicesOptions(output);
+
+            StreamInput streamInput = output.bytes().streamInput();
+            streamInput.setVersion(version);
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
             assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));

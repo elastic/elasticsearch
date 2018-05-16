@@ -111,6 +111,53 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         }
     }
 
+    public void testCreateAndFollowIndex() throws Exception {
+        final int numDocs = 16;
+        final String indexName1 = "index3";
+        final String indexName2 = "index4";
+        if (runningAgainstLeaderCluster) {
+            logger.info("Running against leader cluster");
+            Settings indexSettings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            createIndex(indexName1, indexSettings);
+            createIndex(indexName2, indexSettings);
+            for (int i = 0; i < numDocs; i++) {
+                logger.info("Indexing doc [{}]", i);
+                index(indexName1, Integer.toString(i), "field", i);
+            }
+            for (int i = 0; i < numDocs; i++) {
+                logger.info("Indexing doc [{}]", i);
+                index(indexName2, Integer.toString(i), "field", i);
+            }
+            refresh(indexName1);
+            verifyDocuments(adminClient(), indexName1, numDocs);
+        } else {
+            logger.info("Running against follow cluster");
+            Settings indexSettings = Settings.builder()
+                .put("index.xpack.ccr.following_index", true)
+                .build();
+            createAndFollowIndex("leader_cluster:" + indexName1, indexName1);
+            assertBusy(() -> verifyDocuments(client(), indexName1, numDocs));
+            assertThat(countCcrNodeTasks(), equalTo(1));
+            assertOK(client().performRequest("POST", "/" + indexName1 + "/_xpack/ccr/_unfollow"));
+            // Make sure that there are no other ccr relates operations running:
+            assertBusy(() -> {
+                Map<String, Object> clusterState = toMap(adminClient().performRequest("GET", "/_cluster/state"));
+                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+                assertThat(tasks.size(), equalTo(0));
+                assertThat(countCcrNodeTasks(), equalTo(0));
+            });
+
+            createAndFollowIndex("leader_cluster:" + indexName2, indexName2);
+            // Verify that nothing has been replicated and no node tasks are running
+            // These node tasks should have been failed due to the fact that the user
+            // has no sufficient priviledges.
+            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+            verifyDocuments(adminClient(), indexName2, 0);
+        }
+    }
+
     private int countCcrNodeTasks() throws IOException {
         Map<String, Object> rsp1 = toMap(adminClient().performRequest("GET", "/_tasks",
             Collections.singletonMap("detailed", "true")));
@@ -146,6 +193,11 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
         assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_follow", params));
+    }
+
+    private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
+        Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow", params));
     }
 
     void verifyDocuments(RestClient client, String index, int expectedNumDocs) throws IOException {

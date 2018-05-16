@@ -18,14 +18,14 @@
   - do:
       xpack.ccr.create_and_follow_index:
         leader_index: foo
-        follow_index: bar
+        index: bar
   - is_true: follow_index_created
   - is_true: follow_index_shards_acked
   - is_true: index_following_started
 
   - do:
       xpack.ccr.unfollow_index:
-        follow_index: bar
+        index: bar
   - is_true: acknowledged
 
   - do:

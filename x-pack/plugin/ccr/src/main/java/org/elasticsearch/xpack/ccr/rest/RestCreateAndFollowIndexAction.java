@@ -21,7 +21,7 @@ public class RestCreateAndFollowIndexAction extends BaseRestHandler {
 
     public RestCreateAndFollowIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/ccr/{follow_index}/_create_and_follow", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_xpack/ccr/_create_and_follow", this);
     }
 
     @Override

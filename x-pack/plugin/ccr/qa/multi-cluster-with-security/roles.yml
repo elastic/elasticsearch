@@ -2,7 +2,7 @@ ccruser:
   cluster:
     - manage_ccr
   indices:
-    - names: [ 'index1' ]
+    - names: [ 'index1', 'index3' ]
       privileges:
         - monitor
         - read

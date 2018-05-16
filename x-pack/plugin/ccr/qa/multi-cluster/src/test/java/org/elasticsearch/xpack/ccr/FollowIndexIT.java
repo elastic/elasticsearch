@@ -39,7 +39,7 @@ public class FollowIndexIT extends ESRestTestCase {
         return true;
     }
 
-    public void testExistingFollowIndex() throws Exception {
+    public void testFollowIndex() throws Exception {
         final int numDocs = 128;
         final String leaderIndexName = "test_index1";
         if (runningAgainstLeaderCluster) {
@@ -93,11 +93,11 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
         Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
-        assertOK(client().performRequest("POST", "/_xpack/ccr/" + followIndex + "/_create_and_follow", params));
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow", params));
     }
 
     private static void unfollowIndex(String followIndex) throws IOException {
-        assertOK(client().performRequest("POST", "/_xpack/ccr/" + followIndex + "/_unfollow"));
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_unfollow"));
     }
 
     private static void verifyDocuments(String index, int expectedNumDocs) throws IOException {

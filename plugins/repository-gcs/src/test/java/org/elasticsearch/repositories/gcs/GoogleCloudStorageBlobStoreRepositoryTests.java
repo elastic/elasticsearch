@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
@@ -85,7 +86,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         }
 
         @Override
-        public Storage createClient(final String clientName) {
+        public Storage createClient(final String clientName,
+                                    final String application,
+                                    final TimeValue connectTimeout,
+                                    final TimeValue readTimeout) {
             return new MockStorage(BUCKET, blobs);
         }
     }

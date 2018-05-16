@@ -59,19 +59,38 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final GoogleCloudStorageClientSettings clientSettings = GoogleCloudStorageClientSettings.getClientSettings(settings, clientName);
         final GoogleCloudStorageService service = new GoogleCloudStorageService(environment,
                 Collections.singletonMap(clientName, clientSettings));
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.createClient("another_client"));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> service.createClient("another_client", null, null, null));
         assertThat(e.getMessage(), Matchers.startsWith("Unknown client name"));
         assertSettingDeprecationsAndWarnings(
                 new Setting<?>[] { GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName) });
-        final Storage storage = service.createClient(clientName);
-        assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(applicationName));
+        final String deprecatedApplicationName = randomBoolean() ? null : "deprecated_" + randomAlphaOfLength(4);
+        final TimeValue deprecatedConnectTimeout = randomBoolean() ? null : TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
+        final TimeValue deprecatedReadTimeout = randomBoolean() ? null : TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
+        final Storage storage = service.createClient(clientName, deprecatedApplicationName, deprecatedConnectTimeout,
+                deprecatedReadTimeout);
+        if (deprecatedApplicationName != null) {
+            assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(deprecatedApplicationName));
+        } else {
+            assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(applicationName));
+        }
         assertThat(storage.getOptions().getHost(), Matchers.is(hostName));
         assertThat(storage.getOptions().getProjectId(), Matchers.is(projectIdName));
         assertThat(storage.getOptions().getTransportOptions(), Matchers.instanceOf(HttpTransportOptions.class));
-        assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
-                Matchers.is((int) connectTimeValue.millis()));
-        assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
-                Matchers.is((int) readTimeValue.millis()));
+        if (deprecatedConnectTimeout != null) {
+            assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
+                    Matchers.is((int) deprecatedConnectTimeout.millis()));
+        } else {
+            assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
+                    Matchers.is((int) connectTimeValue.millis()));
+        }
+        if (deprecatedReadTimeout != null) {
+            assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
+                    Matchers.is((int) deprecatedReadTimeout.millis()));
+        } else {
+            assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
+                    Matchers.is((int) readTimeValue.millis()));
+        }
         assertThat(storage.getOptions().getCredentials(), Matchers.nullValue(Credentials.class));
     }
 

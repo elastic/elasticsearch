@@ -28,6 +28,7 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -55,9 +56,15 @@ public class GoogleCloudStorageService extends AbstractComponent {
      * Creates a client that can be used to manage Google Cloud Storage objects.
      *
      * @param clientName name of client settings to use, including secure settings
+     * @param application deprecated application name setting overriding client settings
+     * @param connectTimeout deprecated connect timeout setting overriding client settings
+     * @param readTimeout deprecated read timeout setting overriding client settings
      * @return a Client instance that can be used to manage Storage objects
      */
-    public Storage createClient(final String clientName) throws Exception {
+    public Storage createClient(final String clientName,
+                                @Nullable final String application,
+                                @Nullable final TimeValue connectTimeout,
+                                @Nullable final TimeValue readTimeout) throws Exception {
 
         final GoogleCloudStorageClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
@@ -66,16 +73,17 @@ public class GoogleCloudStorageService extends AbstractComponent {
         }
         final HttpTransport httpTransport = createHttpTransport(clientSettings.getHost());
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
-                .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
-                .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
+                .setConnectTimeout(connectTimeout != null ? toTimeout(connectTimeout) : toTimeout(clientSettings.getConnectTimeout()))
+                .setReadTimeout(readTimeout != null ? toTimeout(readTimeout) : toTimeout(clientSettings.getReadTimeout()))
                 .setHttpTransportFactory(() -> httpTransport)
                 .build();
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
                 .setTransportOptions(httpTransportOptions)
                 .setHeaderProvider(() -> {
                     final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
-                    if (Strings.hasLength(clientSettings.getApplicationName())) {
-                        mapBuilder.put("user-agent", clientSettings.getApplicationName());
+                    final String applicationName = Strings.hasLength(application) ? application : clientSettings.getApplicationName();
+                    if (Strings.hasLength(applicationName)) {
+                        mapBuilder.put("user-agent", applicationName);
                     }
                     return mapBuilder.immutableMap();
                 });

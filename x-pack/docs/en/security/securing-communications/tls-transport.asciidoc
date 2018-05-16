@@ -43,9 +43,9 @@ This name should match the `keystore.path` value.
 --------------------------------------------------
 xpack.security.transport.ssl.enabled: true
 xpack.security.transport.ssl.verification_mode: certificate <1>
-xpack.security.transport.ssl.key: /home/es/config/x-pack/node01.key <2>
-xpack.security.transport.ssl.certificate: /home/es/config/x-pack/node01.crt <3>
-xpack.security.transport.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ] <4>
+xpack.security.transport.ssl.key: /home/es/config/node01.key <2>
+xpack.security.transport.ssl.certificate: /home/es/config/node01.crt <3>
+xpack.security.transport.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] <4>
 --------------------------------------------------
 <1> If you used the `--dns` or `--ip` options with the `elasticsearch-certutil cert` command
 and you want to enable strict hostname checking, set the verification mode to

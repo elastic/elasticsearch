@@ -22,35 +22,204 @@ esplugin {
   classname 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
-versions << [
-        'google': '1.23.0',
-]
-
 dependencies {
-  compile "com.google.apis:google-api-services-storage:v1-rev115-${versions.google}"
-  compile "com.google.api-client:google-api-client:${versions.google}"
-  compile "com.google.oauth-client:google-oauth-client:${versions.google}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "com.google.http-client:google-http-client:${versions.google}"
-  compile "com.google.http-client:google-http-client-jackson2:${versions.google}"
+  compile 'com.google.cloud:google-cloud-storage:1.28.0'
+  compile 'com.google.cloud:google-cloud-core:1.28.0'
+  compile 'com.google.cloud:google-cloud-core-http:1.28.0'
+  compile 'com.google.auth:google-auth-library-oauth2-http:0.9.1'
+  compile 'com.google.auth:google-auth-library-credentials:0.9.1'
+  compile 'com.google.oauth-client:google-oauth-client:1.23.0'
+  compile 'com.google.http-client:google-http-client:1.23.0'
+  compile 'com.google.http-client:google-http-client-jackson:1.23.0'
+  compile 'com.google.http-client:google-http-client-jackson2:1.23.0'
+  compile 'com.google.http-client:google-http-client-appengine:1.23.0'
+  compile 'com.google.api-client:google-api-client:1.23.0'
+  compile 'com.google.api:gax:1.25.0'
+  compile 'com.google.api:gax-httpjson:0.40.0'
+  compile 'com.google.api:api-common:1.5.0'
+  compile 'com.google.api.grpc:proto-google-common-protos:1.8.0'
+  compile 'com.google.guava:guava:20.0'
+  compile 'com.google.apis:google-api-services-storage:v1-rev115-1.23.0'
+  compile 'org.codehaus.jackson:jackson-core-asl:1.9.13'
+  compile 'io.grpc:grpc-context:1.9.0'
+  compile 'io.opencensus:opencensus-api:0.11.1'
+  compile 'io.opencensus:opencensus-contrib-http-util:0.11.1'
+  compile 'org.threeten:threetenbp:1.3.6'
 }
 
 dependencyLicenses {
-  mapping from: /google-.*/, to: 'google'
+  mapping from: /google-cloud-.*/, to: 'google-cloud'
+  mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
 }
 
 thirdPartyAudit.excludes = [
+        // uses internal java api: sun.misc.Unsafe
+        'com.google.common.cache.Striped64',
+        'com.google.common.cache.Striped64$1',
+        'com.google.common.cache.Striped64$Cell',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
         // classes are missing
-        'com.google.common.base.Splitter',
-        'com.google.common.collect.Lists',
-        'javax.servlet.ServletContextEvent',
-        'javax.servlet.ServletContextListener',
-        'org.apache.avalon.framework.logger.Logger',
-        'org.apache.log.Hierarchy',
-        'org.apache.log.Logger',
+        'com.google.appengine.api.datastore.Blob',
+        'com.google.appengine.api.datastore.DatastoreService',
+        'com.google.appengine.api.datastore.DatastoreServiceFactory',
+        'com.google.appengine.api.datastore.Entity',
+        'com.google.appengine.api.datastore.Key',
+        'com.google.appengine.api.datastore.KeyFactory',
+        'com.google.appengine.api.datastore.PreparedQuery',
+        'com.google.appengine.api.datastore.Query',
+        'com.google.appengine.api.memcache.Expiration',
+        'com.google.appengine.api.memcache.MemcacheService',
+        'com.google.appengine.api.memcache.MemcacheServiceFactory',
+        'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+        'com.google.appengine.api.urlfetch.FetchOptions',
+        'com.google.appengine.api.urlfetch.HTTPHeader',
+        'com.google.appengine.api.urlfetch.HTTPMethod',
+        'com.google.appengine.api.urlfetch.HTTPRequest',
+        'com.google.appengine.api.urlfetch.HTTPResponse',
+        'com.google.appengine.api.urlfetch.URLFetchService',
+        'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+        'com.google.gson.Gson',
+        'com.google.gson.GsonBuilder',
+        'com.google.gson.TypeAdapter',
+        'com.google.gson.stream.JsonReader',
+        'com.google.gson.stream.JsonWriter',
+        'com.google.iam.v1.Binding$Builder',
+        'com.google.iam.v1.Binding',
+        'com.google.iam.v1.Policy$Builder',
+        'com.google.iam.v1.Policy',
+        'com.google.protobuf.AbstractMessageLite$Builder',
+        'com.google.protobuf.AbstractParser',
+        'com.google.protobuf.Any$Builder',
+        'com.google.protobuf.Any',
+        'com.google.protobuf.AnyOrBuilder',
+        'com.google.protobuf.AnyProto',
+        'com.google.protobuf.Api$Builder',
+        'com.google.protobuf.Api',
+        'com.google.protobuf.ApiOrBuilder',
+        'com.google.protobuf.ApiProto',
+        'com.google.protobuf.ByteString',
+        'com.google.protobuf.CodedInputStream',
+        'com.google.protobuf.CodedOutputStream',
+        'com.google.protobuf.DescriptorProtos',
+        'com.google.protobuf.Descriptors$Descriptor',
+        'com.google.protobuf.Descriptors$EnumDescriptor',
+        'com.google.protobuf.Descriptors$EnumValueDescriptor',
+        'com.google.protobuf.Descriptors$FieldDescriptor',
+        'com.google.protobuf.Descriptors$FileDescriptor$InternalDescriptorAssigner',
+        'com.google.protobuf.Descriptors$FileDescriptor',
+        'com.google.protobuf.Descriptors$OneofDescriptor',
+        'com.google.protobuf.Duration$Builder',
+        'com.google.protobuf.Duration',
+        'com.google.protobuf.DurationOrBuilder',
+        'com.google.protobuf.DurationProto',
+        'com.google.protobuf.EmptyProto',
+        'com.google.protobuf.Enum$Builder',
+        'com.google.protobuf.Enum',
+        'com.google.protobuf.EnumOrBuilder',
+        'com.google.protobuf.ExtensionRegistry',
+        'com.google.protobuf.ExtensionRegistryLite',
+        'com.google.protobuf.FloatValue$Builder',
+        'com.google.protobuf.FloatValue',
+        'com.google.protobuf.FloatValueOrBuilder',
+        'com.google.protobuf.GeneratedMessage$GeneratedExtension',
+        'com.google.protobuf.GeneratedMessage',
+        'com.google.protobuf.GeneratedMessageV3$Builder',
+        'com.google.protobuf.GeneratedMessageV3$BuilderParent',
+        'com.google.protobuf.GeneratedMessageV3$FieldAccessorTable',
+        'com.google.protobuf.GeneratedMessageV3',
+        'com.google.protobuf.Internal$EnumLite',
+        'com.google.protobuf.Internal$EnumLiteMap',
+        'com.google.protobuf.Internal',
+        'com.google.protobuf.InvalidProtocolBufferException',
+        'com.google.protobuf.LazyStringArrayList',
+        'com.google.protobuf.LazyStringList',
+        'com.google.protobuf.MapEntry$Builder',
+        'com.google.protobuf.MapEntry',
+        'com.google.protobuf.MapField',
+        'com.google.protobuf.Message',
+        'com.google.protobuf.MessageOrBuilder',
+        'com.google.protobuf.Parser',
+        'com.google.protobuf.ProtocolMessageEnum',
+        'com.google.protobuf.ProtocolStringList',
+        'com.google.protobuf.RepeatedFieldBuilderV3',
+        'com.google.protobuf.SingleFieldBuilderV3',
+        'com.google.protobuf.Struct$Builder',
+        'com.google.protobuf.Struct',
+        'com.google.protobuf.StructOrBuilder',
+        'com.google.protobuf.StructProto',
+        'com.google.protobuf.Timestamp$Builder',
+        'com.google.protobuf.Timestamp',
+        'com.google.protobuf.TimestampProto',
+        'com.google.protobuf.Type$Builder',
+        'com.google.protobuf.Type',
+        'com.google.protobuf.TypeOrBuilder',
+        'com.google.protobuf.TypeProto',
+        'com.google.protobuf.UInt32Value$Builder',
+        'com.google.protobuf.UInt32Value',
+        'com.google.protobuf.UInt32ValueOrBuilder',
+        'com.google.protobuf.UnknownFieldSet$Builder',
+        'com.google.protobuf.UnknownFieldSet',
+        'com.google.protobuf.WireFormat$FieldType',
+        'com.google.protobuf.WrappersProto',
+        'com.google.protobuf.util.Timestamps',
+        'org.apache.http.ConnectionReuseStrategy',
+        'org.apache.http.Header',
+        'org.apache.http.HttpEntity',
+        'org.apache.http.HttpEntityEnclosingRequest',
+        'org.apache.http.HttpHost',
+        'org.apache.http.HttpRequest',
+        'org.apache.http.HttpResponse',
+        'org.apache.http.HttpVersion',
+        'org.apache.http.RequestLine',
+        'org.apache.http.StatusLine',
+        'org.apache.http.client.AuthenticationHandler',
+        'org.apache.http.client.HttpClient',
+        'org.apache.http.client.HttpRequestRetryHandler',
+        'org.apache.http.client.RedirectHandler',
+        'org.apache.http.client.RequestDirector',
+        'org.apache.http.client.UserTokenHandler',
+        'org.apache.http.client.methods.HttpDelete',
+        'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+        'org.apache.http.client.methods.HttpGet',
+        'org.apache.http.client.methods.HttpHead',
+        'org.apache.http.client.methods.HttpOptions',
+        'org.apache.http.client.methods.HttpPost',
+        'org.apache.http.client.methods.HttpPut',
+        'org.apache.http.client.methods.HttpRequestBase',
+        'org.apache.http.client.methods.HttpTrace',
+        'org.apache.http.conn.ClientConnectionManager',
+        'org.apache.http.conn.ConnectionKeepAliveStrategy',
+        'org.apache.http.conn.params.ConnManagerParams',
+        'org.apache.http.conn.params.ConnPerRouteBean',
+        'org.apache.http.conn.params.ConnRouteParams',
+        'org.apache.http.conn.routing.HttpRoutePlanner',
+        'org.apache.http.conn.scheme.PlainSocketFactory',
+        'org.apache.http.conn.scheme.Scheme',
+        'org.apache.http.conn.scheme.SchemeRegistry',
+        'org.apache.http.conn.ssl.SSLSocketFactory',
+        'org.apache.http.conn.ssl.X509HostnameVerifier',
+        'org.apache.http.entity.AbstractHttpEntity',
+        'org.apache.http.impl.client.DefaultHttpClient',
+        'org.apache.http.impl.client.DefaultHttpRequestRetryHandler',
+        'org.apache.http.impl.conn.ProxySelectorRoutePlanner',
+        'org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager',
+        'org.apache.http.message.BasicHttpResponse',
+        'org.apache.http.params.BasicHttpParams',
+        'org.apache.http.params.HttpConnectionParams',
+        'org.apache.http.params.HttpParams',
+        'org.apache.http.params.HttpProtocolParams',
+        'org.apache.http.protocol.HttpContext',
+        'org.apache.http.protocol.HttpProcessor',
+        'org.apache.http.protocol.HttpRequestExecutor'
 ]
 
 check {

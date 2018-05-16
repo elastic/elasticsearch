@@ -64,7 +64,8 @@ import static org.hamcrest.core.Is.is;
 
 public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
-    private final ExecutorService executorService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
+    private final ExecutorService handlerService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
+    private final ExecutorService eventLoopService = Executors.newFixedThreadPool(1);
     private final Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();
     private final Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
 
@@ -81,9 +82,13 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private void shutdownExecutorService() throws InterruptedException {
-        if (!executorService.isShutdown()) {
-            executorService.shutdown();
-            executorService.awaitTermination(10, TimeUnit.SECONDS);
+        if (!handlerService.isShutdown()) {
+            handlerService.shutdown();
+            handlerService.awaitTermination(10, TimeUnit.SECONDS);
+        }
+        if (!eventLoopService.isShutdown()) {
+            eventLoopService.shutdown();
+            eventLoopService.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
@@ -285,12 +290,14 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             final CountDownLatch finishingLatch = new CountDownLatch(1);
             finishingRequests.put(uri, finishingLatch);
 
-            executorService.submit(() -> {
+            handlerService.submit(() -> {
                 try {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
                     final ChannelPromise promise = ctx.newPromise();
-                    ctx.write(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse, promise), promise);
-                    finishingLatch.countDown();
+                    eventLoopService.submit(() -> {
+                        ctx.write(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse, promise), promise);
+                        finishingLatch.countDown();
+                    });
                 } catch (InterruptedException e) {
                     fail(e.toString());
                 }

@@ -68,24 +68,21 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
         if (msg instanceof HttpPipelinedResponse) {
-            synchronized (aggregator) {
-                HttpPipelinedResponse<FullHttpResponse, ChannelPromise> response = (HttpPipelinedResponse<FullHttpResponse, ChannelPromise>) msg;
-                boolean success = false;
-                try {
-                    ArrayList<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> responsesToWrite = aggregator.write(response);
-                    success = true;
-                    for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> responseToWrite : responsesToWrite) {
-                        ctx.write(responseToWrite.getResponse(), responseToWrite.getListener());
-                    }
-                } catch (IllegalStateException e) {
-                    Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
-                } finally {
-                    if (success == false) {
-                        response.getListener().setFailure(new ClosedChannelException());
-                    }
+            HttpPipelinedResponse<FullHttpResponse, ChannelPromise> response = (HttpPipelinedResponse<FullHttpResponse, ChannelPromise>) msg;
+            boolean success = false;
+            try {
+                ArrayList<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> responsesToWrite = aggregator.write(response);
+                success = true;
+                for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> responseToWrite : responsesToWrite) {
+                    ctx.write(responseToWrite.getResponse(), responseToWrite.getListener());
+                }
+            } catch (IllegalStateException e) {
+                Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
+            } finally {
+                if (success == false) {
+                    response.getListener().setFailure(new ClosedChannelException());
                 }
             }
-
         } else {
             ctx.write(msg, promise);
         }

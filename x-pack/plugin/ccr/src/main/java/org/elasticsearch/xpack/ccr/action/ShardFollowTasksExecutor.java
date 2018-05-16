@@ -8,11 +8,17 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.logging.Loggers;
@@ -21,6 +27,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -44,6 +51,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
@@ -89,17 +98,19 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, ShardFollowTask params, Task.Status status) {
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
-        Client leaderClient = params.getLeaderClusterAlias() != null ?
-                this.client.getRemoteClusterClient(params.getLeaderClusterAlias()) : this.client;
+        Client leaderClient = wrapClient(params.getLeaderClusterAlias() != null ?
+                this.client.getRemoteClusterClient(params.getLeaderClusterAlias()) : this.client, params);
+        Client followerClient = wrapClient(this.client, params);
         logger.info("Starting shard following [{}]", params);
-        fetchGlobalCheckpoint(client, params.getFollowShardId(),
+        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
                 followGlobalCheckPoint -> {
                         shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint);
-                        prepare(leaderClient, shardFollowNodeTask, params, followGlobalCheckPoint);
+                        prepare(leaderClient, followerClient,shardFollowNodeTask, params, followGlobalCheckPoint);
                     }, task::markAsFailed);
     }
 
-    void prepare(Client leaderClient, ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
+    void prepare(Client leaderClient, Client followerClient, ShardFollowNodeTask task, ShardFollowTask params,
+                 long followGlobalCheckPoint) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -111,7 +122,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             // TODO: check if both indices have the same history uuid
             if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
                 logger.debug("{} no write operations to fetch", followerShard);
-                retry(leaderClient, task, params, followGlobalCheckPoint);
+                retry(leaderClient, followerClient, task, params, followGlobalCheckPoint);
             } else {
                 assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
                         "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
@@ -121,12 +132,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 Consumer<Exception> handler = e -> {
                     if (e == null) {
                         task.updateProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
-                        prepare(leaderClient, task, params, leaderGlobalCheckPoint);
+                        prepare(leaderClient, followerClient, task, params, leaderGlobalCheckPoint);
                     } else {
                         task.markAsFailed(e);
                     }
                 };
-                ChunksCoordinator coordinator = new ChunksCoordinator(client, leaderClient, ccrExecutor, params.getMaxChunkSize(),
+                ChunksCoordinator coordinator = new ChunksCoordinator(followerClient, leaderClient, ccrExecutor, params.getMaxChunkSize(),
                         params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard, followerShard, handler);
                 coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
                 coordinator.start();
@@ -134,7 +145,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }, task::markAsFailed);
     }
 
-    private void retry(Client leaderClient, ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
+    private void retry(Client leaderClient, Client followerClient, ShardFollowNodeTask task, ShardFollowTask params,
+                       long followGlobalCheckPoint) {
         threadPool.schedule(RETRY_TIMEOUT, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -143,7 +155,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void doRun() throws Exception {
-                prepare(leaderClient, task, params, followGlobalCheckPoint);
+                prepare(leaderClient, followerClient, task, params, followGlobalCheckPoint);
             }
         });
     }
@@ -360,6 +372,36 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     NetworkExceptionHelper.isCloseConnectionException(e);
         }
 
+    }
+
+    static Client wrapClient(Client client, ShardFollowTask shardFollowTask) {
+        if (shardFollowTask.getHeaders().isEmpty()) {
+            return client;
+        } else {
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            Map<String, String> filteredHeaders = shardFollowTask.getHeaders().entrySet().stream()
+                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            return new FilterClient(client) {
+                @Override
+                protected <
+                    Request extends ActionRequest,
+                    Response extends ActionResponse,
+                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
+                void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
+                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                    }
+                }
+            };
+        }
+    }
+
+    private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
+        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
+        threadContext.copyHeaders(headers.entrySet());
+        return storedContext;
     }
 
 }

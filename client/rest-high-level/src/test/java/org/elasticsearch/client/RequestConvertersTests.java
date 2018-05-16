@@ -32,6 +32,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -1564,6 +1565,21 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertToXContentBody(putRepositoryRequest, request.getEntity());
+    }
+
+    public void testVerifyRepository() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = "repo";
+        String endpoint = "/_snapshot/" + repository + "/_verify";
+
+        VerifyRepositoryRequest verifyRepositoryRequest = new VerifyRepositoryRequest(repository);
+        setRandomMasterTimeout(verifyRepositoryRequest, expectedParams);
+        setRandomTimeout(verifyRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.verifyRepository(verifyRepositoryRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
     public void testPutTemplateRequest() throws Exception {

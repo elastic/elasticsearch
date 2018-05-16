@@ -114,6 +114,10 @@ include::cluster/list_tasks.asciidoc[]
 The Java High Level REST Client supports the following Snapshot APIs:
 
 * <<java-rest-high-snapshot-get-repository>>
+* <<java-rest-high-snapshot-create-repository>>
+* <<java-rest-high-snapshot-verify-repository>>
+
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
+include::snapshot/verify_repository.asciidoc[]

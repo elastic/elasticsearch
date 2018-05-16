@@ -24,6 +24,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRestResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -46,6 +48,16 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     public void testCreateRepository() throws IOException {
         PutRepositoryResponse response = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testVerifyRepository() throws IOException {
+        PutRepositoryResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
+        VerifyRepositoryRestResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
+            highLevelClient().snapshot()::verifyRepositoryAsync);
+        assertThat(response.nodes().size(), equalTo(1));
     }
 
     public void testModulesGetRepositoriesUsingParams() throws IOException {

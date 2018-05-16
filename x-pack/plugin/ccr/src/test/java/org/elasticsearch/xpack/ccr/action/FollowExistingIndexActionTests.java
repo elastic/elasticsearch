@@ -52,10 +52,10 @@ public class FollowExistingIndexActionTests extends ESTestCase {
         }
     }
 
-    private static IndexMetaData createIMD(String index, int numShards, Tuple<String, String>... settings) {
+    private static IndexMetaData createIMD(String index, int numShards, Tuple<?, ?>... settings) {
         Settings.Builder settingsBuilder = settings(Version.CURRENT);
-        for (Tuple<String, String> setting : settings) {
-            settingsBuilder.put(setting.v1(), setting.v2());
+        for (Tuple<?, ?> setting : settings) {
+            settingsBuilder.put((String) setting.v1(), (String) setting.v2());
         }
         return IndexMetaData.builder(index).settings(settingsBuilder)
             .numberOfShards(numShards)

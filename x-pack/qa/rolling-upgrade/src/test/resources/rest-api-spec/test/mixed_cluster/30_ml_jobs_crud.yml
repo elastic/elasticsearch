@@ -87,6 +87,13 @@ setup:
       xpack.ml.close_job:
         job_id: mixed-cluster-job
 
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+     cluster.health:
+       index: [".ml-state", ".ml-anomalies-shared"]
+       wait_for_status: green
+
 ---
 "Test get job with rules":
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -44,7 +45,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
             // No warning headers doesn't throw an exception
-            section.checkWarningHeaders(emptyList());
+            section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
 
         final String testHeader = DeprecationLogger.formatWarning("test");
@@ -55,13 +56,12 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
-            final AssertionError one = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(singletonList(testHeader)));
+            final AssertionError one = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT));
             assertEquals("got unexpected warning header [\n\t" + testHeader + "\n]\n", one.getMessage());
 
-            final AssertionError multiple =
-                    expectThrows(
-                            AssertionError.class,
-                            () -> section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader)));
+            final AssertionError multiple = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT));
             assertEquals(
                     "got unexpected warning headers [\n\t" +
                             testHeader + "\n\t" +
@@ -74,30 +74,31 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(singletonList("test"));
-            section.checkWarningHeaders(singletonList(testHeader));
+            section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
         }
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
-            section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader));
+            section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT);
         }
 
         // But if you don't get some that you did expect, that is an error
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(singletonList("test"));
-            final AssertionError e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList()));
+            final AssertionError e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList(), Version.CURRENT));
             assertEquals("did not get expected warning header [\n\ttest\n]\n", e.getMessage());
         }
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
 
-            final AssertionError multiple = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList()));
+            final AssertionError multiple = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(emptyList(), Version.CURRENT));
             assertEquals("did not get expected warning headers [\n\ttest\n\tanother\n\tsome more\n]\n", multiple.getMessage());
 
-            final AssertionError one =
-                    expectThrows(AssertionError.class, () -> section.checkWarningHeaders(Arrays.asList(testHeader, someMoreHeader)));
+            final AssertionError one = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(Arrays.asList(testHeader, someMoreHeader), Version.CURRENT));
             assertEquals("did not get expected warning header [\n\tanother\n]\n", one.getMessage());
         }
 
@@ -105,8 +106,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
-            final AssertionError e =
-                    expectThrows(AssertionError.class, () -> section.checkWarningHeaders(Arrays.asList(testHeader, catHeader)));
+            final AssertionError e = expectThrows(AssertionError.class, () ->
+                    section.checkWarningHeaders(Arrays.asList(testHeader, catHeader), Version.CURRENT));
             assertEquals("got unexpected warning header [\n\t" +
                             catHeader + "\n]\n" +
                             "did not get expected warning headers [\n\tanother\n\tsome more\n]\n",

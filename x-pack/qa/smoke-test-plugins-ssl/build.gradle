@@ -137,7 +137,7 @@ task exportClientCertificate(type: LoggedExec) {
 
 // Import the client certificate in the node's keystore
 task importClientCertificateInNodeKeyStore(type: LoggedExec) {
-  dependsOn exportClientCertificate, createNodeKeyStore
+  dependsOn createNodeKeyStore, exportClientCertificate
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-client',

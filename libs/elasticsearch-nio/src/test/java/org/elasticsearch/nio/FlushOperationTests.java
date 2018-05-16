@@ -29,22 +29,19 @@ import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
 
-public class BytesWriteOperationTests extends ESTestCase {
+public class FlushOperationTests extends ESTestCase {
 
-    private SocketChannelContext channelContext;
     private BiConsumer<Void, Throwable> listener;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setFields() {
-        channelContext = mock(SocketChannelContext.class);
         listener = mock(BiConsumer.class);
-
     }
 
     public void testFullyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
+        FlushOperation writeOp = new FlushOperation(buffers, listener);
 
         writeOp.incrementIndex(10);
 
@@ -53,7 +50,7 @@ public class BytesWriteOperationTests extends ESTestCase {
 
     public void testPartiallyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
+        FlushOperation writeOp = new FlushOperation(buffers, listener);
 
         writeOp.incrementIndex(5);
 
@@ -62,7 +59,7 @@ public class BytesWriteOperationTests extends ESTestCase {
 
     public void testMultipleFlushesWithCompositeBuffer() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
+        FlushOperation writeOp = new FlushOperation(buffers, listener);
 
         ArgumentCaptor<ByteBuffer[]> buffersCaptor = ArgumentCaptor.forClass(ByteBuffer[].class);
 

@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +64,9 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        assertTrue(result.isComplete());
+        assertNull(result.getInfomationContext());
     }
 
     public void testConditionNotMetBecauseNotSameShrunkenIndex() {
@@ -78,7 +81,9 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .put(IndexMetaData.builder(shrinkIndexMetadata))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        assertFalse(step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState);
+        assertFalse(result.isComplete());
+        assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.getInfomationContext());
     }
 
     public void testConditionNotMetBecauseSourceIndexExists() {
@@ -98,7 +103,9 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .put(IndexMetaData.builder(shrinkIndexMetadata))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        assertFalse(step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState));
+        Result result = step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState);
+        assertFalse(result.isComplete());
+        assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.getInfomationContext());
     }
 
     public void testIllegalState() {

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -71,7 +73,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings));
+                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN));
         assertEquals("Custom normalizer [my_normalizer] cannot configure a tokenizer", e.getMessage());
     }
 
@@ -156,6 +158,12 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                 }
                 return new Factory();
             });
+        }
+
+        @Override
+        public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            return singletonMap("keyword", (indexSettings, environment, name, settings) ->
+                () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
         }
     }
 }

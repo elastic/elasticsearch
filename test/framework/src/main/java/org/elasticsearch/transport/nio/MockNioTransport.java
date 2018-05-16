@@ -32,13 +32,13 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesChannelContext;
+import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
@@ -162,10 +162,9 @@ public class MockNioTransport extends TcpTransport {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
-            SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
-                consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
+            MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
-                nioReadConsumer, new InboundChannelBuffer(pageSupplier));
+                readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             return nioChannel;
         }
@@ -177,6 +176,23 @@ public class MockNioTransport extends TcpTransport {
                 (e) -> {});
             nioServerChannel.setContext(context);
             return nioServerChannel;
+        }
+    }
+
+    private static class MockTcpReadWriteHandler extends BytesWriteHandler {
+
+        private final MockSocketChannel channel;
+        private final TcpTransport transport;
+
+        private MockTcpReadWriteHandler(MockSocketChannel channel, TcpTransport transport) {
+            this.channel = channel;
+            this.transport = transport;
+        }
+
+        @Override
+        public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
+            BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
+            return transport.consumeNetworkReads(channel, bytesReference);
         }
     }
 

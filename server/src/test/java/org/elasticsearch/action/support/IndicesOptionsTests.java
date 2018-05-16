@@ -35,16 +35,16 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
+            Version version = randomVersionBetween(random(), Version.V_7_0_0_alpha1, null);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
-            Version outputVersion = randomVersionBetween(random(), Version.V_7_0_0_alpha1, null);
-            output.setVersion(outputVersion);
+            output.setVersion(version);
             indicesOptions.writeIndicesOptions(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(randomVersionBetween(random(), Version.V_7_0_0_alpha1, null));
+            streamInput.setVersion(version);
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
             assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
@@ -62,16 +62,16 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerializationPre70() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
+            Version version = randomVersionBetween(random(), null, Version.V_6_4_0);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
-            Version outputVersion = randomVersionBetween(random(), null, Version.V_6_4_0);
-            output.setVersion(outputVersion);
+            output.setVersion(version);
             indicesOptions.writeIndicesOptions(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(randomVersionBetween(random(), null, Version.V_6_4_0));
+            streamInput.setVersion(version);
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
             assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));

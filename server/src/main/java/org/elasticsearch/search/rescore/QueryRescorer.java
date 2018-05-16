@@ -78,14 +78,12 @@ public final class QueryRescorer implements Rescorer {
     @Override
     public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
                                Explanation sourceExplanation) throws IOException {
-        QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
         if (sourceExplanation == null) {
             // this should not happen but just in case
             return Explanation.noMatch("nothing matched");
         }
-        Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
+        QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
         float primaryWeight = rescore.queryWeight();
-
         Explanation prim;
         if (sourceExplanation.isMatch()) {
             prim = Explanation.match(
@@ -94,23 +92,24 @@ public final class QueryRescorer implements Rescorer {
         } else {
             prim = Explanation.noMatch("First pass did not match", sourceExplanation);
         }
-
-        // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.  Maybe
-        // we should add QueryRescorer.explainCombine to Lucene?
-        if (rescoreContext.isRescored(topLevelDocId) && rescoreExplain != null && rescoreExplain.isMatch()) {
-            float secondaryWeight = rescore.rescoreQueryWeight();
-            Explanation sec = Explanation.match(
+        if (rescoreContext.isRescored(topLevelDocId)){
+            Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
+            // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.
+            //  Maybe we should add QueryRescorer.explainCombine to Lucene?
+            if (rescoreExplain != null && rescoreExplain.isMatch()) {
+                float secondaryWeight = rescore.rescoreQueryWeight();
+                Explanation sec = Explanation.match(
                     rescoreExplain.getValue() * secondaryWeight,
                     "product of:",
                     rescoreExplain, Explanation.match(secondaryWeight, "secondaryWeight"));
-            QueryRescoreMode scoreMode = rescore.scoreMode();
-            return Explanation.match(
+                QueryRescoreMode scoreMode = rescore.scoreMode();
+                return Explanation.match(
                     scoreMode.combine(prim.getValue(), sec.getValue()),
                     scoreMode + " of:",
                     prim, sec);
-        } else {
-            return prim;
+            }
         }
+        return prim;
     }
 
     private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {

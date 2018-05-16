@@ -114,3 +114,4 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-get-repository>>
 
 include::snapshot/get_repository.asciidoc[]
+include::snapshot/create_repository.asciidoc[]

@@ -16,8 +16,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.core.ml.MlClientHelper;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
@@ -64,7 +64,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
         DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeed);
         Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         previewDatafeed.setHeaders(headers);
         // NB: this is using the client from the transport layer, NOT the internal client.

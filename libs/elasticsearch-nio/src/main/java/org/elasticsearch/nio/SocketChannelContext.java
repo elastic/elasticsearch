@@ -19,10 +19,16 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.nio.utils.ExceptionsHelper;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -33,21 +39,28 @@ import java.util.function.Consumer;
  * close behavior is required, it should be implemented in this context.
  *
  * The only methods of the context that should ever be called from a non-selector thread are
- * {@link #closeChannel()} and {@link #sendMessage(ByteBuffer[], BiConsumer)}.
+ * {@link #closeChannel()} and {@link #sendMessage(Object, BiConsumer)}.
  */
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
     protected final NioSocketChannel channel;
+    protected final InboundChannelBuffer channelBuffer;
+    protected final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final ReadWriteHandler readWriteHandler;
     private final SocketSelector selector;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
+    private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
     private boolean ioException;
     private boolean peerClosed;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler) {
+    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+                                   ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
+        this.readWriteHandler = readWriteHandler;
+        this.channelBuffer = channelBuffer;
     }
 
     @Override
@@ -108,15 +121,94 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return isConnected;
     }
 
+    public void sendMessage(Object message, BiConsumer<Void, Throwable> listener) {
+        if (isClosing.get()) {
+            listener.accept(null, new ClosedChannelException());
+            return;
+        }
+
+        WriteOperation writeOperation = readWriteHandler.createWriteOperation(this, message, listener);
+
+        SocketSelector selector = getSelector();
+        if (selector.isOnCurrentThread() == false) {
+            selector.queueWrite(writeOperation);
+            return;
+        }
+
+        selector.queueWriteInChannelBuffer(writeOperation);
+    }
+
+    public void queueWriteOperation(WriteOperation writeOperation) {
+        getSelector().assertOnSelectorThread();
+        pendingFlushes.addAll(readWriteHandler.writeToBytes(writeOperation));
+    }
+
     public abstract int read() throws IOException;
-
-    public abstract void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener);
-
-    public abstract void queueWriteOperation(WriteOperation writeOperation);
 
     public abstract void flushChannel() throws IOException;
 
-    public abstract boolean hasQueuedWriteOps();
+    protected void currentFlushOperationFailed(IOException e) {
+        FlushOperation flushOperation = pendingFlushes.pollFirst();
+        getSelector().executeFailedListener(flushOperation.getListener(), e);
+    }
+
+    protected void currentFlushOperationComplete() {
+        FlushOperation flushOperation = pendingFlushes.pollFirst();
+        getSelector().executeListener(flushOperation.getListener(), null);
+    }
+
+    protected FlushOperation getPendingFlush() {
+        return pendingFlushes.peekFirst();
+    }
+
+    @Override
+    public void closeFromSelector() throws IOException {
+        getSelector().assertOnSelectorThread();
+        if (channel.isOpen()) {
+            ArrayList<IOException> closingExceptions = new ArrayList<>(3);
+            try {
+                super.closeFromSelector();
+            } catch (IOException e) {
+                closingExceptions.add(e);
+            }
+            // Set to true in order to reject new writes before queuing with selector
+            isClosing.set(true);
+
+            // Poll for new flush operations to close
+            pendingFlushes.addAll(readWriteHandler.pollFlushOperations());
+            FlushOperation flushOperation;
+            while ((flushOperation = pendingFlushes.pollFirst()) != null) {
+                selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
+            }
+
+            try {
+                readWriteHandler.close();
+            } catch (IOException e) {
+                closingExceptions.add(e);
+            }
+            channelBuffer.close();
+
+            if (closingExceptions.isEmpty() == false) {
+                ExceptionsHelper.rethrowAndSuppress(closingExceptions);
+            }
+        }
+    }
+
+    protected void handleReadBytes() throws IOException {
+        int bytesConsumed = Integer.MAX_VALUE;
+        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
+            bytesConsumed = readWriteHandler.consumeReads(channelBuffer);
+            channelBuffer.release(bytesConsumed);
+        }
+
+        // Some protocols might produce messages to flush during a read operation.
+        pendingFlushes.addAll(readWriteHandler.pollFlushOperations());
+    }
+
+    public boolean readyForFlush() {
+        getSelector().assertOnSelectorThread();
+        return pendingFlushes.isEmpty() == false;
+    }
 
     /**
      * This method indicates if a selector should close this channel.
@@ -177,10 +269,5 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             ioException = true;
             throw e;
         }
-    }
-
-    @FunctionalInterface
-    public interface ReadConsumer {
-        int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
     }
 }

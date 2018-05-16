@@ -42,7 +42,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ShardChangesAction extends Action<ShardChangesAction.Request, ShardChangesAction.Response, ShardChangesAction.RequestBuilder> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
-    public static final String NAME = "cluster:admin/xpack/ccr/shard_changes";
+    public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
 
     private ShardChangesAction() {
         super(NAME);

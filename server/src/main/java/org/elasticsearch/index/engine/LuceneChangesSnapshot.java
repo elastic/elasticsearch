@@ -186,7 +186,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final Translog.Operation op;
         final boolean isTombstone = docValues[leaf.ord].isTombstone(segmentDocID);
         if (isTombstone && fields.uid() == null) {
-            op = new Translog.NoOp(seqNo, primaryTerm, ""); // TODO: store reason in ignored fields?
+            op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {

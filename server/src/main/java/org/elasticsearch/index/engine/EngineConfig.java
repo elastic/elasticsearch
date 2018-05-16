@@ -380,8 +380,9 @@ public final class EngineConfig {
 
         /**
          * Creates a tombstone document for a noop operation.
+         * @param reason the reason of an a noop
          */
-        ParsedDocument newNoopTombstoneDoc();
+        ParsedDocument newNoopTombstoneDoc(String reason);
     }
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {

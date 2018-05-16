@@ -18,13 +18,11 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction.INSTANCE;
 import static org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction.Request;
 
-// TODO: change to confirm with API design
 public class RestFollowExistingIndexAction extends BaseRestHandler {
 
     public RestFollowExistingIndexAction(Settings settings, RestController controller) {
         super(settings);
-        // TODO: figure out why: '/{follow_index}/_xpack/ccr/_follow' path clashes with create index api.
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/ccr/{follow_index}/_follow", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_xpack/ccr/_follow", this);
     }
 
     @Override
@@ -36,7 +34,7 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request();
         request.setLeaderIndex(restRequest.param("leader_index"));
-        request.setFollowIndex(restRequest.param("follow_index"));
+        request.setFollowIndex(restRequest.param("index"));
         if (restRequest.hasParam(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())) {
             request.setBatchSize(Long.valueOf(restRequest.param(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())));
         }

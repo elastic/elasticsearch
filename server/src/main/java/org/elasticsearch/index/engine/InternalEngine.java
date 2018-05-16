@@ -1349,7 +1349,7 @@ public class InternalEngine extends Engine {
             Exception failure = null;
             if (softDeleteEnabled) {
                 try {
-                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc();
+                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
                     tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
                     // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
                     // 1L is selected to optimize the compression because it might probably be the most common value in version field.

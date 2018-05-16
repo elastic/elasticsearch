@@ -11,6 +11,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class ShardFollowTaskTests extends AbstractSerializingTestCase<ShardFollowTask> {
 
@@ -26,7 +27,7 @@ public class ShardFollowTaskTests extends AbstractSerializingTestCase<ShardFollo
                 new ShardId(randomAlphaOfLength(4), randomAlphaOfLength(4), randomInt(5)),
                 new ShardId(randomAlphaOfLength(4), randomAlphaOfLength(4), randomInt(5)),
                 randomIntBetween(1, Integer.MAX_VALUE), randomIntBetween(1, Integer.MAX_VALUE),
-                randomIntBetween(1, Integer.MAX_VALUE));
+                randomIntBetween(1, Integer.MAX_VALUE), randomBoolean() ? null : Collections.singletonMap("key", "value"));
     }
 
     @Override

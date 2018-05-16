@@ -2614,8 +2614,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return docMapper(type).getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), type, id);
             }
             @Override
-            public ParsedDocument newNoopTombstoneDoc() {
-                return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName());
+            public ParsedDocument newNoopTombstoneDoc(String reason) {
+                return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName(), reason);
             }
         };
     }

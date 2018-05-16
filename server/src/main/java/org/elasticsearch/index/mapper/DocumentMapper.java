@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -262,10 +264,14 @@ public class DocumentMapper implements ToXContentFragment {
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 
-    public ParsedDocument createNoopTombstoneDoc(String index) throws MapperParsingException {
+    public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
-        final SourceToParse emptySource = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, noopTombstoneMetadataFieldMappers).toTombstone();
+        final SourceToParse sourceToParse = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
+        // Store the reason of a noop as a raw string in the _source field
+        final BytesRef byteRef = new BytesRef(reason);
+        parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
+        return parsedDoc;
     }
 
     /**

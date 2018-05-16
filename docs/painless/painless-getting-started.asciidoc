@@ -142,13 +142,12 @@ this behavior, a deprecation warning is logged on start up.
 
 ===== Multiple values
 
-There is a number of operations designed for numeric fields,
-if a document has multiple values in such a field:
+Painless supports the following operations for multi-value numeric fields:
 
-- `doc['field'].min` - gets the minimum value among values
-- `doc['field'].max` - gets the maximum value among values
-- `doc['field'].sum` - gets the sum of all values
-- `doc['field'].avg` - gets the average of all values
+- `doc['field'].min` - gets the minimum value
+- `doc['field'].max` - gets the maximum value
+- `doc['field'].sum` - gets the sum of the values
+- `doc['field'].avg` - gets the average of the values
 
 
 [float]

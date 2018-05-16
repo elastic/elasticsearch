@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30638")
     public void testDeprecatedSettings() throws Exception {
         final Settings repositorySettings = Settings.builder()
             .put("bucket", "test")

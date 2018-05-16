@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -387,18 +388,17 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0));
 
-        // TODO: Fix the test
         // create the index with our mapping
         client(primaryNode)
             .admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put("number_of_shards", 1).put("number_of_replicas", 1).put("index.soft_deletes.enabled", false))
+            .setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1))
             .get();
 
         logger.info("--> indexing docs");
-        for (int i = 0; i < randomIntBetween(1, 1024); i++) {
+        int numDocs = randomIntBetween(1, 1024);
+        for (int i = 0; i < numDocs; i++) {
             client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
         }
 
@@ -420,12 +420,25 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         logger.info("--> restart replica node");
+        boolean useSoftDeletesInPeerRecovery = internalCluster().getInstance(IndicesService.class, primaryNode)
+            .indexServiceSafe(resolveIndex("test")).getShard(0).indexSettings().isUseSoftDeletesInPeerRecovery();
 
+        int moreDocs = randomIntBetween(1, 1024);
         internalCluster().restartNode(replicaNode, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
+                // Create a fully deleted segment so that its operations can be claimed by merges to force file-based recovery
+                if (useSoftDeletesInPeerRecovery) {
+                    int deleteDocs = randomIntBetween(1, 5);
+                    for (int i = 0; i < deleteDocs; i++) {
+                        client(primaryNode).prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").get();
+                        client(primaryNode).prepareDelete("test", "type", Integer.toString(i)).get();
+                    }
+                    client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                }
+
                 // index some more documents; we expect to reuse the files that already exist on the replica
-                for (int i = 0; i < randomIntBetween(1, 1024); i++) {
+                for (int i = 0; i < moreDocs; i++) {
                     client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
                 }
 
@@ -433,6 +446,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                 ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
                 return super.onNodeStopped(nodeName);
@@ -474,7 +488,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(), equalTo(filesReused));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
-                assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(0));
+                int expectedTranslogOps = useSoftDeletesInPeerRecovery ? numDocs + moreDocs : 0;
+                assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(expectedTranslogOps));
             }
         }
     }

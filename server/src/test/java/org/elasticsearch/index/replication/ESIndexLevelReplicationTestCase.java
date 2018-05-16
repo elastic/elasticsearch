@@ -212,6 +212,18 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return listener.get();
         }
 
+        public BulkItemResponse delete(DeleteRequest deleteRequest) throws Exception {
+            PlainActionFuture<BulkItemResponse> listener = new PlainActionFuture<>();
+            final ActionListener<BulkShardResponse> wrapBulkListener = ActionListener.wrap(
+                bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0]),
+                listener::onFailure);
+            BulkItemRequest[] items = new BulkItemRequest[1];
+            items[0] = new BulkItemRequest(0, deleteRequest);
+            BulkShardRequest request = new BulkShardRequest(shardId, deleteRequest.getRefreshPolicy(), items);
+            new IndexingAction(request, wrapBulkListener, this).execute();
+            return listener.get();
+        }
+
         public synchronized void startAll() throws IOException {
             startReplicas(replicas.size());
         }

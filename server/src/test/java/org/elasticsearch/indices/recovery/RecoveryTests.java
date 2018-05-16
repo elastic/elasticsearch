@@ -115,11 +115,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
          * - index #5
          * - If flush and the translog/lucene retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
          */
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-            .put(IndexSettings.INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING.getKey(), randomBoolean())
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10)
-            .build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10).build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             // create out of order delete and index op on replica
@@ -128,8 +124,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
             // delete #1
             orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id", VersionType.EXTERNAL);
-            getTranslog(orgReplica).rollGeneration(); // isolate the delete in it's own generation
-            orgReplica.refresh("test"); // isolate the delete in it's own segment - for soft-deletes retention
+            orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 SourceToParse.source(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON));

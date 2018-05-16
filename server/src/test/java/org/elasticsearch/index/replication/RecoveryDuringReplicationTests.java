@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,7 +94,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testRecoveryOfDisconnectedReplica() throws Exception {
-        // TODO: enable test
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING.getKey(), false).build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
@@ -216,9 +216,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.indices.recovery:TRACE")
     public void testRecoveryAfterPrimaryPromotion() throws Exception {
-        // TODO: enable test
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING.getKey(), false).build();
-        try (ReplicationGroup shards = createGroup(2, settings)) {
+        try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
             int totalDocs = shards.indexDocs(randomInt(10));
             int committedDocs = 0;
@@ -230,6 +228,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
+            boolean useSoftDeletesInPeerRecovery = replica.indexSettings().isUseSoftDeletesInPeerRecovery();
             if (randomBoolean()) {
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);
@@ -254,7 +253,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 equalTo(totalDocs - 1L));
 
             // index some more
-            int moreDocs = shards.indexDocs(randomIntBetween(0, 5));
+            int moreDocs = randomIntBetween(0, 5);
+            for (int i = 0; i < moreDocs; i++) {
+                shards.index(new IndexRequest(index.getName(), "type", "extra_" + i).source("{}", XContentType.JSON));
+            }
             totalDocs += moreDocs;
 
             // As a replica keeps a safe commit, the file-based recovery only happens if the required translog
@@ -262,10 +264,19 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             boolean expectSeqNoRecovery = (moreDocs == 0 || randomBoolean());
             int uncommittedOpsOnPrimary = 0;
             if (expectSeqNoRecovery == false) {
+                // To prevent sequence-based recovery with soft-deletes, we need to make a segment that will be claimed by merges.
+                if (moreDocs > 0 && useSoftDeletesInPeerRecovery) {
+                    for (int i = 0; i < moreDocs; i++) {
+                        shards.delete(new DeleteRequest(index.getName(), "type", "extra_" + i));
+                    }
+                    totalDocs -= moreDocs;
+                    flushShard(newPrimary); // Don't flush replicas - we don't have Lucene rollback yet.
+                }
                 IndexMetaData.Builder builder = IndexMetaData.builder(newPrimary.indexSettings().getIndexMetaData());
                 builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                 );
                 newPrimary.indexSettings().updateIndexMetaData(builder.build());
                 newPrimary.onSettingsChanged();
@@ -275,7 +286,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     shards.syncGlobalCheckpoint();
                     assertThat(newPrimary.getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
                 });
-                newPrimary.flush(new FlushRequest());
+                newPrimary.flush(new FlushRequest().force(true));
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
                 totalDocs += uncommittedOpsOnPrimary;
             }
@@ -297,7 +308,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs - committedDocs));
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedOpsOnPrimary));
+                int expectOps = useSoftDeletesInPeerRecovery ? totalDocs : uncommittedOpsOnPrimary;
+                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(expectOps));
             }
 
             // roll back the extra ops in the replica

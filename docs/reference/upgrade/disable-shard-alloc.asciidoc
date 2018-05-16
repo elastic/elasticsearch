@@ -17,13 +17,3 @@ PUT _cluster/settings
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:indexes don't assign]
-
-Additionally, the allocation process attempts to keep the shards balanced
-across the cluster by performing rebalancing, moving shards between nodes. This
-involves I/O that is also unnecessary if the shut-down node will shortly
-return, so it is preferable for the cluster not to attempt to perform any
-rebalancing until the maintenance is complete. This is the default behaviour,
-but can be changed using the `cluster.routing.allocation.allow_rebalance`
-setting. Make sure that this setting is unset, or set to the default value of
-`indices_all_active`, before continuing.
-

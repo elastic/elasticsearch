@@ -8,7 +8,7 @@ the SAML 2.0 Web Browser SSO and the SAML 2.0 Single Logout profiles. It can
 integrate with any identity provider (IdP) that supports at least the SAML 2.0 
 Web Browser SSO Profile. 
 
-In SAML terminology, the {stack} is operating as a _service provider_. For more 
+In SAML terminology, the {stack} is operating as a _service provider_ (SP). For more 
 information, see {stack-ov}/saml-realm.html[SAML authentication] and 
 {stack-ov}/saml-guide.html[Configuring SAML SSO on the {stack}]. 
 
@@ -199,6 +199,14 @@ and logout), and processing encrypted content.
 You can configure {es} for signing, encryption, or both, with the same or 
 separate keys. For more information, see 
 {stack-ov}/saml-guide-authentication.html#saml-enc-sign[Encryption and signing]. 
+--
+
+. (Optional) Generate service provider metadata.
++
+--
+Some identity providers can import metadata about service providers.  
+//TBD: What steps (if any) does this enable you to skip?
+You can generate SP metadata for the {stack} by using the <<saml-metadata,`elasticsearch-saml-metadata` command>>.
 --
 
 . Configure role mappings.

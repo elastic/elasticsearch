@@ -3,10 +3,10 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/ccr/{follow_index}/_follow",
-      "paths": [ "/_xpack/ccr/{follow_index}/_follow" ],
+      "path": "/{index}/_xpack/ccr/_follow",
+      "paths": [ "/{index}/_xpack/ccr/_follow" ],
       "parts": {
-        "follow_index": {
+        "index": {
           "type": "string",
           "required": true,
           "description": "The name of the index that follows to leader index."

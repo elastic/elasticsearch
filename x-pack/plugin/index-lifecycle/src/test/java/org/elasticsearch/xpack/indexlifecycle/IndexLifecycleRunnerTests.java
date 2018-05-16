@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
@@ -47,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexLifecycleRunnerTests extends ESTestCase {
 
     private PolicyStepsRegistry createOneStepPolicyStepRegistry(String policyName, Step step) {
-        SortedMap<String, LifecyclePolicy> lifecyclePolicyMap = null; // Not used in this test
+        SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap = null; // Not used in this test
         Map<String, Step> firstStepMap = new HashMap<>();
         firstStepMap.put(policyName, step);
         Map<String, Map<StepKey, Step>> stepMap = new HashMap<>();
@@ -395,7 +396,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     }
 
     public void testGetCurrentStep() {
-        SortedMap<String, LifecyclePolicy> lifecyclePolicyMap = null; // Not used in the methods tested here
+        SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap = null; // Not used in the methods tested here
         String policyName = "policy_1";
         String otherPolicyName = "other_policy";
         StepKey firstStepKey = new StepKey("phase_1", "action_1", "step_1");

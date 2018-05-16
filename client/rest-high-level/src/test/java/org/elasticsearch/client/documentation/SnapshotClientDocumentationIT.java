@@ -19,20 +19,24 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -58,7 +62,114 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    private static final String testRepository = "test_repository";
+    private static final String repositoryName = "test_repository";
+
+    public void testSnapshotCreateRepository() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::create-repository-request
+        PutRepositoryRequest request = new PutRepositoryRequest();
+        // end::create-repository-request
+
+        // tag::create-repository-create-settings
+        String locationKey = FsRepository.LOCATION_SETTING.getKey();
+        String locationValue = ".";
+        String compressKey = FsRepository.COMPRESS_SETTING.getKey();
+        boolean compressValue = true;
+
+        Settings settings = Settings.builder()
+            .put(locationKey, locationValue)
+            .put(compressKey, compressValue)
+            .build(); // <1>
+        // end::create-repository-create-settings
+
+        // tag::create-repository-request-repository-settings
+        request.settings(settings); // <1>
+        // end::create-repository-request-repository-settings
+
+        {
+            // tag::create-repository-settings-builder
+            Settings.Builder settingsBuilder = Settings.builder()
+                .put(locationKey, locationValue)
+                .put(compressKey, compressValue);
+            request.settings(settingsBuilder); // <1>
+            // end::create-repository-settings-builder
+        }
+        {
+            // tag::create-repository-settings-map
+            Map<String, Object> map = new HashMap<>();
+            map.put(locationKey, locationValue);
+            map.put(compressKey, compressValue);
+            request.settings(map); // <1>
+            // end::create-repository-settings-map
+        }
+        {
+            // tag::create-repository-settings-source
+            request.settings("{\"location\": \".\", \"compress\": \"true\"}",
+                XContentType.JSON); // <1>
+            // end::create-repository-settings-source
+        }
+
+        // tag::create-repository-request-name
+        request.name(repositoryName); // <1>
+        // end::create-repository-request-name
+        // tag::create-repository-request-type
+        request.type(FsRepository.TYPE); // <1>
+        // end::create-repository-request-type
+
+        // tag::create-repository-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::create-repository-request-masterTimeout
+        // tag::create-repository-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.timeout("1m"); // <2>
+        // end::create-repository-request-timeout
+        // tag::create-repository-request-verify
+        request.verify(true); // <1>
+        // end::create-repository-request-verify
+
+        // tag::create-repository-execute
+        PutRepositoryResponse response = client.snapshot().createRepository(request);
+        // end::create-repository-execute
+
+        // tag::create-repository-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::create-repository-response
+        assertTrue(acknowledged);
+    }
+
+    public void testSnapshotCreateRepositoryAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            PutRepositoryRequest request = new PutRepositoryRequest(repositoryName);
+
+            // tag::create-repository-execute-listener
+            ActionListener<PutRepositoryResponse> listener =
+                new ActionListener<PutRepositoryResponse>() {
+                    @Override
+                    public void onResponse(PutRepositoryResponse putRepositoryResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::create-repository-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::create-repository-execute-async
+            client.snapshot().createRepositoryAsync(request, listener); // <1>
+            // end::create-repository-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testSnapshotGetRepository() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -70,7 +181,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-repository-request
 
         // tag::get-repository-request-repositories
-        String [] repositories = new String[] { testRepository };
+        String [] repositories = new String[] {repositoryName};
         request.repositories(repositories); // <1>
         // end::get-repository-request-repositories
         // tag::get-repository-request-local
@@ -89,7 +200,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         List<RepositoryMetaData> repositoryMetaDataResponse = response.repositories();
         // end::get-repository-response
         assertThat(1, equalTo(repositoryMetaDataResponse.size()));
-        assertThat(testRepository, equalTo(repositoryMetaDataResponse.get(0).name()));
+        assertThat(repositoryName, equalTo(repositoryMetaDataResponse.get(0).name()));
     }
 
     public void testSnapshotGetRepositoryAsync() throws InterruptedException {
@@ -122,14 +233,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
-
     }
 
     private void createTestRepositories() throws IOException {
-        RestHighLevelClient client = highLevelClient();
-        String repositorySettings = "{\"type\":\"fs\", \"settings\":{\"location\": \".\"}}";
-        highLevelClient().getLowLevelClient().performRequest("put", "_snapshot/" + testRepository, Collections.emptyMap(),
-            new StringEntity(repositorySettings, ContentType.APPLICATION_JSON));
-
+        PutRepositoryRequest request = new PutRepositoryRequest(repositoryName);
+        request.type(FsRepository.TYPE);
+        request.settings("{\"location\": \".\"}", XContentType.JSON);
+        assertTrue(highLevelClient().snapshot().createRepository(request).isAcknowledged());
     }
 }

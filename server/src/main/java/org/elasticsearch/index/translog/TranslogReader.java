@@ -79,21 +79,31 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * Closes current reader and creates new one with new checkoint and same file channel
      */
     TranslogReader closeIntoTrimmedReader(long aboveSeqNo, ChannelFactory channelFactory) throws IOException {
-        if (aboveSeqNo < checkpoint.maxSeqNo) {
-            final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
-            final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
-                checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
-                checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
-            Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
+        if (closed.compareAndSet(false, true)) {
+            Closeable toCloseOnFailure = channel;
+            final TranslogReader newReader;
+            try {
+                if (aboveSeqNo < checkpoint.maxSeqNo) {
+                    final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
+                    final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
+                        checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
+                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
+                    Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
 
-            IOUtils.fsync(checkpointFile, false);
-            IOUtils.fsync(checkpointFile.getParent(), true);
+                    IOUtils.fsync(checkpointFile, false);
+                    IOUtils.fsync(checkpointFile.getParent(), true);
 
-            closed.set(true);
-
-            return new TranslogReader(newCheckpoint, channel, path, header);
+                    newReader = new TranslogReader(newCheckpoint, channel, path, header);
+                } else {
+                    newReader = new TranslogReader(checkpoint, channel, path, header);
+                }
+                toCloseOnFailure = null;
+                return newReader;
+            } finally {
+                IOUtils.close(toCloseOnFailure);
+            }
         }
-        return this;
+        throw new AlreadyClosedException(toString() + " is already closed");
     }
 
     public long sizeInBytes() {

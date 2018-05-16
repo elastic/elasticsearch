@@ -137,9 +137,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
-    @AwaitsFix(bugUrl = "waiting-for-max-timestamp-decision")
     public void testInheritMaxValidAutoIDTimestampOnRecovery() throws Exception {
-        try (ReplicationGroup shards = createGroup(0)) {
+        //TODO: Enables this test with soft-deletes once we have timestamp
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING.getKey(), false).build();
+        try (ReplicationGroup shards = createGroup(0, settings)) {
             shards.startAll();
             final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
             indexRequest.onRetry(); // force an update of the timestamp

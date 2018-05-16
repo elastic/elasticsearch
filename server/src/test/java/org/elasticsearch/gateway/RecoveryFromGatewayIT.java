@@ -387,12 +387,14 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0));
 
+        // TODO: Fix the test
         // create the index with our mapping
         client(primaryNode)
             .admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1))
+            .setSettings(Settings.builder()
+                .put("number_of_shards", 1).put("number_of_replicas", 1).put("index.soft_deletes.enabled", false))
             .get();
 
         logger.info("--> indexing docs");

@@ -203,7 +203,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
                 Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
-                // We haven't had timestamp for Index operations in Lucene yet, we need to loosen the check without timestamp.
+                // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
                 if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
                     final Translog.Index o1 = (Translog.Index) newOp;

@@ -19,289 +19,478 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.googleapis.json.GoogleJsonError;
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.client.http.AbstractInputStreamContent;
-import com.google.api.client.http.HttpHeaders;
-import com.google.api.client.http.HttpMethods;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpResponseException;
-import com.google.api.client.http.LowLevelHttpRequest;
-import com.google.api.client.http.LowLevelHttpResponse;
-import com.google.api.client.http.MultipartContent;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.testing.http.MockHttpTransport;
-import com.google.api.client.testing.http.MockLowLevelHttpRequest;
-import com.google.api.client.testing.http.MockLowLevelHttpResponse;
-import com.google.api.services.storage.Storage;
-import com.google.api.services.storage.model.Bucket;
-import com.google.api.services.storage.model.StorageObject;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.rest.RestStatus;
+import com.google.api.gax.paging.Page;
+import com.google.cloud.Policy;
+import com.google.cloud.ReadChannel;
+import com.google.cloud.RestorableState;
+import com.google.cloud.WriteChannel;
+import com.google.cloud.storage.Acl;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.BucketInfo;
+import com.google.cloud.storage.CopyWriter;
+import com.google.cloud.storage.ServiceAccount;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.StorageRpcOptionUtils;
+import com.google.cloud.storage.StorageTestUtils;
+
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
-
-import static org.mockito.Mockito.mock;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * {@link MockStorage} mocks a {@link Storage} client by storing all the blobs
  * in a given concurrent map.
  */
-class MockStorage extends Storage {
-
-    /* A custom HTTP header name used to propagate the name of the blobs to delete in batch requests */
-    private static final String DELETION_HEADER = "x-blob-to-delete";
+class MockStorage implements Storage {
 
     private final String bucketName;
     private final ConcurrentMap<String, byte[]> blobs;
 
     MockStorage(final String bucket, final ConcurrentMap<String, byte[]> blobs) {
-        super(new MockedHttpTransport(blobs), mock(JsonFactory.class), mock(HttpRequestInitializer.class));
-        this.bucketName = bucket;
-        this.blobs = blobs;
+        this.bucketName = Objects.requireNonNull(bucket);
+        this.blobs = Objects.requireNonNull(blobs);
     }
 
     @Override
-    public Buckets buckets() {
-        return new MockBuckets();
+    public Bucket get(String bucket, BucketGetOption... options) {
+        if (bucketName.equals(bucket)) {
+            return StorageTestUtils.createBucket(this, bucketName);
+        } else {
+            return null;
+        }
     }
 
     @Override
-    public Objects objects() {
-        return new MockObjects();
-    }
-
-    class MockBuckets extends Buckets {
-
-        @Override
-        public Get get(String getBucket) {
-            return new Get(getBucket) {
-                @Override
-                public Bucket execute() {
-                    if (bucketName.equals(getBucket())) {
-                        Bucket bucket = new Bucket();
-                        bucket.setId(bucketName);
-                        return bucket;
-                    } else {
-                        return null;
-                    }
-                }
-            };
-        }
-    }
-
-    class MockObjects extends Objects {
-
-        @Override
-        public Get get(String getBucket, String getObject) {
-            return new Get(getBucket, getObject) {
-                @Override
-                public StorageObject execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-                    if (blobs.containsKey(getObject()) == false) {
-                        throw newObjectNotFoundException(getObject());
-                    }
-
-                    StorageObject storageObject = new StorageObject();
-                    storageObject.setId(getObject());
-                    return storageObject;
-                }
-
-                @Override
-                public InputStream executeMediaAsInputStream() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-                    if (blobs.containsKey(getObject()) == false) {
-                        throw newObjectNotFoundException(getObject());
-                    }
-                    return new ByteArrayInputStream(blobs.get(getObject()));
-                }
-            };
-        }
-
-        @Override
-        public Insert insert(String insertBucket, StorageObject insertObject, AbstractInputStreamContent insertStream) {
-            return new Insert(insertBucket, insertObject) {
-                @Override
-                public StorageObject execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-
-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
-                    Streams.copy(insertStream.getInputStream(), out);
-                    blobs.put(getName(), out.toByteArray());
-                    return null;
-                }
-            };
-        }
-
-        @Override
-        public List list(String listBucket) {
-            return new List(listBucket) {
-                @Override
-                public com.google.api.services.storage.model.Objects execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-
-                    final com.google.api.services.storage.model.Objects objects = new com.google.api.services.storage.model.Objects();
-
-                    final java.util.List<StorageObject> storageObjects = new ArrayList<>();
-                    for (Entry<String, byte[]> blob : blobs.entrySet()) {
-                        if (getPrefix() == null || blob.getKey().startsWith(getPrefix())) {
-                            StorageObject storageObject = new StorageObject();
-                            storageObject.setId(blob.getKey());
-                            storageObject.setName(blob.getKey());
-                            storageObject.setSize(BigInteger.valueOf((long) blob.getValue().length));
-                            storageObjects.add(storageObject);
-                        }
-                    }
-
-                    objects.setItems(storageObjects);
-                    return objects;
-                }
-            };
-        }
-
-        @Override
-        public Delete delete(String deleteBucket, String deleteObject) {
-            return new Delete(deleteBucket, deleteObject) {
-                @Override
-                public Void execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-
-                    if (blobs.containsKey(getObject()) == false) {
-                        throw newObjectNotFoundException(getObject());
-                    }
-
-                    blobs.remove(getObject());
-                    return null;
-                }
-
-                @Override
-                public HttpRequest buildHttpRequest() throws IOException {
-                    HttpRequest httpRequest = super.buildHttpRequest();
-                    httpRequest.getHeaders().put(DELETION_HEADER, getObject());
-                    return httpRequest;
-                }
-            };
-        }
-
-        @Override
-        public Copy copy(String srcBucket, String srcObject, String destBucket, String destObject, StorageObject content) {
-            return new Copy(srcBucket, srcObject, destBucket, destObject, content) {
-                @Override
-                public StorageObject execute() throws IOException {
-                    if (bucketName.equals(getSourceBucket()) == false) {
-                        throw newBucketNotFoundException(getSourceBucket());
-                    }
-                    if (bucketName.equals(getDestinationBucket()) == false) {
-                        throw newBucketNotFoundException(getDestinationBucket());
-                    }
-
-                    final byte[] bytes = blobs.get(getSourceObject());
-                    if (bytes == null) {
-                        throw newObjectNotFoundException(getSourceObject());
-                    }
-                    blobs.put(getDestinationObject(), bytes);
-
-                    StorageObject storageObject = new StorageObject();
-                    storageObject.setId(getDestinationObject());
-                    return storageObject;
-                }
-            };
-        }
-    }
-
-    private static GoogleJsonResponseException newBucketNotFoundException(final String bucket) {
-        HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Bucket not found: " + bucket, new HttpHeaders());
-        return new GoogleJsonResponseException(builder, new GoogleJsonError());
-    }
-
-    private static GoogleJsonResponseException newObjectNotFoundException(final String object) {
-        HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Object not found: " + object, new HttpHeaders());
-        return new GoogleJsonResponseException(builder, new GoogleJsonError());
-    }
-
-    /**
-     * {@link MockedHttpTransport} extends the existing testing transport to analyze the content
-     * of {@link com.google.api.client.googleapis.batch.BatchRequest} and delete the appropriates
-     * blobs. We use this because {@link Storage#batch()} is final and there is no other way to
-     * extend batch requests for testing purposes.
-     */
-    static class MockedHttpTransport extends MockHttpTransport {
-
-        private final ConcurrentMap<String, byte[]> blobs;
-
-        MockedHttpTransport(final ConcurrentMap<String, byte[]> blobs) {
-            this.blobs = blobs;
-        }
-
-        @Override
-        public LowLevelHttpRequest buildRequest(final String method, final String url) throws IOException {
-            // We analyze the content of the Batch request to detect our custom HTTP header,
-            // and extract from it the name of the blob to delete. Then we reply a simple
-            // batch response so that the client parser is happy.
-            //
-            // See https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch for the
-            // format of the batch request body.
-            if (HttpMethods.POST.equals(method) && url.endsWith("/batch")) {
-                return new MockLowLevelHttpRequest() {
-                    @Override
-                    public LowLevelHttpResponse execute() throws IOException {
-                        final String contentType = new MultipartContent().getType();
-
-                        final StringBuilder builder = new StringBuilder();
-                        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                            getStreamingContent().writeTo(out);
-
-                            Streams.readAllLines(new ByteArrayInputStream(out.toByteArray()), line -> {
-                                if (line != null && line.startsWith(DELETION_HEADER)) {
-                                    builder.append("--__END_OF_PART__\r\n");
-                                    builder.append("Content-Type: application/http").append("\r\n");
-                                    builder.append("\r\n");
-                                    builder.append("HTTP/1.1 ");
-
-                                    final String blobName = line.substring(line.indexOf(':') + 1).trim();
-                                    if (blobs.containsKey(blobName)) {
-                                        builder.append(RestStatus.OK.getStatus());
-                                        blobs.remove(blobName);
-                                    } else {
-                                        builder.append(RestStatus.NOT_FOUND.getStatus());
-                                    }
-                                    builder.append("\r\n");
-                                    builder.append("Content-Type: application/json; charset=UTF-8").append("\r\n");
-                                    builder.append("Content-Length: 0").append("\r\n");
-                                    builder.append("\r\n");
-                                }
-                            });
-                            builder.append("\r\n");
-                            builder.append("--__END_OF_PART__--");
-                        }
-
-                        MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
-                        response.setStatusCode(200);
-                        response.setContent(builder.toString());
-                        response.setContentType(contentType);
-                        return response;
-                    }
-                };
-            } else {
-                return super.buildRequest(method, url);
+    public Blob get(BlobId blob) {
+        if (bucketName.equals(blob.getBucket())) {
+            final byte[] bytes = blobs.get(blob.getName());
+            if (bytes != null) {
+                return StorageTestUtils.createBlob(this, bucketName, blob.getName(), bytes.length);
             }
         }
+        return null;
+    }
+
+    @Override
+    public boolean delete(BlobId blob) {
+        if (bucketName.equals(blob.getBucket()) && blobs.containsKey(blob.getName())) {
+            return blobs.remove(blob.getName()) != null;
+        }
+        return false;
+    }
+
+    @Override
+    public List<Boolean> delete(Iterable<BlobId> blobIds) {
+        final List<Boolean> ans = new ArrayList<>();
+        for (final BlobId blobId : blobIds) {
+            ans.add(delete(blobId));
+        }
+        return ans;
+    }
+
+    @Override
+    public Blob create(BlobInfo blobInfo, byte[] content, BlobTargetOption... options) {
+        if (bucketName.equals(blobInfo.getBucket()) == false) {
+            throw new StorageException(404, "Bucket not found");
+        }
+        blobs.put(blobInfo.getName(), content);
+        return get(BlobId.of(blobInfo.getBucket(), blobInfo.getName()));
+    }
+
+    @Override
+    public CopyWriter copy(CopyRequest copyRequest) {
+        if (bucketName.equals(copyRequest.getSource().getBucket()) == false) {
+            throw new StorageException(404, "Source bucket not found");
+        }
+        if (bucketName.equals(copyRequest.getTarget().getBucket()) == false) {
+            throw new StorageException(404, "Target bucket not found");
+        }
+
+        final byte[] bytes = blobs.get(copyRequest.getSource().getName());
+        if (bytes == null) {
+            throw new StorageException(404, "Source blob does not exist");
+        }
+        blobs.put(copyRequest.getTarget().getName(), bytes);
+        return StorageRpcOptionUtils
+                .createCopyWriter(get(BlobId.of(copyRequest.getTarget().getBucket(), copyRequest.getTarget().getName())));
+    }
+
+    @Override
+    public Page<Blob> list(String bucket, BlobListOption... options) {
+        if (bucketName.equals(bucket) == false) {
+            throw new StorageException(404, "Bucket not found");
+        }
+        final Storage storage = this;
+        final String prefix = StorageRpcOptionUtils.getPrefix(options);
+
+        return new Page<Blob>() {
+            @Override
+            public boolean hasNextPage() {
+                return false;
+            }
+
+            @Override
+            public String getNextPageToken() {
+                return null;
+            }
+
+            @Override
+            public Page<Blob> getNextPage() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Iterable<Blob> iterateAll() {
+                return blobs.entrySet().stream()
+                    .filter(blob -> ((prefix == null) || blob.getKey().startsWith(prefix)))
+                    .map(blob -> StorageTestUtils.createBlob(storage, bucketName, blob.getKey(), blob.getValue().length))
+                    .collect(Collectors.toList());
+            }
+
+            @Override
+            public Iterable<Blob> getValues() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    @Override
+    public ReadChannel reader(BlobId blob, BlobSourceOption... options) {
+        if (bucketName.equals(blob.getBucket())) {
+            final byte[] bytes = blobs.get(blob.getName());
+            final ReadableByteChannel readableByteChannel = Channels.newChannel(new ByteArrayInputStream(bytes));
+            return new ReadChannel() {
+                @Override
+                public void close() {
+                    IOUtils.closeWhileHandlingException(readableByteChannel);
+                }
+
+                @Override
+                public void seek(long position) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void setChunkSize(int chunkSize) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public RestorableState<ReadChannel> capture() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public int read(ByteBuffer dst) throws IOException {
+                    return readableByteChannel.read(dst);
+                }
+
+                @Override
+                public boolean isOpen() {
+                    return readableByteChannel.isOpen();
+                }
+            };
+        }
+        return null;
+    }
+
+    @Override
+    public WriteChannel writer(BlobInfo blobInfo, BlobWriteOption... options) {
+        if (bucketName.equals(blobInfo.getBucket())) {
+            final ByteArrayOutputStream output = new ByteArrayOutputStream();
+            return new WriteChannel() {
+
+                final WritableByteChannel writableByteChannel = Channels.newChannel(output);
+
+                @Override
+                public void setChunkSize(int chunkSize) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public RestorableState<WriteChannel> capture() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public int write(ByteBuffer src) throws IOException {
+                    return writableByteChannel.write(src);
+                }
+
+                @Override
+                public boolean isOpen() {
+                    return writableByteChannel.isOpen();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    IOUtils.closeWhileHandlingException(writableByteChannel);
+                    blobs.put(blobInfo.getName(), output.toByteArray());
+                }
+            };
+        }
+        return null;
+    }
+
+    // Everything below this line is not implemented.
+
+    @Override
+    public Bucket create(BucketInfo bucketInfo, BucketTargetOption... options) {
+        return null;
+    }
+
+    @Override
+    public Blob create(BlobInfo blobInfo, BlobTargetOption... options) {
+        return null;
+    }
+
+    @Override
+    public Blob create(BlobInfo blobInfo, InputStream content, BlobWriteOption... options) {
+        return null;
+    }
+
+    @Override
+    public Blob get(String bucket, String blob, BlobGetOption... options) {
+        return null;
+    }
+
+    @Override
+    public Blob get(BlobId blob, BlobGetOption... options) {
+        return null;
+    }
+
+    @Override
+    public Page<Bucket> list(BucketListOption... options) {
+        return null;
+    }
+
+    @Override
+    public Bucket update(BucketInfo bucketInfo, BucketTargetOption... options) {
+        return null;
+    }
+
+    @Override
+    public Blob update(BlobInfo blobInfo, BlobTargetOption... options) {
+        return null;
+    }
+
+    @Override
+    public Blob update(BlobInfo blobInfo) {
+        return null;
+    }
+
+    @Override
+    public boolean delete(String bucket, BucketSourceOption... options) {
+        return false;
+    }
+
+    @Override
+    public boolean delete(String bucket, String blob, BlobSourceOption... options) {
+        return false;
+    }
+
+    @Override
+    public boolean delete(BlobId blob, BlobSourceOption... options) {
+        return false;
+    }
+
+    @Override
+    public Blob compose(ComposeRequest composeRequest) {
+        return null;
+    }
+
+    @Override
+    public byte[] readAllBytes(String bucket, String blob, BlobSourceOption... options) {
+        return new byte[0];
+    }
+
+    @Override
+    public byte[] readAllBytes(BlobId blob, BlobSourceOption... options) {
+        return new byte[0];
+    }
+
+    @Override
+    public StorageBatch batch() {
+        return null;
+    }
+
+    @Override
+    public ReadChannel reader(String bucket, String blob, BlobSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public URL signUrl(BlobInfo blobInfo, long duration, TimeUnit unit, SignUrlOption... options) {
+        return null;
+    }
+
+    @Override
+    public List<Blob> get(BlobId... blobIds) {
+        return null;
+    }
+
+    @Override
+    public List<Blob> get(Iterable<BlobId> blobIds) {
+        return null;
+    }
+
+    @Override
+    public List<Blob> update(BlobInfo... blobInfos) {
+        return null;
+    }
+
+    @Override
+    public List<Blob> update(Iterable<BlobInfo> blobInfos) {
+        return null;
+    }
+
+    @Override
+    public List<Boolean> delete(BlobId... blobIds) {
+        return null;
+    }
+
+    @Override
+    public Acl getAcl(String bucket, Acl.Entity entity, BucketSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public Acl getAcl(String bucket, Acl.Entity entity) {
+        return null;
+    }
+
+    @Override
+    public boolean deleteAcl(String bucket, Acl.Entity entity, BucketSourceOption... options) {
+        return false;
+    }
+
+    @Override
+    public boolean deleteAcl(String bucket, Acl.Entity entity) {
+        return false;
+    }
+
+    @Override
+    public Acl createAcl(String bucket, Acl acl, BucketSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public Acl createAcl(String bucket, Acl acl) {
+        return null;
+    }
+
+    @Override
+    public Acl updateAcl(String bucket, Acl acl, BucketSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public Acl updateAcl(String bucket, Acl acl) {
+        return null;
+    }
+
+    @Override
+    public List<Acl> listAcls(String bucket, BucketSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public List<Acl> listAcls(String bucket) {
+        return null;
+    }
+
+    @Override
+    public Acl getDefaultAcl(String bucket, Acl.Entity entity) {
+        return null;
+    }
+
+    @Override
+    public boolean deleteDefaultAcl(String bucket, Acl.Entity entity) {
+        return false;
+    }
+
+    @Override
+    public Acl createDefaultAcl(String bucket, Acl acl) {
+        return null;
+    }
+
+    @Override
+    public Acl updateDefaultAcl(String bucket, Acl acl) {
+        return null;
+    }
+
+    @Override
+    public List<Acl> listDefaultAcls(String bucket) {
+        return null;
+    }
+
+    @Override
+    public Acl getAcl(BlobId blob, Acl.Entity entity) {
+        return null;
+    }
+
+    @Override
+    public boolean deleteAcl(BlobId blob, Acl.Entity entity) {
+        return false;
+    }
+
+    @Override
+    public Acl createAcl(BlobId blob, Acl acl) {
+        return null;
+    }
+
+    @Override
+    public Acl updateAcl(BlobId blob, Acl acl) {
+        return null;
+    }
+
+    @Override
+    public List<Acl> listAcls(BlobId blob) {
+        return null;
+    }
+
+    @Override
+    public Policy getIamPolicy(String bucket, BucketSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public Policy setIamPolicy(String bucket, Policy policy, BucketSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public List<Boolean> testIamPermissions(String bucket, List<String> permissions, BucketSourceOption... options) {
+        return null;
+    }
+
+    @Override
+    public ServiceAccount getServiceAccount(String projectId) {
+        return null;
+    }
+
+    @Override
+    public StorageOptions getOptions() {
+        return null;
     }
 }

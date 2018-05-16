@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 
 public abstract class ClusterStateWaitStep extends Step {
@@ -14,6 +15,24 @@ public abstract class ClusterStateWaitStep extends Step {
         super(key, nextStepKey);
     }
 
-    public abstract boolean isConditionMet(Index index, ClusterState clusterState);
+    public abstract Result isConditionMet(Index index, ClusterState clusterState);
+
+    public static class Result {
+        private final boolean complete;
+        private final ToXContentObject infomationContext;
+
+        public Result(boolean complete, ToXContentObject infomationContext) {
+            this.complete = complete;
+            this.infomationContext = infomationContext;
+        }
+
+        public boolean isComplete() {
+            return complete;
+        }
+
+        public ToXContentObject getInfomationContext() {
+            return infomationContext;
+        }
+    }
 
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClus
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockInitializePolicyContextStep;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -104,7 +105,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         policyStepsRegistry.update(clusterState, null, () -> 0L);
     }
 
-    public void testExecuteAllUntilEndOfPolicy() {
+    public void testExecuteAllUntilEndOfPolicy() throws IOException {
         Step startStep = policyStepsRegistry.getFirstStep(allClusterPolicyName);
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(allClusterPolicyName, index, startStep, policyStepsRegistry, () -> now);
@@ -115,9 +116,10 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(TerminalPolicyStep.KEY));
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
     }
 
-    public void testExecuteMoveToNextActionStep() {
+    public void testExecuteMoveToNextActionStep() throws IOException {
         secondStep.setWillComplete(false);
         Step startStep = policyStepsRegistry.getFirstStep(mixedPolicyName);
         long now = randomNonNegativeLong();
@@ -129,9 +131,10 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
     }
 
-    public void testNeverExecuteNonClusterStateStep() {
+    public void testNeverExecuteNonClusterStateStep() throws IOException {
         setStateToKey(thirdStepKey);
         Step startStep = policyStepsRegistry.getStep(mixedPolicyName, thirdStepKey);
         long now = randomNonNegativeLong();
@@ -139,7 +142,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(task.execute(clusterState), sameInstance(clusterState));
     }
 
-    public void testExecuteUntilFirstNonClusterStateStep() {
+    public void testExecuteUntilFirstNonClusterStateStep() throws IOException {
         setStateToKey(secondStepKey);
         Step startStep = policyStepsRegistry.getStep(mixedPolicyName, secondStepKey);
         long now = randomNonNegativeLong();
@@ -151,9 +154,10 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
+        assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
     }
 
-    public void testExecuteIncompleteWaitStep() {
+    public void testExecuteIncompleteWaitStepNoInfo() throws IOException {
         secondStep.setWillComplete(false);
         setStateToKey(secondStepKey);
         Step startStep = policyStepsRegistry.getStep(mixedPolicyName, secondStepKey);
@@ -166,6 +170,26 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
+        assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
+    }
+
+    public void testExecuteIncompleteWaitStepWithInfo() throws IOException {
+        secondStep.setWillComplete(false);
+        IndexLifecycleRunnerTests.RandomStepInfo stepInfo = new IndexLifecycleRunnerTests.RandomStepInfo();
+        secondStep.expectedInfo(stepInfo);
+        setStateToKey(secondStepKey);
+        Step startStep = policyStepsRegistry.getStep(mixedPolicyName, secondStepKey);
+        long now = randomNonNegativeLong();
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, () -> now);
+        ClusterState newState = task.execute(clusterState);
+        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
+        assertThat(currentStepKey, equalTo(secondStepKey));
+        assertThat(firstStep.getExecuteCount(), equalTo(0L));
+        assertThat(secondStep.getExecuteCount(), equalTo(1L));
+        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
+        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
+        assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()),
+                equalTo(stepInfo.toString()));
     }
 
     public void testOnFailure() {

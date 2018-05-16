@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -587,6 +588,20 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, cause, now);
     }
 
+    public void testAddStepInfoToClusterState() throws IOException {
+        String indexName = "my_index";
+        StepKey currentStep = new StepKey("current_phase", "current_action", "current_step");
+        RandomStepInfo stepInfo = new RandomStepInfo();
+
+        ClusterState clusterState = buildClusterState(indexName,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        ClusterState newClusterState = IndexLifecycleRunner.addStepInfoToClusterState(index, clusterState, stepInfo);
+        assertClusterStateStepInfo(clusterState, index, currentStep, newClusterState, stepInfo);
+    }
+
     private ClusterState buildClusterState(String indexName, Settings.Builder indexSettingsBuilder) {
         Settings indexSettings = indexSettingsBuilder.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -651,7 +666,31 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(now, (long) LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
     }
 
-    private class RandomStepInfo implements ToXContentObject {
+    private void assertClusterStateStepInfo(ClusterState oldClusterState, Index index, StepKey currentStep, ClusterState newClusterState,
+            ToXContentObject stepInfo) throws IOException {
+        XContentBuilder stepInfoXContentBuilder = JsonXContent.contentBuilder();
+        stepInfo.toXContent(stepInfoXContentBuilder, ToXContent.EMPTY_PARAMS);
+        String expectedstepInfoValue = BytesReference.bytes(stepInfoXContentBuilder).utf8ToString();
+        assertNotSame(oldClusterState, newClusterState);
+        MetaData newMetadata = newClusterState.metaData();
+        assertNotSame(oldClusterState.metaData(), newMetadata);
+        IndexMetaData newIndexMetadata = newMetadata.getIndexSafe(index);
+        assertNotSame(oldClusterState.metaData().index(index), newIndexMetadata);
+        Settings newIndexSettings = newIndexMetadata.getSettings();
+        assertNotSame(oldClusterState.metaData().index(index).getSettings(), newIndexSettings);
+        assertEquals(currentStep.getPhase(), LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(newIndexSettings));
+        assertEquals(currentStep.getAction(), LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(newIndexSettings));
+        assertEquals(currentStep.getName(), LifecycleSettings.LIFECYCLE_STEP_SETTING.get(newIndexSettings));
+        assertEquals(expectedstepInfoValue, LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
+        assertEquals(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
+    }
+
+    static class RandomStepInfo implements ToXContentObject {
 
         private final String key;
         private final String value;
@@ -684,6 +723,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             }
             RandomStepInfo other = (RandomStepInfo) obj;
             return Objects.equals(key, other.key) && Objects.equals(value, other.value);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 
@@ -802,6 +846,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private RuntimeException exception;
         private boolean willComplete;
         private long executeCount = 0;
+        private ToXContentObject expectedInfo = null;
 
         MockClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey);
@@ -815,17 +860,21 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             this.willComplete = willComplete;
         }
 
+        void expectedInfo(ToXContentObject expectedInfo) {
+            this.expectedInfo = expectedInfo;
+        }
+
         public long getExecuteCount() {
             return executeCount;
         }
 
         @Override
-        public boolean isConditionMet(Index index, ClusterState clusterState) {
+        public Result isConditionMet(Index index, ClusterState clusterState) {
             executeCount++;
             if (exception != null) {
                 throw exception;
             }
-            return willComplete;
+            return new Result(willComplete, expectedInfo);
         }
 
     }

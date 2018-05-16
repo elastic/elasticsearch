@@ -90,10 +90,12 @@ public class SegmentCountStep extends AsyncWaitStep {
         private final long numberShardsLeftToMerge;
 
         static final ParseField SHARDS_TO_MERGE = new ParseField("shards_left_to_merge");
+        static final ParseField MESSAGE = new ParseField("message");
         static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>("segment_count_step_info",
                 a -> new Info((long) a[0]));
         static {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_MERGE);
+            PARSER.declareString((i, s) -> {}, MESSAGE);
         }
 
         public Info(long numberShardsLeftToMerge) {
@@ -107,6 +109,8 @@ public class SegmentCountStep extends AsyncWaitStep {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field(MESSAGE.getPreferredName(),
+                    "Waiting for [" + numberShardsLeftToMerge + "] shards " + "to forcemerge");
             builder.field(SHARDS_TO_MERGE.getPreferredName(), numberShardsLeftToMerge);
             builder.endObject();
             return builder;

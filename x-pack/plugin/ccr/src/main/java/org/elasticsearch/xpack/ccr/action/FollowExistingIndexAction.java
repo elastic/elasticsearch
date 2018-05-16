@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.stream.Collectors;
 
 public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.Request,
         FollowExistingIndexAction.Response, FollowExistingIndexAction.RequestBuilder> {
@@ -242,13 +243,16 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
                 final int numShards = followIndexMetadata.getNumberOfShards();
                 final AtomicInteger counter = new AtomicInteger(numShards);
                 final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
+                Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+                    .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 for (int i = 0; i < numShards; i++) {
                     final int shardId = i;
                     String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
                     ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
                             new ShardId(followIndexMetadata.getIndex(), shardId),
                             new ShardId(leaderIndexMetadata.getIndex(), shardId),
-                            request.batchSize, request.concurrentProcessors, request.processorMaxTranslogBytes);
+                            request.batchSize, request.concurrentProcessors, request.processorMaxTranslogBytes, filteredHeaders);
                     persistentTasksService.startPersistentTask(taskId, ShardFollowTask.NAME, shardFollowTask,
                             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                                 @Override

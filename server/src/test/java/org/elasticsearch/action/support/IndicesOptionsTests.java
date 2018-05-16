@@ -33,7 +33,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndicesOptionsTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/30644")
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {

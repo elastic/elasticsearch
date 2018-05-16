@@ -17,7 +17,7 @@ information, see {stack-ov}/saml-realm.html[SAML authentication] and
 
 * If you configure a SAML realm for use in {kib}, you should also configure
 another realm, such as the native realm in your authentication chain.
-* These instructions assume that you have an existing identity provider.
+* These instructions assume that you have an existing SAML identity provider.
 --
 
 To enable SAML authentication in {es} and add the {stack} as a service provider:
@@ -46,7 +46,7 @@ xpack.security.authc.token.enabled: true
 ------------------------------------------------------------
 --
 
-. Generate a SAML metadata file. 
+. Configure a SAML IdP metadata file. 
 +
 --
 The {stack} uses a standard SAML metadata document in XML format, which defines 

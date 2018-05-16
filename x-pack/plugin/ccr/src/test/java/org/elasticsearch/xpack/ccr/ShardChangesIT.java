@@ -217,7 +217,8 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testSyncMappings() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(2, Collections.emptyMap());
+        final String leaderIndexSettings = getIndexSettings(2,
+            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
 
         final String followerIndexSettings =

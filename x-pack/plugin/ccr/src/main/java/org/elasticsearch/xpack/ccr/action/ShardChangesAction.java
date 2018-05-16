@@ -200,7 +200,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexMetadataVersion, operations);
+            int result = 1;
+            result += Objects.hashCode(indexMetadataVersion);
+            result += Arrays.hashCode(operations);
+            return result;
         }
     }
 
@@ -262,7 +265,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo, long byteLimit) throws IOException {
+    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo,
+                                                     long byteLimit) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }

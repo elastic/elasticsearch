@@ -709,6 +709,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new IllegalArgumentException("Latest translog primary term [" + current.getPrimaryTerm()
                     + "] has to be not less that trimming term [" + belowTerm + "]");
             }
+            assert current.assertNoSeqAbove(aboveSeqNo);
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {

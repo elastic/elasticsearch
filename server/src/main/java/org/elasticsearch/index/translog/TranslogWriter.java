@@ -213,6 +213,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return true;
     }
 
+    synchronized boolean assertNoSeqAbove(long seqNo) {
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            seenSequenceNumbers.keySet().stream().filter(s -> s.longValue() > seqNo)
+                .findFirst()
+                .ifPresent(v -> {
+                    throw new AssertionError("current should not have any operations with seq# [" + v + "] > " + seqNo);
+                });
+        }
+        return true;
+    }
+
     /**
      * write all buffered ops to disk and fsync file.
      *

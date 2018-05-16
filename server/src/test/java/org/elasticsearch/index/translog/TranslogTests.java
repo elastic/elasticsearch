@@ -1512,6 +1512,27 @@ public class TranslogTests extends ESTestCase {
         assertEquals(ops, readOperations);
     }
 
+    public void testSnapshotCurrentHasUnexpectedOperationsForTrimmedOperations() throws Exception {
+        int extraDocs = randomIntBetween(10, 15);
+        for (int op = 0; op < extraDocs; op++) {
+            String ascii = randomAlphaOfLengthBetween(1, 50);
+            Translog.Index operation = new Translog.Index("test", "" + op, op,
+                this.primaryTerm.get(), ascii.getBytes("UTF-8"));
+            translog.add(operation);
+        }
+        try {
+            translog.trimOperations(primaryTerm.get() - 1, 0);
+            fail();
+        } catch (AssertionError e) {
+            assertThat(e.getMessage(), is("current should not have any operations with seq# [1] > 0"));
+        }
+
+        translog.rollGeneration();
+
+        // it is possible to trim after generation rollover
+        translog.trimOperations(primaryTerm.get() - 1, 0);
+    }
+
     public void testSnapshotTrimmedOperations() throws Exception {
         int translogOperations = 0;
         int skipped = 0;
@@ -1520,14 +1541,26 @@ public class TranslogTests extends ESTestCase {
         for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
             int extraDocs = randomIntBetween(10, 15);
 
-            List<Integer> ops = IntStream.range(0, extraDocs).boxed().collect(Collectors.toList());
-            Randomness.shuffle(ops);
-            for (int op : ops) {
+            List<Translog.Index> operations = new ArrayList<>();
+            for (int op = 0; op < extraDocs; op++) {
                 String ascii = randomAlphaOfLengthBetween(1, 50);
                 int seqNo = translogOperations + op;
                 Translog.Index operation = new Translog.Index("test", "" + seqNo, seqNo,
                     this.primaryTerm.get(), ascii.getBytes("UTF-8"));
+                operations.add(operation);
+            }
 
+            // TODO: add duplicates with the same seq# but diff term
+
+            int duplicates = randomInt(5);
+            for(int i = 0; i < duplicates; i++) {
+                operations.add(operations.get(randomInt(extraDocs)));
+            }
+            skipped += duplicates;
+
+            Randomness.shuffle(operations);
+
+            for (Translog.Index operation : operations) {
                 translog.add(operation);
             }
 
@@ -1538,7 +1571,7 @@ public class TranslogTests extends ESTestCase {
             }
 
             int trimmedDocs = randomIntBetween(4, 8);
-            int maxTrimmedSeqNo = translogOperations + extraDocs - trimmedDocs;
+            int maxTrimmedSeqNo = rollover ? translogOperations + extraDocs - trimmedDocs : translogOperations + extraDocs + 1;
             translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
             translog.sync();
 
@@ -1597,13 +1630,15 @@ public class TranslogTests extends ESTestCase {
             }
 
             translogOperations += extraTranslogOperations;
-            maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
 
             // at least one roll + inc of primary term has to be there - otherwise trim would not take place at all
-            if (attempt == 0 || randomBoolean()) {
+            boolean rollover = attempt == 0 || randomBoolean();
+            if (rollover) {
                 primaryTerm.incrementAndGet();
                 failableTLog.rollGeneration();
             }
+
+            maxTrimmedSeqNo = rollover ? translogOperations - randomIntBetween(4, 8) : translogOperations + 1;
 
             // chance to fail is proportional to number of attempt to get on the last attempt 100% chance of failure
             fail.failRate(10 + 10 * attempt);

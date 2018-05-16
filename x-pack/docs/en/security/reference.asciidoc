@@ -7,6 +7,4 @@
 * {ref}/security-api.html[Security API]
 * {ref}/xpack-commands.html[Security Commands]
 
-include::reference/privileges.asciidoc[]
-
 include::reference/files.asciidoc[]

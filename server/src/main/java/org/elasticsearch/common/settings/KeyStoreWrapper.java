@@ -158,6 +158,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** The decrypted secret data. See {@link #decrypt(char[])}. */
     private final SetOnce<Map<String, Entry>> entries = new SetOnce<>();
+    private volatile boolean closed;
 
     private KeyStoreWrapper(int formatVersion, boolean hasPassword, byte[] dataBytes) {
         this.formatVersion = formatVersion;
@@ -448,8 +449,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Write the keystore to the given config directory. */
-    public void save(Path configDir, char[] password) throws Exception {
-        assert isLoaded();
+    public synchronized void save(Path configDir, char[] password) throws Exception {
+        ensureOpen();
 
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         // write to tmp file first, then overwrite
@@ -500,16 +501,22 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
+    /**
+     * It is possible to retrieve the setting names even if the keystore is closed.
+     * This allows {@link SecureSetting} to correctly determine that a entry exists even though it cannot be read. Thus attempting to
+     * read a secure setting after the keystore is closed will generate a "keystore is closed" exception rather than using the fallback
+     * setting.
+     */
     @Override
     public Set<String> getSettingNames() {
-        assert isLoaded();
+        assert entries.get() != null : "Keystore is not loaded";
         return entries.get().keySet();
     }
 
     // TODO: make settings accessible only to code that registered the setting
     @Override
-    public SecureString getString(String setting) {
-        assert isLoaded();
+    public synchronized SecureString getString(String setting) {
+        ensureOpen();
         Entry entry = entries.get().get(setting);
         if (entry == null || entry.type != EntryType.STRING) {
             throw new IllegalArgumentException("Secret setting " + setting + " is not a string");
@@ -520,13 +527,12 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     @Override
-    public InputStream getFile(String setting) {
-        assert isLoaded();
+    public synchronized InputStream getFile(String setting) {
+        ensureOpen();
         Entry entry = entries.get().get(setting);
         if (entry == null || entry.type != EntryType.FILE) {
             throw new IllegalArgumentException("Secret setting " + setting + " is not a file");
         }
-
         return new ByteArrayInputStream(entry.bytes);
     }
 
@@ -543,8 +549,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Set a string setting. */
-    void setString(String setting, char[] value) {
-        assert isLoaded();
+    synchronized void setString(String setting, char[] value) {
+        ensureOpen();
         validateSettingName(setting);
 
         ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(value));
@@ -556,8 +562,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Set a file setting. */
-    void setFile(String setting, byte[] bytes) {
-        assert isLoaded();
+    synchronized void setFile(String setting, byte[] bytes) {
+        ensureOpen();
         validateSettingName(setting);
 
         Entry oldEntry = entries.get().put(setting, new Entry(EntryType.FILE, Arrays.copyOf(bytes, bytes.length)));
@@ -568,15 +574,23 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Remove the given setting from the keystore. */
     void remove(String setting) {
-        assert isLoaded();
+        ensureOpen();
         Entry oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {
             Arrays.fill(oldEntry.bytes, (byte)0);
         }
     }
 
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("Keystore is closed");
+        }
+        assert isLoaded() : "Keystore is not loaded";
+    }
+
     @Override
-    public void close() {
+    public synchronized void close() {
+        this.closed = true;
         for (Entry entry : entries.get().values()) {
             Arrays.fill(entry.bytes, (byte)0);
         }

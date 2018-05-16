@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ public class RestSqlTranslateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlTranslateRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlTranslateRequest.fromXContent(parser, AbstractSqlRequest.Mode.fromString(request.param("mode")));
+            sqlRequest = SqlTranslateRequest.fromXContent(parser, Mode.fromString(request.param("mode")));
         }
         return channel -> client.executeLocally(SqlTranslateAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }

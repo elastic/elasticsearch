@@ -1,5 +1,6 @@
+[role="xpack"]
 [[encrypting-communications]]
-== Encrypting Communications
+== Encrypting communications
 
 Elasticsearch nodes store data that may be confidential. Attacks on the data may
 come from the network. These attacks could include sniffing of the data,
@@ -21,7 +22,7 @@ include::securing-communications/setting-up-ssl.asciidoc[]
 //TO-DO: These sections can be removed when all links to them are removed.
 
 [[ciphers]]
-=== Enabling Cipher Suites for Stronger Encryption
+=== Enabling cipher suites for stronger encryption
 
 See {ref}/ciphers.html[Enabling Cipher Suites for Stronger Encryption].
 

@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
 
 /**
  * Manages building {@link ScriptService}.
@@ -51,7 +52,8 @@ public class ScriptModule {
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
-            TemplateScript.CONTEXT
+            TemplateScript.CONTEXT,
+            MovingFunctionScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

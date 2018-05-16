@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.gcs;
 import com.google.cloud.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -31,7 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30638")
     public void testDeprecatedSettings() throws Exception {
         final Settings repositorySettings = Settings.builder()
             .put("bucket", "test")
@@ -46,7 +46,7 @@ public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
         new GoogleCloudStorageRepository(repositoryMetaData, environment, NamedXContentRegistry.EMPTY,
             new GoogleCloudStorageService(environment, GoogleCloudStorageClientSettings.load(Settings.EMPTY)) {
                 @Override
-                public Storage createClient(String clientName) throws Exception {
+                public Storage createClient(String clientName, String application, TimeValue connect, TimeValue read) throws Exception {
                     return new MockStorage("test", new ConcurrentHashMap<>());
                 }
             });

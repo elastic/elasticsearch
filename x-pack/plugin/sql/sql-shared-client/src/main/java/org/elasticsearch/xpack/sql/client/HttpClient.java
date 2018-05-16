@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -22,13 +21,14 @@ import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection.ResponseOrException;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
+import org.elasticsearch.xpack.sql.proto.MainResponse;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest;
+import org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse;
+import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,7 +50,7 @@ public class HttpClient {
 
     private final ConnectionConfiguration cfg;
 
-    public HttpClient(ConnectionConfiguration cfg) throws SQLException {
+    public HttpClient(ConnectionConfiguration cfg) {
         this.cfg = cfg;
     }
 
@@ -66,26 +66,25 @@ public class HttpClient {
 
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.PLAIN, query, Collections.emptyList(), null,
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, query, Collections.emptyList(), null,
                 TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
-                TimeValue.timeValueMillis(cfg.pageTimeout()), ""
-        );
+                TimeValue.timeValueMillis(cfg.pageTimeout()));
         return query(sqlRequest);
     }
 
     public SqlQueryResponse query(SqlQueryRequest sqlRequest) throws SQLException {
-        return post(SqlQueryAction.REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
+        return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest();
-        sqlRequest.cursor(cursor);
-        return post(SqlQueryAction.REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
+            TimeValue.timeValueMillis(cfg.pageTimeout()));
+        return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public boolean queryClose(String cursor) throws SQLException {
-        SqlClearCursorResponse response = post(SqlClearCursorAction.REST_ENDPOINT,
-                new SqlClearCursorRequest(AbstractSqlRequest.Mode.PLAIN, cursor),
+        SqlClearCursorResponse response = post(Protocol.CLEAR_CURSOR_REST_ENDPOINT,
+                new SqlClearCursorRequest(Mode.PLAIN, cursor),
                 SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }

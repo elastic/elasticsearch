@@ -239,7 +239,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
         filters.add(PreConfiguredTokenFilter.singletonWithVersion("edgeNGram", false, (reader, version) -> {
             if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("esgeNGram_deprecation",
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("edgeNGram_deprecation",
                         "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
                                 + "Please change the filter name to [edge_ngram] instead.");
             }

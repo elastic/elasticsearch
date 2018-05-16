@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -580,6 +582,22 @@ final class RequestConverters {
         return request;
     }
 
+    static Request listTasks(ListTasksRequest listTaskRequest) {
+        if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
+            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
+        }
+        Request request  = new Request(HttpGet.METHOD_NAME, "/_tasks");
+        Params params = new Params(request);
+        params.withTimeout(listTaskRequest.getTimeout())
+            .withDetailed(listTaskRequest.getDetailed())
+            .withWaitForCompletion(listTaskRequest.getWaitForCompletion())
+            .withParentTaskId(listTaskRequest.getParentTaskId())
+            .withNodes(listTaskRequest.getNodes())
+            .withActions(listTaskRequest.getActions())
+            .putParam("group_by", "none");
+        return request;
+    }
+
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
                 .addPathPart(rolloverRequest.getNewIndexName()).build();
@@ -877,6 +895,48 @@ final class RequestConverters {
         Params withPreserveExisting(boolean preserveExisting) {
             if (preserveExisting) {
                 return putParam("preserve_existing", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withDetailed(boolean detailed) {
+            if (detailed) {
+                return putParam("detailed", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForCompletion(boolean waitForCompletion) {
+            if (waitForCompletion) {
+                return putParam("wait_for_completion", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withNodes(String[] nodes) {
+            if (nodes != null && nodes.length > 0) {
+                return putParam("nodes", String.join(",", nodes));
+            }
+            return this;
+        }
+
+        Params withActions(String[] actions) {
+            if (actions != null && actions.length > 0) {
+                return putParam("actions", String.join(",", actions));
+            }
+            return this;
+        }
+
+        Params withParentTaskId(TaskId parentTaskId) {
+            if (parentTaskId != null && parentTaskId.isSet()) {
+                return putParam("parent_task_id", parentTaskId.toString());
+            }
+            return this;
+        }
+
+        Params withVerify(boolean verify) {
+            if (verify) {
+                return putParam("verify", Boolean.TRUE.toString());
             }
             return this;
         }

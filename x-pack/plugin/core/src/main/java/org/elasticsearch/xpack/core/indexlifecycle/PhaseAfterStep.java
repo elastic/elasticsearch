@@ -24,11 +24,11 @@ public class PhaseAfterStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public boolean isConditionMet(Index index, ClusterState clusterState) {
+    public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetaData indexMetaData = clusterState.metaData().index(index);
         long lifecycleDate = indexMetaData.getSettings()
             .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
-        return nowSupplier.getAsLong() >= lifecycleDate + after.getMillis();
+        return new Result(nowSupplier.getAsLong() >= lifecycleDate + after.getMillis(), null);
     }
     
     TimeValue getAfter() {

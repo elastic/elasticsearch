@@ -10,11 +10,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
+import java.io.IOException;
 import java.util.function.LongSupplier;
 
 public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
@@ -48,7 +50,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
 
 
     @Override
-    public ClusterState execute(ClusterState currentState) {
+    public ClusterState execute(ClusterState currentState) throws IOException {
         Step currentStep = startStep;
         Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy,
             currentState.metaData().index(index).getSettings());
@@ -74,8 +76,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // cluster state so it can be applied and we will
                     // wait for the next trigger to evaluate the
                     // condition again
-                    boolean complete = ((ClusterStateWaitStep) currentStep).isConditionMet(index, currentState);
-                    if (complete) {
+                    ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, currentState);
+                    if (result.isComplete()) {
                         if (currentStep.getNextStepKey() == null) {
                             return currentState;
                         }
@@ -83,7 +85,12 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                                 currentStep.getNextStepKey(), nowSupplier);
                     } else {
                         logger.debug("condition not met, returning existing state");
-                        return currentState;
+                        ToXContentObject stepInfo = result.getInfomationContext();
+                        if (stepInfo == null) {
+                            return currentState;
+                        } else {
+                            return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
+                        }
                     }
                 }
                 currentStep = policyStepsRegistry.getStep(policy, currentStep.getNextStepKey());

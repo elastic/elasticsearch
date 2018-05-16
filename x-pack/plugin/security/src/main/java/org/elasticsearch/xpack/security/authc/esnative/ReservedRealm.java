@@ -30,9 +30,9 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,16 +63,16 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final AnonymousUser anonymousUser;
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
-    private final SecurityLifecycleService securityLifecycleService;
+    private final SecurityIndexManager securityIndex;
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
-                         SecurityLifecycleService securityLifecycleService, ThreadContext threadContext) {
+                         SecurityIndexManager securityIndex, ThreadContext threadContext) {
         super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env, threadContext));
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
-        this.securityLifecycleService = securityLifecycleService;
+        this.securityIndex = securityIndex;
         final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? EMPTY_PASSWORD_HASH :
                 Hasher.BCRYPT.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
         bootstrapUserInfo = new ReservedUserInfo(hash, true, hash == EMPTY_PASSWORD_HASH);
@@ -191,7 +191,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
             listener.onResponse(DISABLED_DEFAULT_USER_INFO.deepClone());
-        } else if (securityLifecycleService.securityIndex().indexExists() == false) {
+        } else if (securityIndex.indexExists() == false) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -218,7 +218,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private boolean userIsDefinedForCurrentSecurityMapping(String username) {
         final Version requiredVersion = getDefinedVersion(username);
-        return securityLifecycleService.securityIndex().checkMappingVersion(requiredVersion::onOrBefore);
+        return securityIndex.checkMappingVersion(requiredVersion::onOrBefore);
     }
 
     private Version getDefinedVersion(String username) {

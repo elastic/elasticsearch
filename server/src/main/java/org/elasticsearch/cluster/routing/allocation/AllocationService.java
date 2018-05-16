@@ -114,11 +114,24 @@ public class AllocationService extends AbstractComponent {
     }
 
     protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
-        RoutingTable oldRoutingTable = oldState.routingTable();
-        RoutingNodes newRoutingNodes = allocation.routingNodes();
+        ClusterState newState = buildResult(oldState, allocation);
+
+        logClusterHealthStateChange(
+            new ClusterStateHealth(oldState),
+            new ClusterStateHealth(newState),
+            reason
+        );
+
+        return newState;
+    }
+
+    private ClusterState buildResult(ClusterState oldState, RoutingAllocation allocation) {
+        final RoutingTable oldRoutingTable = oldState.routingTable();
+        final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
-        MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges(newRoutingTable);
+        final MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
+
         final ClusterState.Builder newStateBuilder = ClusterState.builder(oldState)
             .routingTable(newRoutingTable)
             .metaData(newMetaData);
@@ -131,13 +144,7 @@ public class AllocationService extends AbstractComponent {
                 newStateBuilder.customs(customsBuilder.build());
             }
         }
-        final ClusterState newState = newStateBuilder.build();
-        logClusterHealthStateChange(
-            new ClusterStateHealth(oldState),
-            new ClusterStateHealth(newState),
-            reason
-        );
-        return newState;
+        return newStateBuilder.build();
     }
 
     // Used for testing
@@ -209,24 +216,23 @@ public class AllocationService extends AbstractComponent {
      * if needed.
      */
     public ClusterState deassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
-        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
-        RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, fixedClusterState,
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime());
 
         // first, clear from the shards any node id they used to belong to that is now dead
         deassociateDeadNodes(allocation);
 
-        if (reroute) {
-            reroute(allocation);
+        if (allocation.routingNodesChanged()) {
+            clusterState = buildResult(clusterState, allocation);
         }
-
-        if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
+        if (reroute) {
+            return reroute(clusterState, reason);
+        } else {
             return clusterState;
         }
-        return buildResultAndLogHealthChange(clusterState, allocation, reason);
     }
 
     /**

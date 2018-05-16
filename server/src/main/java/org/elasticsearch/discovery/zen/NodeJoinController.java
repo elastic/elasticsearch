@@ -380,7 +380,7 @@ public class NodeJoinController extends AbstractComponent {
     /**
      * a task indicated that the current node should become master, if no current master is known
      */
-    private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_",
+    public static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_",
         new TransportAddress(TransportAddress.META_ADDRESS, 0),
         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
         @Override
@@ -393,7 +393,7 @@ public class NodeJoinController extends AbstractComponent {
      * a task that is used to signal the election is stopped and we should process pending joins.
      * it may be use in combination with {@link #BECOME_MASTER_TASK}
      */
-    private static final DiscoveryNode FINISH_ELECTION_TASK = new DiscoveryNode("_FINISH_ELECTION_",
+    public static final DiscoveryNode FINISH_ELECTION_TASK = new DiscoveryNode("_FINISH_ELECTION_",
         new TransportAddress(TransportAddress.META_ADDRESS, 0), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
             @Override
             public String toString() {

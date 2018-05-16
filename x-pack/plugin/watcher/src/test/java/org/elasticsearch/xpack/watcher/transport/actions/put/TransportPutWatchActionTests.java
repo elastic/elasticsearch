@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -20,10 +19,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.test.WatchExecutionContextMockBuilder;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
@@ -81,7 +80,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {
         // set up threadcontext with some arbitrary info
-        String headerName = randomFrom(Watcher.HEADER_FILTERS);
+        String headerName = randomFrom(ClientHelper.SECURITY_HEADER_FILTERS);
         threadContext.putHeader(headerName, randomAlphaOfLength(10));
         threadContext.putHeader(randomAlphaOfLength(10), "doesntmatter");
 

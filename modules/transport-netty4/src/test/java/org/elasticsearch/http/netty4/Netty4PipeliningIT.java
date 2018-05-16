@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class Netty4PipeliningEnabledIT extends ESNetty4IntegTestCase {
+public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {

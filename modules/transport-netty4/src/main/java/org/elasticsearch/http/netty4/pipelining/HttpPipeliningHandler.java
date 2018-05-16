@@ -22,50 +22,44 @@ package org.elasticsearch.http.netty4.pipelining;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
+import org.elasticsearch.http.HttpPipeliningAggregator;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.PriorityQueue;
+import java.util.List;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
 public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
-    // we use a priority queue so that responses are ordered by their sequence number
-    private final PriorityQueue<HttpPipelinedResponse> holdingQueue;
-
     private final Logger logger;
-    private final int maxEventsHeld;
-
-    /*
-     * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
-     * channel, and then transferred to responses. A response is not written to the channel context until its sequence number matches the
-     * current write sequence, implying that all preceding messages have been written.
-     */
-    private int readSequence;
-    private int writeSequence;
+    private final HttpPipeliningAggregator<FullHttpResponse, ChannelPromise> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
      *
-     * @param logger for logging unexpected errors
+     * @param logger        for logging unexpected errors
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
     public HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
         this.logger = logger;
-        this.maxEventsHeld = maxEventsHeld;
-        this.holdingQueue = new PriorityQueue<>(1);
+        this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         if (msg instanceof LastHttpContent) {
-            ctx.fireChannelRead(new HttpPipelinedRequest(((LastHttpContent) msg).retain(), readSequence++));
+            HttpPipelinedRequest<LastHttpContent> pipelinedRequest = aggregator.read(((LastHttpContent) msg).retain());
+            ctx.fireChannelRead(pipelinedRequest);
         } else {
             ctx.fireChannelRead(msg);
         }
@@ -74,67 +68,39 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
         if (msg instanceof HttpPipelinedResponse) {
-            final HttpPipelinedResponse current = (HttpPipelinedResponse) msg;
-            /*
-             * We attach the promise to the response. When we invoke a write on the channel with the response, we must ensure that we invoke
-             * the write methods that accept the same promise that we have attached to the response otherwise as the response proceeds
-             * through the handler pipeline a different promise will be used until reaching this handler. Therefore, we assert here that the
-             * attached promise is identical to the provided promise as a safety mechanism that we are respecting this.
-             */
-            assert current.promise() == promise;
-
-            boolean channelShouldClose = false;
-
-            synchronized (holdingQueue) {
-                if (holdingQueue.size() < maxEventsHeld) {
-                    holdingQueue.add(current);
-
-                    while (!holdingQueue.isEmpty()) {
-                        /*
-                         * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence
-                         * number does not match the current write sequence number then we have not processed all preceding responses yet.
-                         */
-                        final HttpPipelinedResponse top = holdingQueue.peek();
-                        if (top.sequence() != writeSequence) {
-                            break;
-                        }
-                        holdingQueue.remove();
-                        /*
-                         * We must use the promise attached to the response; this is necessary since are going to hold a response until all
-                         * responses that precede it in the pipeline are written first. Note that the promise from the method invocation is
-                         * not ignored, it will already be attached to an existing response and consumed when that response is drained.
-                         */
-                        ctx.write(top.response(), top.promise());
-                        writeSequence++;
-                    }
-                } else {
-                    channelShouldClose = true;
-                }
-            }
-
-            if (channelShouldClose) {
+            synchronized (aggregator) {
+                HttpPipelinedResponse<FullHttpResponse, ChannelPromise> response = (HttpPipelinedResponse<FullHttpResponse, ChannelPromise>) msg;
+                boolean success = false;
                 try {
+                    ArrayList<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> responsesToWrite = aggregator.write(response);
+                    success = true;
+                    for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> responseToWrite : responsesToWrite) {
+                        ctx.write(responseToWrite.getResponse(), responseToWrite.getListener());
+                    }
+                } catch (IllegalStateException e) {
                     Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
                 } finally {
-                    current.release();
-                    promise.setSuccess();
+                    if (success == false) {
+                        response.getListener().setFailure(new ClosedChannelException());
+                    }
                 }
             }
+
         } else {
             ctx.write(msg, promise);
         }
     }
 
     @Override
-    public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-        if (holdingQueue.isEmpty() == false) {
+    public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
+        List<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+
+        if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            HttpPipelinedResponse pipelinedResponse;
-            while ((pipelinedResponse = holdingQueue.poll()) != null) {
+            for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
                 try {
-                    pipelinedResponse.release();
-                    pipelinedResponse.promise().setFailure(closedChannelException);
-                } catch (Exception e) {
+                    inflightResponse.getListener().setFailure(closedChannelException);
+                } catch (RuntimeException e) {
                     logger.error("unexpected error while releasing pipelined http responses", e);
                 }
             }

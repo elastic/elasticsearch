@@ -37,6 +37,8 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -184,7 +186,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         }
 
         final List<CountDownLatch> latches = new ArrayList<>();
-        final List<Integer> requests = IntStream.range(1, numberOfRequests + 1).mapToObj(r -> r).collect(Collectors.toList());
+        final List<Integer> requests = IntStream.range(1, numberOfRequests + 1).boxed().collect(Collectors.toList());
         Randomness.shuffle(requests);
 
         for (final Integer request : requests) {
@@ -211,19 +213,20 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
         }
 
-        HttpPipelinedRequest inbound;
-        ArrayList<HttpPipelinedRequest> requests = new ArrayList<>();
+        HttpPipelinedRequest<FullHttpRequest> inbound;
+        ArrayList<HttpPipelinedRequest<FullHttpRequest>> requests = new ArrayList<>();
         while ((inbound = embeddedChannel.readInbound()) != null) {
             requests.add(inbound);
         }
 
         ArrayList<ChannelPromise> promises = new ArrayList<>();
         for (int i = 1; i < requests.size(); ++i) {
-            final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK);
+            final FullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK);
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
-            HttpPipelinedResponse response = requests.get(i).createHttpResponse(httpResponse, promise);
-            embeddedChannel.writeAndFlush(response, promise);
+            int sequence = requests.get(i).getSequence();
+            HttpPipelinedResponse<FullHttpResponse, ChannelPromise> resp = new HttpPipelinedResponse<>(sequence, httpResponse, promise);
+            embeddedChannel.writeAndFlush(resp, promise);
         }
 
         for (ChannelPromise promise : promises) {
@@ -260,14 +263,14 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     }
 
-    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
+    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<LastHttpContent>> {
 
         @Override
-        protected void channelRead0(final ChannelHandlerContext ctx, final HttpPipelinedRequest pipelinedRequest) throws Exception {
+        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest<LastHttpContent> pipelinedRequest) {
+            LastHttpContent request = pipelinedRequest.getRequest();
             final QueryStringDecoder decoder;
-            if (pipelinedRequest.last() instanceof FullHttpRequest) {
-                final FullHttpRequest fullHttpRequest = (FullHttpRequest) pipelinedRequest.last();
-                decoder = new QueryStringDecoder(fullHttpRequest.uri());
+            if (request instanceof FullHttpRequest) {
+                decoder = new QueryStringDecoder(((FullHttpRequest)request).uri());
             } else {
                 decoder = new QueryStringDecoder(AggregateUrisAndHeadersHandler.QUEUE_URI.poll());
             }
@@ -286,7 +289,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
                 try {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
                     final ChannelPromise promise = ctx.newPromise();
-                    ctx.write(pipelinedRequest.createHttpResponse(httpResponse, promise), promise);
+                    ctx.write(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse, promise), promise);
                     finishingLatch.countDown();
                 } catch (InterruptedException e) {
                     fail(e.toString());

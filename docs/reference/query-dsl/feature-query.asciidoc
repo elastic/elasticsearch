@@ -73,7 +73,8 @@ GET test/_search
 
 The `feature` query supports 3 functions in order to boost scores using the
 values of features. If you do not know where to start, we recommend that you
-start with the `saturation` function.
+start with the `saturation` function, which is the default when no function is
+provided.
 
 [float]
 ==== Saturation
@@ -101,6 +102,7 @@ GET test/_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 If +pivot+ is not supplied then Elasticsearch will compute a default value that
 will be approximately equal to the geometric mean of all feature values that
@@ -120,6 +122,7 @@ GET test/_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 ==== Logarithm
@@ -145,6 +148,7 @@ GET test/_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 ==== Sigmoid
@@ -174,3 +178,4 @@ GET test/_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]

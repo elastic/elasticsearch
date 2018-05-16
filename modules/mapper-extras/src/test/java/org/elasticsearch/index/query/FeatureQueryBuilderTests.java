@@ -70,11 +70,7 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
             }
             break;
         case 2:
-            if (randomBoolean()) {
-                function = new ScoreFunction.Sigmoid(randomFloat());
-            } else {
-                function = new ScoreFunction.Sigmoid(randomFloat(), randomFloat());
-            }
+            function = new ScoreFunction.Sigmoid(randomFloat(), randomFloat());
             break;
         default:
             throw new AssertionError();

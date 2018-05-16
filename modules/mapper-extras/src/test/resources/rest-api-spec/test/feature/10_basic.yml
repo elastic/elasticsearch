@@ -58,14 +58,7 @@ setup:
       hits.hits.0._id: "2"
 
   - match:
-      hits.hits.0._score: 4.634728908538818
-
-  - match:
       hits.hits.1._id: "1"
-
-  - match:
-      hits.hits.1._score: 2.5649492740631104
-
 
 ---
 "Positive saturation":
@@ -86,13 +79,7 @@ setup:
       hits.hits.0._id: "2"
 
   - match:
-      hits.hits.0._score: 0.8333333134651184
-
-  - match:
       hits.hits.1._id: "1"
-
-  - match:
-      hits.hits.1._score: 0.3333333134651184
 
 ---
 "Positive sigmoid":
@@ -114,13 +101,7 @@ setup:
       hits.hits.0._id: "2"
 
   - match:
-      hits.hits.0._score: 0.7242541313171387
-
-  - match:
       hits.hits.1._id: "1"
-
-  - match:
-      hits.hits.1._score: 0.39750105142593384
 
 ---
 "Negative log":
@@ -154,13 +135,7 @@ setup:
       hits.hits.0._id: "2"
 
   - match:
-      hits.hits.0._score: 0.4996334910392761
-
-  - match:
       hits.hits.1._id: "1"
-
-  - match:
-      hits.hits.1._score: 0.2852904796600342
 
 ---
 "Negative sigmoid":
@@ -182,10 +157,4 @@ setup:
       hits.hits.0._id: "2"
 
   - match:
-      hits.hits.0._score: 0.4997801184654236
-
-  - match:
       hits.hits.1._id: "1"
-
-  - match:
-      hits.hits.1._score: 0.36562758684158325

@@ -205,30 +205,20 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             private static final ConstructingObjectParser<Sigmoid, Void> PARSER = new ConstructingObjectParser<>(
                     "sigmoid", a -> new Sigmoid((Float) a[0], ((Float) a[1]).floatValue()));
             static {
-                PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField("pivot"));
+                PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField("pivot"));
                 PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField("exponent"));
             }
 
             private final Float pivot;
             private final float exp;
 
-            /** Constructor with a default pivot, computed as the geometric average of
-             *  all feature values in the index. */
-            public Sigmoid(float exp) {
-                this(null, exp);
-            }
-
             public Sigmoid(float pivot, float exp) {
-                this(Float.valueOf(pivot), exp);
-            }
-
-            private Sigmoid(Float pivot, float exp) {
                 this.pivot = pivot;
                 this.exp = exp;
             }
 
             private Sigmoid(StreamInput in) throws IOException {
-                this(in.readOptionalFloat(), in.readFloat());
+                this(in.readFloat(), in.readFloat());
             }
 
             @Override
@@ -249,16 +239,14 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             @Override
             void writeTo(StreamOutput out) throws IOException {
                 out.writeByte((byte) 2);
-                out.writeOptionalFloat(pivot);
+                out.writeFloat(pivot);
                 out.writeFloat(exp);
             }
 
             @Override
             void doXContent(XContentBuilder builder) throws IOException {
                 builder.startObject("sigmoid");
-                if (pivot != null) {
-                    builder.field("pivot", pivot);
-                }
+                builder.field("pivot", pivot);
                 builder.field("exponent", exp);
                 builder.endObject();
             }

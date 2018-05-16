@@ -145,10 +145,29 @@ public class RecoverySourceHandler {
             }
             assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
         }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ", shard, cancellableThreads, logger);
-
+        /*
+         * DISCUSS:
+         * There is a major difference when acquiring translog and Lucene retention lock.
+         * Once translog retention lock is acquired, no translog operations will be trimmed.
+         * However, this is not true for Lucene retention lock if there are already pending or scheduled merges before the lock is acquired.
+         * The actual problem is the method `isTranslogReadyForSequenceNumberBasedRecovery` can return true but then the snapshot in phase2,
+         * which will be acquired later, might not have required operations as we expected.
+         * This causes the peer-recovery aborted. In the extremely bad case, this might happen 5 times
+         * then that replica requires a manual reroute.
+         *
+         * I see two options for this:
+         *
+         * 1. We keep the snapshot which is used in isTranslogReadyForSequenceNumberBasedRecovery, then concat it with a new snapshot
+         * in phase2. The combined snapshot is guaranteed to have all required operations.
+         * This requires a new method "reset" in Translog#Snapshot. However, I feel this not a clean solution.
+         *
+         * 2. Just accept this limitation for now until we have a clean approach.
+         */
         try (Closeable ignored = shard.acquireRetentionLockForPeerRecovery()) {
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;
+            // DISCUSS: Most of cases, we will do sequence-based recovery even though file-based recovery will be better
+            // as we have to replay a large number of operations. Should we add a limit here when making the decision?
             final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
                 isTargetSameHistory() && isTranslogReadyForSequenceNumberBasedRecovery();
             if (isSequenceNumberBasedRecovery) {
@@ -164,6 +183,10 @@ public class RecoverySourceHandler {
                 }
                 // we set this to 0 to create a translog roughly according to the retention policy
                 // on the target. Note that it will still filter out legacy operations with no sequence numbers
+
+                // DISCUSS: startingSeqNo = 0;
+                // Operations in translog is limited by 12h or 512MB, but there are no limit on non-deleted documents in Lucene history
+                // `startingSeqNo` might replay many Lucene operations
                 startingSeqNo = 0;
                 // but we must have everything above the local checkpoint in the commit
                 requiredSeqNoRangeStart =

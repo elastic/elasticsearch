@@ -64,6 +64,11 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         final String indexName2 = "index2";
         if (runningAgainstLeaderCluster) {
             logger.info("Running against leader cluster");
+            Settings indexSettings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            createIndex(indexName1, indexSettings);
+            createIndex(indexName2, indexSettings);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(indexName1, Integer.toString(i), "field", i);
@@ -167,6 +172,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
     private static Map<String, Object> toMap(String response) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
+    }
+
+    protected static void createIndex(String name, Settings settings) throws IOException {
+        createIndex(name, settings, "");
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {

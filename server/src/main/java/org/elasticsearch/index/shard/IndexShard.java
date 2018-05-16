@@ -1602,6 +1602,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the estimated number of operations in translog whose seq# at least the provided seq#.
      */
     public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+        // TODO: replace this API
         return getEngine().estimateTranslogOperationsFromMinSeq(minSeqNo);
     }
 

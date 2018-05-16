@@ -113,11 +113,11 @@ public class UidFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
-                DEPRECATION_LOGGER.deprecated("Fielddata access on the _uid field is deprecated, use _id instead");
                 return new IndexFieldData.Builder() {
                     @Override
                     public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                             CircuitBreakerService breakerService, MapperService mapperService) {
+                        DEPRECATION_LOGGER.deprecated("Fielddata access on the _uid field is deprecated, use _id instead");
                         MappedFieldType idFieldType = mapperService.fullName(IdFieldMapper.NAME);
                         IndexFieldData<?> idFieldData = idFieldType.fielddataBuilder(fullyQualifiedIndexName)
                                 .build(indexSettings, idFieldType, cache, breakerService, mapperService);

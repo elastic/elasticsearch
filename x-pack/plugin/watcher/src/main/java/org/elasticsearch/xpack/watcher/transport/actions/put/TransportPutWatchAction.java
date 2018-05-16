@@ -63,6 +63,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     private final WatchParser parser;
     private final TriggerService triggerService;
     private final Client client;
+    private final ClusterService clusterService;
     private static final ToXContent.Params DEFAULT_PARAMS =
             WatcherParams.builder().hideSecrets(false).hideHeaders(false).includeStatus(true).build();
 
@@ -76,6 +77,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
         this.clock = clock;
         this.parser = parser;
         this.client = client;
+        this.clusterService = clusterService;
         this.triggerService = triggerService;
     }
 
@@ -106,7 +108,10 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
                         ActionListener.<UpdateResponse>wrap(response -> {
                             boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
-                            if (localExecute(request) == false && watch.status().state().isActive()) {
+                            // if not yet in distributed mode (mixed 5/6 version in cluster), only trigger on the master node
+                            if (localExecute(request) == false &&
+                                this.clusterService.state().nodes().isLocalNodeElectedMaster() &&
+                                watch.status().state().isActive()) {
                                 triggerService.add(watch);
                             }
                             listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(), created));

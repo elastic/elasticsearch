@@ -28,12 +28,16 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
     }
 
     @Override
@@ -56,33 +60,47 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals("{\"eligible_to_start_trial\":true}", body);
 
-        String type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
-
-        Response response2 = restClient.performRequest("POST", "/_xpack/license/start_trial?type=" + type);
+        // Test that starting will fail without acknowledgement
+        Response response2 = restClient.performRequest("POST", "/_xpack/license/start_trial");
         String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response2.getStatusLine().getStatusCode());
-        assertTrue(body2.contains("\"trial_was_started\":true"));
-        assertTrue(body2.contains("\"type\":\"" + type + "\""));
+        assertTrue(body2.contains("\"trial_was_started\":false"));
+        assertTrue(body2.contains("\"error_message\":\"Operation failed: Needs acknowledgement.\""));
+        assertTrue(body2.contains("\"acknowledged\":false"));
+
+        assertBusy(() -> {
+            GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
+            assertEquals("basic", getLicenseResponse.license().type());
+        });
+
+        String type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+
+        Response response3 = restClient.performRequest("POST", "/_xpack/license/start_trial?acknowledge=true&type=" + type);
+        String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertEquals(200, response3.getStatusLine().getStatusCode());
+        assertTrue(body3.contains("\"trial_was_started\":true"));
+        assertTrue(body3.contains("\"type\":\"" + type + "\""));
+        assertTrue(body3.contains("\"acknowledged\":true"));
 
         assertBusy(() -> {
             GetLicenseResponse postTrialLicenseResponse = licensingClient.prepareGetLicense().get();
             assertEquals(type, postTrialLicenseResponse.license().type());
         });
 
-        Response response3 = restClient.performRequest("GET", "/_xpack/license/trial_status");
-        String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response3.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_trial\":false}", body3);
+        Response response4 = restClient.performRequest("GET", "/_xpack/license/trial_status");
+        String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertEquals(200, response4.getStatusLine().getStatusCode());
+        assertEquals("{\"eligible_to_start_trial\":false}", body4);
 
         String secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
 
         ResponseException ex = expectThrows(ResponseException.class,
-                () -> restClient.performRequest("POST", "/_xpack/license/start_trial?type=" + secondAttemptType));
-        Response response4 = ex.getResponse();
-        String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(403, response4.getStatusLine().getStatusCode());
-        assertTrue(body4.contains("\"trial_was_started\":false"));
-        assertTrue(body4.contains("\"error_message\":\"Operation failed: Trial was already activated.\""));
+                () -> restClient.performRequest("POST", "/_xpack/license/start_trial?acknowledge=true&type=" + secondAttemptType));
+        Response response5 = ex.getResponse();
+        String body5 = Streams.copyToString(new InputStreamReader(response5.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertEquals(403, response5.getStatusLine().getStatusCode());
+        assertTrue(body5.contains("\"trial_was_started\":false"));
+        assertTrue(body5.contains("\"error_message\":\"Operation failed: Trial was already activated.\""));
     }
 
     public void testInvalidType() throws Exception {

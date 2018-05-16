@@ -53,6 +53,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void start(Collection<Watch> jobs) {
+        jobs.forEach(this::add);
     }
 
     @Override
@@ -69,11 +70,6 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     @Override
     public void pauseExecution() {
         watches.clear();
-    }
-
-    @Override
-    public int getJobCount() {
-        return watches.size();
     }
 
     @Override

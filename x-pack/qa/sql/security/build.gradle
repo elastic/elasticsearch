@@ -26,6 +26,7 @@ subprojects {
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests
     extraConfigFile 'roles.yml', '../roles.yml'
     /* Setup the one admin user that we run the tests as.
@@ -45,6 +46,7 @@ subprojects {
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests
     extraConfigFile 'roles.yml', '../roles.yml'
     /* Setup the one admin user that we run the tests as.

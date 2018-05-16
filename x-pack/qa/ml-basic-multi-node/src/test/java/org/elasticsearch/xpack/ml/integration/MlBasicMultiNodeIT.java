@@ -241,7 +241,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(0, responseBody.get("invalid_date_count"));
         assertEquals(0, responseBody.get("missing_field_count"));
         assertEquals(0, responseBody.get("out_of_order_timestamp_count"));
-        assertEquals(0, responseBody.get("bucket_count"));
+        assertEquals(1000, responseBody.get("bucket_count"));
         
         // unintuitive: should return the earliest record timestamp of this feed???
         assertEquals(null, responseBody.get("earliest_record_timestamp"));
@@ -266,7 +266,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(0, dataCountsDoc.get("invalid_date_count"));
         assertEquals(0, dataCountsDoc.get("missing_field_count"));
         assertEquals(0, dataCountsDoc.get("out_of_order_timestamp_count"));
-        assertEquals(0, dataCountsDoc.get("bucket_count"));
+        assertEquals(1000, dataCountsDoc.get("bucket_count"));
         assertEquals(1403481600000L, dataCountsDoc.get("earliest_record_timestamp"));
         assertEquals(1407082000000L, dataCountsDoc.get("latest_record_timestamp"));
 

@@ -91,10 +91,13 @@ public class RetryTests extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(nodeSettings()).build();
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable HTTP so we can test retries on reindex from remote; in this case the "remote" cluster is just this cluster
+    }
+
     final Settings nodeSettings() {
         return Settings.builder()
-                // enable HTTP so we can test retries on reindex from remote; in this case the "remote" cluster is just this cluster
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 // whitelist reindexing from the HTTP host we're going to use
                 .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
                 .build();
@@ -183,7 +186,7 @@ public class RetryTests extends ESIntegTestCase {
             bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
 
-        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), client().threadPool());
+        Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
         BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();

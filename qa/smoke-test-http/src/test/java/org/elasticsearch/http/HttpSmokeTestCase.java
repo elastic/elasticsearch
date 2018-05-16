@@ -56,12 +56,16 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
-                .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
+                .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
     }
 
     @Override

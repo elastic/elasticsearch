@@ -23,7 +23,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
-import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
@@ -138,7 +138,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 logger.info("settings map {}", settingsMap);
                 if (settingsMap.containsKey("index")) {
                     int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
-                    needsUpgrade = format == IndexLifecycleManager.INTERNAL_INDEX_FORMAT ? false : true;
+                    needsUpgrade = format == SecurityIndexManager.INTERNAL_INDEX_FORMAT ? false : true;
                 } else {
                     needsUpgrade = true;
                 }

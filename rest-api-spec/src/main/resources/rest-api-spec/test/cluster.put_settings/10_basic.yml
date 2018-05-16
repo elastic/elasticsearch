@@ -64,11 +64,6 @@
 ---
 "Test get a default settings":
 
-# this can't be bumped to 5.0.2 until snapshots are published
- - skip:
-        version: " - 5.0.3"
-        reason:  Fetching default group setting was buggy until 5.0.3
-
  - do:
       cluster.get_settings:
         include_defaults: true

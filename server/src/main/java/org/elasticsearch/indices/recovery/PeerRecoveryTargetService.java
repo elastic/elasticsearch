@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -144,8 +143,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     }
 
     protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter, TimeValue activityTimeout) {
-        logger.trace(
-            (Supplier<?>) () -> new ParameterizedMessage(
+        logger.trace(() -> new ParameterizedMessage(
                 "will retry recovery with id [{}] in [{}]", recoveryId, retryAfter), reason);
         retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
@@ -229,12 +227,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             logger.trace("recovery cancelled", e);
         } catch (Exception e) {
             if (logger.isTraceEnabled()) {
-                logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "[{}][{}] Got exception on recovery",
-                        request.shardId().getIndex().getName(),
-                        request.shardId().id()),
-                    e);
+                logger.trace(() -> new ParameterizedMessage(
+                        "[{}][{}] Got exception on recovery", request.shardId().getIndex().getName(), request.shardId().id()), e);
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
@@ -532,12 +526,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 long currentVersion = future.get();
                 logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion, currentVersion);
             } catch (Exception e) {
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.debug(() -> new ParameterizedMessage(
                         "failed waiting for cluster state with version {} (current: {})",
-                        clusterStateVersion,
-                        clusterService.state().getVersion()),
-                    e);
+                        clusterStateVersion, clusterService.state().getVersion()), e);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         }
@@ -615,16 +606,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void onFailure(Exception e) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "unexpected error during recovery [{}], failing shard", recoveryId), e);
+                    logger.error(() -> new ParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
                     onGoingRecoveries.failRecovery(recoveryId,
                             new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
                             true // be safe
                     );
                 } else {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                    logger.debug(() -> new ParameterizedMessage(
                             "unexpected error during recovery, but recovery id [{}] is finished", recoveryId), e);
                 }
             }

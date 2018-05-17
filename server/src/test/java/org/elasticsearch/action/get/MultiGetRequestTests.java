@@ -182,9 +182,6 @@ public class MultiGetRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 item.routing(randomAlphaOfLength(4));
             }
-            if (randomBoolean()) {
-                item.parent(randomAlphaOfLength(4));
-            }
             request.add(item);
         }
         return request;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
@@ -79,5 +79,14 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int numDimensions() {
+        if (coordinates == null || coordinates.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "LineString has not yet been initialized");
+        }
+        return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
     }
 }

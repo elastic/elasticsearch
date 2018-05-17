@@ -51,7 +51,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.containsString;
 
 public class RankEvalSpecTests extends ESTestCase {
 
@@ -70,7 +70,7 @@ public class RankEvalSpecTests extends ESTestCase {
         return result;
     }
 
-    private static RankEvalSpec createTestItem() throws IOException {
+    static RankEvalSpec createTestItem() {
         Supplier<EvaluationMetric> metric = randomFrom(Arrays.asList(
                 () -> PrecisionAtKTests.createTestItem(),
                 () -> MeanReciprocalRankTests.createTestItem(),
@@ -87,6 +87,9 @@ public class RankEvalSpecTests extends ESTestCase {
                 builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
                 script = Strings.toString(builder);
+            } catch (IOException e) {
+                // this shouldn't happen in tests, re-throw just not to swallow it
+                throw new RuntimeException(e);
             }
 
             templates = new HashSet<>();
@@ -130,7 +133,7 @@ public class RankEvalSpecTests extends ESTestCase {
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             Exception exception = expectThrows(Exception.class, () -> RankEvalSpec.parse(parser));
-            assertThat(exception.getMessage(), startsWith("[rank_eval] failed to parse field"));
+            assertThat(exception.getMessage(), containsString("[rank_eval] failed to parse field"));
         }
     }
 
@@ -156,7 +159,7 @@ public class RankEvalSpecTests extends ESTestCase {
         checkEqualsAndHashCode(createTestItem(), RankEvalSpecTests::copy, RankEvalSpecTests::mutateTestItem);
     }
 
-    private static RankEvalSpec mutateTestItem(RankEvalSpec original) {
+    static RankEvalSpec mutateTestItem(RankEvalSpec original) {
         List<RatedRequest> ratedRequests = new ArrayList<>(original.getRatedRequests());
         EvaluationMetric metric = original.getMetric();
         Map<String, Script> templates = new HashMap<>(original.getTemplates());

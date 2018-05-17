@@ -57,10 +57,15 @@ public class IndexingOperationListenerTests extends ESTestCase{
             @Override
             public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
                 assertThat(shardId, is(randomShardId));
-                if (result.hasFailure() == false) {
-                    postIndex.incrementAndGet();
-                } else {
-                    postIndex(shardId, index, result.getFailure());
+                switch (result.getResultType()) {
+                    case SUCCESS:
+                        postIndex.incrementAndGet();
+                        break;
+                    case FAILURE:
+                        postIndex(shardId, index, result.getFailure());
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unknown result type: " + result.getResultType());
                 }
             }
 
@@ -80,10 +85,15 @@ public class IndexingOperationListenerTests extends ESTestCase{
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
                 assertThat(shardId, is(randomShardId));
-                if (result.hasFailure() == false) {
-                    postDelete.incrementAndGet();
-                } else {
-                    postDelete(shardId, delete, result.getFailure());
+                switch (result.getResultType()) {
+                    case SUCCESS:
+                        postDelete.incrementAndGet();
+                        break;
+                    case FAILURE:
+                        postDelete(shardId, delete, result.getFailure());
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unknown result type: " + result.getResultType());
                 }
             }
 
@@ -136,8 +146,8 @@ public class IndexingOperationListenerTests extends ESTestCase{
         IndexingOperationListener.CompositeListener compositeListener =
             new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())));
-        Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())), doc);
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
+        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
         compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, SequenceNumbers.UNASSIGNED_SEQ_NO, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());

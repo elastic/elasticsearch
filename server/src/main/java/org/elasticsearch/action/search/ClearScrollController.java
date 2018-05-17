@@ -20,7 +20,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -133,7 +132,7 @@ final class ClearScrollController implements Runnable {
     }
 
     private void onFailedFreedContext(Throwable e, DiscoveryNode node) {
-        logger.warn((Supplier<?>) () -> new ParameterizedMessage("Clear SC failed on node[{}]", node), e);
+        logger.warn(() -> new ParameterizedMessage("Clear SC failed on node[{}]", node), e);
         if (expectedOps.countDown()) {
             listener.onResponse(new ClearScrollResponse(false, freedSearchContexts.get()));
         } else {

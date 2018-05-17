@@ -17,6 +17,7 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
 import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.inject.internal.Scoping;
 import org.elasticsearch.common.inject.internal.SourceProvider;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;

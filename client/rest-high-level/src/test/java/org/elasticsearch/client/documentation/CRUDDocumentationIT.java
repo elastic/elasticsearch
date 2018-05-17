@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
@@ -49,6 +47,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
@@ -58,6 +57,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestStatus;
@@ -121,7 +121,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.startObject();
             {
                 builder.field("user", "kimchy");
-                builder.field("postDate", new Date());
+                builder.timeField("postDate", new Date());
                 builder.field("message", "trying out Elasticsearch");
             }
             builder.endObject();
@@ -186,9 +186,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::index-request-routing
             request.routing("routing"); // <1>
             // end::index-request-routing
-            // tag::index-request-parent
-            request.parent("parent"); // <1>
-            // end::index-request-parent
             // tag::index-request-timeout
             request.timeout(TimeValue.timeValueSeconds(1)); // <1>
             request.timeout("1s"); // <2>
@@ -274,16 +271,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexResponse indexResponse = client.index(indexRequest);
             assertSame(indexResponse.status(), RestStatus.CREATED);
 
-            XContentType xContentType = XContentType.JSON;
-            String script = Strings.toString(XContentBuilder.builder(xContentType.xContent())
+            Request request = new Request("POST", "/_scripts/increment-field");
+            request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
                     .startObject()
                         .startObject("script")
                             .field("lang", "painless")
                             .field("code", "ctx._source.field += params.count")
                         .endObject()
-                    .endObject());
-            HttpEntity body = new NStringEntity(script, ContentType.create(xContentType.mediaType()));
-            Response response = client().performRequest(HttpPost.METHOD_NAME, "/_scripts/increment-field", emptyMap(), body);
+                    .endObject()));
+            Response response = client().performRequest(request);
             assertEquals(response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus());
         }
         {
@@ -331,7 +327,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             {
-                builder.field("updated", new Date());
+                builder.timeField("updated", new Date());
                 builder.field("reason", "daily update");
             }
             builder.endObject();
@@ -475,9 +471,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-request-routing
             request.routing("routing"); // <1>
             // end::update-request-routing
-            // tag::update-request-parent
-            request.parent("parent"); // <1>
-            // end::update-request-parent
             // tag::update-request-timeout
             request.timeout(TimeValue.timeValueSeconds(1)); // <1>
             request.timeout("1s"); // <2>
@@ -583,9 +576,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-request-routing
             request.routing("routing"); // <1>
             // end::delete-request-routing
-            // tag::delete-request-parent
-            request.parent("parent"); // <1>
-            // end::delete-request-parent
             // tag::delete-request-timeout
             request.timeout(TimeValue.timeValueMinutes(2)); // <1>
             request.timeout("2m"); // <2>
@@ -869,9 +859,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-request-routing
             request.routing("routing"); // <1>
             //end::get-request-routing
-            //tag::get-request-parent
-            request.parent("parent"); // <1>
-            //end::get-request-parent
             //tag::get-request-preference
             request.preference("preference"); // <1>
             //end::get-request-preference
@@ -1122,11 +1109,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::multi-get-request-item-extras
             request.add(new MultiGetRequest.Item("index", "type", "with_routing")
                 .routing("some_routing"));          // <1>
-            request.add(new MultiGetRequest.Item("index", "type", "with_parent")
-                .parent("some_parent"));            // <2>
             request.add(new MultiGetRequest.Item("index", "type", "with_version")
-                .versionType(VersionType.EXTERNAL)  // <3>
-                .version(10123L));                  // <4>
+                .versionType(VersionType.EXTERNAL)  // <2>
+                .version(10123L));                  // <3>
             // end::multi-get-request-item-extras
             // tag::multi-get-request-top-level-extras
             request.preference("some_preference");  // <1>

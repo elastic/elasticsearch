@@ -1,0 +1,172 @@
+[[painless-casting]]
+=== Casting
+
+Casting is the conversion of one type to another. Implicit casts are casts that
+occur automatically, such as during an assignment operation. Explicit casts are
+casts where you use the casting operator to explicitly convert one type to
+another. This is necessary during operations where the cast cannot be inferred.
+
+To cast to a new type, precede the expression by the new type enclosed in
+parentheses, for example
+`(int)x`.
+
+The following sections specify the implicit casts that can be performed and the
+explicit casts that are allowed. The only other permitted cast is casting
+a single character `String` to a `char`.
+
+*Grammar:*
+[source,ANTLR4]
+----
+cast: '(' TYPE ')' expression
+----
+
+[[numeric-casting]]
+==== Numeric Casting
+
+The following table shows the allowed implicit and explicit casts between
+numeric types. Read the table by row. To find out if you need to explicitly
+cast from type A to type B, find the row for type A and scan across to the
+column for type B.
+
+IMPORTANT: Explicit casts between numeric types can result in some data loss. A
+smaller numeric type cannot necessarily accommodate the value from a larger
+numeric type. You might also lose precision when casting from integer types
+to floating point types.
+
+|====
+|       | byte     | short    | char     | int      | long     | float    | double
+| byte  |          | implicit | implicit | implicit | implicit | implicit | implicit
+| short | explicit |          | explicit | implicit | implicit | implicit | implicit
+| char  | explicit | explicit |          | implicit | implicit | implicit | implicit
+| int   | explicit | explicit | explicit |          | implicit | implicit | implicit
+| long  | explicit | explicit | explicit | explicit |          | implicit | implicit
+| float | explicit | explicit | explicit | explicit | explicit |          | implicit
+| double | explicit | explicit | explicit | explicit | explicit | explicit |
+|====
+
+
+Example(s)
+[source,Java]
+----
+int a = 1;            // Declare int variable a and set it to the literal
+                      //   value 1
+long b = a;           // Declare long variable b and set it to int variable
+                      //    a with an implicit cast to convert from int to long
+short c = (short)b;   // Declare short variable c, explicitly cast b to a
+                      //   short, and assign b to c
+byte d = a;           // ERROR: Casting an int to a byte requires an explicit
+                      //   cast
+double e = (double)a; // Explicitly cast int variable a to a double and assign
+                      //   it to the double variable e. The explicit cast is
+                      //   allowed, but it is not necessary.
+----
+
+[[reference-casting]]
+==== Reference Casting
+
+A reference type can be implicitly cast to another reference type as long as
+the type being cast _from_ is a descendant of the type being cast _to_.  A
+reference type can be explicitly cast _to_ if the type being cast to is a
+descendant of the type being cast _from_.
+
+*Examples:*
+[source,Java]
+----
+List x;                        // Declare List variable x
+ArrayList y = new ArrayList(); // Declare ArrayList variable y and assign it a
+                               //   newly allocated ArrayList [1]
+x = y;                         // Assign Arraylist y to List x using an
+                               //   implicit cast
+y = (ArrayList)x;              // Explicitly cast List x to an ArrayList and
+                               //  assign it to ArrayList y
+x = (List)y;                   // Set List x to ArrayList y using an explicit
+                               //   cast (the explicit cast is not necessary)
+y = x;                         // ERROR: List x cannot be implicitly cast to
+                               //   an ArrayList, an explicit cast is required
+Map m = y;                     // ERROR: Cannot implicitly or explicitly cast [2]
+                               //   an ArrayList to a Map, no relationship
+                               //   exists between the two types.
+----
+[1] `ArrayList` is a descendant of the `List` type.
+[2] `Map` is unrelated to the `List` and `ArrayList` types.
+
+[[def-type-casting]]
+==== def Type Casting
+All primitive and reference types can always be implicitly cast to
+`def`. While it is possible to explicitly cast to `def`, it is not necessary.
+
+However, it is not always possible to implicitly cast a `def` to other
+primitive and reference types. An explicit cast is required if an explicit
+cast would normally be required between the non-def types.
+
+
+*Examples:*
+[source,Java]
+----
+def x;          // Declare def variable x and set it to null
+x = 3;          // Set the def variable x to the literal 3 with an implicit
+                //   cast from int to def
+double a = x;   // Declare double variable a and set it to def variable x,
+                //   which contains a double
+int b = x;      // ERROR: Results in a run-time error because an explicit cast is
+                //   required to cast from a double to an int
+int c = (int)x; // Declare int variable c, explicitly cast def variable x to an
+                //   int, and assign x to c
+----
+
+[[boxing-unboxing]]
+==== Boxing and Unboxing
+
+Boxing is where a cast is used to convert a primitive type to its corresponding
+reference type. Unboxing is the reverse, converting a reference type to the
+corresponding primitive type.
+
+There are two places Painless performs implicit boxing and unboxing:
+
+* When you call methods, Painless automatically boxes and unboxes arguments
+so you can specify either primitive types or their corresponding reference
+types.
+* When you use the `def` type, Painless automatically boxes and unboxes as
+needed when converting to and from `def`.
+
+The casting operator does not support any way to explicitly box a primitive
+type or unbox a reference type.
+
+If a primitive type needs to be converted to a reference type, the Painless
+reference type API supports methods that can do that. However, under normal
+circumstances this should not be necessary.
+
+*Examples:*
+[source,Java]
+----
+Integer x = 1;               // ERROR: not a legal implicit cast
+Integer y = (Integer)1;      // ERROR: not a legal explicit cast
+int a = new Integer(1);      // ERROR: not a legal implicit cast
+int b = (int)new Integer(1); // ERROR: not a legal explicit cast
+----
+
+[[promotion]]
+==== Promotion
+
+Promotion is where certain operations require types to be either a minimum
+numerical type or for two (or more) types to be equivalent.
+The documentation for each operation that has these requirements
+includes promotion tables that describe how this is handled.
+
+When an operation promotes a type or types, the resultant type
+of the operation is the promoted type.  Types can be promoted to def
+at compile-time; however, at run-time, the resultant type will be the
+promotion of the types the `def` is representing.
+
+*Examples:*
+[source,Java]
+----
+2 + 2.0     // Add the literal int 2 and the literal double 2.0. The literal
+            //   2 is promoted to a double and the resulting value is a double.
+
+def x = 1;  // Declare def variable x and set it to the literal int 1 through
+            //   an implicit cast
+x + 2.0F    // Add def variable x and the literal float 2.0.
+            // At compile-time the types are promoted to def.
+            // At run-time the types are promoted to float.
+----

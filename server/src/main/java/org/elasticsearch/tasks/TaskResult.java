@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -185,8 +186,9 @@ public final class TaskResult implements Writeable, ToXContentObject {
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
         PARSER.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("error"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("response"));
+        ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
+        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("error"));
+        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("response"));
     }
 
     @Override

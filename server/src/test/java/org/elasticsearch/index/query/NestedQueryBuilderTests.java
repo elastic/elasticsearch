@@ -347,7 +347,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         });
         innerHitBuilders.clear();
         NestedQueryBuilder query2 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
-        query2.innerHit(leafInnerHits.setIgnoreUnmapped(true));
+        query2.ignoreUnmapped(true);
+        query2.innerHit(leafInnerHits);
         query2.extractInnerHitBuilders(innerHitBuilders);
         assertThat(innerHitBuilders.size(), Matchers.equalTo(1));
         assertTrue(innerHitBuilders.containsKey(leafInnerHits.getName()));

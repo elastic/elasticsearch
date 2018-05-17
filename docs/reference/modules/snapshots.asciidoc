@@ -44,12 +44,12 @@ If you register same snapshot repository with multiple clusters, only
 one cluster should have write access to the repository. All other clusters
 connected to that repository should set the repository to `readonly` mode.
 
-NOTE: The snapshot format can change across major versions, so if you have
-clusters on different major versions trying to write the same repository,
-new snapshots written by one version will not be visible to the other. While
-setting the repository to `readonly` on all but one of the clusters should work
-with multiple clusters differing by one major version, it is not a supported
-configuration.
+IMPORTANT: The snapshot format can change across major versions, so if you have
+clusters on different versions trying to write the same repository, snapshots
+written by one version may not be visible to the other and the repository could
+be corrupted. While setting the repository to `readonly` on all but one of the
+clusters should work with multiple clusters differing by one major version, it
+is not a supported configuration.
 
 [source,js]
 -----------------------------------
@@ -289,6 +289,20 @@ By setting `include_global_state` to false it's possible to prevent the cluster 
 the snapshot. By default, the entire snapshot will fail if one or more indices participating in the snapshot don't have
 all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
+Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating
+new indices. Note that special characters need to be URI encoded.
+
+For example, creating a snapshot with the current day in the name, like `snapshot-2018.05.11`, can be achieved with
+the following command:
+[source,js]
+-----------------------------------
+# PUT /_snapshot/my_backup/<snapshot-{now/d}>
+PUT /_snapshot/my_backup/%3Csnapshot-%7Bnow%2Fd%7D%3E
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+
+
 The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
 the list of the index files that are already stored in the repository and copies only files that were created or
 changed since the last snapshot. That allows multiple snapshots to be preserved in the repository in a compact form.
@@ -401,7 +415,7 @@ created the snapshotting process will be aborted and all files created as part o
 cleaned. Therefore, the delete snapshot operation can be used to cancel long running snapshot operations that were
 started by mistake.
 
-A repository can be deleted using the following command:
+A repository can be unregistered using the following command:
 
 [source,sh]
 -----------------------------------
@@ -410,7 +424,7 @@ DELETE /_snapshot/my_fs_backup
 // CONSOLE
 // TEST[continued]
 
-When a repository is deleted, Elasticsearch only removes the reference to the location where the repository is storing
+When a repository is unregistered, Elasticsearch only removes the reference to the location where the repository is storing
 the snapshots. The snapshots themselves are left untouched and in place.
 
 [float]

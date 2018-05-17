@@ -28,6 +28,7 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -53,6 +54,30 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithUnsupportedMethod() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
+            restClient.performRequestAsync(new Request("unsupported", randomAsciiLettersOfLength(5)), new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of unsupported method");
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(UnsupportedOperationException.class));
+                    assertEquals("http method not supported: unsupported", exception.getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
+        }
+    }
+
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithUnsupportedMethod()}.
+     */
+    @Deprecated
+    public void testPerformAsyncOldStyleWithUnsupportedMethod() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
@@ -70,7 +95,11 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    public void testPerformAsyncWithNullParams() throws Exception {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
+     */
+    @Deprecated
+    public void testPerformOldStyleAsyncWithNullParams() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, new ResponseListener() {
@@ -82,7 +111,7 @@ public class RestClientTests extends RestClientTestCase {
                 @Override
                 public void onFailure(Exception exception) {
                     assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("params must not be null", exception.getMessage());
+                    assertEquals("parameters cannot be null", exception.getMessage());
                     latch.countDown();
                 }
             });
@@ -90,7 +119,11 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    public void testPerformAsyncWithNullHeaders() throws Exception {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetHeaders()}.
+     */
+    @Deprecated
+    public void testPerformOldStyleAsyncWithNullHeaders() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             ResponseListener listener = new ResponseListener() {
@@ -102,7 +135,7 @@ public class RestClientTests extends RestClientTestCase {
                 @Override
                 public void onFailure(Exception exception) {
                     assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("request header must not be null", exception.getMessage());
+                    assertEquals("header cannot be null", exception.getMessage());
                     latch.countDown();
                 }
             };
@@ -112,6 +145,30 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     public void testPerformAsyncWithWrongEndpoint() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        try (RestClient restClient = createRestClient()) {
+            restClient.performRequestAsync(new Request("GET", "::http:///"), new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of wrong endpoint");
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(IllegalArgumentException.class));
+                    assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
+        }
+    }
+
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithWrongEndpoint()}.
+     */
+    @Deprecated
+    public void testPerformAsyncOldStyleWithWrongEndpoint() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
@@ -147,8 +204,52 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
+    public void testSetHostsWrongArguments() throws IOException {
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts((HttpHost[]) null);
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts();
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts((HttpHost) null);
+            fail("setHosts should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
+            fail("setHosts should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+    }
+
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testConstructor()}.
+     */
+    @Deprecated
+    public void testNullPath() throws IOException {
+        try (RestClient restClient = createRestClient()) {
+            for (String method : getHttpMethods()) {
+                try {
+                    restClient.performRequest(method, null);
+                    fail("path set to null should fail!");
+                } catch (NullPointerException e) {
+                    assertEquals("endpoint cannot be null", e.getMessage());
+                }
+            }
+        }
+    }
+
     private static RestClient createRestClient() {
         HttpHost[] hosts = new HttpHost[]{new HttpHost("localhost", 9200)};
-        return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000), new Header[]{}, hosts, null, null);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), randomIntBetween(1_000, 30_000), new Header[]{}, hosts, null, null);
     }
 }

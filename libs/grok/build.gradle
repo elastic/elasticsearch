@@ -19,8 +19,6 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
-
 archivesBaseName = 'elasticsearch-grok'
 
 dependencies {

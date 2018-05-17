@@ -20,7 +20,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -91,7 +90,7 @@ public abstract class MetaDataStateFormat<T> {
      * Writes the given state to the given directories. The state is written to a
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
-     * it's target filename of the pattern <tt>{prefix}{version}.st</tt>.
+     * it's target filename of the pattern {@code {prefix}{version}.st}.
      *
      * @param state the state object to write
      * @param locations the locations where the state should be written to.
@@ -323,8 +322,7 @@ public abstract class MetaDataStateFormat<T> {
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.debug(() -> new ParameterizedMessage(
                         "{}: failed to read [{}], ignoring...", pathAndStateId.file.toAbsolutePath(), prefix), e);
             }
         }

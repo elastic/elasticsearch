@@ -36,9 +36,16 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,13 +59,40 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class PersistentTasksClusterServiceTests extends ESTestCase {
+
+    /** Needed by {@link ClusterService} **/
+    private static ThreadPool threadPool;
+    /** Needed by {@link PersistentTasksClusterService} **/
+    private ClusterService clusterService;
+
+    @BeforeClass
+    public static void setUpThreadPool() {
+        threadPool = new TestThreadPool(PersistentTasksClusterServiceTests.class.getSimpleName());
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        clusterService = createClusterService(threadPool);
+    }
+
+    @AfterClass
+    public static void tearDownThreadPool() throws Exception {
+        terminate(threadPool);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
+    }
 
     public void testReassignmentRequired() {
         final PersistentTasksClusterService service = createService((params, clusterState) ->
@@ -79,6 +113,55 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, previousState);
             assertThat(dumpEvent(event), service.shouldReassignPersistentTasks(event), equalTo(significant));
         }
+    }
+
+    public void testReassignmentRequiredOnMetadataChanges() {
+        EnableAssignmentDecider.Allocation allocation = randomFrom(EnableAssignmentDecider.Allocation.values());
+
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("_node")
+            .masterNodeId("_node")
+            .build();
+
+        boolean unassigned = randomBoolean();
+        PersistentTasksCustomMetaData tasks = PersistentTasksCustomMetaData.builder()
+            .addTask("_task_1", TestPersistentTasksExecutor.NAME, null, new Assignment(unassigned ? null : "_node", "_reason"))
+            .build();
+
+        MetaData metaData = MetaData.builder()
+            .putCustom(PersistentTasksCustomMetaData.TYPE, tasks)
+            .persistentSettings(Settings.builder()
+                    .put(EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey(), allocation.toString())
+                    .build())
+            .build();
+
+        ClusterState previous = ClusterState.builder(new ClusterName("_name"))
+            .nodes(nodes)
+            .metaData(metaData)
+            .build();
+
+        ClusterState current;
+
+        final boolean changed = randomBoolean();
+        if (changed) {
+            allocation = randomValueOtherThan(allocation, () -> randomFrom(EnableAssignmentDecider.Allocation.values()));
+
+            current = ClusterState.builder(previous)
+                .metaData(MetaData.builder(previous.metaData())
+                    .persistentSettings(Settings.builder()
+                        .put(EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey(), allocation.toString())
+                        .build())
+                    .build())
+                .build();
+        } else {
+            current = ClusterState.builder(previous).build();
+        }
+
+        final ClusterChangedEvent event = new ClusterChangedEvent("test", current, previous);
+
+        final PersistentTasksClusterService service = createService((params, clusterState) -> randomNodeAssignment(clusterState.nodes()));
+        assertThat(dumpEvent(event), service.shouldReassignPersistentTasks(event), equalTo(changed && unassigned));
     }
 
     public void testReassignTasksWithNoTasks() {
@@ -527,7 +610,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 Version.CURRENT);
     }
 
-
     private ClusterState initialState() {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -558,7 +640,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     /** Creates a PersistentTasksClusterService with a single PersistentTasksExecutor implemented by a BiFunction **/
-    static <P extends PersistentTaskParams> PersistentTasksClusterService createService(final BiFunction<P, ClusterState, Assignment> fn) {
+    private <P extends PersistentTaskParams> PersistentTasksClusterService createService(final BiFunction<P, ClusterState, Assignment> fn) {
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
             singleton(new PersistentTasksExecutor<P>(Settings.EMPTY, TestPersistentTasksExecutor.NAME, null) {
                 @Override
@@ -571,6 +653,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                     throw new UnsupportedOperationException();
                 }
             }));
-        return new PersistentTasksClusterService(Settings.EMPTY, registry, mock(ClusterService.class));
+        return new PersistentTasksClusterService(Settings.EMPTY, registry, clusterService);
     }
 }

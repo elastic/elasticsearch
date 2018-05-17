@@ -19,7 +19,6 @@
 package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -207,9 +206,9 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 @Override
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
-                    logger.warn((Supplier<?>) () ->
-                            new ParameterizedMessage("failed to cancel task [{}] with id [{}] and allocation id [{}]", task.getAction(),
-                                    task.getPersistentTaskId(), task.getAllocationId()), e);
+                    logger.warn(() -> new ParameterizedMessage(
+                        "failed to cancel task [{}] with id [{}] and allocation id [{}]",
+                        task.getAction(), task.getPersistentTaskId(), task.getAllocationId()), e);
                 }
             });
         }

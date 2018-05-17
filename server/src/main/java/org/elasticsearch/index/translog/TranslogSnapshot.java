@@ -39,14 +39,14 @@ final class TranslogSnapshot extends BaseTranslogReader {
      * Create a snapshot of translog file channel.
      */
     TranslogSnapshot(final BaseTranslogReader reader, final long length) {
-        super(reader.generation, reader.channel, reader.path, reader.firstOperationOffset);
+        super(reader.generation, reader.channel, reader.path, reader.header);
         this.length = length;
         this.totalOperations = reader.totalOperations();
         this.checkpoint = reader.getCheckpoint();
         this.reusableBuffer = ByteBuffer.allocate(1024);
-        readOperations = 0;
-        position = firstOperationOffset;
-        reuse = null;
+        this.readOperations = 0;
+        this.position = reader.getFirstOperationOffset();
+        this.reuse = null;
     }
 
     @Override
@@ -104,5 +104,4 @@ final class TranslogSnapshot extends BaseTranslogReader {
                 ", reusableBuffer=" + reusableBuffer +
                 '}';
     }
-
 }

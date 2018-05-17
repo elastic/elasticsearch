@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.flush;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,20 +32,22 @@ import java.io.IOException;
 public class FlushStats implements Streamable, ToXContentFragment {
 
     private long total;
-
+    private long periodic;
     private long totalTimeInMillis;
 
     public FlushStats() {
 
     }
 
-    public FlushStats(long total, long totalTimeInMillis) {
+    public FlushStats(long total, long periodic, long totalTimeInMillis) {
         this.total = total;
+        this.periodic = periodic;
         this.totalTimeInMillis = totalTimeInMillis;
     }
 
-    public void add(long total, long totalTimeInMillis) {
+    public void add(long total, long periodic, long totalTimeInMillis) {
         this.total += total;
+        this.periodic += periodic;
         this.totalTimeInMillis += totalTimeInMillis;
     }
 
@@ -57,6 +60,7 @@ public class FlushStats implements Streamable, ToXContentFragment {
             return;
         }
         this.total += flushStats.total;
+        this.periodic += flushStats.periodic;
         this.totalTimeInMillis += flushStats.totalTimeInMillis;
     }
 
@@ -65,6 +69,13 @@ public class FlushStats implements Streamable, ToXContentFragment {
      */
     public long getTotal() {
         return this.total;
+    }
+
+    /**
+     * The number of flushes that were periodically triggered when translog exceeded the flush threshold.
+     */
+    public long getPeriodic() {
+        return periodic;
     }
 
     /**
@@ -85,7 +96,8 @@ public class FlushStats implements Streamable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FLUSH);
         builder.field(Fields.TOTAL, total);
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTimeInMillis);
+        builder.field(Fields.PERIODIC, periodic);
+        builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, getTotalTime());
         builder.endObject();
         return builder;
     }
@@ -93,6 +105,7 @@ public class FlushStats implements Streamable, ToXContentFragment {
     static final class Fields {
         static final String FLUSH = "flush";
         static final String TOTAL = "total";
+        static final String PERIODIC = "periodic";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
     }
@@ -101,11 +114,17 @@ public class FlushStats implements Streamable, ToXContentFragment {
     public void readFrom(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            periodic = in.readVLong();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeVLong(periodic);
+        }
     }
 }

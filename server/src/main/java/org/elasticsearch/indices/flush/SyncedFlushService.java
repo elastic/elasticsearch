@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -107,7 +107,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
+                    logger.debug(() -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
                 }
             });
         }
@@ -397,7 +397,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
+                            logger.trace(() -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
                             results.put(shard, new ShardSyncedFlushResponse(exp.getMessage()));
                             countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                         }
@@ -453,7 +453,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
+                    logger.trace(() -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
                     if (countDown.countDown()) {
                         listener.onResponse(presyncResponses);
                     }
@@ -502,8 +502,18 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         if (indexShard.routingEntry().primary() == false) {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
+        if (Assertions.ENABLED) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("in flight operations {}, acquirers {}", indexShard.getActiveOperationsCount(), indexShard.getActiveOperations());
+            }
+        }
         int opCount = indexShard.getActiveOperationsCount();
-        logger.trace("{} in flight operations sampled at [{}]", request.shardId(), opCount);
+        // Need to snapshot the debug info twice as it's updated concurrently with the permit count.
+        if (Assertions.ENABLED) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("in flight operations {}, acquirers {}", indexShard.getActiveOperationsCount(), indexShard.getActiveOperations());
+            }
+        }
         return new InFlightOpsResponse(opCount);
     }
 
@@ -563,17 +573,12 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         boolean includeNumDocs(Version version) {
             if (version.major == Version.V_5_6_8.major) {
                 return version.onOrAfter(Version.V_5_6_8);
-            } else {
-                return version.onOrAfter(Version.V_6_2_2);
             }
+            return version.onOrAfter(Version.V_6_2_2);
         }
 
         boolean includeExistingSyncId(Version version) {
-            if (version.major == Version.V_5_6_9.major) {
-                return version.onOrAfter(Version.V_5_6_9);
-            } else {
-                return version.onOrAfter(Version.V_6_3_0);
-            }
+            return version.onOrAfter(Version.V_6_3_0);
         }
 
         @Override

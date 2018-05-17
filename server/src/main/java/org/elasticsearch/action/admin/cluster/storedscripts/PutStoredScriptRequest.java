@@ -125,7 +125,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType = in.readEnum(XContentType.class);
         } else {
-            xContentType = XContentFactory.xContentType(content);
+            xContentType = XContentHelper.xContentType(content);
         }
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
             context = in.readOptionalString();

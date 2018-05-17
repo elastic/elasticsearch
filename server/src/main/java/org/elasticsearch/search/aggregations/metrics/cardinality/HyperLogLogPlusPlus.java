@@ -517,7 +517,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
         /**
          * Add <code>k</code> to the hash table associated with <code>bucket</code>.
-         * Return <tt>-1</tt> if the value was already in the set or the new set size if it was added.
+         * Return {@code -1} if the value was already in the set or the new set size if it was added.
          */
         public int add(long bucket, int k) {
             sizes = bigArrays.grow(sizes, bucket + 1);

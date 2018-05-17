@@ -21,7 +21,6 @@ package org.elasticsearch.env;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -218,8 +217,8 @@ public final class NodeEnvironment  implements Closeable {
                         }
 
                     } catch (IOException e) {
-                        startupTraceLogger.trace(
-                            (Supplier<?>) () -> new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), e);
+                        startupTraceLogger.trace(() -> new ParameterizedMessage(
+                            "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
                         lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                         // release all the ones that were obtained up until now
                         releaseAndNullLocks(locks);
@@ -898,7 +897,7 @@ public final class NodeEnvironment  implements Closeable {
                     logger.trace("releasing lock [{}]", lock);
                     lock.close();
                 } catch (IOException e) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to release lock [{}]", lock), e);
+                    logger.trace(() -> new ParameterizedMessage("failed to release lock [{}]", lock), e);
                 }
             }
         }

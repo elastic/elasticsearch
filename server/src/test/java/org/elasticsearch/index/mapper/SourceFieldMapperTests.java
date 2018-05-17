@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -61,7 +62,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()),
                 XContentType.JSON));
 
-        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
+        assertThat(XContentFactory.xContentType(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
         doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.smileBuilder().startObject()
@@ -69,7 +70,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()),
                 XContentType.SMILE));
 
-        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
+        assertThat(XContentHelper.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
     public void testIncludes() throws Exception {
@@ -116,83 +117,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
     }
 
-    public void testDefaultMappingAndNoMapping() throws Exception {
-        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject());
-
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapper = parser.parse("my_type", null, defaultMapping);
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-        try {
-            mapper = parser.parse(null, null, defaultMapping);
-            assertThat(mapper.type(), equalTo("my_type"));
-            assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-            fail();
-        } catch (MapperParsingException e) {
-            // all is well
-        }
-        try {
-            mapper = parser.parse(null, new CompressedXContent("{}"), defaultMapping);
-            assertThat(mapper.type(), equalTo("my_type"));
-            assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("malformed mapping no root object found"));
-            // all is well
-        }
-    }
-
-    public void testDefaultMappingAndWithMappingOverride() throws Exception {
-        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject());
-
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("my_type")
-                .startObject("_source").field("enabled", true).endObject()
-                .endObject().endObject());
-
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("my_type", new CompressedXContent(mapping), defaultMapping);
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(true));
-    }
-
-    public void testDefaultMappingAndNoMappingWithMapperService() throws Exception {
-        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject());
-
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").getDocumentMapper();
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-    }
-
-    public void testDefaultMappingAndWithMappingOverrideWithMapperService() throws Exception {
-        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject());
-
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("my_type")
-                .startObject("_source").field("enabled", true).endObject()
-                .endObject().endObject());
-        mapperService.merge("my_type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        DocumentMapper mapper = mapperService.documentMapper("my_type");
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(true));
-    }
-
-    void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
+    private void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
         docMapper = parser.parse("type", docMapper.mappingSource());
         if (conflicts.length == 0) {

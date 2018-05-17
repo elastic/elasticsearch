@@ -9,7 +9,7 @@ See:
 --------------------------------------------------
 Settings settings = Settings.builder().put("cluster.name", "elasticsearch").build();
 TransportClient client = new PreBuiltTransportClient(settings);
-client.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
+client.addTransportAddress(new TransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
 --------------------------------------------------
 
 Before the `percolate` query can be used an `percolator` mapping should be added and

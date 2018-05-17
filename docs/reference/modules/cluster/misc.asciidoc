@@ -56,3 +56,30 @@ PUT /_cluster/settings
 }
 -------------------------------
 // CONSOLE
+
+
+[[persistent-tasks-allocation]]
+==== Persistent Tasks Allocations
+
+Plugins can create a kind of tasks called persistent tasks. Those tasks are
+usually long-live tasks and are stored in the cluster state, allowing the
+tasks to be revived after a full cluster restart.
+
+Every time a persistent task is created, the master nodes takes care of
+assigning the task to a node of the cluster, and the assigned node will then
+pick up the task and execute it locally. The process of assigning persistent
+tasks to nodes is controlled by the following property, which can be updated
+dynamically:
+
+`cluster.persistent_tasks.allocation.enable`::
++
+--
+Enable or disable allocation for persistent tasks:
+
+* `all` -             (default) Allows persistent tasks to be assigned to nodes
+* `none` -            No allocations are allowed for any type of persistent task
+
+This setting does not affect the persistent tasks that are already being executed.
+Only newly created persistent tasks, or tasks that must be reassigned (after a node
+left the cluster, for example), are impacted by this setting.
+--

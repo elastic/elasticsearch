@@ -192,7 +192,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
                 .field("dynamic", "strict")
                 .endObject().endObject();
-        createIndex("test", Settings.EMPTY, "_default_", mapping);
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+                .build();
+        createIndex("test", settings, "_default_", mapping);
         try {
             client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test", "test").endObject()).get();
             fail();
@@ -566,53 +569,6 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("_doc", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()),
             MapperService.MergeReason.MAPPING_UPDATE);
         mapper = indexService.mapperService().documentMapper("_doc");
-        assertNotNull(mapper.mappers().getMapper("field.raw"));
-        parsed = mapper.parse(source);
-        assertNull(parsed.dynamicMappingsUpdate());
-    }
-
-    public void testMixTemplateMultiFieldMultiTypeAndMappingReuse() throws Exception {
-        IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
-        XContentBuilder mappings1 = jsonBuilder().startObject()
-            .startObject("type1")
-            .startArray("dynamic_templates")
-            .startObject()
-            .startObject("template1")
-            .field("match_mapping_type", "string")
-            .startObject("mapping")
-            .field("type", "text")
-            .startObject("fields")
-            .startObject("raw")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endArray()
-            .endObject().endObject();
-        indexService.mapperService().merge("type1", new CompressedXContent(BytesReference.bytes(mappings1)), MapperService.MergeReason.MAPPING_UPDATE);
-        XContentBuilder mappings2 = jsonBuilder().startObject()
-            .startObject("type2")
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "text")
-            .endObject()
-            .endObject()
-            .endObject().endObject();
-        indexService.mapperService().merge("type2", new CompressedXContent(BytesReference.bytes(mappings2)), MapperService.MergeReason.MAPPING_UPDATE);
-
-        XContentBuilder json = XContentFactory.jsonBuilder().startObject()
-            .field("field", "foo")
-            .endObject();
-        SourceToParse source = SourceToParse.source("test", "type1", "1", BytesReference.bytes(json), json.contentType());
-        DocumentMapper mapper = indexService.mapperService().documentMapper("type1");
-        assertNull(mapper.mappers().getMapper("field.raw"));
-        ParsedDocument parsed = mapper.parse(source);
-        assertNotNull(parsed.dynamicMappingsUpdate());
-
-        indexService.mapperService().merge("type1", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()), MapperService.MergeReason.MAPPING_UPDATE);
-        mapper = indexService.mapperService().documentMapper("type1");
         assertNotNull(mapper.mappers().getMapper("field.raw"));
         parsed = mapper.parse(source);
         assertNull(parsed.dynamicMappingsUpdate());

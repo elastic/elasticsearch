@@ -48,7 +48,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
@@ -59,6 +58,7 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -93,7 +93,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StoreTests extends ESTestCase {
@@ -761,7 +763,8 @@ public class StoreTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0)).build();
-        Store store = new Store(shardId, IndexSettingsModule.newIndexSettings("index", settings), directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, IndexSettingsModule.newIndexSettings("index", settings), directoryService,
+            new DummyShardLock(shardId));
         long initialStoreSize = 0;
         for (String extraFiles : store.directory().listAll()) {
             assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
@@ -1071,4 +1074,55 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
+    public void testEnsureIndexHasHistoryUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId))) {
+
+            store.createEmpty();
+
+            // remove the history uuid
+            IndexWriterConfig iwc = new IndexWriterConfig(null)
+                .setCommitOnClose(false)
+                // we don't want merges to happen here - we call maybe merge on the engine
+                // later once we stared it up otherwise we would need to wait for it here
+                // we also don't specify a codec here and merges should use the engines for this index
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
+                Map<String, String> newCommitData = new HashMap<>();
+                for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
+                    if (entry.getKey().equals(Engine.HISTORY_UUID_KEY) == false) {
+                        newCommitData.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                writer.setLiveCommitData(newCommitData.entrySet());
+                writer.commit();
+            }
+
+            store.ensureIndexHasHistoryUUID();
+
+            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+        }
+    }
+
+    public void testHistoryUUIDCanBeForced() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId))) {
+
+            store.createEmpty();
+
+            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            final String oldHistoryUUID = segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY);
+
+            store.bootstrapNewHistory();
+
+            segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            assertThat(segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY), not(equalTo(oldHistoryUUID)));
+        }
+    }
 }

@@ -144,24 +144,17 @@ setup:
 
   - length: { aggregations.ip_range.buckets: 3 }
 
-# ip_range does not automatically add keys to buckets, see #21045
-#  - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }
-
   - is_false: aggregations.ip_range.buckets.0.from
 
   - match: { aggregations.ip_range.buckets.0.to: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.0.doc_count: 1 }
 
-#  - match: { aggregations.ip_range.buckets.1.key: "192.168.0.0-192.169.0.0" }
-
   - match: { aggregations.ip_range.buckets.1.from: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 }
-
-#  - match: { aggregations.ip_range.buckets.2.key: "192.169.0.0-*" }
 
   - match: { aggregations.ip_range.buckets.2.from: "192.169.0.0" }
 
@@ -177,23 +170,17 @@ setup:
 
   - length: { aggregations.ip_range.buckets: 3 }
 
-#  - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }
-
   - is_false: aggregations.ip_range.buckets.0.from
 
   - match: { aggregations.ip_range.buckets.0.to: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.0.doc_count: 1 }
 
-#  - match: { aggregations.ip_range.buckets.1.key: "192.168.0.0-192.169.0.0" }
-
   - match: { aggregations.ip_range.buckets.1.from: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 }
-
-#  - match: { aggregations.ip_range.buckets.2.key: "192.169.0.0-*" }
 
   - match: { aggregations.ip_range.buckets.2.from: "192.169.0.0" }
 
@@ -222,6 +209,21 @@ setup:
   - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 } 
+
+---
+"IP Range Key Generation":
+  - skip:
+     version: " - 6.99.99"
+     reason: "Before 7.0.0, ip_range did not always generate bucket keys (see #21045)."
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0" } ] } } } }
+
+  - length: { aggregations.ip_range.buckets: 3 }
+  - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }
+  - match: { aggregations.ip_range.buckets.1.key: "192.168.0.0-192.169.0.0" }
+  - match: { aggregations.ip_range.buckets.2.key: "192.169.0.0-*" }
 
 ---
 "Date range":

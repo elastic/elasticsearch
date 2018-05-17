@@ -57,30 +57,28 @@ public final class InternalBinaryRange
                 long docCount, InternalAggregations aggregations) {
             this.format = format;
             this.keyed = keyed;
-            this.key = key;
+            this.key = key != null ? key : generateKey(from, to, format);
             this.from = from;
             this.to = to;
             this.docCount = docCount;
             this.aggregations = aggregations;
         }
 
-        // for serialization
-        private Bucket(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            this.format = format;
-            this.keyed = keyed;
-            key = in.readOptionalString();
-            if (in.readBoolean()) {
-                from = in.readBytesRef();
-            } else {
-                from = null;
-            }
-            if (in.readBoolean()) {
-                to = in.readBytesRef();
-            } else {
-                to = null;
-            }
-            docCount = in.readLong();
-            aggregations = InternalAggregations.readAggregations(in);
+        private static String generateKey(BytesRef from, BytesRef to, DocValueFormat format) {
+            StringBuilder builder = new StringBuilder()
+                .append(from == null ? "*" : format.format(from))
+                .append("-")
+                .append(to == null ? "*" : format.format(to));
+            return builder.toString();
+        }
+
+        private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
+            String key = in.readOptionalString();
+            BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
+            BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
+            long docCount = in.readLong();
+            InternalAggregations aggregations = InternalAggregations.readAggregations(in);
+            return new Bucket(format, keyed, key, from, to, docCount, aggregations);
         }
 
         @Override
@@ -122,19 +120,10 @@ public final class InternalBinaryRange
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String key = this.key;
             if (keyed) {
-                if (key == null) {
-                    StringBuilder keyBuilder = new StringBuilder();
-                    keyBuilder.append(from == null ? "*" : format.format(from));
-                    keyBuilder.append("-");
-                    keyBuilder.append(to == null ? "*" : format.format(to));
-                    key = keyBuilder.toString();
-                }
                 builder.startObject(key);
             } else {
                 builder.startObject();
-                if (key != null) {
-                    builder.field(CommonFields.KEY.getPreferredName(), key);
-                }
+                builder.field(CommonFields.KEY.getPreferredName(), key);
             }
             if (from != null) {
                 builder.field(CommonFields.FROM.getPreferredName(), getFrom());
@@ -208,9 +197,8 @@ public final class InternalBinaryRange
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        buckets = in.readList(stream -> new Bucket(stream, format, keyed));
+        buckets = in.readList(stream -> Bucket.createFromStream(stream, format, keyed));
     }
-
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {

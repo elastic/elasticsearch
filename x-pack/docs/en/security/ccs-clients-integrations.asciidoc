@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ccs-clients-integrations]]
-== Cross Cluster Search, Clients and Integrations
+== Cross cluster search, clients, and integrations
 
 When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search]
 you need to take extra steps to secure communications with the connected

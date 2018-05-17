@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
@@ -76,13 +75,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
     public void testAnonymousUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityLifecycleService.securityIndex()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, securityLifecycleService, new ThreadContext(Settings.EMPTY));
+            new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, securityIndex, new ThreadContext(Settings.EMPTY));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
@@ -148,15 +145,13 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
     public void testReservedUsersOnly() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityLifecycleService.securityIndex()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.checkMappingVersion(any())).thenReturn(true);
 
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings), securityIndex, new ThreadContext(Settings.EMPTY));
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         final Collection<User> allReservedUsers = userFuture.actionGet();
@@ -198,13 +193,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final List<User> storeUsers = randomFrom(Collections.<User>emptyList(), Collections.singletonList(new User("joe")),
                 Arrays.asList(new User("jane"), new User("fred")), randomUsers());
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityLifecycleService.securityIndex()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
-                securityLifecycleService, new ThreadContext(Settings.EMPTY));
+                securityIndex, new ThreadContext(Settings.EMPTY));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),

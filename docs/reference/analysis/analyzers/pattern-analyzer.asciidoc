@@ -19,19 +19,6 @@ Read more about http://www.regular-expressions.info/catastrophic.html[pathologic
 
 ========================================
 
-
-[float]
-=== Definition
-
-It consists of:
-
-Tokenizer::
-* <<analysis-pattern-tokenizer,Pattern Tokenizer>>
-
-Token Filters::
-*  <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
-*  <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
-
 [float]
 === Example output
 
@@ -378,3 +365,51 @@ The regex above is easier to understand as:
     [\p{L}&&[^\p{Lu}]]          #   then lower case
   )
 --------------------------------------------------
+
+[float]
+=== Definition
+
+The `pattern` anlayzer consists of:
+
+Tokenizer::
+* <<analysis-pattern-tokenizer,Pattern Tokenizer>>
+
+Token Filters::
+*  <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
+*  <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
+
+If you need to customize the `pattern` analyzer beyond the configuration
+parameters then you need to recreate it as a `custom` analyzer and modify
+it, usually by adding token filters. This would recreate the built-in
+`pattern` analyzer and you can use it as a starting point for further
+customization:
+
+[source,js]
+----------------------------------------------------
+PUT /pattern_example
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "split_on_non_word": {
+          "type":       "pattern",
+          "pattern":    "\\W+" <1>
+        }
+      },
+      "analyzer": {
+        "rebuilt_pattern": {
+          "tokenizer": "split_on_non_word",
+          "filter": [
+            "lowercase"       <2>
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// CONSOLE
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: pattern_example, first: pattern, second: rebuilt_pattern}\nendyaml\n/]
+<1> The default pattern is `\W+` which splits on non-word characters
+and this is where you'd change it.
+<2> You'd add other token filters after `lowercase`.

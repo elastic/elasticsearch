@@ -201,17 +201,14 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
-xpack.subprojects.findAll { it.name != 'bwc' }.each { Project xpackSubproject ->
-  File licenses = new File(xpackSubproject.projectDir, 'licenses')
+xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
+  File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNotice.licensesDir licenses 
   }
+  copyModule(processDefaultOutputs, xpackModule)
+  copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
-// but copy just the top level meta plugin to the default modules
-copyModule(processDefaultOutputs, xpack)
-copyLog4jProperties(buildDefaultLog4jConfig, xpack)
-
-// 
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir

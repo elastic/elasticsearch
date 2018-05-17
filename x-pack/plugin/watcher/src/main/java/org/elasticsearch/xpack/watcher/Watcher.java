@@ -203,10 +203,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
 
-    // list of headers that will be stored when a watch is stored
-    public static final Set<String> HEADER_FILTERS =
-            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
-
     public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
         new ScriptContext<>("xpack", SearchScript.Factory.class);
     // TODO: remove this context when each xpack script use case has their own contexts

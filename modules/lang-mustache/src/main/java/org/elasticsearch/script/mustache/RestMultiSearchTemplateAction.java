@@ -77,7 +77,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
-                    SearchTemplateRequest searchTemplateRequest = RestSearchTemplateAction.parse(bytes);
+                    SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                     if (searchTemplateRequest.getScript() != null) {
                         searchTemplateRequest.setRequest(searchRequest);
                         multiRequest.add(searchTemplateRequest);

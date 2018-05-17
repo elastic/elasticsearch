@@ -25,6 +25,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpPipeliningAggregator;
@@ -66,22 +67,23 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
         if (msg instanceof HttpPipelinedResponse) {
-            HttpPipelinedResponse<FullHttpResponse, ChannelPromise> response = (HttpPipelinedResponse<FullHttpResponse, ChannelPromise>) msg;
+            HttpPipelinedResponse<FullHttpResponse> response = (HttpPipelinedResponse<FullHttpResponse>) msg;
             boolean success = false;
             try {
-                ArrayList<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> responsesToWrite = aggregator.write(response);
+                List<Tuple<HttpPipelinedResponse<FullHttpResponse>, ChannelPromise>> readyResponses = aggregator.write(response, promise);
                 success = true;
-                for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> responseToWrite : responsesToWrite) {
-                    ctx.write(responseToWrite.getResponse(), responseToWrite.getListener());
+                for (Tuple<HttpPipelinedResponse<FullHttpResponse>, ChannelPromise> readyResponse : readyResponses) {
+                    ctx.write(readyResponse.v1().getResponse(), readyResponse.v2());
                 }
             } catch (IllegalStateException e) {
                 ctx.channel().close();
                 Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
             } finally {
                 if (success == false) {
-                    response.getListener().setFailure(new ClosedChannelException());
+                    promise.setFailure(new ClosedChannelException());
                 }
             }
         } else {
@@ -91,13 +93,13 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<HttpPipelinedResponse<FullHttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+        List<Tuple<HttpPipelinedResponse<FullHttpResponse>, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (HttpPipelinedResponse<FullHttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
+            for (Tuple<HttpPipelinedResponse<FullHttpResponse>, ChannelPromise> inflightResponse : inflightResponses) {
                 try {
-                    inflightResponse.getListener().setFailure(closedChannelException);
+                    inflightResponse.v2().setFailure(closedChannelException);
                 } catch (RuntimeException e) {
                     logger.error("unexpected error while releasing pipelined http responses", e);
                 }

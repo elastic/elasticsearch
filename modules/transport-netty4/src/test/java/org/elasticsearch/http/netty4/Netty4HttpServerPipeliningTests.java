@@ -204,7 +204,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             }
 
             final ChannelPromise promise = ctx.newPromise();
-            ctx.writeAndFlush(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse, promise), promise);
+            ctx.writeAndFlush(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse), promise);
         }
 
     }

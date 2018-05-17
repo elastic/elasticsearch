@@ -230,7 +230,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
             int sequence = requests.get(i).getSequence();
-            HttpPipelinedResponse<FullHttpResponse, ChannelPromise> resp = new HttpPipelinedResponse<>(sequence, httpResponse, promise);
+            HttpPipelinedResponse<FullHttpResponse> resp = new HttpPipelinedResponse<>(sequence, httpResponse);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -295,7 +295,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
                     final ChannelPromise promise = ctx.newPromise();
                     eventLoopService.submit(() -> {
-                        ctx.write(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse, promise), promise);
+                        ctx.write(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse), promise);
                         finishingLatch.countDown();
                     });
                 } catch (InterruptedException e) {

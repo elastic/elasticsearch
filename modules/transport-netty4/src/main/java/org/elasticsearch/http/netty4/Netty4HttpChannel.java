@@ -135,7 +135,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
                 promise.addListener(ChannelFutureListener.CLOSE);
             }
 
-            HttpPipelinedResponse<FullHttpResponse, ChannelPromise> newResponse = new HttpPipelinedResponse<>(sequence, resp, promise);
+            HttpPipelinedResponse<FullHttpResponse> newResponse = new HttpPipelinedResponse<>(sequence, resp);
 
             channel.writeAndFlush(newResponse, promise);
             releaseContent = false;

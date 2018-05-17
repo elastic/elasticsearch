@@ -29,10 +29,10 @@ import java.util.function.BiConsumer;
 public class HttpWriteOperation implements WriteOperation {
 
     private final SocketChannelContext channelContext;
-    private final HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>> response;
+    private final HttpPipelinedResponse<FullHttpResponse> response;
     private final BiConsumer<Void, Throwable> listener;
 
-    HttpWriteOperation(SocketChannelContext channelContext, HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>> response,
+    HttpWriteOperation(SocketChannelContext channelContext, HttpPipelinedResponse<FullHttpResponse> response,
                        BiConsumer<Void, Throwable> listener) {
         this.channelContext = channelContext;
         this.response = response;
@@ -50,7 +50,7 @@ public class HttpWriteOperation implements WriteOperation {
     }
 
     @Override
-    public HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>> getObject() {
+    public HttpPipelinedResponse<FullHttpResponse> getObject() {
         return response;
     }
 }

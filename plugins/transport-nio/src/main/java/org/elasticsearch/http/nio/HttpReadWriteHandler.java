@@ -102,7 +102,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
         assert message instanceof HttpPipelinedResponse : "This channel only supports messages that are of type: "
             + HttpPipelinedResponse.class + ". Found type: " + message.getClass() + ".";
-        return new HttpWriteOperation(context, (HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>>) message, listener);
+        return new HttpWriteOperation(context, (HttpPipelinedResponse<FullHttpResponse>) message, listener);
     }
 
     @Override

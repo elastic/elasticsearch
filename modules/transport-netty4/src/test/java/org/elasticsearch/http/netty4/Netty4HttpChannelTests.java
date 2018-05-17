@@ -229,7 +229,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             // inspect what was written
             List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
             assertThat(writtenObjects.size(), is(1));
-            HttpResponse response = ((HttpPipelinedResponse<FullHttpResponse, ChannelPromise>) writtenObjects.get(0)).getResponse();
+            HttpResponse response = ((HttpPipelinedResponse<FullHttpResponse>) writtenObjects.get(0)).getResponse();
             assertThat(response.headers().get("non-existent-header"), nullValue());
             assertThat(response.headers().get(customHeader), equalTo(customHeaderValue));
             assertThat(response.headers().get(HttpHeaderNames.CONTENT_LENGTH), equalTo(Integer.toString(resp.content().length())));
@@ -347,7 +347,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             // get the response
             List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
             assertThat(writtenObjects.size(), is(1));
-            return ((HttpPipelinedResponse<FullHttpResponse, ChannelPromise>) writtenObjects.get(0)).getResponse();
+            return ((HttpPipelinedResponse<FullHttpResponse>) writtenObjects.get(0)).getResponse();
         }
     }
 

@@ -173,8 +173,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         prepareHandlerForResponse(handler);
 
         FullHttpResponse fullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        HttpPipelinedResponse<FullHttpResponse, BiConsumer<Void, Throwable>> pipelinedResponse =
-            new HttpPipelinedResponse<>(0, fullHttpResponse, mock(BiConsumer.class));
+        HttpPipelinedResponse<FullHttpResponse> pipelinedResponse = new HttpPipelinedResponse<>(0, fullHttpResponse);
 
         SocketChannelContext context = mock(SocketChannelContext.class);
         HttpWriteOperation writeOperation = new HttpWriteOperation(context, pipelinedResponse, mock(BiConsumer.class));

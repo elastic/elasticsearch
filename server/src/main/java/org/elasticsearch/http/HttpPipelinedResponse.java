@@ -18,16 +18,14 @@
  */
 package org.elasticsearch.http;
 
-public class HttpPipelinedResponse<Response, Listener> implements Comparable<HttpPipelinedResponse<Response, Listener>> {
+public class HttpPipelinedResponse<Response> implements Comparable<HttpPipelinedResponse<Response>> {
 
     private final int sequence;
     private final Response response;
-    private final Listener listener;
 
-    public HttpPipelinedResponse(int sequence, Response response, Listener listener) {
+    public HttpPipelinedResponse(int sequence, Response response) {
         this.sequence = sequence;
         this.response = response;
-        this.listener = listener;
     }
 
     public int getSequence() {
@@ -38,12 +36,8 @@ public class HttpPipelinedResponse<Response, Listener> implements Comparable<Htt
         return response;
     }
 
-    public Listener getListener() {
-        return listener;
-    }
-
     @Override
-    public int compareTo(HttpPipelinedResponse<Response, Listener> o) {
+    public int compareTo(HttpPipelinedResponse<Response> o) {
         return Integer.compare(sequence, o.sequence);
     }
 }

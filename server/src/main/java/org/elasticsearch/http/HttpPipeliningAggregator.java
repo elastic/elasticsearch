@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.collect.Tuple;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -25,7 +27,7 @@ import java.util.PriorityQueue;
 public class HttpPipeliningAggregator<Response, Listener> {
 
     private final int maxEventsHeld;
-    private final PriorityQueue<HttpPipelinedResponse<Response, Listener>> outboundHoldingQueue;
+    private final PriorityQueue<Tuple<HttpPipelinedResponse<Response>, Listener>> outboundHoldingQueue;
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
      * channel, and then transferred to responses. A response is not written to the channel context until its sequence number matches the
@@ -43,18 +45,18 @@ public class HttpPipeliningAggregator<Response, Listener> {
         return new HttpPipelinedRequest<>(readSequence++, request);
     }
 
-    public ArrayList<HttpPipelinedResponse<Response, Listener>> write(final HttpPipelinedResponse<Response, Listener> response) {
+    public List<Tuple<HttpPipelinedResponse<Response>, Listener>> write(final HttpPipelinedResponse<Response> response, Listener listener) {
         if (outboundHoldingQueue.size() < maxEventsHeld) {
-            ArrayList<HttpPipelinedResponse<Response, Listener>> readyResponses = new ArrayList<>();
-            outboundHoldingQueue.add(response);
+            ArrayList<Tuple<HttpPipelinedResponse<Response>, Listener>> readyResponses = new ArrayList<>();
+            outboundHoldingQueue.add(new Tuple<>(response, listener));
             while (!outboundHoldingQueue.isEmpty()) {
                 /*
                  * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence
                  * number does not match the current write sequence number then we have not processed all preceding responses yet.
                  */
-                final HttpPipelinedResponse<Response, Listener> top = outboundHoldingQueue.peek();
+                final Tuple<HttpPipelinedResponse<Response>, Listener> top = outboundHoldingQueue.peek();
 
-                if (top.getSequence() != writeSequence) {
+                if (top.v1().getSequence() != writeSequence) {
                     break;
                 }
                 outboundHoldingQueue.poll();
@@ -70,8 +72,8 @@ public class HttpPipeliningAggregator<Response, Listener> {
         }
     }
 
-    public List<HttpPipelinedResponse<Response, Listener>> removeAllInflightResponses() {
-        ArrayList<HttpPipelinedResponse<Response, Listener>> responses = new ArrayList<>(outboundHoldingQueue);
+    public List<Tuple<HttpPipelinedResponse<Response>, Listener>> removeAllInflightResponses() {
+        ArrayList<Tuple<HttpPipelinedResponse<Response>, Listener>> responses = new ArrayList<>(outboundHoldingQueue);
         outboundHoldingQueue.clear();
         return responses;
     }

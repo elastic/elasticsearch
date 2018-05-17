@@ -36,7 +36,7 @@ import java.util.List;
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
-public class HttpPipeliningHandler extends ChannelDuplexHandler {
+public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
     private final HttpPipeliningAggregator<Netty4HttpResponse, ChannelPromise> aggregator;
@@ -48,7 +48,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
+    public Netty4HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
         this.logger = logger;
         this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
     }

@@ -303,15 +303,16 @@ comma separated list of nodes to connect to (e.g. localhost:9300). A transport c
 be created based on that and used for all the before|after test operations, and to extract
 the http addresses of the nodes so that REST requests can be sent to them.
 
-== Testing scripts
+== Testing packaging
 
-The simplest way to test scripts and the packaged distributions is to use
-Vagrant. You can get started by following there five easy steps:
+The packaging tests use Vagrant virtual machines to verify that installing
+and running elasticsearch distributions works correctly on supported operating systems.
+These tests should really only be run in vagrant vms because they're destructive.
 
 . Install Virtual Box and Vagrant.
 
-. (Optional) Install vagrant-cachier to squeeze a bit more performance out of
-the process:
+. (Optional) Install https://github.com/fgrehm/vagrant-cachier[vagrant-cachier] to squeeze
+a bit more performance out of the process:
 
 --------------------------------------
 vagrant plugin install vagrant-cachier
@@ -325,26 +326,39 @@ vagrant plugin install vagrant-cachier
 
 . Download and smoke test the VMs with `./gradlew vagrantSmokeTest` or
 `./gradlew -Pvagrant.boxes=all vagrantSmokeTest`. The first time you run this it will
-download the base images and provision the boxes and immediately quit. If you
-you this again it'll skip the download step.
+download the base images and provision the boxes and immediately quit. Downloading all
+the images may take a long time. After the images are already on your machine, they won't
+be downloaded again unless they have been updated to a new version.
 
 . Run the tests with `./gradlew packagingTest`. This will cause Gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.
 
-You can run on all the VMs by running `./gradlew -Pvagrant.boxes=all
-packagingTest`. You can run a particular VM with a command like `./gradlew
--Pvagrant.boxes=oel-7 packagingTest`. See `./gradlew tasks` for a complete list
-of available vagrant boxes for testing. It's important to know that if you
-interrupt any of these Gradle commands then the boxes will remain running and
-you'll have to terminate them with `./gradlew stop`.
+You can choose which boxes to test by setting the `-Pvagrant.boxes` project property. All of
+the valid options for this property are:
+
+* `sample` - The default, only chooses ubuntu-1404 and centos-7
+* List of box names, comma separated (e.g. `oel-7,fedora-26`) - Chooses exactly the boxes listed.
+* `linux-all` - All linux boxes.
+* `windows-all` - All Windows boxes. If there are any Windows boxes which do not
+have images available when this value is provided, the build will fail.
+* `all` - All boxes we test. If there are any boxes (e.g. Windows) which do not have images
+available when this value is provided, the build will fail.
+
+For a complete list of boxes on which tests can be run, run `./gradlew :qa:vagrant:listAllBoxes`.
+For a list of boxes that have images available from your configuration, run
+`./gradlew :qa:vagrant:listAvailableBoxes`
+
+Note that if you interrupt gradle in the middle of running these tasks, any boxes started
+will remain running and you'll have to stop them manually with `./gradlew stop` or
+`vagrant halt`.
 
 All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running
 `vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404`.
 
-These are the linux flavors the Vagrantfile currently supports:
+These are the linux flavors supported, all of which we provide images for
 
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
@@ -364,9 +378,42 @@ quality boxes available in vagrant atlas:
 
 * sles-11
 
-We're missing the following because our tests are very linux/bash centric:
+=== Testing packaging on Windows
 
-* Windows Server 2012
+The packaging tests also support Windows Server 2012R2 and Windows Server 2016.
+Unfortunately we're not able to provide boxes for them in open source use
+because of licensing issues. Any Virtualbox image that has WinRM and Powershell
+enabled for remote users should work.
+
+Testing on Windows requires the https://github.com/criteo/vagrant-winrm[vagrant-winrm] plugin.
+
+------------------------------------
+vagrant plugin install vagrant-winrm
+------------------------------------
+
+Specify the image IDs of the Windows boxes to gradle with the following project
+properties. They can be set in `~/.gradle/gradle.properties` like
+
+------------------------------------
+vagrant.windows-2012r2.id=my-image-id
+vagrant.windows-2016.id=another-image-id
+------------------------------------
+
+or passed on the command line like `-Pvagrant.windows-2012r2.id=my-image-id`
+`-Pvagrant.windows-2016=another-image-id`
+
+These properties are required for Windows support in all gradle tasks that
+handle packaging tests. Either or both may be specified. Remember that to run tests
+on these boxes, the project property `vagrant.boxes` still needs to be set to a
+value that will include them.
+
+If you're running vagrant commands outside of gradle, specify the Windows boxes
+with the environment variables
+
+* `VAGRANT_WINDOWS_2012R2_BOX`
+* `VAGRANT_WINDOWS_2016_BOX`
+
+=== Testing VMs are disposable
 
 It's important to think of VMs like cattle. If they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:
@@ -399,54 +446,62 @@ vagrant destroy -f
 `vagrant up` would normally start all the VMs but we've prevented that because
 that'd consume a ton of ram.
 
-== Testing scripts more directly
+=== Iterating on packaging tests
 
-In general its best to stick to testing in vagrant because the bats scripts are
-destructive. When working with a single package it's generally faster to run its
-tests in a tighter loop than Gradle provides. In one window:
+Running the packaging tests through gradle can take a while because it will start
+and stop the VM each time. You can iterate faster by keeping the VM up and running
+the tests directly.
 
---------------------------------
-./gradlew :distribution:packages:rpm:assemble
---------------------------------
+The packaging tests use a random seed to determine which past version to use for
+testing upgrades. To use a single past version fix the test seed when running
+the commands below (see <<Seed and repetitions.>>)
 
-and in another window:
+First build the packaging tests and their dependencies
 
-----------------------------------------------------
-vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
+--------------------------------------------
+./gradlew :qa:vagrant:setupPackagingTest
+--------------------------------------------
+
+Then choose the VM you want to test on and bring it up. For example, to bring
+up Debian 9 use the gradle command below. Bringing the box up with vagrant directly
+may not mount the packaging test project in the right place. Once the VM is up, ssh
+into it
+
+--------------------------------------------
+./gradlew :qa:vagrant:vagrantDebian9#up
+vagrant ssh debian-9
+--------------------------------------------
+
+Now inside the VM, to run the https://github.com/sstephenson/bats[bats] packaging tests
+
+--------------------------------------------
 cd $PACKAGING_ARCHIVES
-sudo -E bats $BATS_TESTS/*rpm*.bats
-----------------------------------------------------
 
-If you wanted to retest all the release artifacts on a single VM you could:
+# runs all bats tests
+sudo bats $BATS_TESTS/*.bats
 
--------------------------------------------------
-./gradlew setupPackagingTest
-cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
-cd $PACKAGING_ARCHIVES
-sudo -E bats $BATS_TESTS/*.bats
--------------------------------------------------
+# you can also pass specific test files
+sudo bats $BATS_TESTS/20_tar_package.bats $BATS_TESTS/25_tar_plugins.bats
+--------------------------------------------
 
-You can also use Gradle to prepare the test environment and then starts a single VM:
+To run the Java packaging tests, again inside the VM
 
--------------------------------------------------
-./gradlew vagrantFedora27#up
--------------------------------------------------
+--------------------------------------------
+bash $PACKAGING_TESTS/run-tests.sh
+--------------------------------------------
 
-Or any of vagrantCentos6#up, vagrantCentos7#up, vagrantDebian8#up,
-vagrantDebian9#up, vagrantFedora26#up, vagrantFedora27#up, vagrantOel6#up, vagrantOel7#up,
-vagrantOpensuse42#up,vagrantSles12#up, vagrantUbuntu1404#up, vagrantUbuntu1604#up.
+or on Windows
 
-Once up, you can then connect to the VM using SSH from the elasticsearch directory:
+--------------------------------------------
+powershell -File $Env:PACKAGING_TESTS/run-tests.ps1
+--------------------------------------------
 
--------------------------------------------------
-vagrant ssh fedora-27
--------------------------------------------------
+When you've made changes you want to test, keep the VM up and reload the tests and
+distributions inside by running (on the host)
 
-Or from another directory:
-
--------------------------------------------------
-VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-27
--------------------------------------------------
+--------------------------------------------
+./gradlew :qa:vagrant:clean :qa:vagrant:setupPackagingTest
+--------------------------------------------
 
 Note: Starting vagrant VM outside of the elasticsearch folder requires to
 indicates the folder that contains the Vagrantfile using the VAGRANT_CWD

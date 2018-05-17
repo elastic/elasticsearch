@@ -283,6 +283,15 @@ public class CppLogMessageHandler implements Closeable {
             if (upstreamMessage.contains("bad_alloc")) {
                 upstreamMessage += ", process ran out of memory.";
             }
+
+            // add version information, so it's conveniently next to the crash log
+            upstreamMessage += ", version: ";
+            try {
+                upstreamMessage += getCppCopyright(Duration.ofMillis(10));
+            } catch (TimeoutException timeoutException) {
+                upstreamMessage += "failed to retrieve";
+            }
+
             storeError(upstreamMessage);
             seenFatalError = true;
         } catch (IOException e) {

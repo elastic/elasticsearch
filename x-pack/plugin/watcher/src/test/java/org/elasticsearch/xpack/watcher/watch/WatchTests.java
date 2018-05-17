@@ -16,10 +16,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
@@ -122,6 +125,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -301,31 +305,27 @@ public class WatchTests extends ESTestCase {
 
     public void testParserConsumesEntireDefinition() throws Exception {
         WatchParser wp = createWatchparser();
-        String watchDef="{\n" +
-            "  \"trigger\": {\n" +
-            "    \"schedule\": {\n" +
-            "      \"interval\": \"10s\"\n" +
-            "    }\n" +
-            "  },\n" +
-            "  \"input\": {\n" +
-            "    \"simple\": {}\n" +
-            "  }},\n" + /* NOTICE EXTRA CLOSING CURLY BRACE */
-            "  \"condition\": {\n" +
-            "    \"script\": {\n" +
-            "      \"inline\": \"return false\"\n" +
-            "    }\n" +
-            "  },\n" +
-            "  \"actions\": {\n" +
-            "    \"logging\": {\n" +
-            "      \"logging\": {\n" +
-            "        \"text\": \"{{ctx.payload}}\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}";
-            IOException e = expectThrows(IOException.class, () ->
-                wp.parseWithSecrets("failure", false, new BytesArray(watchDef), new DateTime(), XContentType.JSON, true));
-            assertThat(e.getMessage(), containsString("could not parse watch"));
+        XContentBuilder jsonBuilder = jsonBuilder()
+            .startObject()
+              .startObject("trigger")
+                .startObject("schedule")
+                  .field("interval", "10s")
+                .endObject()
+              .endObject()
+              .startObject("input")
+                .startObject("simple")
+                .endObject()
+              .endObject()
+              .startObject("condition")
+                .startObject("script")
+                  .field("source", "return false")
+                .endObject()
+              .endObject()
+            .endObject();
+            jsonBuilder.generator().writeBinary(",".getBytes(StandardCharsets.UTF_8));
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+                wp.parseWithSecrets("failure", false, BytesReference.bytes(jsonBuilder), new DateTime(), XContentType.JSON, true));
+            assertThat(e.getMessage(), containsString("unexpected data beyond"));
     }
 
     public void testParserDefaults() throws Exception {

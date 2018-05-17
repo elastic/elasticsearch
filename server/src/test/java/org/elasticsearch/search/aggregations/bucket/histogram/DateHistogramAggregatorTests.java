@@ -446,7 +446,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
                 InternalDateHistogram histogram;
                 if (reduced) {
-                    histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, maxBucket, fieldType);
+                    histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, maxBucket, null, fieldType);
                 } else {
                     histogram = search(indexSearcher, query, aggregationBuilder, maxBucket, fieldType);
                 }

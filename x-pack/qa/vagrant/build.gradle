@@ -11,41 +11,6 @@ esvagrant {
 }
 
 dependencies {
-    // Packaging tests use the x-pack meta plugin
-    packaging project(path: xpackProject('plugin').path, configuration: 'zip')
-
     // Inherit Bats test utils from :qa:vagrant project
     packaging project(path: ':qa:vagrant', configuration: 'packaging')
-}
-
-Map<String, List<String>> metaPlugins = [:]
-for (Project metaPlugin : project.rootProject.subprojects) {
-    if (metaPlugin.plugins.hasPlugin(MetaPluginBuildPlugin)) {
-        MetaPluginPropertiesExtension extension = metaPlugin.extensions.findByName('es_meta_plugin')
-        if (extension != null) {
-            List<String> plugins = []
-            metaPlugin.subprojects.each {
-                if (extension.plugins.contains(it.name)) {
-                    Project plugin = (Project) it
-                    if (plugin.plugins.hasPlugin(PluginBuildPlugin)) {
-                        PluginPropertiesExtension esplugin = plugin.extensions.findByName('esplugin')
-                        if (esplugin != null) {
-                            plugins.add(esplugin.name)
-                        }
-                    }
-                }
-            }
-            metaPlugins.put(extension.name, plugins.toSorted())
-        }
-    }
-}
-
-setupPackagingTest {
-    doLast {
-        metaPlugins.each{ name, plugins ->
-            File expectedMetaPlugins = file("build/plugins/${name}.expected")
-            expectedMetaPlugins.parentFile.mkdirs()
-            expectedMetaPlugins.setText(plugins.join('\n'), 'UTF-8')
-        }
-    }
 }

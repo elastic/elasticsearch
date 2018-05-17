@@ -195,7 +195,13 @@ setup:
 
 ---
 "Test typed keys parameter for date_histogram aggregation and max_bucket pipeline aggregation":
+  - skip:
+      features: warnings
+      version: " - 6.4.0"
+      reason:  "deprecation added in 6.4.0"
   - do:
+      warnings:
+          - 'The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.'
       search:
         typed_keys: true
         body:

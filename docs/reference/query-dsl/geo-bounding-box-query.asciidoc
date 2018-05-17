@@ -206,7 +206,7 @@ GET /_search
 // CONSOLE
 
 [float]
-===== Geohash
+===== Geohash as corners
 
 [source,js]
 --------------------------------------------------
@@ -222,6 +222,31 @@ GET /_search
                     "pin.location" : {
                         "top_left" : "dr5r9ydj2y73",
                         "bottom_right" : "drj7teegpus6"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+===== Geohash as a bounding box
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "geohash" : "dr5r"
                     }
                 }
             }

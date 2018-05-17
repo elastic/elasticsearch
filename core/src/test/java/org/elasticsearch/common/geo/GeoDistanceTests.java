@@ -102,6 +102,7 @@ public class GeoDistanceTests extends ESTestCase {
                 in.setVersion(out.getVersion());
                 int ord = in.readVInt();
                 assertThat(ord, isIn(Arrays.asList(0, 1)));
+                assertThat(in.read(), equalTo(-1));
             }
         }
     }
@@ -115,6 +116,7 @@ public class GeoDistanceTests extends ESTestCase {
                 in.setVersion(out.getVersion());
                 int ord = in.readVInt();
                 assertThat(ord, isIn(Arrays.asList(0, 2)));
+                assertThat(in.read(), equalTo(-1));
             }
         }
     }

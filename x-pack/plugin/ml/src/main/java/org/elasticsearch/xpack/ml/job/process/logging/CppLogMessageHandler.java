@@ -199,7 +199,7 @@ public class CppLogMessageHandler implements Closeable {
             return info;
         } else {
             // If this happens it probably means someone has changed the format in lib/ver/CBuildInfo.cc
-            // in the machine-learning-cpp repo without changing the pattern above to match
+            // in the ml-cpp repo without changing the pattern above to match
             String msg = "Unexpected native process copyright format: " + copyrightMessage;
             LOGGER.error(msg);
             throw new ElasticsearchException(msg);

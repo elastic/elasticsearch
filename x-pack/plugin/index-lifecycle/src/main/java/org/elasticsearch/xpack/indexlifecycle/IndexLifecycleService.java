@@ -23,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.io.Closeable;
@@ -59,6 +60,11 @@ public class IndexLifecycleService extends AbstractComponent
         this.policyRegistry = new PolicyStepsRegistry();
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         clusterService.addListener(this);
+    }
+
+    public ClusterState moveClusterStateToStep(ClusterState currentState, String indexName, StepKey currentStepKey, StepKey nextStepKey) {
+        return IndexLifecycleRunner.moveClusterStateToStep(indexName, currentState, currentStepKey, nextStepKey,
+            nowSupplier, policyRegistry);
     }
 
     SchedulerEngine getScheduler() {
@@ -142,7 +148,7 @@ public class IndexLifecycleService extends AbstractComponent
                 }
             }));
     }
-    
+
     public void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting

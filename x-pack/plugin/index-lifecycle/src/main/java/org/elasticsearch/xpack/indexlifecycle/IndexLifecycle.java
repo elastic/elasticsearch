@@ -36,12 +36,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
+import org.elasticsearch.xpack.indexlifecycle.action.RestMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifcycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportGetLifecycleAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportPutLifecycleAction;
 
 import java.time.Clock;
@@ -129,18 +132,26 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
+        if (enabled == false) {
+            return emptyList();
+        }
         return Arrays.asList(
                 new RestPutLifecycleAction(settings, restController),
                 new RestGetLifecycleAction(settings, restController),
-                new RestDeleteLifecycleAction(settings, restController));
+                new RestDeleteLifecycleAction(settings, restController),
+                new RestMoveToStepAction(settings, restController));
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (enabled == false) {
+            return emptyList();
+        }
         return Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
-                new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifcycleAction.class));
+                new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifcycleAction.class),
+                new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class));
     }
 
     @Override

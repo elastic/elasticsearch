@@ -17,6 +17,7 @@ public class CategorizerStateTests extends ESTestCase {
         assertThat(CategorizerState.extractJobId("foo_categorizer_state#1"), equalTo("foo"));
         assertThat(CategorizerState.extractJobId("bar_categorizer_state#2"), equalTo("bar"));
         assertThat(CategorizerState.extractJobId("foo_bar_categorizer_state#3"), equalTo("foo_bar"));
+        assertThat(CategorizerState.extractJobId("_categorizer_state_categorizer_state#3"), equalTo("_categorizer_state"));
     }
 
     public void testExtractJobId_GivenInvalidDocId() {

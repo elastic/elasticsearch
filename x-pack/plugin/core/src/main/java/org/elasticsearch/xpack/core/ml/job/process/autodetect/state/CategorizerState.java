@@ -43,7 +43,7 @@ public class CategorizerState {
      * @return the job id or {@code null} if the id is not valid
      */
     public static final String extractJobId(String docId) {
-        int suffixIndex = docId.indexOf("_" + TYPE);
+        int suffixIndex = docId.lastIndexOf("_" + TYPE);
         return suffixIndex <= 0 ? null : docId.substring(0, suffixIndex);
     }
 

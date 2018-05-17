@@ -17,6 +17,7 @@ public class ModelStateTests extends ESTestCase {
         assertThat(ModelState.extractJobId("foo_model_state_3151373783#1"), equalTo("foo"));
         assertThat(ModelState.extractJobId("bar_model_state_451515#3"), equalTo("bar"));
         assertThat(ModelState.extractJobId("foo_bar_model_state_blah_blah"), equalTo("foo_bar"));
+        assertThat(ModelState.extractJobId("_model_state_model_state_11111"), equalTo("_model_state"));
     }
 
     public void testExtractJobId_GivenInvalidDocId() {

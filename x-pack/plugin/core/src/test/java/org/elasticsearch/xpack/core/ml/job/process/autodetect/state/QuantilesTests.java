@@ -25,6 +25,7 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
         assertThat(Quantiles.extractJobId("foo_quantiles"), equalTo("foo"));
         assertThat(Quantiles.extractJobId("bar_quantiles"), equalTo("bar"));
         assertThat(Quantiles.extractJobId("foo_bar_quantiles"), equalTo("foo_bar"));
+        assertThat(Quantiles.extractJobId("_quantiles_quantiles"), equalTo("_quantiles"));
     }
 
     public void testExtractJobId_GivenInvalidDocId() {

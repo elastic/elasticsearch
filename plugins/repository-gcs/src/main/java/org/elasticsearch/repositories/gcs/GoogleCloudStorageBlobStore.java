@@ -28,6 +28,7 @@ import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.Storage.CopyRequest;
+import com.google.cloud.storage.StorageException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -47,11 +48,14 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
 
@@ -204,24 +208,32 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param inputStream the stream containing the blob data
      */
     private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream) throws IOException {
-        final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
-        Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
-            @Override
-            public boolean isOpen() {
-                return writeChannel.isOpen();
-            }
+        try {
+            final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(
+                () -> storage.writer(blobInfo, Storage.BlobWriteOption.doesNotExist()));
+            Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+                @Override
+                public boolean isOpen() {
+                    return writeChannel.isOpen();
+                }
 
-            @Override
-            public void close() throws IOException {
-                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-            }
+                @Override
+                public void close() throws IOException {
+                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                }
 
-            @SuppressForbidden(reason = "Channel is based of a socket not a file")
-            @Override
-            public int write(ByteBuffer src) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                @SuppressForbidden(reason = "Channel is based of a socket not a file")
+                @Override
+                public int write(ByteBuffer src) throws IOException {
+                    return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                }
+            }));
+        } catch (StorageException se) {
+            if (se.getCode() == HTTP_PRECON_FAILED) {
+                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
             }
-        }));
+            throw se;
+        }
     }
 
     /**
@@ -238,7 +250,17 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
         Streams.copy(inputStream, baos);
-        SocketAccess.doPrivilegedVoidIOException(() -> storage.create(blobInfo, baos.toByteArray()));
+        SocketAccess.doPrivilegedVoidIOException(
+            () -> {
+                try {
+                    storage.create(blobInfo, baos.toByteArray(), Storage.BlobTargetOption.doesNotExist());
+                } catch (StorageException se) {
+                    if (se.getCode() == HTTP_PRECON_FAILED) {
+                        throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+                    }
+                    throw se;
+                }
+            });
     }
 
     /**
@@ -295,8 +317,8 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     /**
      * Moves a blob within the same bucket
      *
-     * @param sourceBlob name of the blob to move
-     * @param targetBlob new name of the blob in the same bucket
+     * @param sourceBlobName name of the blob to move
+     * @param targetBlobName new name of the blob in the same bucket
      */
     void moveBlob(String sourceBlobName, String targetBlobName) throws IOException {
         final BlobId sourceBlobId = BlobId.of(bucket, sourceBlobName);

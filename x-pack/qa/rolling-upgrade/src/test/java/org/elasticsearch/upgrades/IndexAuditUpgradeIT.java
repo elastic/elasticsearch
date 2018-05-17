@@ -71,6 +71,6 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         assertNotNull(nodesAgg);
         List<Map<String, Object>> buckets = (List<Map<String, Object>>) nodesAgg.get("buckets");
         assertNotNull(buckets);
-        assertEquals(numBuckets, buckets.size());
+        assertEquals("Found node buckets " + buckets, numBuckets, buckets.size());
     }
 }

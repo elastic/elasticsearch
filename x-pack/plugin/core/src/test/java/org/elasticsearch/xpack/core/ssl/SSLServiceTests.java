@@ -541,18 +541,18 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.alias(), equalTo("testnode_dsa"));
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
-        assertThat(cert.serialNumber(), equalTo("58925f5a"));
-        assertThat(cert.subjectDn(), equalTo("CN=testnode"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2028-01-16T07:28:46.000Z")));
+        assertThat(cert.serialNumber(), equalTo("223c736a"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2045-10-02T09:43:18.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
         assertThat(cert.alias(), equalTo("testnode_ec"));
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
-        assertThat(cert.serialNumber(), equalTo("792353ce"));
-        assertThat(cert.subjectDn(), equalTo("CN=testnode"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2028-01-16T07:27:22.000Z")));
+        assertThat(cert.serialNumber(), equalTo("7268203b"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2045-10-02T09:36:10.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();

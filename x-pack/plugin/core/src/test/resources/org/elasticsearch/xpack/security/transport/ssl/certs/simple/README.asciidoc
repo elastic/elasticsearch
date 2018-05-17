@@ -66,13 +66,15 @@ Adding `DSA` and `EC` Keys to the Keystore
 
 [source,shell]
 ------
-keytool -genkeypair -keyalg DSA -alias testnode_DSA -keystore testnode.jks -storepass testnode \
-        -keypass testnode -validity 10000 -keysize 1024 -dname "CN=testnode"
+keytool -genkeypair -keyalg DSA -alias testnode_dsa -keystore testnode.jks -storepass testnode \
+        -keypass testnode -validity 10000 -keysize 1024 -dname "CN=Elasticsearch Test Node" \
+        -ext SAN=dns:localhost,dns:localhost.localdomain,dns:localhost4,dns:localhost4.localdomain4,dns:localhost6,dns:localhost6.localdomain6,ip:127.0.0.1,ip:0:0:0:0:0:0:0:1
 ------
 [source,shell]
 ------
-keytool -genkeypair -keyalg EC -alias testnode_EC -keystore testnode.jks -storepass testnode \
-        -keypass testnode -validity 10000 -keysize 256 -dname "CN=testnode"
+keytool -genkeypair -keyalg EC -alias testnode_ec -keystore testnode.jks -storepass testnode \
+        -keypass testnode -validity 10000 -keysize 256 -dname "CN=Elasticsearch Test Node" \
+        -ext SAN=dns:localhost,dns:localhost.localdomain,dns:localhost4,dns:localhost4.localdomain4,dns:localhost6,dns:localhost6.localdomain6,ip:127.0.0.1,ip:0:0:0:0:0:0:0:1
 ------
 
 Exporting the `DSA` and `EC` private keys from the keystore

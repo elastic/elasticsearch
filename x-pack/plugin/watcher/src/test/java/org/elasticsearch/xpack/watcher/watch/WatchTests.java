@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
@@ -293,6 +295,38 @@ public class WatchTests extends ESTestCase {
             fail("This watch should fail to parse as actions is an array");
         } catch (ElasticsearchParseException pe) {
             assertThat(pe.getMessage().contains("could not parse actions for watch [failure]"), is(true));
+        }
+    }
+
+    public void testParserConsumesEntireDefinition() throws Exception {
+        WatchParser wp = createWatchparser();
+        String watchDef="{\n" +
+            "  \"trigger\": {\n" +
+            "    \"schedule\": {\n" +
+            "      \"interval\": \"10s\"\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"input\": {\n" +
+            "    \"simple\": {}\n" +
+            "  }},\n" + /* NOTICE EXTRA CLOSING CURLY BRACE */
+            "  \"condition\": {\n" +
+            "    \"script\": {\n" +
+            "      \"inline\": \"return false\"\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"actions\": {\n" +
+            "    \"logging\": {\n" +
+            "      \"logging\": {\n" +
+            "        \"text\": \"{{ctx.payload}}\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        try {
+            wp.parseWithSecrets("failure", false, new BytesArray(watchDef), new DateTime(), XContentType.JSON, true);
+            fail("This watch should fail to parse as there is an extra closing curly brace in the middle of the watch");
+        } catch (ElasticsearchParseException pe) {
+            assertThat(pe.getMessage().contains("unexpected data beyond"), is(true));
         }
     }
 

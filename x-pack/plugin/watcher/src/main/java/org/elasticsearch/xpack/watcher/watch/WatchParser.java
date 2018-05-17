@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -174,6 +175,19 @@ public class WatchParser extends AbstractComponent {
                 throw new ElasticsearchParseException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
             }
         }
+
+        try {
+            /* Make sure we are at the end of the available input data -- certain types of JSON errors will not manifest
+                until we try to consume additional tokens.
+             */
+            if (parser.nextToken() != null) {
+                throw new ElasticsearchParseException("Received non-null token beyond end of watch definition!");
+            }
+        } catch (JsonParseException|ElasticsearchParseException e) {
+            throw new ElasticsearchParseException("could not parse watch [{}].  unexpected data beyond [line: {}, column: {}]",
+                e, id, parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
+        }
+
         if (trigger == null) {
             throw new ElasticsearchParseException("could not parse watch [{}]. missing required field [{}]", id,
                     WatchField.TRIGGER.getPreferredName());

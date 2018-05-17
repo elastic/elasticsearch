@@ -24,15 +24,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReInitializablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin {
+public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReInitializablePlugin {
 
     private final GoogleCloudStorageService storageService;
 
@@ -64,5 +64,13 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING,
             GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING,
             GoogleCloudStorageClientSettings.TOKEN_URI_SETTING);
+    }
+
+    @Override
+    public boolean reinit(Settings settings) {
+        // secure settings should be readable
+        final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
+        this.storageService.updateClientsSettings(clientsSettings);
+        return true;
     }
 }

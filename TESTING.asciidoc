@@ -25,6 +25,15 @@ run it using Gradle:
 ./gradlew run
 -------------------------------------
 
+==== Launching and debugging from an IDE
+
+If you want to run Elasticsearch from your IDE, the `./gradlew run` task
+supports a remote debugging option:
+
+---------------------------------------------------------------------------
+./gradlew run --debug-jvm
+---------------------------------------------------------------------------
+
 ==== Distribution
 
 By default a node is started with the zip distribution.
@@ -602,15 +611,6 @@ Test coverage reporting used to be possible with JaCoCo when Elasticsearch was u
 as its build system. Since the switch to Gradle though, this is no longer possible, seeing as
 the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
 For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
-
-== Launching and debugging from an IDE
-
-If you want to run Elasticsearch from your IDE, the `./gradlew run` task
-supports a remote debugging option:
-
----------------------------------------------------------------------------
-./gradlew run --debug-jvm
----------------------------------------------------------------------------
 
 == Debugging remotely from an IDE
 

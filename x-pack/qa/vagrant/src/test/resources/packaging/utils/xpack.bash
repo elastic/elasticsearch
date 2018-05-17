@@ -69,15 +69,6 @@ verify_xpack_installation() {
     done
     # nocommit: decide whether to check the files added by the distribution, not part of xpack...
     #assert_number_of_files "$ESCONFIG/" $configFilesCount
-
-    # Read the $name.expected file that contains all the expected
-    # plugins for the meta plugin
-    while read plugin; do
-        assert_module_or_plugin_directory "$ESMODULES/$name/$plugin"
-        assert_file_exist "$ESMODULES/$name/$plugin/$plugin"*".jar"
-        assert_file_exist "$ESMODULES/$name/$plugin/plugin-descriptor.properties"
-        assert_file_exist "$ESMODULES/$name/$plugin/plugin-security.policy"
-    done </project/build/plugins/$name.expected
 }
 
 assert_number_of_files() {

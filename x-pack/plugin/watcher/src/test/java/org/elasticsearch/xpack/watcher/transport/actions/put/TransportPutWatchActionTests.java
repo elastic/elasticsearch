@@ -21,10 +21,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.test.WatchExecutionContextMockBuilder;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
@@ -86,7 +86,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {
         ClusterState state = mock(ClusterState.class);
         // set up threadcontext with some arbitrary info
-        String headerName = randomFrom(Watcher.HEADER_FILTERS);
+        String headerName = randomFrom(ClientHelper.SECURITY_HEADER_FILTERS);
         threadContext.putHeader(headerName, randomAlphaOfLength(10));
         threadContext.putHeader(randomAlphaOfLength(10), "doesntmatter");
 

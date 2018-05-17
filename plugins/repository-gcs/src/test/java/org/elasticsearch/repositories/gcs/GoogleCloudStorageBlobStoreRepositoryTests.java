@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.services.storage.Storage;
+import com.google.cloud.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;

@@ -35,6 +35,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -134,7 +135,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             for (int i = 0; i < 10; i++) {
                 restHighLevelClient.index(new IndexRequest("index", "doc", String.valueOf(i)).source("field", "value"));
             }
-            Response refreshResponse = client().performRequest("POST", "/index/_refresh");
+            Response refreshResponse = client().performRequest(new Request("POST", "/index/_refresh"));
             assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
             {
@@ -223,10 +224,11 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             {
                 //check that skip_unavailable alone cannot be set
-                HttpEntity clusterSettingsEntity = buildUpdateSettingsRequestBody(
-                        Collections.singletonMap("skip_unavailable", randomBoolean()));
+                Request request = new Request("PUT", "/_cluster/settings");
+                request.setEntity(buildUpdateSettingsRequestBody(
+                    Collections.singletonMap("skip_unavailable", randomBoolean())));
                 ResponseException responseException = expectThrows(ResponseException.class,
-                        () -> client().performRequest("PUT", "/_cluster/settings", Collections.emptyMap(), clusterSettingsEntity));
+                        () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(responseException.getMessage(),
                         containsString("Missing required setting [search.remote.remote1.seeds] " +
@@ -240,9 +242,10 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             {
                 //check that seeds cannot be reset alone if skip_unavailable is set
-                HttpEntity clusterSettingsEntity = buildUpdateSettingsRequestBody(Collections.singletonMap("seeds", null));
+                Request request = new Request("PUT", "/_cluster/settings");
+                request.setEntity(buildUpdateSettingsRequestBody(Collections.singletonMap("seeds", null)));
                 ResponseException responseException = expectThrows(ResponseException.class,
-                        () -> client().performRequest("PUT", "/_cluster/settings", Collections.emptyMap(), clusterSettingsEntity));
+                        () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(responseException.getMessage(), containsString("Missing required setting [search.remote.remote1.seeds] " +
                         "for setting [search.remote.remote1.skip_unavailable]"));
@@ -284,8 +287,9 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
 
     private static void updateRemoteClusterSettings(Map<String, Object> settings) throws IOException {
-        HttpEntity clusterSettingsEntity = buildUpdateSettingsRequestBody(settings);
-        Response response = client().performRequest("PUT", "/_cluster/settings", Collections.emptyMap(), clusterSettingsEntity);
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setEntity(buildUpdateSettingsRequestBody(settings));
+        Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 

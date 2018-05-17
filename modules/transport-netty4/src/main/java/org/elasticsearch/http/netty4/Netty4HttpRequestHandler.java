@@ -130,10 +130,6 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
         } finally {
             // As we have copied the buffer, we can release the request
             request.release();
-            // the request is otherwise released in case of dispatch
-//            if (success == false && msg != null) {
-//                msg.release();
-//            }
         }
     }
 

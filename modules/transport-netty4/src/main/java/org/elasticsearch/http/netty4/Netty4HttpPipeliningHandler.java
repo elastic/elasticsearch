@@ -54,7 +54,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+    public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         if (msg instanceof LastHttpContent) {
             HttpPipelinedRequest<LastHttpContent> pipelinedRequest = aggregator.read(((LastHttpContent) msg).retain());
             ctx.fireChannelRead(pipelinedRequest);
@@ -65,25 +65,22 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
-        if (msg instanceof Netty4HttpResponse) {
-            Netty4HttpResponse response = (Netty4HttpResponse) msg;
-            boolean success = false;
-            try {
-                List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
-                success = true;
-                for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
-                    ctx.write(readyResponse.v1().getResponse(), readyResponse.v2());
-                }
-            } catch (IllegalStateException e) {
-                ctx.channel().close();
-                Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
-            } finally {
-                if (success == false) {
-                    promise.setFailure(new ClosedChannelException());
-                }
+        assert msg instanceof Netty4HttpResponse : "Message must be type: " + Netty4HttpResponse.class;
+        Netty4HttpResponse response = (Netty4HttpResponse) msg;
+        boolean success = false;
+        try {
+            List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
+            success = true;
+            for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
+                ctx.write(readyResponse.v1().getResponse(), readyResponse.v2());
             }
-        } else {
-            ctx.write(msg, promise);
+        } catch (IllegalStateException e) {
+            ctx.channel().close();
+            Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
+        } finally {
+            if (success == false) {
+                promise.setFailure(new ClosedChannelException());
+            }
         }
     }
 

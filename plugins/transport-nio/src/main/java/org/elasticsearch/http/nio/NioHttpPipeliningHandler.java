@@ -54,7 +54,7 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+    public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         if (msg instanceof LastHttpContent) {
             HttpPipelinedRequest<LastHttpContent> pipelinedRequest = aggregator.read(((LastHttpContent) msg).retain());
             ctx.fireChannelRead(pipelinedRequest);
@@ -65,25 +65,22 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        if (msg instanceof NioHttpResponse) {
-            NioHttpResponse response = (NioHttpResponse) msg;
-            boolean success = false;
-            try {
-                NettyListener listener = NettyListener.fromChannelPromise(promise);
-                List<Tuple<NioHttpResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
-                success = true;
-                for (Tuple<NioHttpResponse, NettyListener> responseToWrite : readyResponses) {
-                    ctx.write(responseToWrite.v1().getResponse(), responseToWrite.v2());
-                }
-            } catch (IllegalStateException e) {
-                ctx.channel().close();
-            } finally {
-                if (success == false) {
-                    promise.setFailure(new ClosedChannelException());
-                }
+        assert msg instanceof NioHttpResponse : "Message must be type: " + NioHttpResponse.class;
+        NioHttpResponse response = (NioHttpResponse) msg;
+        boolean success = false;
+        try {
+            NettyListener listener = NettyListener.fromChannelPromise(promise);
+            List<Tuple<NioHttpResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
+            success = true;
+            for (Tuple<NioHttpResponse, NettyListener> responseToWrite : readyResponses) {
+                ctx.write(responseToWrite.v1().getResponse(), responseToWrite.v2());
             }
-        } else {
-            ctx.write(msg, promise);
+        } catch (IllegalStateException e) {
+            ctx.channel().close();
+        } finally {
+            if (success == false) {
+                promise.setFailure(new ClosedChannelException());
+            }
         }
     }
 

@@ -496,7 +496,6 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testBinNotDir() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        Files.createDirectory(pluginDir);
         Path binDir = pluginDir.resolve("bin");
         Files.createFile(binDir);
         String pluginZip = createPluginUrl("fake", pluginDir);
@@ -508,7 +507,6 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testBinContainsDir() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        Files.createDirectory(pluginDir);
         Path dirInBinDir = pluginDir.resolve("bin").resolve("foo");
         Files.createDirectories(dirInBinDir);
         Files.createFile(dirInBinDir.resolve("somescript"));
@@ -666,7 +664,6 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testMissingDescriptor() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        Files.createDirectory(pluginDir);
         Files.createFile(pluginDir.resolve("fake.yml"));
         String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip, env.v1()));

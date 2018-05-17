@@ -69,7 +69,6 @@ task googleCloudStorageFixture(type: AntFixture) {
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 task createServiceAccountFile() {
-    dependsOn googleCloudStorageFixture
     doLast {
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
         keyPairGenerator.initialize(1024)
@@ -83,11 +82,7 @@ task createServiceAccountFile() {
                 '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
                 '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
                 '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
-                '  "client_id": "123456789101112130594",\n' +
-                "  \"auth_uri\": \"http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/auth\",\n" +
-                "  \"token_uri\": \"http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token\",\n" +
-                '  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",\n' +
-                '  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/integration_test%40appspot.gserviceaccount.com"\n' +
+                '  "client_id": "123456789101112130594"\n' +
                 '}', 'UTF-8')
     }
 }
@@ -109,6 +104,7 @@ integTestCluster {
         dependsOn createServiceAccountFile, googleCloudStorageFixture
         /* Use a closure on the string to delay evaluation until tests are executed */
         setting 'gcs.client.integration_test.endpoint', "http://${ -> googleCloudStorageFixture.addressAndPort }"
+        setting 'gcs.client.integration_test.token_uri', "http://${ -> googleCloudStorageFixture.addressAndPort }/o/oauth2/token"
     } else {
         println "Using an external service to test the repository-gcs plugin"
     }

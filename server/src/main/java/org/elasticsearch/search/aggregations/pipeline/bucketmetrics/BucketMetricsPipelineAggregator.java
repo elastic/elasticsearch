@@ -79,11 +79,11 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         List<String> bucketsPath = AggregationPath.parse(bucketsPaths()[0]).getPathElementsAsStringList();
         for (Aggregation aggregation : aggregations) {
             if (aggregation.getName().equals(bucketsPath.get(0))) {
-                bucketsPath = bucketsPath.subList(1, bucketsPath.size());
+                List<String> sublistedPath = bucketsPath.subList(1, bucketsPath.size());
                 InternalMultiBucketAggregation<?, ?> multiBucketsAgg = (InternalMultiBucketAggregation<?, ?>) aggregation;
                 List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = multiBucketsAgg.getBuckets();
                 for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-                    Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, bucketsPath, gapPolicy);
+                    Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, sublistedPath, gapPolicy);
                     if (bucketValue != null && !Double.isNaN(bucketValue)) {
                         collectBucketValue(bucket.getKeyAsString(), bucketValue);
                     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -30,15 +31,19 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -54,18 +59,18 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
  * Manages the lifecycle of a single index, its template, mapping and and data upgrades/migrations.
  */
-public class SecurityIndexManager extends AbstractComponent {
+public class SecurityIndexManager extends AbstractComponent implements ClusterStateListener {
 
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
     public static final int INTERNAL_INDEX_FORMAT = 6;
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
+    public static final String SECURITY_INDEX_NAME = ".security";
 
     private final String indexName;
     private final Client client;
@@ -74,10 +79,15 @@ public class SecurityIndexManager extends AbstractComponent {
 
     private volatile State indexState = new State(false, false, false, false, null, null);
 
-    public SecurityIndexManager(Settings settings, Client client, String indexName) {
+    public SecurityIndexManager(Settings settings, Client client, String indexName, ClusterService clusterService) {
         super(settings);
         this.client = client;
         this.indexName = indexName;
+        clusterService.addListener(this);
+    }
+
+    public static List<String> indexNames() {
+        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     }
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
@@ -115,7 +125,14 @@ public class SecurityIndexManager extends AbstractComponent {
         stateChangeListeners.add(listener);
     }
 
+    @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // wait until the gateway has recovered from disk, otherwise we think we don't have the
+            // .security index but they may not have been restored from the cluster state on disk
+            logger.debug("security index manager waiting until state has been recovered");
+            return;
+        }
         final State previousState = indexState;
         final IndexMetaData indexMetaData = resolveConcreteIndex(indexName, event.state().metaData());
         final boolean indexExists = indexMetaData != null;

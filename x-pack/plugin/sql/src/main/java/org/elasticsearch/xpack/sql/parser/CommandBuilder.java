@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 

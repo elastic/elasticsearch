@@ -105,7 +105,7 @@ task exportNodeCertificate(type: LoggedExec) {
 
 // Import the node certificate in the client's keystore
 task importNodeCertificateInClientKeyStore(type: LoggedExec) {
-  dependsOn exportNodeCertificate
+  dependsOn createClientKeyStore, exportNodeCertificate
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-node',
@@ -137,7 +137,7 @@ task exportClientCertificate(type: LoggedExec) {
 
 // Import the client certificate in the node's keystore
 task importClientCertificateInNodeKeyStore(type: LoggedExec) {
-  dependsOn exportClientCertificate
+  dependsOn createNodeKeyStore, exportClientCertificate
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-client',
@@ -153,13 +153,9 @@ forbiddenPatterns {
 
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(
-        createNodeKeyStore, createClientKeyStore,
-        importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore
-)
+processTestResources.dependsOn(importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore)
 
 integTestCluster.dependsOn(importClientCertificateInNodeKeyStore, importNodeCertificateInClientKeyStore)
-
 
 ext.pluginsCount = 0
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->

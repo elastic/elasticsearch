@@ -77,7 +77,7 @@ public abstract class ScalarFunction extends Function {
     protected ScriptTemplate asScriptFrom(ScalarFunctionAttribute scalar) {
         ScriptTemplate nested = scalar.script();
         Params p = paramsBuilder().script(nested.params()).build();
-        return new ScriptTemplate(formatScript(nested.template()), p, dataType());
+        return new ScriptTemplate(formatScript(nested.template()), p, nested.functions(), dataType());
     }
 
     protected ScriptTemplate asScriptFromFoldable(Expression foldable) {

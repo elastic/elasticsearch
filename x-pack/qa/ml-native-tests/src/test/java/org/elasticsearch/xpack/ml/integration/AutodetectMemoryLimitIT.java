@@ -134,7 +134,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
         assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(1900L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(1600L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(1500L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 

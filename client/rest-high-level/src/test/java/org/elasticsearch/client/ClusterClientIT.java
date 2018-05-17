@@ -20,6 +20,9 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -29,13 +32,16 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -104,5 +110,30 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
+    }
+
+    public void testListTasks() throws IOException {
+        ListTasksRequest request = new ListTasksRequest();
+        ListTasksResponse response = execute(request, highLevelClient().cluster()::listTasks, highLevelClient().cluster()::listTasksAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.getNodeFailures(), equalTo(emptyList()));
+        assertThat(response.getTaskFailures(), equalTo(emptyList()));
+        // It's possible that there are other tasks except 'cluster:monitor/tasks/lists[n]' and 'action":"cluster:monitor/tasks/lists'
+        assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
+        boolean listTasksFound = false;
+        for (TaskGroup taskGroup : response.getTaskGroups()) {
+            TaskInfo parent = taskGroup.getTaskInfo();
+            if ("cluster:monitor/tasks/lists".equals(parent.getAction())) {
+                assertThat(taskGroup.getChildTasks().size(), equalTo(1));
+                TaskGroup childGroup = taskGroup.getChildTasks().iterator().next();
+                assertThat(childGroup.getChildTasks().isEmpty(), equalTo(true));
+                TaskInfo child = childGroup.getTaskInfo();
+                assertThat(child.getAction(), equalTo("cluster:monitor/tasks/lists[n]"));
+                assertThat(child.getParentTaskId(), equalTo(parent.getTaskId()));
+                listTasksFound = true;
+            }
+        }
+        assertTrue("List tasks were not found", listTasksFound);
     }
 }

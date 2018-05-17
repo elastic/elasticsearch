@@ -8,16 +8,10 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.elasticsearch.gradle.test.RunTask;
 
-apply plugin: 'elasticsearch.es-meta-plugin'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
 
 archivesBaseName = 'x-pack'
-
-es_meta_plugin {
-  name = 'x-pack'
-  description = 'Elasticsearch Expanded Pack Plugin'
-  plugins = ['core', 'deprecation', 'graph', 'logstash',
-             'ml', 'monitoring', 'security', 'upgrade', 'watcher', 'sql', 'rollup', 'index-lifecycle']
-}
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')

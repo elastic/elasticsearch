@@ -29,7 +29,7 @@ Which returns:
         },
         {
             "field": "release_date",
-            "format": "use_field_mapping"
+            "format": "epoch_millis"
         }
     ],
     "_source": {

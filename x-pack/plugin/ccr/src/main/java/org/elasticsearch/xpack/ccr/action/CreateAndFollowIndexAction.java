@@ -47,7 +47,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response, CreateAndFollowIndexAction.RequestBuilder> {
+public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response,
+    CreateAndFollowIndexAction.RequestBuilder> {
 
     public static final CreateAndFollowIndexAction INSTANCE = new CreateAndFollowIndexAction();
     public static final String NAME = "cluster:admin/xpack/ccr/create_and_follow_index";

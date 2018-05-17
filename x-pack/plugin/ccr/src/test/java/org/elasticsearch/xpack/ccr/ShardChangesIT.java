@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -143,7 +144,8 @@ public class ShardChangesIT extends ESIntegTestCase {
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
 
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, Collections.emptyMap());
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards,
+            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
 
         final String followerIndexSettings =
@@ -274,6 +276,12 @@ public class ShardChangesIT extends ESIntegTestCase {
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertThat(tasks.tasks().size(), equalTo(0));
         });
+    }
+
+    public void testUnfollowNonExistingIndex() {
+        UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
+        unfollowRequest.setFollowIndex("non-existing-index");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).actionGet());
     }
 
     public void testFollowNonExistentIndex() throws Exception {

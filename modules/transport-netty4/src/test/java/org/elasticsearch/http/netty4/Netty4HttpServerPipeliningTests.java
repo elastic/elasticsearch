@@ -83,7 +83,6 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     public void testThatHttpPipeliningWorks() throws Exception {
         final Settings settings = Settings.builder()
-            .put("http.pipelining", true)
             .put("http.port", "0")
             .build();
         try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {

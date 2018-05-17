@@ -76,6 +76,8 @@ final class JvmOptionsParser {
         }
 
         if (invalidLines.isEmpty()) {
+            List<String> ergonomicJvmOptions = JvmErgonomics.choose(jvmOptions);
+            jvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);

@@ -64,7 +64,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
 
         // Add an alias to it
-        ClusterState after = service.innerExecute(before, singletonList(new AliasAction.Add(index, "test", null, null, null)));
+        ClusterState after = service.innerExecute(before, singletonList(new AliasAction.Add(index, "test", null, null, null, false)));
         AliasOrIndex alias = after.metaData().getAliasAndIndexLookup().get("test");
         assertNotNull(alias);
         assertTrue(alias.isAlias());
@@ -74,7 +74,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         before = after;
         after = service.innerExecute(before, Arrays.asList(
                 new AliasAction.Remove(index, "test"),
-                new AliasAction.Add(index, "test_2", null, null, null)));
+                new AliasAction.Add(index, "test_2", null, null, null, false)));
         assertNull(after.metaData().getAliasAndIndexLookup().get("test"));
         alias = after.metaData().getAliasAndIndexLookup().get("test_2");
         assertNotNull(alias);
@@ -95,7 +95,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
         // Now remove "test" and add an alias to "test" to "test_2" in one go
         ClusterState after = service.innerExecute(before, Arrays.asList(
-                new AliasAction.Add("test_2", "test", null, null, null),
+                new AliasAction.Add("test_2", "test", null, null, null, false),
                 new AliasAction.RemoveIndex("test")));
         AliasOrIndex alias = after.metaData().getAliasAndIndexLookup().get("test");
         assertNotNull(alias);
@@ -109,7 +109,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
         // Attempt to add an alias to "test" at the same time as we remove it
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> service.innerExecute(before, Arrays.asList(
-                new AliasAction.Add("test", "alias", null, null, null),
+                new AliasAction.Add("test", "alias", null, null, null, false),
                 new AliasAction.RemoveIndex("test"))));
         assertEquals("test", e.getIndex().getName());
     }
@@ -124,6 +124,21 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
                 new AliasAction.RemoveIndex("test")));
         assertNull(after.metaData().getAliasAndIndexLookup().get("test"));
     }
+
+    public void testWriteIndexDefaultAddAlias() {
+        // Create "test"
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), "test");
+
+        // Try to remove an index twice. This should just remove the index once....
+        ClusterState after = service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, false)));
+        after = service.innerExecute(after, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, true)));
+
+        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias");
+        assertTrue(alias.getFirstAliasMetaData().isWriteIndex());
+    }
+
 
     private ClusterState createIndex(ClusterState state, String index) {
         IndexMetaData indexMetaData = IndexMetaData.builder(index)

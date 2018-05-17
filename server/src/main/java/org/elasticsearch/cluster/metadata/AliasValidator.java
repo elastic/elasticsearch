@@ -19,9 +19,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +41,11 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -149,5 +158,82 @@ public class AliasValidator extends AbstractComponent {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext, true);
         queryBuilder.toFilter(queryShardContext);
+    }
+
+    /**
+     * throws exception if specified alias is attempting to be write_only while this alias points to another index
+     *
+     * @param aliasName the alias in question
+     * @param metaData the Cluster metadata
+     * @throws IllegalArgumentException if the alias cannot be write_only
+     */
+    public void validateAliasWriteOnly(String aliasName, boolean isWriteIndex, MetaData metaData) {
+        if (isWriteIndex) {
+            AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(aliasName);
+            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
+                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                List<IndexMetaData> writeIndices = alias.getWriteIndices();
+                if (writeIndices.size() >= 1) {
+                    throw new IllegalArgumentException("Alias [" + aliasName +
+                        "] already has a write index set [" + writeIndices.get(0).getIndex().getName() + "]");
+                }
+            }
+        }
+    }
+
+    public void validateAliasWriteOnly(String checkAlias, String checkIndex, boolean isWriteIndex, ImmutableOpenMap.Builder<String, IndexMetaData> indices) {
+        SortedMap<String, AliasOrIndex> aliasAndIndexLookup = buildAliasAndIndexLookup(indices);
+        if (isWriteIndex) {
+            AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(checkAlias);
+            if (aliasOrIndex.isAlias()) {
+                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                List<IndexMetaData> writeIndices = alias.getWriteIndices().stream()
+                    .filter(i -> i.getIndex().getName().equals(checkIndex) == false).collect(Collectors.toList());
+                if (writeIndices.size() >= 1) {
+                    throw new IllegalArgumentException("Alias [" + checkAlias +
+                        "] already has a write index set [" + writeIndices.get(0).getIndex().getName() + "]");
+                }
+            }
+        }
+    }
+
+    public static SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup(ImmutableOpenMap.Builder<String, IndexMetaData> indices) {
+        SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
+        for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+            IndexMetaData indexMetaData = cursor.value;
+            AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+            assert existing == null : "duplicate for " + indexMetaData.getIndex();
+
+            for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                AliasMetaData aliasMetaData = aliasCursor.value;
+                aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
+                    if (alias == null) {
+                        return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                    } else {
+                        assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
+                        ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                        return alias;
+                    }
+                });
+            }
+        }
+        return aliasAndIndexLookup;
+    }
+
+    public static boolean validAliasWriteOnly(String aliasName, boolean isWriteIndex, ImmutableOpenMap.Builder<String, IndexMetaData> indices) {
+        SortedMap<String, AliasOrIndex> aliasAndIndexLookup = buildAliasAndIndexLookup(indices);
+        if (isWriteIndex) {
+            AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasName);
+            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
+                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                List<IndexMetaData> writeIndices = alias.getWriteIndices();
+                return writeIndices.isEmpty();
+            }
+        }
+        return true;
+    }
+
+    public static boolean validAliasWriteOnly(String aliasName, boolean isWriteIndex, ImmutableOpenMap<String, IndexMetaData> indices) {
+        return validAliasWriteOnly(aliasName, isWriteIndex, ImmutableOpenMap.builder(indices));
     }
 }

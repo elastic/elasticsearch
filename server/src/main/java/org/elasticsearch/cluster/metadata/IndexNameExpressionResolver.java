@@ -195,13 +195,24 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
             Collection<IndexMetaData> resolvedIndices = aliasOrIndex.getIndices();
             if (resolvedIndices.size() > 1 && !options.allowAliasesToMultipleIndices()) {
-                String[] indexNames = new String[resolvedIndices.size()];
-                int i = 0;
-                for (IndexMetaData indexMetaData : resolvedIndices) {
-                    indexNames[i++] = indexMetaData.getIndex().getName();
+                // find write-index
+                if (aliasOrIndex.isAlias()) {
+                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias)  aliasOrIndex;
+                    List<IndexMetaData> writeIndices = alias.getWriteIndices();
+                    if (writeIndices.size() == 1) {
+                        resolvedIndices = writeIndices;
+                    } else if (writeIndices.size() > 1) {
+                        String[] indexNames = new String[writeIndices.size()];
+                        int i = 0;
+                        for (IndexMetaData indexMetaData : writeIndices) {
+                            indexNames[i++] = indexMetaData.getIndex().getName();
+                        }
+                        throw new IllegalArgumentException("Alias [" + expression +
+                            "] has more than one indices " + Arrays.toString(indexNames) + " associated with it with [is_write_index = true]");
+                    } else if (resolvedIndices.size() > 1 && writeIndices.isEmpty()) {
+                        throw new IllegalArgumentException("Alias [" + expression + "] has no [is_write_index=true] indices associated with it");
+                    }
                 }
-                throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
-                        Arrays.toString(indexNames) + "], can't execute a single index op");
             }
 
             for (IndexMetaData index : resolvedIndices) {
@@ -247,6 +258,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @return the concrete index obtained as a result of the index resolution
      */
     public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
+        // TODO(talevy): check aliases
         String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
         Index[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
         if (indices.length != 1) {

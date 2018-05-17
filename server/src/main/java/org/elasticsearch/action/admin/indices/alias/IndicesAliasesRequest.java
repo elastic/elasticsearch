@@ -84,6 +84,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField ROUTING = new ParseField("routing");
         private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
         private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
+        private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
 
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
@@ -179,6 +180,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::routing, XContentParser::text, ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, INDEX_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
         private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
@@ -215,6 +217,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private String routing;
         private String indexRouting;
         private String searchRouting;
+        private boolean writeIndex;
 
         public AliasActions(AliasActions.Type type) {
             this.type = type;
@@ -399,6 +402,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
             }
+        }
+
+        public AliasActions writeIndex(boolean writeIndex) {
+            if (type != AliasActions.Type.ADD) {
+                throw new IllegalArgumentException("[is_write_index] is unsupported for [" + type + "]");
+            }
+            this.writeIndex = writeIndex;
+            return this;
+        }
+
+        public boolean isWriteIndex() {
+            return writeIndex;
         }
 
         @Override

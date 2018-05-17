@@ -50,11 +50,5 @@ public class RestTestPlugin implements Plugin<Project> {
         integTest.mustRunAfter(project.precommit)
         project.check.dependsOn(integTest)
 
-        project.tasks.withType(JavaCompile) {
-            // This will be the default in Gradle 5.0
-            if (options.compilerArgs.contains("-processor") == false) {
-                options.compilerArgs << '-proc:none'
-            }
-        }
     }
 }

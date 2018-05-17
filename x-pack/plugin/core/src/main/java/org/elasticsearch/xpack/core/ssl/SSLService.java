@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ssl;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.lucene.util.SetOnce;
-import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -21,28 +20,24 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.DestroyFailedException;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
-import java.security.KeyStoreException;
+import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
-import java.security.Principal;
-import java.security.PrivateKey;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,6 +49,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -71,8 +67,7 @@ public class SSLService extends AbstractComponent {
      * Create a new SSLService that parses the settings for the ssl contexts that need to be created, creates them, and then caches them
      * for use later
      */
-    public SSLService(Settings settings, Environment environment) throws CertificateException, UnrecoverableKeyException,
-            NoSuchAlgorithmException, IOException, DestroyFailedException, KeyStoreException, OperatorCreationException {
+    public SSLService(Settings settings, Environment environment) {
         super(settings);
         this.env = environment;
         this.globalSSLConfiguration = new SSLConfiguration(settings.getByPrefix(XPackSettings.GLOBAL_SSL_PREFIX));
@@ -403,10 +398,8 @@ public class SSLService extends AbstractComponent {
         if (logger.isDebugEnabled()) {
             logger.debug("using ssl settings [{}]", sslConfiguration);
         }
-        ReloadableTrustManager trustManager =
-                new ReloadableTrustManager(sslConfiguration.trustConfig().createTrustManager(env), sslConfiguration.trustConfig());
-        ReloadableX509KeyManager keyManager =
-                new ReloadableX509KeyManager(sslConfiguration.keyConfig().createKeyManager(env), sslConfiguration.keyConfig());
+        X509ExtendedTrustManager trustManager = sslConfiguration.trustConfig().createTrustManager(env);
+        X509ExtendedKeyManager keyManager = sslConfiguration.keyConfig().createKeyManager(env);
         return createSslContext(keyManager, trustManager, sslConfiguration);
     }
 
@@ -417,7 +410,7 @@ public class SSLService extends AbstractComponent {
      * @param trustManager the trust manager to use
      * @return the created SSLContext
      */
-    private SSLContextHolder createSslContext(ReloadableX509KeyManager keyManager, ReloadableTrustManager trustManager,
+    private SSLContextHolder createSslContext(X509ExtendedKeyManager keyManager, X509ExtendedTrustManager trustManager,
                                               SSLConfiguration sslConfiguration) {
         // Initialize sslContext
         try {
@@ -427,7 +420,7 @@ public class SSLService extends AbstractComponent {
             // check the supported ciphers and log them here to prevent spamming logs on every call
             supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.cipherSuites(), true);
 
-            return new SSLContextHolder(sslContext, trustManager, keyManager);
+            return new SSLContextHolder(sslContext, sslConfiguration);
         } catch (NoSuchAlgorithmException | KeyManagementException e) {
             throw new ElasticsearchException("failed to initialize the SSLContext", e);
         }
@@ -436,9 +429,7 @@ public class SSLService extends AbstractComponent {
     /**
      * Parses the settings to load all SSLConfiguration objects that will be used.
      */
-    Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() throws CertificateException,
-            UnrecoverableKeyException, NoSuchAlgorithmException, IOException, DestroyFailedException, KeyStoreException,
-            OperatorCreationException {
+    Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() {
         Map<SSLConfiguration, SSLContextHolder> sslConfigurations = new HashMap<>();
         sslConfigurations.put(globalSSLConfiguration, createSslContext(globalSSLConfiguration));
 
@@ -560,258 +551,70 @@ public class SSLService extends AbstractComponent {
         }
     }
 
-    /**
-     * Wraps a trust manager to delegate to. If the trust material needs to be reloaded, then the delegate will be switched after
-     * reloading
-     */
-    final class ReloadableTrustManager extends X509ExtendedTrustManager {
 
-        private volatile X509ExtendedTrustManager trustManager;
-        private final TrustConfig trustConfig;
-
-        ReloadableTrustManager(X509ExtendedTrustManager trustManager, TrustConfig trustConfig) {
-            this.trustManager = trustManager == null ? new EmptyX509TrustManager() : trustManager;
-            this.trustConfig = trustConfig;
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            trustManager.checkClientTrusted(x509Certificates, s, socket);
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            trustManager.checkServerTrusted(x509Certificates, s, socket);
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            trustManager.checkClientTrusted(x509Certificates, s, sslEngine);
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            trustManager.checkServerTrusted(x509Certificates, s, sslEngine);
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            trustManager.checkClientTrusted(x509Certificates, s);
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            trustManager.checkServerTrusted(x509Certificates, s);
-        }
-
-        @Override
-        public X509Certificate[] getAcceptedIssuers() {
-            return trustManager.getAcceptedIssuers();
-        }
-
-        void reload() {
-            X509ExtendedTrustManager loadedTrustManager = trustConfig.createTrustManager(env);
-            if (loadedTrustManager == null) {
-                this.trustManager = new EmptyX509TrustManager();
-            } else {
-                this.trustManager = loadedTrustManager;
-            }
-        }
-
-        X509ExtendedTrustManager getTrustManager() {
-            return trustManager;
-        }
-    }
-
-    /**
-     * Wraps a key manager and delegates all calls to it. When the key material needs to be reloaded, then the delegate is swapped after
-     * a new one has been loaded
-     */
-    final class ReloadableX509KeyManager extends X509ExtendedKeyManager {
-
-        private volatile X509ExtendedKeyManager keyManager;
+    final class SSLContextHolder {
+        private volatile SSLContext context;
         private final KeyConfig keyConfig;
+        private final TrustConfig trustConfig;
+        private final SSLConfiguration sslConfiguration;
 
-        ReloadableX509KeyManager(X509ExtendedKeyManager keyManager, KeyConfig keyConfig) {
-            this.keyManager = keyManager == null ? new EmptyKeyManager() : keyManager;
-            this.keyConfig = keyConfig;
-        }
-
-        @Override
-        public String[] getClientAliases(String s, Principal[] principals) {
-            return keyManager.getClientAliases(s, principals);
-        }
-
-        @Override
-        public String chooseClientAlias(String[] strings, Principal[] principals, Socket socket) {
-            return keyManager.chooseClientAlias(strings, principals, socket);
-        }
-
-        @Override
-        public String[] getServerAliases(String s, Principal[] principals) {
-            return keyManager.getServerAliases(s, principals);
-        }
-
-        @Override
-        public String chooseServerAlias(String s, Principal[] principals, Socket socket) {
-            return keyManager.chooseServerAlias(s, principals, socket);
-        }
-
-        @Override
-        public X509Certificate[] getCertificateChain(String s) {
-            return keyManager.getCertificateChain(s);
-        }
-
-        @Override
-        public PrivateKey getPrivateKey(String s) {
-            return keyManager.getPrivateKey(s);
-        }
-
-        @Override
-        public String chooseEngineClientAlias(String[] strings, Principal[] principals, SSLEngine engine) {
-            return keyManager.chooseEngineClientAlias(strings, principals, engine);
-        }
-
-        @Override
-        public String chooseEngineServerAlias(String s, Principal[] principals, SSLEngine engine) {
-            return keyManager.chooseEngineServerAlias(s, principals, engine);
-        }
-
-        void reload() {
-            X509ExtendedKeyManager loadedKeyManager = keyConfig.createKeyManager(env);
-            if (loadedKeyManager == null) {
-                this.keyManager = new EmptyKeyManager();
-            } else {
-                this.keyManager = loadedKeyManager;
-            }
-        }
-
-        // pkg-private accessor for testing
-        X509ExtendedKeyManager getKeyManager() {
-            return keyManager;
-        }
-    }
-
-    /**
-     * A struct for holding the SSLContext and the backing key manager and trust manager
-     */
-    static final class SSLContextHolder {
-
-        private final SSLContext context;
-        private final ReloadableTrustManager trustManager;
-        private final ReloadableX509KeyManager keyManager;
-
-        SSLContextHolder(SSLContext context, ReloadableTrustManager trustManager, ReloadableX509KeyManager keyManager) {
+        SSLContextHolder(SSLContext context, SSLConfiguration sslConfiguration) {
             this.context = context;
-            this.trustManager = trustManager;
-            this.keyManager = keyManager;
+            this.sslConfiguration = sslConfiguration;
+            this.keyConfig = sslConfiguration.keyConfig();
+            this.trustConfig = sslConfiguration.trustConfig();
         }
 
         SSLContext sslContext() {
             return context;
         }
 
-        ReloadableX509KeyManager keyManager() {
-            return keyManager;
-        }
-
-        ReloadableTrustManager trustManager() {
-            return trustManager;
-        }
-
-        synchronized void reload() {
-            trustManager.reload();
-            keyManager.reload();
-            invalidateSessions(context.getClientSessionContext());
-            invalidateSessions(context.getServerSessionContext());
-        }
-
         /**
          * Invalidates the sessions in the provided {@link SSLSessionContext}
          */
-        private static void invalidateSessions(SSLSessionContext sslSessionContext) {
+        private void invalidateSessions(SSLSessionContext sslSessionContext) {
             Enumeration<byte[]> sessionIds = sslSessionContext.getIds();
             while (sessionIds.hasMoreElements()) {
                 byte[] sessionId = sessionIds.nextElement();
                 sslSessionContext.getSession(sessionId).invalidate();
             }
         }
-    }
 
-    /**
-     * This is an empty key manager that is used in case a loaded key manager is null
-     */
-    private static final class EmptyKeyManager extends X509ExtendedKeyManager {
-
-        @Override
-        public String[] getClientAliases(String s, Principal[] principals) {
-            return new String[0];
+        synchronized void reload() {
+            invalidateSessions(context.getClientSessionContext());
+            invalidateSessions(context.getServerSessionContext());
+            reloadSslContext();
         }
 
-        @Override
-        public String chooseClientAlias(String[] strings, Principal[] principals, Socket socket) {
-            return null;
+        private void reloadSslContext() {
+            try {
+                X509ExtendedKeyManager loadedKeyManager = Optional.ofNullable(keyConfig.createKeyManager(env)).
+                        orElse(getEmptyKeyManager());
+                X509ExtendedTrustManager loadedTrustManager = Optional.ofNullable(trustConfig.createTrustManager(env)).
+                        orElse(getEmptyTrustManager());
+                SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
+                loadedSslContext.init(new X509ExtendedKeyManager[]{loadedKeyManager},
+                    new X509ExtendedTrustManager[]{loadedTrustManager}, null);
+                supportedCiphers(loadedSslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.cipherSuites(), false);
+                this.context = loadedSslContext;
+            } catch (GeneralSecurityException | IOException e) {
+                throw new ElasticsearchException("failed to initialize the SSLContext", e);
+            }
+        }
+        X509ExtendedKeyManager getEmptyKeyManager() throws GeneralSecurityException, IOException {
+            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(null, null);
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, null);
+            return (X509ExtendedKeyManager) keyManagerFactory.getKeyManagers()[0];
         }
 
-        @Override
-        public String[] getServerAliases(String s, Principal[] principals) {
-            return new String[0];
-        }
-
-        @Override
-        public String chooseServerAlias(String s, Principal[] principals, Socket socket) {
-            return null;
-        }
-
-        @Override
-        public X509Certificate[] getCertificateChain(String s) {
-            return new X509Certificate[0];
-        }
-
-        @Override
-        public PrivateKey getPrivateKey(String s) {
-            return null;
-        }
-    }
-
-    /**
-     * This is an empty trust manager that is used in case a loaded trust manager is null
-     */
-    static final class EmptyX509TrustManager extends X509ExtendedTrustManager {
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            throw new CertificateException("no certificates are trusted");
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            throw new CertificateException("no certificates are trusted");
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            throw new CertificateException("no certificates are trusted");
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            throw new CertificateException("no certificates are trusted");
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            throw new CertificateException("no certificates are trusted");
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            throw new CertificateException("no certificates are trusted");
-        }
-
-        @Override
-        public X509Certificate[] getAcceptedIssuers() {
-            return new X509Certificate[0];
+        X509ExtendedTrustManager getEmptyTrustManager() throws GeneralSecurityException, IOException {
+            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(null, null);
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("X509");
+            trustManagerFactory.init(keyStore);
+            return (X509ExtendedTrustManager) trustManagerFactory.getTrustManagers()[0];
         }
     }
 

@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+
 esplugin {
     name 'x-pack-index-lifecycle'
     description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle'
@@ -11,14 +12,21 @@ esplugin {
 }
 archivesBaseName = 'x-pack-index-lifecycle'
 
-// TODO: enable this once we have tests
-licenseHeaders.enabled = false
-
-integTest.enabled = false
-
 dependencies {
     compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTestCluster {
+    numNodes = 2
+    clusterName = 'index-lifecycle'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.index_lifecycle.enabled', 'true'
+    setting 'indices.lifecycle.poll_interval', '500ms'
+    module project(xpackModule('core'))
 }
 
 run {

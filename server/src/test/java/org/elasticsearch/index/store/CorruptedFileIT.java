@@ -470,7 +470,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
      * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
      */
-    @TestLogging("org.elasticsearch.monitor.fs:DEBUG")
+    @TestLogging("org.elasticsearch.repositories:TRACE,org.elasticsearch.snapshots:TRACE")
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -494,6 +494,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile(false);
+        logger.info("--> shard {} has a corrupted file", shardRouting);
         // we don't corrupt segments.gen since S/R doesn't snapshot this file
         // the other problem here why we can't corrupt segments.X files is that the snapshot flushes again before
         // it snapshots and that will write a new segments.X+1 file
@@ -504,9 +505,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
-        logger.info("failed during snapshot -- maybe SI file got corrupted");
+        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                                                                                        .setWaitForCompletion(true)
+                                                                                        .setIndices("test")
+                                                                                        .get();
+        final SnapshotState snapshotState = createSnapshotResponse.getSnapshotInfo().state();
+        logger.info("--> snapshot terminated with state " + snapshotState);
         final List<Path> files = listShardFiles(shardRouting);
         Path corruptedFile = null;
         for (Path file : files) {
@@ -515,6 +519,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 break;
             }
         }
+        if (snapshotState != SnapshotState.PARTIAL) {
+            logger.info("--> listing shard files for investigation");
+            files.forEach(f -> logger.info("path: {}", f.toAbsolutePath()));
+        }
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
         assertThat(corruptedFile, notNullValue());
     }
 

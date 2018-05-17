@@ -72,13 +72,26 @@ public enum GeoDistance implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         Version clientVersion = out.getVersion();
         int ord = this.ordinal();
-        if (clientVersion.before(Version.V_5_3_3)) {
+        if (clientVersion.onOrAfter(Version.V_5_3_0) && clientVersion.before(Version.V_5_3_3)) {
             switch (ord) {
                 case 0:
                     out.write(0);  // write PLANE ordinal
                     return;
                 case 1:
                     out.write(1);  // write bwc ARC ordinal
+                    return;
+                default:
+                    throw new IOException("Unknown GeoDistance ordinal [" + ord + "]");
+            }
+        }
+
+        if (clientVersion.before(Version.V_5_3_0)) {
+            switch (ord) {
+                case 0:
+                    out.write(0);  // write PLANE ordinal
+                    return;
+                case 1:
+                    out.write(2);  // write bwc ARC ordinal
                     return;
                 default:
                     throw new IOException("Unknown GeoDistance ordinal [" + ord + "]");

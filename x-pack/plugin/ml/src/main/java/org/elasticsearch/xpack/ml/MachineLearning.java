@@ -286,7 +286,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
-                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE));
+                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE,
+                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP));
     }
 
     public Settings additionalSettings() {

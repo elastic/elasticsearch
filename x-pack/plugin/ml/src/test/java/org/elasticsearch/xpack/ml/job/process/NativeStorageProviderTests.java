@@ -125,7 +125,7 @@ public class NativeStorageProviderTests extends ESTestCase {
         Environment environment = mock(Environment.class);
 
         when(environment.dataFiles()).thenReturn(paths.keySet().toArray(new Path[paths.size()]));
-        NativeStorageProvider storageProvider = spy(new NativeStorageProvider(environment));
+        NativeStorageProvider storageProvider = spy(new NativeStorageProvider(environment, new ByteSizeValue(5, ByteSizeUnit.GB)));
 
         doAnswer(invocation -> {
             return paths.getOrDefault(invocation.getArguments()[0], Long.valueOf(0)).longValue();

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -24,16 +23,18 @@ public class NativeStorageProvider {
 
     private static final Logger LOGGER = Loggers.getLogger(NativeStorageProvider.class);
 
-    // do not allow any usage below this threshold
-    private static final ByteSizeValue MINIMUM_LOCAL_STORAGE_AVAILABLE = new ByteSizeValue(5, ByteSizeUnit.GB);
 
     private static final String LOCAL_STORAGE_SUBFOLDER = "ml-local-data";
     private static final String LOCAL_STORAGE_TMP_FOLDER = "tmp";
 
     private final Environment environment;
 
-    public NativeStorageProvider(Environment environment) {
+    // do not allow any usage below this threshold
+    private final ByteSizeValue minLocalStorageAvailable;
+
+    public NativeStorageProvider(Environment environment, ByteSizeValue minDiskSpaceOffHeap) {
         this.environment = environment;
+        this.minLocalStorageAvailable = minDiskSpaceOffHeap;
     }
 
     /**
@@ -62,7 +63,7 @@ public class NativeStorageProvider {
     public Path tryGetLocalTmpStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
         for (Path path : environment.dataFiles()) {
             try {
-                if (getUsableSpace(path) >= requestedSize.getBytes() + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes()) {
+                if (getUsableSpace(path) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes()) {
                     Path tmpDirectory = path.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER).resolve(uniqueIdentifier);
                     Files.createDirectories(tmpDirectory);
                     return tmpDirectory;
@@ -81,7 +82,7 @@ public class NativeStorageProvider {
         for (Path p : environment.dataFiles()) {
             try {
                 if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
-                    return getUsableSpace(p) >= requestedSize.getBytes() + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes();
+                    return getUsableSpace(p) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes();
                 }
             } catch (IOException e) {
                 LOGGER.debug("Failed to optain information about path [{}]: {}", path, e);

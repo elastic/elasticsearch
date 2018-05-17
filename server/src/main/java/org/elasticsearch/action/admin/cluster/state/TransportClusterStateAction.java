@@ -115,9 +115,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 mdBuilder = MetaData.builder(currentState.metaData());
             }
 
-            // Filter our metadata that shouldn't be returned by API
-            for(ObjectObjectCursor<String, Custom> custom : currentState.metaData().customs()) {
-                if(!custom.value.context().contains(MetaData.XContentContext.API)) {
+            // filter out metadata that shouldn't be returned by the API
+            for (ObjectObjectCursor<String, Custom> custom : currentState.metaData().customs()) {
+                if (custom.value.context().contains(MetaData.XContentContext.API) == false) {
                     mdBuilder.removeCustom(custom.key);
                 }
             }

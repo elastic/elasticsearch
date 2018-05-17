@@ -200,7 +200,9 @@ public class SyncedFlushResponseTests extends ESTestCase {
             indexResults.put(
                 index,
                 new SyncedFlushResponse.IndexResult(
-                    new SyncedFlushResponse.ShardCounts(shards * (replicas + 1), successful, failed),
+                    shards * (replicas + 1),
+                    successful,
+                    failed,
                     shardFailures
                 )
             );

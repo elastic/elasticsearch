@@ -19,13 +19,17 @@
 package org.elasticsearch.client.response.indices.flush;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 import java.io.IOException;
@@ -104,7 +108,6 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             if (parser.currentName().equals(SHARDS_FIELD)) {
                 ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                 totalCounts = ShardCounts.fromXContent(parser);
-                parser.nextToken();
             } else {
                 String indexName = parser.currentName();
                 IndexResult indexResult = IndexResult.fromXContent(parser);
@@ -121,46 +124,6 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         }
     }
 
-    private static int getIntValueFromField(XContentParser parser, String fieldName) throws IOException {
-        // Search while there are fields
-        while (parser.nextToken().equals(Token.FIELD_NAME)) {
-            if (parser.currentName().equals(fieldName)) {
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.nextToken(), parser::getTokenLocation);
-                return parser.intValue();
-            } else {
-                // Move to the value for this unknown field
-                parser.nextToken();
-                // Then skip it
-                parser.skipChildren();
-            }
-        }
-        // All fields were searched and the required field not found.
-        throw new ParsingException(
-            parser.getTokenLocation(),
-            "Unable to find field name " + fieldName + " while parsing SyncedFlushResponse"
-        );
-    }
-
-    private static String getStringValueFromField(XContentParser parser, String fieldName) throws IOException {
-        // Search while there are fields
-        while (parser.nextToken().equals(Token.FIELD_NAME)) {
-            if (parser.currentName().equals(fieldName)) {
-                ensureExpectedToken(Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
-                return parser.text();
-            } else {
-                // Move to the value for this unknown field
-                parser.nextToken();
-                // Then skip it
-                parser.skipChildren();
-            }
-        }
-        // All fields were searched and the required field not found.
-        throw new ParsingException(
-            parser.getTokenLocation(),
-            "Unable to find field name " + fieldName + " while parsing SyncedFlushResponse"
-        );
-    }
-
     /**
      * Encapsulates the number of total successful and failed shard copies
      */
@@ -169,6 +132,17 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         public static final String TOTAL_FIELD = "total";
         public static final String SUCCESSFUL_FIELD = "successful";
         public static final String FAILED_FIELD = "failed";
+
+        private static final ConstructingObjectParser<ShardCounts, Void> PARSER =
+            new ConstructingObjectParser<>(
+                "shardcounts",
+                a -> new ShardCounts((Integer) a[0], (Integer) a[1], (Integer) a[2])
+            );
+        static {
+            PARSER.declareInt(constructorArg(), new ParseField(TOTAL_FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(SUCCESSFUL_FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(FAILED_FIELD));
+        }
 
         private int total;
         private int successful;
@@ -190,10 +164,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         }
 
         public static ShardCounts fromXContent(XContentParser parser) throws IOException {
-            int total = getIntValueFromField(parser, TOTAL_FIELD);
-            int successful = getIntValueFromField(parser, SUCCESSFUL_FIELD);
-            int failed = getIntValueFromField(parser, FAILED_FIELD);
-            return new ShardCounts(total, successful, failed);
+            return PARSER.parse(parser, null);
         }
 
         public boolean equals(ShardCounts other) {
@@ -215,14 +186,34 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
      */
     public static final class IndexResult implements ToXContentFragment {
 
+        public static final String TOTAL_FIELD = "total";
+        public static final String SUCCESSFUL_FIELD = "successful";
+        public static final String FAILED_FIELD = "failed";
         public static final String FAILURES_FIELD = "failures";
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<IndexResult, Void> PARSER =
+            new ConstructingObjectParser<>(
+                "indexresult",
+                a -> new IndexResult((Integer) a[0], (Integer) a[1], (Integer) a[2], (List<ShardFailure>)a[3])
+            );
+        static {
+            PARSER.declareInt(constructorArg(), new ParseField(TOTAL_FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(SUCCESSFUL_FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(FAILED_FIELD));
+            PARSER.declareObjectArray(optionalConstructorArg(), ShardFailure.PARSER, new ParseField(FAILURES_FIELD));
+        }
 
         private ShardCounts counts;
         private List<ShardFailure> failures;
 
-        IndexResult(ShardCounts counts, List<ShardFailure> failures) {
-            this.counts = new ShardCounts(counts.total, counts.successful, counts.failed);
-            this.failures = Collections.unmodifiableList(failures);
+        IndexResult(int total, int successful, int failed, List<ShardFailure> failures) {
+            counts = new ShardCounts(total, successful, failed);
+            if (failures != null) {
+                this.failures = Collections.unmodifiableList(failures);
+            } else {
+                this.failures = Collections.unmodifiableList(new ArrayList<>());
+            }
         }
 
         /**
@@ -271,22 +262,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         }
 
         public static IndexResult fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            ShardCounts counts = ShardCounts.fromXContent(parser);
-            List<ShardFailure> failures = new ArrayList<>();
-            while (parser.nextToken().equals(Token.FIELD_NAME)) {
-                if (parser.currentName().equals(FAILURES_FIELD)) {
-                    ensureExpectedToken(Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-                    while (parser.nextToken().equals(Token.START_OBJECT)) {
-                        failures.add(ShardFailure.fromXContent(parser));
-                    }
-                    // We should be at the end of the array by now
-                    ensureExpectedToken(Token.END_ARRAY, parser.currentToken(), parser::getTokenLocation);
-                }
-            }
-            // We should be at the end of the index object by now
-            ensureExpectedToken(Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            return new IndexResult(counts, failures);
+            return PARSER.parse(parser, null);
         }
     }
 
@@ -303,10 +279,29 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         private String failureReason;
         private Map<String, Object> routing;
 
+        @SuppressWarnings("unchecked")
+        static ConstructingObjectParser<ShardFailure, Void> PARSER = new ConstructingObjectParser<>(
+            "shardfailure",
+            a -> new ShardFailure((Integer)a[0], (String)a[1], (Map<String, Object>)a[2])
+        );
+        static {
+            PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID_FIELD));
+            PARSER.declareString(constructorArg(), new ParseField(FAILURE_REASON_FIELD));
+            PARSER.declareObject(
+                optionalConstructorArg(),
+                (parser, c) -> parser.map(),
+                new ParseField(ROUTING_FIELD)
+            );
+        }
+
         ShardFailure(int shardId, String failureReason, Map<String, Object> routing) {
             this.shardId = shardId;
             this.failureReason = failureReason;
-            this.routing = Collections.unmodifiableMap(routing);
+            if (routing != null) {
+                this.routing = Collections.unmodifiableMap(routing);
+            } else {
+                this.routing = Collections.unmodifiableMap(new HashMap<>());
+            }
         }
 
         /**
@@ -343,22 +338,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         }
 
         public static ShardFailure fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            int shardId = getIntValueFromField(parser, SHARD_ID_FIELD);
-            String failureReason = getStringValueFromField(parser, FAILURE_REASON_FIELD);
-            Map<String, Object> routing = new HashMap<>();
-            while (parser.nextToken().equals(Token.FIELD_NAME)) {
-                if (parser.currentName().equals(ROUTING_FIELD)) {
-                    ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-                    routing = parser.map();
-                } else {
-                    parser.nextToken();
-                    parser.skipChildren();
-                }
-            }
-            // we should be at the end of the object by now
-            ensureExpectedToken(Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            return new ShardFailure(shardId, failureReason, routing);
+            return PARSER.parse(parser, null);
         }
     }
 }

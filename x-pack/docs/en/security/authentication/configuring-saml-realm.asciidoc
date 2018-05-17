@@ -204,9 +204,10 @@ separate keys. For more information, see
 . (Optional) Generate service provider metadata.
 +
 --
-Some identity providers can import metadata about service providers.  
-//TBD: What steps (if any) does this enable you to skip?
-You can generate SP metadata for the {stack} by using the <<saml-metadata,`elasticsearch-saml-metadata` command>>.
+There are some extra configuration steps that are specific to each identity 
+provider. If your identity provider can import SP metadata, some of those steps 
+can be automated or expedited. You can generate SP metadata for the {stack} by 
+using the <<saml-metadata,`elasticsearch-saml-metadata` command>>.
 --
 
 . Configure role mappings.

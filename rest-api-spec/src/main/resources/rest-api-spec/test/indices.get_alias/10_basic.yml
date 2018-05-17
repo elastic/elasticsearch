@@ -23,10 +23,10 @@ setup:
   - do:
       indices.get_alias: {}
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index.aliases.test_blias: {}}
-  - match: {test_index_2.aliases.test_alias: {}}
-  - match: {test_index_2.aliases.test_blias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index.aliases.test_blias: { is_write_index: true }}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
+  - match: {test_index_2.aliases.test_blias: { is_write_index: false }}
 
 
 ---
@@ -36,8 +36,8 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index.aliases.test_blias: { is_write_index: true }}
   - is_false: test_index_2
 
 ---
@@ -50,10 +50,10 @@ setup:
       indices.get_alias:
         index: _all
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index.aliases.test_blias: {}}
-  - match: {test_index_2.aliases.test_alias: {}}
-  - match: {test_index_2.aliases.test_blias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index.aliases.test_blias: { is_write_index: true }}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
+  - match: {test_index_2.aliases.test_blias: { is_write_index: false }}
   - match: {myindex.aliases: {}}
 
 ---
@@ -66,10 +66,10 @@ setup:
       indices.get_alias:
         index: "*"
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index.aliases.test_blias: {}}
-  - match: {test_index_2.aliases.test_alias: {}}
-  - match: {test_index_2.aliases.test_blias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index.aliases.test_blias: { is_write_index: true }}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
+  - match: {test_index_2.aliases.test_blias: { is_write_index: false }}
   - match: {myindex.aliases: {}}
 
 ---
@@ -92,7 +92,7 @@ setup:
         index: test_index
         name:  test_alias
 
-  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
   - is_false: test_index.aliases.test_blias
   - is_false: test_index_2
 
@@ -104,8 +104,8 @@ setup:
         index: test_index
         name: _all
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index.aliases.test_blias: { is_write_index: true }}
   - is_false: test_index_2
 
 ---
@@ -116,8 +116,8 @@ setup:
         index: test_index
         name: '*'
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index.aliases.test_blias: { is_write_index: true }}
   - is_false: test_index_2
 
 ---
@@ -127,7 +127,7 @@ setup:
         index: test_index
         name: 'test_a*'
 
-  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
   - is_false: test_index.aliases.test_blias
   - is_false: test_index_2
 
@@ -139,8 +139,8 @@ setup:
         index: test_index
         name: 'test_alias,test_blias'
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index.aliases.test_blias: { is_write_index: true }}
   - is_false: test_index_2
 
 ---
@@ -150,8 +150,8 @@ setup:
       indices.get_alias:
         name: test_alias
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
   - is_false: test_index.aliases.test_blias
   - is_false: test_index_2.aliases.test_blias
 
@@ -163,8 +163,8 @@ setup:
         index: _all
         name: test_alias
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
   - is_false: test_index.aliases.test_blias
   - is_false: test_index_2.aliases.test_blias
 
@@ -176,8 +176,8 @@ setup:
         index: '*'
         name: test_alias
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
   - is_false: test_index.aliases.test_blias
   - is_false: test_index_2.aliases.test_blias
 
@@ -189,7 +189,7 @@ setup:
         index: '*2'
         name: test_alias
 
-  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
   - is_false: test_index.aliases.test_alias
   - is_false: test_index.aliases.test_blias
   - is_false: test_index_2.aliases.test_blias
@@ -202,8 +202,8 @@ setup:
         index: test_index,test_index_2
         name: test_alias
 
-  - match: {test_index.aliases.test_alias: {}}
-  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - match: {test_index_2.aliases.test_alias: { is_write_index: false }}
   - is_false: test_index.aliases.test_blias
   - is_false: test_index_2.aliases.test_blias
 
@@ -229,7 +229,7 @@ setup:
 
   - match: { 'status': 404 }
   - match: { 'error': 'alias [non-existent] missing' }
-  - match: { test_index.aliases.test_alias: { } }
+  - match: { test_index.aliases.test_alias: { is_write_index: true } }
 
 ---
 "Existent and non-existent aliases returns 404 and the existing alias":
@@ -241,7 +241,7 @@ setup:
 
   - match: { 'status': 404 }
   - match: { 'error': 'aliases [another-non-existent,non-existent] missing' }
-  - match: { test_index.aliases.test_alias: { } }
+  - match: { test_index.aliases.test_alias: { is_write_index: true } }
 
 ---
 "Getting alias on an non-existent index should return 404":

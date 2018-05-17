@@ -34,7 +34,8 @@ import java.util.Map;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReInitializablePlugin {
 
-    private final GoogleCloudStorageService storageService;
+    // package-private for tests
+    final GoogleCloudStorageService storageService;
 
     public GoogleCloudStoragePlugin(final Settings settings) {
         this.storageService = createStorageService(settings);

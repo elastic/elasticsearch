@@ -62,7 +62,8 @@ public class GoogleCloudStorageService extends AbstractComponent {
      * @param clientsSettings the new settings used for building clients for subsequent requests
      * @return previous settings which have been substituted
      */
-    public synchronized Map<String, GoogleCloudStorageClientSettings> updateClientsSettings(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+    public synchronized Map<String, GoogleCloudStorageClientSettings>
+            updateClientsSettings(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
         final Map<String, GoogleCloudStorageClientSettings> prevSettings = this.clientsSettings;
         this.clientsSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         this.clientsCache = emptyMap();

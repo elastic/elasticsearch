@@ -57,11 +57,10 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
+import org.elasticsearch.http.netty4.pipelining.Netty4HttpResponse;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestResponse;
@@ -204,7 +203,6 @@ public class Netty4HttpChannelTests extends ESTestCase {
         assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS), nullValue());
     }
 
-    @SuppressWarnings("unchecked")
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
@@ -229,7 +227,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             // inspect what was written
             List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
             assertThat(writtenObjects.size(), is(1));
-            HttpResponse response = ((HttpPipelinedResponse<FullHttpResponse>) writtenObjects.get(0)).getResponse();
+            HttpResponse response = ((Netty4HttpResponse) writtenObjects.get(0)).getResponse();
             assertThat(response.headers().get("non-existent-header"), nullValue());
             assertThat(response.headers().get(customHeader), equalTo(customHeaderValue));
             assertThat(response.headers().get(HttpHeaderNames.CONTENT_LENGTH), equalTo(Integer.toString(resp.content().length())));
@@ -323,7 +321,6 @@ public class Netty4HttpChannelTests extends ESTestCase {
         return executeRequest(settings, null, host);
     }
 
-    @SuppressWarnings("unchecked")
     private FullHttpResponse executeRequest(final Settings settings, final String originValue, final String host) {
         // construct request and send it over the transport layer
         try (Netty4HttpServerTransport httpServerTransport =
@@ -347,7 +344,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             // get the response
             List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
             assertThat(writtenObjects.size(), is(1));
-            return ((HttpPipelinedResponse<FullHttpResponse>) writtenObjects.get(0)).getResponse();
+            return ((Netty4HttpResponse) writtenObjects.get(0)).getResponse();
         }
     }
 

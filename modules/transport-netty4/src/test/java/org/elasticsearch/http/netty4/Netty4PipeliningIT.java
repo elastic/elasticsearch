@@ -21,8 +21,6 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -40,14 +38,6 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put("http.pipelining", true)
-            .build();
     }
 
     public void testThatNettyHttpServerSupportsPipelining() throws Exception {

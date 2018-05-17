@@ -38,7 +38,6 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -230,7 +229,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
             int sequence = requests.get(i).getSequence();
-            HttpPipelinedResponse<FullHttpResponse> resp = new HttpPipelinedResponse<>(sequence, httpResponse);
+            Netty4HttpResponse resp = new Netty4HttpResponse(sequence, httpResponse);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -295,7 +294,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
                     final ChannelPromise promise = ctx.newPromise();
                     eventLoopService.submit(() -> {
-                        ctx.write(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse), promise);
+                        ctx.write(new Netty4HttpResponse(pipelinedRequest.getSequence(), httpResponse), promise);
                         finishingLatch.countDown();
                     });
                 } catch (InterruptedException e) {

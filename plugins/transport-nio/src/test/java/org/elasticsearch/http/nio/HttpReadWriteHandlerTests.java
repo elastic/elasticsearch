@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -67,7 +66,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class HttpReadWriteHandlerTests extends ESTestCase {
 
@@ -173,7 +171,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         prepareHandlerForResponse(handler);
 
         FullHttpResponse fullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        HttpPipelinedResponse<FullHttpResponse> pipelinedResponse = new HttpPipelinedResponse<>(0, fullHttpResponse);
+        NioHttpResponse pipelinedResponse = new NioHttpResponse(0, fullHttpResponse);
 
         SocketChannelContext context = mock(SocketChannelContext.class);
         HttpWriteOperation writeOperation = new HttpWriteOperation(context, pipelinedResponse, mock(BiConsumer.class));

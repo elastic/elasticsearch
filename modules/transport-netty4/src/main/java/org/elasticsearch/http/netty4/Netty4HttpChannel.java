@@ -41,8 +41,8 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
+import org.elasticsearch.http.netty4.pipelining.Netty4HttpResponse;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -135,7 +135,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
                 promise.addListener(ChannelFutureListener.CLOSE);
             }
 
-            HttpPipelinedResponse<FullHttpResponse> newResponse = new HttpPipelinedResponse<>(sequence, resp);
+            Netty4HttpResponse newResponse = new Netty4HttpResponse(sequence, resp);
 
             channel.writeAndFlush(newResponse, promise);
             releaseContent = false;

@@ -39,9 +39,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.netty4.pipelining.Netty4HttpResponse;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -204,7 +204,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             }
 
             final ChannelPromise promise = ctx.newPromise();
-            ctx.writeAndFlush(new HttpPipelinedResponse<>(pipelinedRequest.getSequence(), httpResponse), promise);
+            ctx.writeAndFlush(new Netty4HttpResponse(pipelinedRequest.getSequence(), httpResponse), promise);
         }
 
     }

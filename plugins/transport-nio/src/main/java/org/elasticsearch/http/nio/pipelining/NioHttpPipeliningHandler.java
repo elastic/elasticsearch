@@ -22,14 +22,13 @@ package org.elasticsearch.http.nio.pipelining;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpPipeliningAggregator;
 import org.elasticsearch.http.nio.NettyListener;
+import org.elasticsearch.http.nio.NioHttpResponse;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.List;
@@ -40,7 +39,7 @@ import java.util.List;
 public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<FullHttpResponse, NettyListener> aggregator;
+    private final HttpPipeliningAggregator<NioHttpResponse, NettyListener> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -65,16 +64,15 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        if (msg instanceof HttpPipelinedResponse) {
-            HttpPipelinedResponse<FullHttpResponse> response = (HttpPipelinedResponse<FullHttpResponse>) msg;
+        if (msg instanceof NioHttpResponse) {
+            NioHttpResponse response = (NioHttpResponse) msg;
             boolean success = false;
             try {
                 NettyListener listener = NettyListener.fromChannelPromise(promise);
-                List<Tuple<HttpPipelinedResponse<FullHttpResponse>, NettyListener>> readyResponses = aggregator.write(response, listener);
+                List<Tuple<NioHttpResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
                 success = true;
-                for (Tuple<HttpPipelinedResponse<FullHttpResponse>, NettyListener> responseToWrite : readyResponses) {
+                for (Tuple<NioHttpResponse, NettyListener> responseToWrite : readyResponses) {
                     ctx.write(responseToWrite.v1().getResponse(), responseToWrite.v2());
                 }
             } catch (IllegalStateException e) {
@@ -91,11 +89,11 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<HttpPipelinedResponse<FullHttpResponse>, NettyListener>> inflightResponses = aggregator.removeAllInflightResponses();
+        List<Tuple<NioHttpResponse, NettyListener>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<HttpPipelinedResponse<FullHttpResponse>, NettyListener> inflightResponse : inflightResponses) {
+            for (Tuple<NioHttpResponse, NettyListener> inflightResponse : inflightResponses) {
                 try {
                     inflightResponse.v2().setFailure(closedChannelException);
                 } catch (RuntimeException e) {

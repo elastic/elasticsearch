@@ -18,16 +18,20 @@
  */
 package org.elasticsearch.http;
 
-public class HttpPipelinedRequest<R> extends HttpPipelinedMessage {
+public class HttpPipelinedMessage implements Comparable<HttpPipelinedMessage> {
 
-    private final R request;
+    private final int sequence;
 
-    HttpPipelinedRequest(int sequence, R request) {
-        super(sequence);
-        this.request = request;
+    public HttpPipelinedMessage(int sequence) {
+        this.sequence = sequence;
     }
 
-    public R getRequest() {
-        return request;
+    public int getSequence() {
+        return sequence;
+    }
+
+    @Override
+    public int compareTo(HttpPipelinedMessage o) {
+        return Integer.compare(sequence, o.sequence);
     }
 }

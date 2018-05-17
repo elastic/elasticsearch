@@ -16,28 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
 
-public class HttpPipelinedResponse<Response> implements Comparable<HttpPipelinedResponse<Response>> {
+package org.elasticsearch.http.nio;
 
-    private final int sequence;
-    private final Response response;
+import io.netty.handler.codec.http.FullHttpResponse;
+import org.elasticsearch.http.HttpPipelinedMessage;
 
-    public HttpPipelinedResponse(int sequence, Response response) {
-        this.sequence = sequence;
+public class NioHttpResponse extends HttpPipelinedMessage {
+
+    private final FullHttpResponse response;
+
+    public NioHttpResponse(int sequence, FullHttpResponse response) {
+        super(sequence);
         this.response = response;
     }
 
-    public int getSequence() {
-        return sequence;
-    }
-
-    public Response getResponse() {
+    public FullHttpResponse getResponse() {
         return response;
-    }
-
-    @Override
-    public int compareTo(HttpPipelinedResponse<Response> o) {
-        return Integer.compare(sequence, o.sequence);
     }
 }

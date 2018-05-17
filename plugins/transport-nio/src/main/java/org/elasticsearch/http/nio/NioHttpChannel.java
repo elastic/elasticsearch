@@ -41,7 +41,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -122,7 +121,7 @@ public class NioHttpChannel extends AbstractRestChannel {
             }
 
             BiConsumer<Void, Throwable> listener = (aVoid, throwable) -> Releasables.close(toClose);
-            nioChannel.getContext().sendMessage(new HttpPipelinedResponse<>(sequence, resp), listener);
+            nioChannel.getContext().sendMessage(new NioHttpResponse(sequence, resp), listener);
             success = true;
         } finally {
             if (success == false) {

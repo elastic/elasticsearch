@@ -25,7 +25,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -36,12 +35,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.nio.pipelining.NioHttpPipeliningHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.rest.RestRequest;
@@ -98,11 +96,10 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
-        assert message instanceof HttpPipelinedResponse : "This channel only supports messages that are of type: "
-            + HttpPipelinedResponse.class + ". Found type: " + message.getClass() + ".";
-        return new HttpWriteOperation(context, (HttpPipelinedResponse<FullHttpResponse>) message, listener);
+        assert message instanceof NioHttpResponse : "This channel only supports messages that are of type: "
+            + NioHttpResponse.class + ". Found type: " + message.getClass() + ".";
+        return new HttpWriteOperation(context, (NioHttpResponse) message, listener);
     }
 
     @Override

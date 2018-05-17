@@ -312,10 +312,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void close() throws IOException {
+        close(true);
+    }
+
+    private void close(boolean force) throws IOException {
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 try {
-                    current.sync();
+                    if (force || current.isClosed() == false) {
+                        current.sync();
+                    }
                 } finally {
                     closeFilesIfNoPendingRetentionLocks();
                 }
@@ -709,10 +715,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new IllegalArgumentException("Latest translog primary term [" + current.getPrimaryTerm()
                     + "] has to be not less that trimming term [" + belowTerm + "]");
             }
-            assert current.assertNoSeqAbove(aboveSeqNo);
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
+                assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
+
                 for (TranslogReader reader : readers) {
                     final TranslogReader newReader =
                         reader.getPrimaryTerm() < belowTerm
@@ -720,9 +727,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             : reader;
                     newReaders.add(newReader);
                 }
-            } catch (IOException e){
+            } catch (Exception e){
                 IOUtils.closeWhileHandlingException(newReaders);
-                close();
+                close(false);
                 throw e;
             }
 

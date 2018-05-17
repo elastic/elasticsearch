@@ -122,11 +122,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.stub;
 
@@ -1524,7 +1524,7 @@ public class TranslogTests extends ESTestCase {
             translog.trimOperations(primaryTerm.get() - 1, 0);
             fail();
         } catch (AssertionError e) {
-            assertThat(e.getMessage(), is("current should not have any operations with seq# [1] > 0"));
+            assertThat(e.getMessage(), is("current should not have any operations with seq#:primaryTerm [0:2000343615] >= 0:2000343614"));
         }
 
         translog.rollGeneration();
@@ -1612,7 +1612,7 @@ public class TranslogTests extends ESTestCase {
         final Translog failableTLog =
             getFailableTranslog(fail, config, randomBoolean(), false, null, createTranslogDeletionPolicy(), fileChannels);
 
-        IOException expectedException = null;
+        Throwable expectedException = null;
         int translogOperations = 0;
         for(int attempt = 0; attempt < 10; attempt++) {
             int maxTrimmedSeqNo;
@@ -1645,13 +1645,16 @@ public class TranslogTests extends ESTestCase {
             fail.failRate(10 + 10 * attempt);
             try {
                 failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
-            } catch (IOException e){
+            } catch (TranslogException e) {
+                expectedException = e.getCause();
+                break;
+            } catch (IOException e) {
                 expectedException = e;
                 break;
             }
         }
 
-        assertThat(expectedException, is(not(nullValue())));
+        assertThat(expectedException, instanceOf(IOException.class));
 
         assertThat(fileChannels, is(not(empty())));
         assertThat("all file channels have to be closed",

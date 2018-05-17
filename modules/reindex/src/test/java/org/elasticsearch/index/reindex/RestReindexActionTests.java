@@ -149,7 +149,7 @@ public class RestReindexActionTests extends ESTestCase {
         request.withParams(singletonMap("pipeline", "doesn't matter"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));
 
-        assertEquals("_reindex doesn't support [pipeline] as a query parmaeter. Specify it in the [dest] object instead.", e.getMessage());
+        assertEquals("_reindex doesn't support [pipeline] as a query parameter. Specify it in the [dest] object instead.", e.getMessage());
     }
 
     public void testSetScrollTimeout() throws IOException {

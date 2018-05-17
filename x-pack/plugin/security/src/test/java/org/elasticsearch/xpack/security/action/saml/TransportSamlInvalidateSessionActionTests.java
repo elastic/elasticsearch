@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.UserToken;
@@ -161,16 +160,14 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             }
         };
 
-        final SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, null, null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());

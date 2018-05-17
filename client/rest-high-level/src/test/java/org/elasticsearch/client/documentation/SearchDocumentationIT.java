@@ -41,7 +41,11 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
@@ -60,6 +64,9 @@ import org.elasticsearch.index.rankeval.RatedDocument;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RatedSearchHit;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
+import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -92,13 +99,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -707,9 +714,130 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchTemplateWithInlineScript() throws Exception {
+        indexSearchTestData();
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::search-template-request-inline
+        SearchTemplateRequest request = new SearchTemplateRequest();
+        request.setRequest(new SearchRequest("posts")); // <1>
+
+        request.setScriptType(ScriptType.INLINE);
+        request.setScript( // <2>
+            "{" +
+            "  \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
+            "  \"size\" : \"{{size}}\"" +
+            "}");
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("field", "title");
+        scriptParams.put("value", "elasticsearch");
+        scriptParams.put("size", 5);
+        request.setScriptParams(scriptParams); // <3>
+        // end::search-template-request-inline
+
+        // tag::search-template-response
+        SearchTemplateResponse response = client.searchTemplate(request);
+        SearchResponse searchResponse = response.getResponse();
+        // end::search-template-response
+
+        assertNotNull(searchResponse);
+        assertTrue(searchResponse.getHits().totalHits > 0);
+
+        // tag::render-search-template-request
+        request.setSimulate(true); // <1>
+        // end::render-search-template-request
+
+        // tag::render-search-template-response
+        SearchTemplateResponse renderResponse = client.searchTemplate(request);
+        BytesReference source = renderResponse.getSource(); // <1>
+        // end::render-search-template-response
+
+        assertNotNull(source);
+        assertEquals((
+            "{" +
+            "  \"size\" : \"5\"," +
+            "  \"query\": { \"match\" : { \"title\" : \"elasticsearch\" } }" +
+            "}").replaceAll("\\s+", ""), source.utf8ToString());
+    }
+
+    public void testSearchTemplateWithStoredScript() throws Exception {
+        indexSearchTestData();
+        RestHighLevelClient client = highLevelClient();
+        RestClient restClient = client();
+
+        // tag::register-script
+        Request scriptRequest = new Request("POST", "_scripts/title_search");
+        scriptRequest.setJsonEntity(
+            "{" +
+            "  \"script\": {" +
+            "    \"lang\": \"mustache\"," +
+            "    \"source\": {" +
+            "      \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
+            "      \"size\" : \"{{size}}\"" +
+            "    }" +
+            "  }" +
+            "}");
+        Response scriptResponse = restClient.performRequest(scriptRequest);
+        // end::register-script
+        assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());
+
+        // tag::search-template-request-stored
+        SearchTemplateRequest request = new SearchTemplateRequest();
+        request.setRequest(new SearchRequest("posts"));
+
+        request.setScriptType(ScriptType.STORED);
+        request.setScript("title_search");
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("field", "title");
+        params.put("value", "elasticsearch");
+        params.put("size", 5);
+        request.setScriptParams(params);
+        // end::search-template-request-stored
+
+        // tag::search-template-request-options
+        request.setExplain(true);
+        request.setProfile(true);
+        // end::search-template-request-options
+
+        // tag::search-template-execute
+        SearchTemplateResponse response = client.searchTemplate(request);
+        // end::search-template-execute
+
+        SearchResponse searchResponse = response.getResponse();
+        assertNotNull(searchResponse);
+        assertTrue(searchResponse.getHits().totalHits > 0);
+
+        // tag::search-template-execute-listener
+        ActionListener<SearchTemplateResponse> listener = new ActionListener<SearchTemplateResponse>() {
+            @Override
+            public void onResponse(SearchTemplateResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::search-template-execute-listener
+
+        // Replace the empty listener by a blocking listener for tests.
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::search-template-execute-async
+        client.searchTemplateAsync(request, listener); // <1>
+        // end::search-template-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     public void testFieldCaps() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();
+
         // tag::field-caps-request
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
             .fields("user")
@@ -725,21 +853,25 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::field-caps-execute
 
         // tag::field-caps-response
-        assertThat(response.get().keySet(), contains("user"));
-        Map<String, FieldCapabilities> userResponse = response.getField("user");
-
-        assertThat(userResponse.keySet(), containsInAnyOrder("keyword", "text")); // <1>
+        Map<String, FieldCapabilities> userResponse = response.getField("user");  // <1>
         FieldCapabilities textCapabilities = userResponse.get("keyword");
 
-        assertTrue(textCapabilities.isSearchable());
-        assertFalse(textCapabilities.isAggregatable());
+        boolean isSearchable = textCapabilities.isSearchable();
+        boolean isAggregatable = textCapabilities.isAggregatable();
 
-        assertArrayEquals(textCapabilities.indices(), // <2>
-                          new String[]{"authors", "contributors"});
-        assertNull(textCapabilities.nonSearchableIndices()); // <3>
-        assertArrayEquals(textCapabilities.nonAggregatableIndices(), // <4>
-                          new String[]{"authors"});
+        String[] indices = textCapabilities.indices(); // <2>
+        String[] nonSearchableIndices = textCapabilities.nonSearchableIndices(); // <3>
+        String[] nonAggregatableIndices = textCapabilities.nonAggregatableIndices();//<4>
         // end::field-caps-response
+
+        assertThat(userResponse.keySet(), containsInAnyOrder("keyword", "text"));
+
+        assertTrue(isSearchable);
+        assertFalse(isAggregatable);
+
+        assertArrayEquals(indices, new String[]{"authors", "contributors"});
+        assertNull(nonSearchableIndices);
+        assertArrayEquals(nonAggregatableIndices, new String[]{"authors"});
 
         // tag::field-caps-execute-listener
         ActionListener<FieldCapabilitiesResponse> listener = new ActionListener<FieldCapabilitiesResponse>() {

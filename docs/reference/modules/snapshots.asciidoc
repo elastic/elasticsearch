@@ -289,6 +289,20 @@ By setting `include_global_state` to false it's possible to prevent the cluster 
 the snapshot. By default, the entire snapshot will fail if one or more indices participating in the snapshot don't have
 all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
+Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating
+new indices. Note that special characters need to be URI encoded.
+
+For example, creating a snapshot with the current day in the name, like `snapshot-2018.05.11`, can be achieved with
+the following command:
+[source,js]
+-----------------------------------
+# PUT /_snapshot/my_backup/<snapshot-{now/d}>
+PUT /_snapshot/my_backup/%3Csnapshot-%7Bnow%2Fd%7D%3E
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+
+
 The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
 the list of the index files that are already stored in the repository and copies only files that were created or
 changed since the last snapshot. That allows multiple snapshots to be preserved in the repository in a compact form.

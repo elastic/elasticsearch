@@ -25,6 +25,7 @@ import org.joda.time.DateTime;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -34,6 +35,32 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
+
+    public void testBrokenWithJava8ButWorksWithJava10() {
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+//            .appendOffset("+HH:mm", "Z")
+            .optionalStart()
+            .appendOffset("+HH:mm", "Z")
+            .optionalEnd()
+            .optionalStart()
+            .appendOffset("+HHmm", "Z")
+            .optionalEnd()
+            .optionalStart()
+            .appendOffset("+HH", "Z")
+            .optionalEnd()
+            .optionalStart()
+            .appendOffset("+hhmm", "Z")
+            .optionalEnd()
+            .toFormatter(Locale.ROOT);
+        formatter.parse("Z");
+        formatter.parse("-08");
+        formatter.parse("+08:00");
+        formatter.parse("-0800");
+//
+//        DateTimeFormatter javaTimeFormatter = DateFormatters.forPattern("date_time_no_millis");
+//        TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse("2001-01-01T00:00:00-0800");
+//        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
+    }
 
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");

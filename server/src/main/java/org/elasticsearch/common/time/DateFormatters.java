@@ -51,11 +51,16 @@ public class DateFormatters {
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
         .parseLenient()
-        .appendOffset("+HH", "Z")
+        .optionalStart()
+        .appendOffset("+HH:mm", "Z")
+        .optionalEnd()
+        .optionalStart()
+        .appendOffset("+HHMM", "Z")
+        .optionalEnd()
         .parseStrict()
         .toFormatter(Locale.ROOT);
 
-    private static final DateTimeFormatter OPTIONAL_TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
+    public static final DateTimeFormatter OPTIONAL_TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
         .optionalStart()
         .append(TIME_ZONE_FORMATTER)
         .optionalEnd()

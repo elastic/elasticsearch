@@ -28,12 +28,12 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -41,28 +41,77 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 public class GoogleCloudStorageService extends AbstractComponent {
 
     /** Clients settings identified by client name. */
-    private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
+    private volatile Map<String, GoogleCloudStorageClientSettings> clientsSettings = emptyMap();
+    /** Cache of client instances. Client instances are built once for each setting change. */
+    private volatile Map<String, Storage> clientsCache = emptyMap();
 
-    public GoogleCloudStorageService(final Environment environment, final Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        super(environment.settings());
-        this.clientsSettings = clientsSettings;
+    public GoogleCloudStorageService(final Settings settings) {
+        super(settings);
     }
 
     /**
-     * Creates a client that can be used to manage Google Cloud Storage objects.
+     * Updates the client settings and clears the client cache. Subsequent calls to
+     * {@code GoogleCloudStorageService#client} will return new clients constructed
+     * using these passed settings.
+     *
+     * @param clientsSettings the new settings used for building clients for subsequent requests
+     * @return previous settings which have been substituted
+     */
+    public synchronized Map<String, GoogleCloudStorageClientSettings> updateClientsSettings(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+        final Map<String, GoogleCloudStorageClientSettings> prevSettings = this.clientsSettings;
+        this.clientsSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        this.clientsCache = emptyMap();
+        // clients are built lazily by {@link client(String)}
+        return prevSettings;
+    }
+
+    /**
+     * Attempts to retrieve a client from the cache. If the client does not exist it
+     * will be created from the latest settings and will populate the cache. The
+     * returned instance should not be cached by the calling code. Instead, for each
+     * use, the (possibly updated) instance should be requested by calling this
+     * method.
+     *
+     * @param clientName name of the client settings used to create the client
+     * @return a cached client storage instance that can be used to manage objects
+     *         (blobs)
+     */
+    public Storage client(final String clientName) throws Exception {
+        Storage storage = clientsCache.get(clientName);
+        if (storage != null) {
+            return storage;
+        }
+        synchronized (this) {
+            storage = clientsCache.get(clientName);
+            if (storage != null) {
+                return storage;
+            }
+            storage = SocketAccess.doPrivilegedIOException(() -> createClient(clientName));
+            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientName, storage).immutableMap();
+            return storage;
+        }
+    }
+
+    /**
+     * Creates a client that can be used to manage Google Cloud Storage objects. The client is thread-safe.
      *
      * @param clientName name of client settings to use, including secure settings
-     * @return a Client instance that can be used to manage Storage objects
+     * @return a new client storage instance that can be used to manage objects
+     *         (blobs)
      */
-    public Storage createClient(final String clientName) throws Exception {
+    private Storage createClient(final String clientName) throws Exception {
         final GoogleCloudStorageClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
             throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
                     + Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
+        logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
+                clientSettings.getHost()));
         final HttpTransport httpTransport = createHttpTransport(clientSettings.getHost());
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
@@ -114,6 +163,9 @@ public class GoogleCloudStorageService extends AbstractComponent {
         builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
         if (Strings.hasLength(endpoint)) {
             final URL endpointUrl = URI.create(endpoint).toURL();
+            // it is crucial to open a connection for each URL (see {@code
+            // DefaultConnectionFactory#openConnection}) instead of reusing connections,
+            // because the storage instance has to be thread-safe as it is cached.
             builder.setConnectionFactory(new DefaultConnectionFactory() {
                 @Override
                 public HttpURLConnection openConnection(final URL originalUrl) throws IOException {

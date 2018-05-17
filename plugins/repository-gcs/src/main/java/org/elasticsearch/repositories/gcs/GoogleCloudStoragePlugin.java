@@ -34,25 +34,24 @@ import java.util.Map;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin {
 
-    private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
+    private final GoogleCloudStorageService storageService;
 
     public GoogleCloudStoragePlugin(final Settings settings) {
-        clientsSettings = GoogleCloudStorageClientSettings.load(settings);
-    }
-
-    protected Map<String, GoogleCloudStorageClientSettings> getClientsSettings() {
-        return clientsSettings;
+        this.storageService = createStorageService(settings);
+        // eagerly load client settings so that secure settings are readable (not closed)
+        final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
+        this.storageService.updateClientsSettings(clientsSettings);
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService(Environment environment) {
-        return new GoogleCloudStorageService(environment, clientsSettings);
+    protected GoogleCloudStorageService createStorageService(Settings settings) {
+        return new GoogleCloudStorageService(settings);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-            (metadata) -> new GoogleCloudStorageRepository(metadata, env, namedXContentRegistry, createStorageService(env)));
+            (metadata) -> new GoogleCloudStorageRepository(metadata, env, namedXContentRegistry, this.storageService));
     }
 
     @Override

@@ -109,7 +109,7 @@ public class GeoDistanceTests extends ESTestCase {
     public void testWriteToSerializationBWC52() throws Exception {
         GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_2_2));
+            out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_2_2));
             geoDistance.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(out.getVersion());

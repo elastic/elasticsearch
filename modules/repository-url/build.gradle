@@ -34,6 +34,7 @@ File repositoryDir = new File(project.buildDir, "shared-repository")
 
 /** A task to start the URLFixture which exposes the repositoryDir over HTTP **/
 task urlFixture(type: AntFixture) {
+    dependsOn testClasses
     doFirst {
         repositoryDir.mkdirs()
     }

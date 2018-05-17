@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.MainResponse;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.sql.SQLException;
 
@@ -18,7 +19,7 @@ import java.sql.SQLException;
  */
 public class CliSession {
     private final HttpClient httpClient;
-    private int fetchSize = AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE;
+    private int fetchSize = Protocol.FETCH_SIZE;
     private String fetchSeparator = "";
     private boolean debug;
 
@@ -64,8 +65,9 @@ public class CliSession {
         } catch (SQLException ex) {
             throw new ClientException(ex);
         }
+        Version version = Version.fromString(response.getVersion());
         // TODO: We can relax compatibility requirement later when we have a better idea about protocol compatibility guarantees
-        if (response.getVersion().major != Version.CURRENT.major || response.getVersion().minor != Version.CURRENT.minor) {
+        if (version.major != Version.CURRENT.major || version.minor != Version.CURRENT.minor) {
             throw new ClientException("This alpha version of CLI is only compatible with Elasticsearch version " +
                     Version.CURRENT.toString());
         }

@@ -90,6 +90,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
-            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING);
+            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
+            S3Repository.ACCESS_KEY_SETTING,
+            S3Repository.SECRET_KEY_SETTING);
     }
 }

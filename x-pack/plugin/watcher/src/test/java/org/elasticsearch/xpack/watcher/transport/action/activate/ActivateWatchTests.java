@@ -47,8 +47,8 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
     protected boolean timeWarped() {
         return false;
     }
-
-    // FIXME not to be sleep based
+    
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30699")
     public void testDeactivateAndActivate() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
                 .setId("_id")

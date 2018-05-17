@@ -101,7 +101,15 @@ public class ListPluginsCommandTests extends ESTestCase {
             final String name,
             final String classname,
             final boolean hasNativeController) throws IOException {
-        buildFakePlugin(env, description, name, classname, hasNativeController);
+        PluginTestUtil.writePluginProperties(
+            env.pluginsFile().resolve(name),
+            "description", description,
+            "name", name,
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", "1.8",
+            "classname", classname,
+            "has.native.controller", Boolean.toString(hasNativeController));
     }
 
     public void testPluginsDirMissing() throws Exception {

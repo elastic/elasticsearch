@@ -54,9 +54,11 @@ class DerParser {
 
 
     private InputStream derInputStream;
+    private int maxAsnObjectLength;
 
     DerParser(byte[] bytes) {
         this.derInputStream = new ByteArrayInputStream(bytes);
+        this.maxAsnObjectLength = bytes.length;
     }
 
     Asn1Object readAsn1Object() throws IOException {
@@ -65,6 +67,12 @@ class DerParser {
             throw new IOException("Invalid DER: stream too short, missing tag");
         }
         int length = getLength();
+        // getLength() can return any 32 bit integer, so ensure that a corrupted encoding won't
+        // force us into allocating a very large array
+        if (length > maxAsnObjectLength) {
+            throw new IOException("Invalid DER: size of ASN.1 object to be parsed appears to be larger than the size of the key file " +
+                "itself.");
+        }
         byte[] value = new byte[length];
         int n = derInputStream.read(value);
         if (n < length) {

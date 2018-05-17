@@ -485,8 +485,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             outputStream.putNextEntry(new ZipEntry(caDirName + "ca.key"));
             if (info.password != null && info.password.length > 0) {
                 try {
-                    PEMEncryptor encryptor = new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(BC_PROV).
-                            build(info.password);
+                    PEMEncryptor encryptor = new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(BC_PROV).build(info.password);
                     pemWriter.writeObject(info.privateKey, encryptor);
                 } finally {
                     // we can safely nuke the password chars now

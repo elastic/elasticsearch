@@ -31,6 +31,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -168,15 +169,16 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
             /*
              * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
              * parameter values for any of the filter_path, human, or pretty parameters. We detect these specific failures via an
-             * IllegalArgumentException from the channel constructor and then attempt to create a new channel that bypasses parsing of these
-             * parameter values.
+             * IllegalArgumentException from the channel constructor and then attempt to create a new channel that bypasses parsing of
+             * these parameter values.
              */
             final NioHttpChannel channel;
             {
                 NioHttpChannel innerChannel;
                 int sequence = pipelinedRequest.getSequence();
+                BigArrays bigArrays = transport.getBigArrays();
                 try {
-                    innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), httpRequest, sequence, settings, threadContext);
+                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, httpRequest, sequence, settings, threadContext);
                 } catch (final IllegalArgumentException e) {
                     if (badRequestCause == null) {
                         badRequestCause = e;
@@ -189,7 +191,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
                             Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
                             copiedRequest.uri(),
                             copiedRequest);
-                    innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), innerRequest, sequence, settings, threadContext);
+                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, innerRequest, sequence, settings, threadContext);
                 }
                 channel = innerChannel;
             }

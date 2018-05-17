@@ -77,7 +77,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30416")
 public class ShrinkIndexIT extends ESIntegTestCase {
 
     @Override
@@ -85,6 +84,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8318")
     public void testCreateShrinkIndexToN() {
         int[][] possibleShardSplits = new int[][] {{8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}};
         int[] shardSplits = randomFrom(possibleShardSplits);

@@ -4,7 +4,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 subprojects { Project subproj ->
   subproj.tasks.withType(RestIntegTestTask) {
     subproj.extensions.configure("${it.name}Cluster") { cluster ->
-      cluster.distribution = 'oss-zip'
+      cluster.distribution = System.getProperty('tests.distribution', 'oss-zip')
     }
   }
 }

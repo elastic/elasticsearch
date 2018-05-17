@@ -32,16 +32,20 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.KeyStore;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.cert.CertificateException;
@@ -446,22 +450,11 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testEmptyTrustManager() throws Exception {
-        X509ExtendedTrustManager trustManager = new SSLService.EmptyX509TrustManager();
+        Settings settings = Settings.builder().build();
+        final SSLService sslService = new SSLService(settings, env);
+        SSLConfiguration sslConfig = new SSLConfiguration(settings);
+        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslConfig).getEmptyTrustManager();
         assertThat(trustManager.getAcceptedIssuers(), emptyArray());
-        final String message = "no certificates are trusted";
-        CertificateException ce =
-                expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null, (Socket) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null, (SSLEngine) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null, (Socket) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null, (SSLEngine) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null));
-        assertEquals(message, ce.getMessage());
     }
 
     public void testReadCertificateInformation() throws Exception {

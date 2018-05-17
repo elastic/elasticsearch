@@ -21,7 +21,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ml.MlClientHelper;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -304,7 +304,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (threadContext != null) {
             // Adjust the request, adding security headers from the current thread context
             Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
-                    .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             builder.setHeaders(headers);
         }

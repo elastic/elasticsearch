@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.pipelining.Netty4HttpResponse;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;

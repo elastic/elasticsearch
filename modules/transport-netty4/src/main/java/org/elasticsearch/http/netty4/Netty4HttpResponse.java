@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4.pipelining;
+package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
 import org.elasticsearch.http.HttpPipelinedMessage;

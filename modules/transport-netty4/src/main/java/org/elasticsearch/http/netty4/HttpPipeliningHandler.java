@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio.pipelining;
+package org.elasticsearch.http.netty4;
 
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -27,19 +27,19 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipeliningAggregator;
-import org.elasticsearch.http.nio.NettyListener;
-import org.elasticsearch.http.nio.NioHttpResponse;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.nio.channels.ClosedChannelException;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
-public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
+public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<NioHttpResponse, NettyListener> aggregator;
+    private final HttpPipeliningAggregator<Netty4HttpResponse, ChannelPromise> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -48,7 +48,7 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public NioHttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
+    public HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
         this.logger = logger;
         this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
     }
@@ -64,19 +64,19 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        if (msg instanceof NioHttpResponse) {
-            NioHttpResponse response = (NioHttpResponse) msg;
+    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
+        if (msg instanceof Netty4HttpResponse) {
+            Netty4HttpResponse response = (Netty4HttpResponse) msg;
             boolean success = false;
             try {
-                NettyListener listener = NettyListener.fromChannelPromise(promise);
-                List<Tuple<NioHttpResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
+                List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
                 success = true;
-                for (Tuple<NioHttpResponse, NettyListener> responseToWrite : readyResponses) {
-                    ctx.write(responseToWrite.v1().getResponse(), responseToWrite.v2());
+                for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
+                    ctx.write(readyResponse.v1().getResponse(), readyResponse.v2());
                 }
             } catch (IllegalStateException e) {
                 ctx.channel().close();
+                Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
             } finally {
                 if (success == false) {
                     promise.setFailure(new ClosedChannelException());
@@ -89,11 +89,11 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<NioHttpResponse, NettyListener>> inflightResponses = aggregator.removeAllInflightResponses();
+        List<Tuple<Netty4HttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<NioHttpResponse, NettyListener> inflightResponse : inflightResponses) {
+            for (Tuple<Netty4HttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
                 try {
                     inflightResponse.v2().setFailure(closedChannelException);
                 } catch (RuntimeException e) {

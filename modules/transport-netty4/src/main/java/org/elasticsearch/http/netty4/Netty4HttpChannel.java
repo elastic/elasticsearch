@@ -42,7 +42,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
-import org.elasticsearch.http.netty4.pipelining.Netty4HttpResponse;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;

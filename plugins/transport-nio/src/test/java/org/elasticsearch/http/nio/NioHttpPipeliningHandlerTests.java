@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4.pipelining;
+package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -61,7 +61,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;
 
-public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
+public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
     private final ExecutorService handlerService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
     private final ExecutorService eventLoopService = Executors.newFixedThreadPool(1);
@@ -93,7 +93,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWithFastSerializedRequests() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -120,7 +120,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -153,7 +153,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final EmbeddedChannel embeddedChannel =
             new EmbeddedChannel(
                 new AggregateUrisAndHeadersHandler(),
-                new HttpPipeliningHandler(logger, numberOfRequests),
+                new NioHttpPipeliningHandler(logger, numberOfRequests),
                 new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -182,7 +182,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler());
 
         for (int i = 0; i < 1 + numberOfRequests + 1; i++) {
@@ -211,7 +211,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testPipeliningRequestsAreReleased() throws InterruptedException {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests + 1));
+            new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests + 1));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
@@ -229,7 +229,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
             int sequence = requests.get(i).getSequence();
-            Netty4HttpResponse resp = new Netty4HttpResponse(sequence, httpResponse);
+            NioHttpResponse resp = new NioHttpResponse(sequence, httpResponse);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -242,7 +242,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             assertTrue(promise.cause() instanceof ClosedChannelException);
         }
     }
-
 
     private void assertReadHttpMessageHasContent(EmbeddedChannel embeddedChannel, String expectedContent) {
         FullHttpResponse response = (FullHttpResponse) embeddedChannel.outboundMessages().poll();
@@ -294,7 +293,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
                     final ChannelPromise promise = ctx.newPromise();
                     eventLoopService.submit(() -> {
-                        ctx.write(new Netty4HttpResponse(pipelinedRequest.getSequence(), httpResponse), promise);
+                        ctx.write(new NioHttpResponse(pipelinedRequest.getSequence(), httpResponse), promise);
                         finishingLatch.countDown();
                     });
                 } catch (InterruptedException e) {

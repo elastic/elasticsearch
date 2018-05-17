@@ -3,6 +3,16 @@ include::{es-repo-dir}/index-shared1.asciidoc[]
 
 include::setup/setup-xes.asciidoc[]
 
+include::{xes-repo-dir}/monitoring/configuring-monitoring.asciidoc[]
+
+include::{xes-repo-dir}/security/configuring-es.asciidoc[]
+
+include::setup/setup-xclient.asciidoc[]
+
+include::{xes-repo-dir}/settings/configuring-xes.asciidoc[]
+
+include::setup/bootstrap-checks-xes.asciidoc[]
+
 include::{es-repo-dir}/index-shared2.asciidoc[]
 
 include::{es-repo-dir}/index-shared3.asciidoc[]

@@ -199,6 +199,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
+                .put("tribe.t1.transport.tcp.port", 0)
+                .put("tribe.t2.transport.tcp.port", 0)
                 .put("tribe.t1.transport.type", getTestTransportType())
                 .put("tribe.t2.transport.type", getTestTransportType())
                 .put("tribe.blocks.write", false)

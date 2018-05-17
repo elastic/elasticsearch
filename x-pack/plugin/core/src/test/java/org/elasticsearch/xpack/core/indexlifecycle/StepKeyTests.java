@@ -6,16 +6,29 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
-public class StepKeyTests extends ESTestCase {
+public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
 
-    public StepKey createRandomInstance() {
+    @Override
+    public StepKey createTestInstance() {
         return new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
+    @Override
+    protected Writeable.Reader<StepKey> instanceReader() {
+        return StepKey::new;
+    }
+
+    @Override
+    protected StepKey doParseInstance(XContentParser parser) {
+        return StepKey.parse(parser);
+    }
+
+    @Override
     public StepKey mutateInstance(StepKey instance) {
         String phase = instance.getPhase();
         String action = instance.getAction();
@@ -36,12 +49,5 @@ public class StepKeyTests extends ESTestCase {
         }
 
         return new StepKey(phase, action, step);
-    }
-
-    public void testHashcodeAndEquals() {
-        for (int runs = 0; runs < 20; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                    instance -> new StepKey(instance.getPhase(), instance.getAction(), instance.getName()), this::mutateInstance);
-        }
     }
 }

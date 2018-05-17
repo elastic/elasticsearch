@@ -17,14 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBoundsTests;
-import org.elasticsearch.search.aggregations.BucketOrder;
+import org.joda.time.DateTimeZone;
+import org.junit.Assume;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -118,6 +131,75 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                 fail();
         }
         return orders;
+    }
+
+    private static Document documentForDate(String field, long millis) {
+        Document doc = new Document();
+        doc.add(new LongPoint(field, millis));
+        doc.add(new SortedNumericDocValuesField(field, millis));
+        return doc;
+    }
+
+    public void testRewriteTimeZone() throws IOException {
+        Assume.assumeTrue(getCurrentTypes().length > 0); // we need mappings
+        FormatDateTimeFormatter format = Joda.forPattern("strict_date_optional_time");
+
+        try (Directory dir = newDirectory();
+                IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+
+            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2018-03-11T11:55:00").getMillis()));
+            w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2017-10-30T18:13:00").getMillis()));
+
+            try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
+
+                w.addDocument(documentForDate(DATE_FIELD_NAME, format.parser().parseDateTime("2018-03-25T02:44:00").getMillis()));
+
+                try (IndexReader readerThatCrosses = DirectoryReader.open(w)) {
+
+                    QueryShardContext shardContextThatDoesntCross = createShardContext(readerThatDoesntCross);
+                    QueryShardContext shardContextThatCrosses = createShardContext(readerThatCrosses);
+
+                    DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("my_date_histo");
+                    builder.field(DATE_FIELD_NAME);
+                    builder.dateHistogramInterval(DateHistogramInterval.DAY);
+
+                    // no timeZone => no rewrite
+                    assertNull(builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertNull(builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    // fixed timeZone => no rewrite
+                    DateTimeZone tz = DateTimeZone.forOffsetHours(1);
+                    builder.timeZone(tz);
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    // daylight-saving-times => rewrite if doesn't cross
+                    tz = DateTimeZone.forID("Europe/Paris");
+                    builder.timeZone(tz);
+                    assertEquals(DateTimeZone.forOffsetHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    // Rounded values are no longer all within the same transitions => no rewrite
+                    builder.dateHistogramInterval(DateHistogramInterval.MONTH);
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    builder = new DateHistogramAggregationBuilder("my_date_histo");
+                    builder.field(DATE_FIELD_NAME);
+                    builder.timeZone(tz);
+
+                    builder.interval(1000L * 60 * 60 * 24); // ~ 1 day
+                    assertEquals(DateTimeZone.forOffsetHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                    // Because the interval is large, rounded values are not
+                    // within the same transitions as the values => no rewrite
+                    builder.interval(1000L * 60 * 60 * 24 * 30); // ~ 1 month
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
+                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+                }
+            }
+        }
     }
 
 }

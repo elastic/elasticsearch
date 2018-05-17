@@ -1,10 +1,11 @@
+[role="xpack"]
 [[security-privileges]]
-=== Security Privileges
+=== Security privileges
 
 This section lists the privileges that you can assign to a role.
 
 [[privileges-list-cluster]]
-==== Cluster Privileges
+==== Cluster privileges
 
 [horizontal]
 `all`::
@@ -66,7 +67,7 @@ All privileges necessary for a transport client to connect.  Required by the rem
 cluster to enable <<cross-cluster-configuring,Cross Cluster Search>>.
 
 [[privileges-list-indices]]
-==== Indices Privileges
+==== Indices privileges
 
 [horizontal]
 `all`::
@@ -125,7 +126,7 @@ Privilege to create an index. A create index request may contain aliases to be
 added to the index once created. In that case the request requires the `manage`
 privilege as well, on both the index and the aliases names.
 
-==== Run As Privilege
+==== Run as privilege
 
 The `run_as` permission enables an authenticated user to submit requests on
 behalf of another user. The value can be a user name or a comma-separated list

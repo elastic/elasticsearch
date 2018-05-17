@@ -98,14 +98,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         if (request.blocks()) {
             builder.blocks(currentState.blocks());
         }
-        if (request.metaData()) {
-            MetaData.Builder mdBuilder;
-            if (request.indices().length == 0) {
-                mdBuilder = MetaData.builder(currentState.metaData());
-            } else {
-                mdBuilder = MetaData.builder();
-            }
 
+        MetaData.Builder mdBuilder = MetaData.builder();
+        mdBuilder.clusterUUID(currentState.metaData().clusterUUID());
+
+        if (request.metaData()) {
             if (request.indices().length > 0) {
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
@@ -114,17 +111,19 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         mdBuilder.put(indexMetaData, false);
                     }
                 }
+            } else {
+                mdBuilder = MetaData.builder(currentState.metaData());
             }
 
             // Filter our metadata that shouldn't be returned by API
-            for(ObjectObjectCursor<String, Custom> custom :  currentState.metaData().customs()) {
+            for(ObjectObjectCursor<String, Custom> custom : currentState.metaData().customs()) {
                 if(!custom.value.context().contains(MetaData.XContentContext.API)) {
                     mdBuilder.removeCustom(custom.key);
                 }
             }
-
-            builder.metaData(mdBuilder);
         }
+        builder.metaData(mdBuilder);
+
         if (request.customs()) {
             for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
                 if (custom.value.isPrivate() == false) {

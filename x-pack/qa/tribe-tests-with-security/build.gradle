@@ -92,11 +92,15 @@ integTestCluster {
     setting 'tribe.cluster1.cluster.name', 'cluster1'
     setting 'tribe.cluster1.discovery.zen.ping.unicast.hosts', "'${-> cluster1Nodes.get(0).transportUri()}'"
     setting 'tribe.cluster1.http.enabled', 'true'
+    setting 'tribe.cluster1.http.port', '0'
+    setting 'tribe.cluster1.transport.tcp.port', '0'
     setting 'tribe.cluster1.xpack.security.enabled', 'true'
     setting 'tribe.cluster1.xpack.ml.enabled', 'false'
     setting 'tribe.cluster2.cluster.name', 'cluster2'
     setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
     setting 'tribe.cluster2.http.enabled', 'true'
+    setting 'tribe.cluster2.http.port', '0'
+    setting 'tribe.cluster2.transport.tcp.port', '0'
     setting 'tribe.cluster2.xpack.security.enabled', 'true'
     setting 'tribe.cluster2.xpack.ml.enabled', 'false'
     keystoreSetting 'bootstrap.password', 'x-pack-test-password'

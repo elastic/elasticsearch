@@ -12,8 +12,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -37,7 +35,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -63,13 +60,13 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * This store reads + writes {@link ExpressionRoleMapping role mappings} in an Elasticsearch
- * {@link SecurityLifecycleService#SECURITY_INDEX_NAME index}.
+ * {@link SecurityIndexManager#SECURITY_INDEX_NAME index}.
  * <br>
  * The store is responsible for all read and write operations as well as
  * {@link #resolveRoles(UserData, ActionListener) resolving roles}.
@@ -101,14 +98,14 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private final Client client;
     private final boolean isTribeNode;
-    private final SecurityLifecycleService securityLifecycleService;
+    private final SecurityIndexManager securityIndex;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
-    public NativeRoleMappingStore(Settings settings, Client client, SecurityLifecycleService securityLifecycleService) {
+    public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
         super(settings);
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
-        this.securityLifecycleService = securityLifecycleService;
+        this.securityIndex = securityIndex;
     }
 
     private String getNameFromId(String id) {
@@ -125,7 +122,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * <em>package private</em> for unit testing
      */
     void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (securityLifecycleService.securityIndex().isIndexUpToDate() == false) {
+        if (securityIndex.isIndexUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -183,7 +180,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
                                                  Request request, ActionListener<Result> listener) {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("role-mappings may not be modified using a tribe node"));
-        } else if (securityLifecycleService.securityIndex().isIndexUpToDate() == false) {
+        } else if (securityIndex.isIndexUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -199,7 +196,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private void innerPutMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
         final ExpressionRoleMapping mapping = request.getMapping();
-        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
                 xContentBuilder = mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
@@ -229,7 +226,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     }
 
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) throws IOException {
-        if (securityLifecycleService.securityIndex().isIndexUpToDate() == false) {
+        if (securityIndex.isIndexUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -283,16 +280,16 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     }
 
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (securityLifecycleService.securityIndex().isAvailable()) {
+        if (securityIndex.isAvailable()) {
             loadMappings(listener);
         } else {
             logger.info("The security index is not yet available - no role mappings can be loaded");
             if (logger.isDebugEnabled()) {
                 logger.debug("Security Index [{}] [exists: {}] [available: {}] [mapping up to date: {}]",
                         SECURITY_INDEX_NAME,
-                        securityLifecycleService.securityIndex().indexExists(),
-                        securityLifecycleService.securityIndex().isAvailable(),
-                        securityLifecycleService.securityIndex().isMappingUpToDate()
+                        securityIndex.indexExists(),
+                        securityIndex.isAvailable(),
+                        securityIndex.isMappingUpToDate()
                 );
             }
             listener.onResponse(Collections.emptyList());
@@ -309,7 +306,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * </ul>
      */
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        if (securityLifecycleService.securityIndex().indexExists() == false) {
+        if (securityIndex.indexExists() == false) {
             reportStats(listener, Collections.emptyList());
         } else {
             getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));

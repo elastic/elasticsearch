@@ -49,18 +49,16 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
 
-    private static final DateTimeFormatter OPTIONAL_TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
-        .optionalStart()
-        .parseLenient()
-        .appendOffset("+HH", "Z")
-        .parseStrict()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
     private static final DateTimeFormatter TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
         .parseLenient()
         .appendOffset("+HH", "Z")
         .parseStrict()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter OPTIONAL_TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER)
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter BASIC_TIME_NO_MILLIS = new DateTimeFormatterBuilder()
@@ -351,7 +349,7 @@ public class DateFormatters {
     private static final DateTimeFormatter EPOCH_MILLIS = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.INSTANT_SECONDS, 1, 19, SignStyle.NEVER)
         .appendValue(ChronoField.MILLI_OF_SECOND, 3)
-        .toFormatter();
+        .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter STRICT_BASIC_WEEK_DATE = new DateTimeFormatterBuilder()
         .parseStrict()

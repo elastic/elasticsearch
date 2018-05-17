@@ -62,8 +62,8 @@ public class IndexLifecycleService extends AbstractComponent
         clusterService.addListener(this);
     }
 
-    public ClusterState moveToNextStep(ClusterState currentState, String indexName, StepKey currentStepKey, StepKey nextStepKey) {
-        return IndexLifecycleRunner.validatedMoveClusterStateToNextStep(indexName, currentState, currentStepKey, nextStepKey,
+    public ClusterState moveClusterStateToStep(ClusterState currentState, String indexName, StepKey currentStepKey, StepKey nextStepKey) {
+        return IndexLifecycleRunner.moveClusterStateToStep(indexName, currentState, currentStepKey, nextStepKey,
             nowSupplier, policyRegistry);
     }
 

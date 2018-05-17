@@ -146,9 +146,9 @@ public class IndexLifecycleRunner {
         }
     }
 
-    static ClusterState validatedMoveClusterStateToNextStep(String indexName, ClusterState currentState, StepKey currentStepKey,
-                                                            StepKey nextStepKey, LongSupplier nowSupplier,
-                                                            PolicyStepsRegistry stepRegistry) {
+    static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
+                                               StepKey nextStepKey, LongSupplier nowSupplier,
+                                               PolicyStepsRegistry stepRegistry) {
         IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
         Settings indexSettings = idxMeta.getSettings();
         String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);

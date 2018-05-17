@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -212,6 +213,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         builder.endObject();
         return builder;
+    }
+
+    public static TaskInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(

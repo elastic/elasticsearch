@@ -31,11 +31,8 @@ task internalClusterTest(type: RandomizedTestingTask,
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-check {
-    dependsOn = [internalClusterTest, 'qa:multi-cluster:followClusterTest', 'qa:multi-cluster-with-security:followClusterTest']
-}
-
 internalClusterTest.mustRunAfter test
+check.dependsOn(internalClusterTest, 'qa:multi-cluster:followClusterTest', 'qa:multi-cluster-with-security:followClusterTest')
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"

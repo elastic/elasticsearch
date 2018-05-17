@@ -20,12 +20,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
@@ -83,7 +83,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
             // ensure we only filter for the allowed headers
             Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                    .filter(e -> Watcher.HEADER_FILTERS.contains(e.getKey()))
+                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             watch.status().setHeaders(filteredHeaders);
 

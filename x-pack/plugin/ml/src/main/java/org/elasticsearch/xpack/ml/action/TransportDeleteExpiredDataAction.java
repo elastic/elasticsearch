@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
@@ -40,7 +41,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                             Client client, ClusterService clusterService) {
         super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 DeleteExpiredDataAction.Request::new);
-        this.client = client;
+        this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
     }
 

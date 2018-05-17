@@ -41,8 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.After;
@@ -58,7 +56,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -189,10 +187,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
-        final SecurityLifecycleService securityLifecycleService =
-            new SecurityLifecycleService(Settings.EMPTY, clusterService, threadPool, client,
-                                         mock(IndexAuditTrail.class));
-        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityLifecycleService) {
+        final SecurityIndexManager securityIndex =
+            new SecurityIndexManager(Settings.EMPTY, client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService);
+        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
                 if (methodCalled.compareAndSet(false, true)) {
@@ -203,7 +200,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             }
         };
         // setup the roles store so the security index exists
-        securityLifecycleService.clusterChanged(new ClusterChangedEvent(
+        securityIndex.clusterChanged(new ClusterChangedEvent(
             "fls_dls_license", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
 
         PutRoleRequest putRoleRequest = new PutRoleRequest();

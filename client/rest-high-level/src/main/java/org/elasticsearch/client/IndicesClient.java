@@ -277,7 +277,7 @@ public final class IndicesClient {
       *     Synced flush API on elastic.co</a>
       */
     public SyncedFlushResponse flushSynced(SyncedFlushRequest syncedFlushRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(syncedFlushRequest, RequestConverters::syncedFlush,
+        return restHighLevelClient.performRequestAndParseEntity(syncedFlushRequest, RequestConverters::flushSynced,
                 SyncedFlushResponse::fromXContent, emptySet(), headers);
     }
 
@@ -288,7 +288,7 @@ public final class IndicesClient {
      *     Synced flush API on elastic.co</a>
      */
     public void flushSyncedAsync(SyncedFlushRequest syncedFlushRequest, ActionListener<SyncedFlushResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(syncedFlushRequest, RequestConverters::syncedFlush,
+        restHighLevelClient.performRequestAsyncAndParseEntity(syncedFlushRequest, RequestConverters::flushSynced,
                 SyncedFlushResponse::fromXContent, listener, emptySet(), headers);
     }
 

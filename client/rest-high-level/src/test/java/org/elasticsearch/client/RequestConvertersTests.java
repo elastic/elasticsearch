@@ -657,7 +657,7 @@ public class RequestConvertersTests extends ESTestCase {
             }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(syncedFlushRequest::indicesOptions, syncedFlushRequest::indicesOptions, expectedParams);
-        Request request = RequestConverters.syncedFlush(syncedFlushRequest);
+        Request request = RequestConverters.flushSynced(syncedFlushRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
                 endpoint.add(String.join(",", indices));

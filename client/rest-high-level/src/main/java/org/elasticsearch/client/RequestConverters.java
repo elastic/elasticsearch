@@ -212,7 +212,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request syncedFlush(SyncedFlushRequest syncedFlushRequest) {
+    static Request flushSynced(SyncedFlushRequest syncedFlushRequest) {
         String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_flush/synced"));
         Params parameters = new Params(request);

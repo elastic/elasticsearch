@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
@@ -145,6 +144,8 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -322,12 +323,9 @@ public class WatchTests extends ESTestCase {
             "    }\n" +
             "  }\n" +
             "}";
-        try {
-            wp.parseWithSecrets("failure", false, new BytesArray(watchDef), new DateTime(), XContentType.JSON, true);
-            fail("This watch should fail to parse as there is an extra closing curly brace in the middle of the watch");
-        } catch (ElasticsearchParseException pe) {
-            assertThat(pe.getMessage().contains("unexpected data beyond"), is(true));
-        }
+            IOException e = expectThrows(IOException.class, () ->
+                wp.parseWithSecrets("failure", false, new BytesArray(watchDef), new DateTime(), XContentType.JSON, true));
+            assertThat(e.getMessage(), containsString("could not parse watch"));
     }
 
     public void testParserDefaults() throws Exception {

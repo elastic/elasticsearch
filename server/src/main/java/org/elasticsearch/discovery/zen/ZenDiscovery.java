@@ -558,19 +558,19 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     // visible for testing
-    static class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>, ClusterStateTaskListener {
+    public static class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>, ClusterStateTaskListener {
 
         private final AllocationService allocationService;
         private final ElectMasterService electMasterService;
         private final Consumer<String> rejoin;
         private final Logger logger;
 
-        static class Task {
+        public static class Task {
 
             private final DiscoveryNode node;
             private final String reason;
 
-            Task(final DiscoveryNode node, final String reason) {
+            public Task(final DiscoveryNode node, final String reason) {
                 this.node = node;
                 this.reason = reason;
             }
@@ -589,7 +589,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
         }
 
-        NodeRemovalClusterStateTaskExecutor(
+        public NodeRemovalClusterStateTaskExecutor(
                 final AllocationService allocationService,
                 final ElectMasterService electMasterService,
                 final Consumer<String> rejoin,

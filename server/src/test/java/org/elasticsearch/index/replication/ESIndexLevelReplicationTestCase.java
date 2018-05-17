@@ -542,7 +542,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                                 listener.onFailure(e);
                             }
                         },
-                        ThreadPool.Names.BULK, request);
+                        ThreadPool.Names.WRITE, request);
             }
 
             @Override

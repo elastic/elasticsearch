@@ -34,8 +34,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
@@ -210,7 +210,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     /** called by IndexShard to record estimated bytes written to translog for the operation */
     private void recordOperationBytes(Engine.Operation operation, Engine.Result result) {
-        if (result.hasFailure() == false) {
+        if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             statusChecker.bytesWritten(operation.estimatedSizeInBytes());
         }
     }

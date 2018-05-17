@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -51,6 +53,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -58,6 +61,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -989,6 +993,38 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(restoreResponse.getRestoreInfo().totalShards(),
             restoreResponse.getRestoreInfo().successfulShards());
         ensureYellow();
+    }
+
+    public void testSnapshotWithDateMath() {
+        final String repo = "repo";
+        final AdminClient admin = client().admin();
+
+        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        final String snapshotName = "<snapshot-{now/d}>";
+
+        logger.info("-->  creating repository");
+        assertAcked(admin.cluster().preparePutRepository(repo).setType("fs")
+            .setSettings(Settings.builder().put("location", randomRepoPath())
+                .put("compress", randomBoolean())));
+
+        final String expression1 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+        logger.info("-->  creating date math snapshot");
+        CreateSnapshotResponse snapshotResponse =
+            admin.cluster().prepareCreateSnapshot(repo, snapshotName)
+                .setIncludeGlobalState(true)
+                .setWaitForCompletion(true)
+                .get();
+        assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
+        // snapshot could be taken before or after a day rollover
+        final String expression2 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+
+        SnapshotsStatusResponse response = admin.cluster().prepareSnapshotStatus(repo)
+            .setSnapshots(Sets.newHashSet(expression1, expression2).toArray(Strings.EMPTY_ARRAY))
+            .setIgnoreUnavailable(true)
+            .get();
+        List<SnapshotStatus> snapshots = response.getSnapshots();
+        assertThat(snapshots, hasSize(1));
+        assertThat(snapshots.get(0).getState().completed(), equalTo(true));
     }
 
     public void testSnapshotTotalAndIncrementalSizes() throws IOException {

@@ -59,10 +59,6 @@ setup:
 
 ---
 "Test basic":
-    - skip:
-        version: " - 5.5.99"
-        reason:  parent-join was added in 5.6
-
     - do:
         search:
           body: { sort: ["join_field", "_id"] }
@@ -104,10 +100,6 @@ setup:
 
 ---
 "Test parent_id query":
-    - skip:
-        version: " - 5.5.99"
-        reason:  parent-join was added in 5.6.
-
     - do:
         search:
           body:

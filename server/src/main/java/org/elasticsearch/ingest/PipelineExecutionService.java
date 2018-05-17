@@ -56,7 +56,7 @@ public class PipelineExecutionService implements ClusterStateApplier {
     public void executeBulkRequest(Iterable<DocWriteRequest> actionRequests,
                                    BiConsumer<IndexRequest, Exception> itemFailureHandler,
                                    Consumer<Exception> completionHandler) {
-        threadPool.executor(ThreadPool.Names.BULK).execute(new AbstractRunnable() {
+        threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {

@@ -46,6 +46,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * In depth testing of the recovery mechanism during a rolling restart.
+ */
 public class RecoveryIT extends AbstractRollingTestCase {
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";

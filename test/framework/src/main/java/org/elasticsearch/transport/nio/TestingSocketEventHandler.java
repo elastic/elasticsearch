@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketEventHandler;
 
@@ -29,10 +28,6 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 public class TestingSocketEventHandler extends SocketEventHandler {
-
-    public TestingSocketEventHandler(Logger logger) {
-        super(logger);
-    }
 
     private Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
 

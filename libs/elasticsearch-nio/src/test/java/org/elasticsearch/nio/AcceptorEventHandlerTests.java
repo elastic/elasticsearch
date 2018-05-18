@@ -50,7 +50,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(mock(SocketSelector.class));
         selectorSupplier = new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()]));
-        handler = new AcceptorEventHandler(logger, selectorSupplier);
+        handler = new AcceptorEventHandler(selectorSupplier);
 
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
         context = new DoNotRegisterContext(channel, mock(AcceptingSelector.class), mock(Consumer.class));

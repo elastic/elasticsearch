@@ -33,8 +33,6 @@ publishing {
 }
 
 dependencies {
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
@@ -65,17 +63,17 @@ forbiddenApisMain {
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
-//JarHell is part of es core, which we don't want to pull in
-jarHell.enabled=false
+////JarHell is part of es core, which we don't want to pull in
+//jarHell.enabled=false
 
-thirdPartyAudit.excludes = [
-        'org/osgi/framework/AdaptPermission',
-        'org/osgi/framework/AdminPermission',
-        'org/osgi/framework/Bundle',
-        'org/osgi/framework/BundleActivator',
-        'org/osgi/framework/BundleContext',
-        'org/osgi/framework/BundleEvent',
-        'org/osgi/framework/SynchronousBundleListener',
-        'org/osgi/framework/wiring/BundleWire',
-        'org/osgi/framework/wiring/BundleWiring'
-]
+//thirdPartyAudit.excludes = [
+//        'org/osgi/framework/AdaptPermission',
+//        'org/osgi/framework/AdminPermission',
+//        'org/osgi/framework/Bundle',
+//        'org/osgi/framework/BundleActivator',
+//        'org/osgi/framework/BundleContext',
+//        'org/osgi/framework/BundleEvent',
+//        'org/osgi/framework/SynchronousBundleListener',
+//        'org/osgi/framework/wiring/BundleWire',
+//        'org/osgi/framework/wiring/BundleWiring'
+//]

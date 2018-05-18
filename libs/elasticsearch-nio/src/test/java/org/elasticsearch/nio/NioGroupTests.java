@@ -36,7 +36,7 @@ public class NioGroupTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        nioGroup = new NioGroup(logger, daemonThreadFactory(Settings.EMPTY, "acceptor"), 1, AcceptorEventHandler::new,
+        nioGroup = new NioGroup(daemonThreadFactory(Settings.EMPTY, "acceptor"), 1, AcceptorEventHandler::new,
             daemonThreadFactory(Settings.EMPTY, "selector"), 1, SocketEventHandler::new);
     }
 
@@ -71,7 +71,7 @@ public class NioGroupTests extends ESTestCase {
 
     public void testExceptionAtStartIsHandled() throws IOException {
         RuntimeException ex = new RuntimeException();
-        CheckedRunnable<IOException> ctor = () -> new NioGroup(logger, r -> {throw ex;}, 1,
+        CheckedRunnable<IOException> ctor = () -> new NioGroup(r -> {throw ex;}, 1,
             AcceptorEventHandler::new, daemonThreadFactory(Settings.EMPTY, "selector"), 1, SocketEventHandler::new);
         RuntimeException runtimeException = expectThrows(RuntimeException.class, ctor::run);
         assertSame(ex, runtimeException);

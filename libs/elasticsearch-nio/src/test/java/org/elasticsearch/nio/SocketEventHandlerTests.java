@@ -50,7 +50,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         exceptionHandler = mock(Consumer.class);
         readWriteHandler = mock(ReadWriteHandler.class);
         SocketSelector selector = mock(SocketSelector.class);
-        handler = new SocketEventHandler(logger);
+        handler = new SocketEventHandler();
         rawChannel = mock(SocketChannel.class);
         channel = new NioSocketChannel(rawChannel);
         when(rawChannel.finishConnect()).thenReturn(true);

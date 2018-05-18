@@ -105,7 +105,7 @@ public class NioTransport extends TcpTransport {
             if (useNetworkServer) {
                 acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
             }
-            nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
                 AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
                 NioTransport.NIO_WORKER_COUNT.get(settings), SocketEventHandler::new);
 

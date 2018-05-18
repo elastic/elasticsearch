@@ -25,6 +25,46 @@ run it using Gradle:
 ./gradlew run
 -------------------------------------
 
+==== Launching and debugging from an IDE
+
+If you want to run Elasticsearch from your IDE, the `./gradlew run` task
+supports a remote debugging option:
+
+---------------------------------------------------------------------------
+./gradlew run --debug-jvm
+---------------------------------------------------------------------------
+
+==== Distribution
+
+By default a node is started with the zip distribution.
+In order to start with a different distribution use the `-Drun.distribution` argument.
+
+To for example start the open source distribution:
+
+-------------------------------------
+./gradlew run -Drun.distribution=oss-zip
+-------------------------------------
+
+==== License type
+
+By default a node is started with the `basic` license type.
+In order to start with a different license type use the `-Drun.license_type` argument.
+
+In order to start a node with a trial license execute the following command:
+
+-------------------------------------
+./gradlew run -Drun.license_type=trial
+-------------------------------------
+
+This enables security and other paid features and adds a superuser with the username: `elastic-admin` and
+password: `elastic-password`.
+
+==== Other useful arguments
+
+In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
+In order to disable annotations add: `-Dtests.asserts=false`
+In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
+
 === Test case filtering.
 
 - `tests.class` is a class-filtering shell-like glob pattern,
@@ -571,15 +611,6 @@ Test coverage reporting used to be possible with JaCoCo when Elasticsearch was u
 as its build system. Since the switch to Gradle though, this is no longer possible, seeing as
 the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
 For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
-
-== Launching and debugging from an IDE
-
-If you want to run Elasticsearch from your IDE, the `./gradlew run` task
-supports a remote debugging option:
-
----------------------------------------------------------------------------
-./gradlew run --debug-jvm
----------------------------------------------------------------------------
 
 == Debugging remotely from an IDE
 

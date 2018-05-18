@@ -1,2 +1,4 @@
 
+include::upgrade.asciidoc[]
+
 include::migration/index.asciidoc[]

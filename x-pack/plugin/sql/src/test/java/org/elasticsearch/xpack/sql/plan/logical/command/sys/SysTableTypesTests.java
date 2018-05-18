@@ -41,9 +41,9 @@ public class SysTableTypesTests extends ESTestCase {
 
         sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
             assertEquals(2, r.size());
-            assertEquals("BASE TABLE", r.column(0));
-            r.advanceRow();
             assertEquals("ALIAS", r.column(0));
+            r.advanceRow();
+            assertEquals("BASE TABLE", r.column(0));
         }, ex -> fail(ex.getMessage())));
     }
 }

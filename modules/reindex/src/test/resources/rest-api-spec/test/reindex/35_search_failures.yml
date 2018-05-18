@@ -1,6 +1,13 @@
 ---
 "Response format for search failures":
   - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            index.number_of_shards: 2
+
+  - do:
       index:
         index:   source
         type:    foo
@@ -26,7 +33,7 @@
   - match: {updated: 0}
   - match: {version_conflicts: 0}
   - match: {batches: 0}
-  - is_true: failures.0.shard
+  - match: {failures.0.shard: 0}
   - match: {failures.0.index:  source}
   - is_true: failures.0.node
   - match: {failures.0.reason.type:   script_exception}

@@ -53,7 +53,8 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
+@TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.action.search:TRACE," +
+    "org.elasticsearch.search:TRACE")
 public class LicensingTests extends SecurityIntegTestCase {
     public static final String ROLES =
             SecuritySettingsSource.TEST_ROLE + ":\n" +

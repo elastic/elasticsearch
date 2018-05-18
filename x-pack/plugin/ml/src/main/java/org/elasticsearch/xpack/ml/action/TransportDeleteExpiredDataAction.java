@@ -15,12 +15,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
+import org.elasticsearch.xpack.ml.job.retention.UnusedStateRemover;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
@@ -40,7 +42,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                             Client client, ClusterService clusterService) {
         super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 DeleteExpiredDataAction.Request::new);
-        this.client = client;
+        this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
     }
 
@@ -55,7 +57,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         List<MlDataRemover> dataRemovers = Arrays.asList(
                 new ExpiredResultsRemover(client, clusterService, auditor),
                 new ExpiredForecastsRemover(client),
-                new ExpiredModelSnapshotsRemover(client, clusterService)
+                new ExpiredModelSnapshotsRemover(client, clusterService),
+                new UnusedStateRemover(client, clusterService)
         );
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
         deleteExpiredData(dataRemoversIterator, listener);

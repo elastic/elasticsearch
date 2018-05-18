@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-troubleshooting]]
 == {security} Troubleshooting
 ++++

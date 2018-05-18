@@ -95,7 +95,7 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
     .put("cluster.name", "myClusterName")
     ...
     .build())
-    .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9300));
+    .addTransportAddress(new TransportAddress(InetAddress.getByName("localhost"), 9300));
 
 XPackClient xpackClient = new XPackClient(client);
 WatcherClient watcherClient = xpackClient.watcher();

@@ -1,5 +1,6 @@
+[role="xpack"]
 [[security-getting-started]]
-== Getting Started with Security
+== Getting started with security
 
 To secure a cluster, you must enable {security} on every node in the
 cluster. Basic authentication is enabled by default--to communicate

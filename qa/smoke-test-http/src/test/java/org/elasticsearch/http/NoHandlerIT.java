@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 
@@ -45,10 +46,10 @@ public class NoHandlerIT extends HttpSmokeTestCase {
 
     private void runTestNoHandlerRespectsAcceptHeader(
             final String accept, final String contentType, final String expect) throws IOException {
-        final ResponseException e =
-                expectThrows(
-                        ResponseException.class,
-                        () -> getRestClient().performRequest("GET", "/foo/bar/baz/qux/quux", new BasicHeader("Accept", accept)));
+        Request request = new Request("GET", "/foo/bar/baz/qux/quux");
+        request.setHeaders(new BasicHeader("Accept", accept));
+        final ResponseException e = expectThrows(ResponseException.class,
+                        () -> getRestClient().performRequest(request));
 
         final Response response = e.getResponse();
         assertThat(response.getHeader("Content-Type"), equalTo(contentType));

@@ -50,6 +50,7 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.io.File;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -617,14 +618,24 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             }, (isListingThread ? "Listing" : "Deleting") + "[" + threadIndex + "]");
         }
 
-        for (final Thread listingThread : threads) {
-            listingThread.start();
+        NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, nodeName);
+
+        boolean directoryExists = false;
+        for (Path path : nodeEnvironment.availableShardPaths(shardId)) {
+            directoryExists = directoryExists || Files.exists(path);
+        }
+        assertTrue(directoryExists);
+
+        for (final Thread thread : threads) {
+            thread.start();
         }
 
-        // Deleting an index asserts that it really is gone from disk, so no other assertions are necessary here.
+        for (final Thread thread : threads) {
+            thread.join();
+        }
 
-        for (final Thread listingThread : threads) {
-            listingThread.join();
+        for (Path path : nodeEnvironment.availableShardPaths(shardId)) {
+            assertFalse(path + " should not exist", Files.exists(path));
         }
     }
 }

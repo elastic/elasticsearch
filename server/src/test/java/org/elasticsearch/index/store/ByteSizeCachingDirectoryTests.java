@@ -71,7 +71,7 @@ public class ByteSizeCachingDirectoryTests extends ESTestCase {
             }
 
             assertEquals(20, cachingDir.estimateSize());
-            // +2 because there are two files
+            // +3 because there are 3 files
             assertEquals(6, countingDir.numFileLengthCalls);
             assertEquals(20, cachingDir.estimateSize());
             assertEquals(6, countingDir.numFileLengthCalls);

@@ -68,6 +68,7 @@ public final class ProtoUtils {
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
+            builder.close();
             return toString(builder);
         } catch (IOException e) {
             try {
@@ -75,6 +76,7 @@ public final class ProtoUtils {
                 builder.startObject();
                 builder.field("error", "error building toString out of XContent: " + e.getMessage());
                 builder.endObject();
+                builder.close();
                 return toString(builder);
             } catch (IOException e2) {
                 throw new IllegalArgumentException("cannot generate error message for deserialization", e);

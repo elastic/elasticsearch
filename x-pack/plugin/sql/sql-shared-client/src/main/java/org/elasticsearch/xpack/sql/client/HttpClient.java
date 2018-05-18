@@ -135,7 +135,13 @@ public class HttpClient {
     private static <Request extends ToXContent> byte[] toXContent(Request xContent) {
         try(ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
             try (XContentBuilder xContentBuilder = new XContentBuilder(REQUEST_BODY_CONTENT_TYPE.xContent(), buffer)) {
+                if (xContent.isFragment()) {
+                    xContentBuilder.startObject();
+                }
                 xContent.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+                if (xContent.isFragment()) {
+                    xContentBuilder.endObject();
+                }
             }
             return buffer.toByteArray();
         } catch (IOException ex) {

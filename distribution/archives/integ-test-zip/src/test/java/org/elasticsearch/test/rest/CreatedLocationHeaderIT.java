@@ -58,16 +58,16 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
     }
 
     private void locationTestCase(String method, String url) throws IOException {
-        Request request = new Request(method, url);
+        final Request request = new Request(method, url);
         request.setJsonEntity("{\"test\": \"test\"}");
         locationTestCase(client().performRequest(request));
         // we have to delete the index otherwise the second indexing request will route to the single shard and not produce a 201
         final Response response = client().performRequest(new Request("DELETE", "test"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        request = new Request(method, url);
-        request.addParameter("routing", "cat");
-        request.setJsonEntity("{\"test\": \"test\"}");
-        locationTestCase(client().performRequest(request));
+        final Request withRouting = new Request(method, url);
+        withRouting.addParameter("routing", "cat");
+        withRouting.setJsonEntity("{\"test\": \"test\"}");
+        locationTestCase(client().performRequest(withRouting));
     }
 
     private void locationTestCase(Response response) throws IOException {

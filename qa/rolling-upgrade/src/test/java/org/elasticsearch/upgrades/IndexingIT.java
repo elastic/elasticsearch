@@ -26,6 +26,11 @@ import org.elasticsearch.client.Response;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Basic test that indexed documents survive the rolling restart. See
+ * {@link RecoveryIT} for much more in depth testing of the mechanism
+ * by which they survive.
+ */
 public class IndexingIT extends AbstractRollingTestCase {
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {

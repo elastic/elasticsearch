@@ -47,30 +47,34 @@ public class ByteSizeCachingDirectoryTests extends ESTestCase {
 
     public void testBasics() throws IOException {
         try (Directory dir = newDirectory()) {
+            try (IndexOutput out = dir.createOutput("quux", IOContext.DEFAULT)) {
+                out.writeBytes(new byte[11], 11);
+            }
             LengthCountingDirectory countingDir = new LengthCountingDirectory(dir);
+
             ByteSizeCachingDirectory cachingDir = new ByteSizeCachingDirectory(countingDir, new TimeValue(0));
-            assertEquals(0, cachingDir.estimateSize());
-            assertEquals(0, cachingDir.estimateSize());
-            assertEquals(0, countingDir.numFileLengthCalls);
+            assertEquals(11, cachingDir.estimateSize());
+            assertEquals(11, cachingDir.estimateSize());
+            assertEquals(1, countingDir.numFileLengthCalls);
 
             try (IndexOutput out = cachingDir.createOutput("foo", IOContext.DEFAULT)) {
                 out.writeBytes(new byte[5], 5);
             }
 
-            assertEquals(5, cachingDir.estimateSize());
-            assertEquals(1, countingDir.numFileLengthCalls);
-            assertEquals(5, cachingDir.estimateSize());
-            assertEquals(1, countingDir.numFileLengthCalls);
+            assertEquals(16, cachingDir.estimateSize());
+            assertEquals(3, countingDir.numFileLengthCalls);
+            assertEquals(16, cachingDir.estimateSize());
+            assertEquals(3, countingDir.numFileLengthCalls);
 
             try (IndexOutput out = cachingDir.createTempOutput("bar", "baz", IOContext.DEFAULT)) {
                 out.writeBytes(new byte[4], 4);
             }
 
-            assertEquals(9, cachingDir.estimateSize());
+            assertEquals(20, cachingDir.estimateSize());
             // +2 because there are two files
-            assertEquals(3, countingDir.numFileLengthCalls);
-            assertEquals(9, cachingDir.estimateSize());
-            assertEquals(3, countingDir.numFileLengthCalls);
+            assertEquals(6, countingDir.numFileLengthCalls);
+            assertEquals(20, cachingDir.estimateSize());
+            assertEquals(6, countingDir.numFileLengthCalls);
         }
     }
 

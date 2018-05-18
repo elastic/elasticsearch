@@ -65,7 +65,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
 
     ByteSizeCachingDirectory(Directory in, TimeValue refreshInterval) {
         super(in);
-        size = new SingleObjectCache<SizeAndModCount>(refreshInterval, new SizeAndModCount(0L, 0L)) {
+        size = new SingleObjectCache<SizeAndModCount>(refreshInterval, new SizeAndModCount(0L, -1L)) {
             @Override
             protected SizeAndModCount refresh() {
                 // Compute modCount first so that updates that happen while the size

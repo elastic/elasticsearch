@@ -156,9 +156,9 @@ POST place/_search?pretty
 // CONSOLE
 // TEST[continued]
 
-NOTE: When no categories are provided at query-time, all indexed documents are considered.
-Querying with no categories on a category enabled completion field should be avoided, as it
-will degrade search performance.
+Note: deprecated[7.0.0, When no categories are provided at query-time, all indexed documents are considered.
+Querying with no categories on a category enabled completion field is deprecated and will be removed in the next major release
+as it degrades search performance considerably.]
 
 Suggestions with certain categories can be boosted higher than others.
 The following filters suggestions by categories and additionally boosts

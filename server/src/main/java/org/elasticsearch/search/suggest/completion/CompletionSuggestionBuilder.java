@@ -24,6 +24,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -57,6 +59,10 @@ import java.util.Objects;
  * indexing.
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(CompletionSuggestionBuilder.class));
+
     private static final XContentType CONTEXT_BYTES_XCONTENT_TYPE = XContentType.JSON;
     static final String SUGGESTION_NAME = "completion";
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
@@ -298,16 +304,19 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         if (mappedFieldType == null || mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
-        if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
-            CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
-            suggestionContext.setFieldType(type);
-            if (type.hasContextMappings() && contextBytes != null) {
+        CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
+        suggestionContext.setFieldType(type);
+        if (type.hasContextMappings()) {
+            if (contextBytes == null) {
+                DEPRECATION_LOGGER.deprecated("The ability to query with no context on a context enabled completion field is deprecated " +
+                    "and will be removed in the next major release.");
+            } else {
                 Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(contextBytes,
-                        context.getXContentRegistry(), type.getContextMappings());
+                    context.getXContentRegistry(), type.getContextMappings());
                 suggestionContext.setQueryContexts(queryContexts);
-            } else if (contextBytes != null) {
-                throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
             }
+        } else if (contextBytes != null) {
+            throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
         }
         assert suggestionContext.getFieldType() != null : "no completion field type set";
         return suggestionContext;

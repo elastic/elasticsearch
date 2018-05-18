@@ -23,6 +23,8 @@ configurations {
             }
         }
     }
+    // Bundles the log-config-creator.jar into the distribution
+    bin
 }
 
 bundlePlugin {
@@ -50,6 +52,21 @@ dependencies {
     compile 'net.sf.supercsv:super-csv:2.4.0'
     nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
     testCompile 'org.ini4j:ini4j:0.5.2'
+
+    bin(project(path: xpackModule('ml:log-config-creator'))) {
+        // log-config-creator bundles all of its dependencies into a single executable jar
+        transitive = false
+    }
+}
+
+/* Bundle the log-config-creator into the binary files. It should
+ * end up in $ES_HOME/bin/x-pack/. This is useful because it is
+ * an executable jar that can be moved wherever it is needed.
+ */
+bundlePlugin {
+    from (configurations.bin) {
+        into 'bin'
+    }
 }
 
 configurations {

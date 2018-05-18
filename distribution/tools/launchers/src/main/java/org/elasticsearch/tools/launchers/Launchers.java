@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.versionchecker.SuppressForbidden;
+
 /**
  * Utility methods for launchers.
  */

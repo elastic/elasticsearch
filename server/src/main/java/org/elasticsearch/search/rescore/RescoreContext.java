@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.rescore;
 
+import java.util.Set;
+
 /**
  * Context available to the rescore while it is running. Rescore
  * implementations should extend this with any additional resources that
@@ -27,6 +29,7 @@ package org.elasticsearch.search.rescore;
 public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;
+    private Set<Integer> resroredDocs; //doc Ids for which rescoring was applied
 
     /**
      * Build the context.
@@ -49,5 +52,13 @@ public class RescoreContext {
      */
     public int getWindowSize() {
         return windowSize;
+    }
+
+    public void setRescoredDocs(Set<Integer> docIds) {
+        resroredDocs = docIds;
+    }
+
+    public boolean isRescored(int docId) {
+        return resroredDocs.contains(docId);
     }
 }

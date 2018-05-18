@@ -121,6 +121,26 @@ Vagrant.configure(2) do |config|
       sles_common config, box
     end
   end
+
+  windows_2012r2_box = ENV['VAGRANT_WINDOWS_2012R2_BOX']
+  if windows_2012r2_box && windows_2012r2_box.empty? == false
+    'windows-2012r2'.tap do |box|
+      config.vm.define box, define_opts do |config|
+        config.vm.box = windows_2012r2_box
+        windows_common config, box
+      end
+    end
+  end
+
+  windows_2016_box = ENV['VAGRANT_WINDOWS_2016_BOX']
+  if windows_2016_box && windows_2016_box.empty? == false
+    'windows-2016'.tap do |box|
+      config.vm.define box, define_opts do |config|
+        config.vm.box = windows_2016_box
+        windows_common config, box
+      end
+    end
+  end
 end
 
 def deb_common(config, name, extra: '')
@@ -351,5 +371,24 @@ Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
+  SHELL
+end
+
+def windows_common(config, name)
+  config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    New-Item C:/is_vagrant_vm -ItemType file -Force | Out-Null
+  SHELL
+
+  config.vm.provision 'set prompt', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    $ps_prompt = 'function Prompt { "#{name}:$($ExecutionContext.SessionState.Path.CurrentLocation)>" }'
+    $ps_prompt | Out-File $PsHome/Microsoft.PowerShell_profile.ps1
+  SHELL
+
+  config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
+    [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
   SHELL
 end

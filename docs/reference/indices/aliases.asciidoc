@@ -306,11 +306,10 @@ GET /test1/_doc/1
 
 [IMPORTANT]
 =====================================
-`is_write_index` will default to `true` for any alias configured on an index that does not have a pre-existing
-write index. This means that there will always be at least one index that is the write index for aliases created
-on or after Elasticsearch 6.4.0. Upgrading nodes will not affect existing aliases which do not have write indices
-configured.
+`is_write_index` will default to `true` for an alias on a newly created index that does not point to any other
+write indices already.
 =====================================
+
 [float]
 [[alias-adding]]
 === Add a single alias

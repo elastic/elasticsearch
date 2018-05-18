@@ -254,7 +254,7 @@ public class FlushIT extends ESIntegTestCase {
             result.totalShards(), result.failed(), result.failureReason(), detail);
     }
 
-    @TestLogging("_root:DEBUG")
+    @TestLogging("_root:DEBUG,org.elasticsearch.indices.flush:TRACE")
     public void testSyncedFlushSkipOutOfSyncReplicas() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
@@ -296,7 +296,7 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(fullResult.successfulShards(), equalTo(numberOfReplicas + 1));
     }
 
-    @TestLogging("_root:DEBUG")
+    @TestLogging("_root:DEBUG,org.elasticsearch.indices.flush:TRACE")
     public void testDoNotRenewSyncedFlushWhenAllSealed() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;

@@ -5,22 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.MainResponse;
+import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.sql.SQLException;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.client.shared.StringUtils.EMPTY;
@@ -34,6 +34,10 @@ public class JdbcHttpClient {
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
+    /**
+     * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
+     * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
+     */
     public JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
         httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
@@ -45,9 +49,9 @@ public class JdbcHttpClient {
 
     public Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.JDBC, sql, params, null,
-                AbstractSqlQueryRequest.DEFAULT_TIME_ZONE,
-                fetch, TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()), "");
+                SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.JDBC, sql, params, null,
+                Protocol.TIME_ZONE,
+                fetch, TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -57,10 +61,8 @@ public class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     public Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest().cursor(cursor);
-        sqlRequest.mode(AbstractSqlRequest.Mode.JDBC);
-        sqlRequest.requestTimeout(TimeValue.timeValueMillis(meta.timeoutInMs()));
-        sqlRequest.pageTimeout(TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.JDBC, cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }
@@ -78,13 +80,14 @@ public class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
-        return new InfoResponse(mainResponse.getClusterName().value(), mainResponse.getVersion().major, mainResponse.getVersion().minor);
+        Version version = Version.fromString(mainResponse.getVersion());
+        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor);
     }
 
     /**
      * Converts REST column metadata into JDBC column metadata
      */
-    private List<ColumnInfo> toJdbcColumnInfo(List<org.elasticsearch.xpack.sql.plugin.ColumnInfo> columns) {
+    private List<ColumnInfo> toJdbcColumnInfo(List<org.elasticsearch.xpack.sql.proto.ColumnInfo> columns) {
         return columns.stream().map(columnInfo ->
                 new ColumnInfo(columnInfo.name(), columnInfo.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, columnInfo.displaySize())
         ).collect(Collectors.toList());

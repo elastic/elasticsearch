@@ -225,6 +225,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                  * warning every time. */
                 current.println("  - skip:")
                 current.println("      features: ")
+                current.println("        - default_shards")
                 current.println("        - stash_in_key")
                 current.println("        - stash_in_path")
                 current.println("        - stash_path_replace")

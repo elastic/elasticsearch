@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege.Fields;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege.DOC_TYPE_VALUE;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads {@link ApplicationPrivilege} objects,
@@ -72,13 +72,13 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     private final Client client;
     private final SecurityClient securityClient;
-    private final SecurityLifecycleService securityLifecycleService;
+    private final SecurityIndexManager securityIndexManager;
 
-    public NativePrivilegeStore(Settings settings, Client client, SecurityLifecycleService securityLifecycleService) {
+    public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
         super(settings);
         this.client = client;
         this.securityClient = new SecurityClient(client);
-        this.securityLifecycleService = securityLifecycleService;
+        this.securityIndexManager = securityIndexManager;
     }
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
@@ -89,7 +89,7 @@ public class NativePrivilegeStore extends AbstractComponent {
                         listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
                     listener::onFailure));
         } else {
-            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 final QueryBuilder query;
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
                 if (isEmpty(applications) && isEmpty(names)) {
@@ -108,7 +108,7 @@ public class NativePrivilegeStore extends AbstractComponent {
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                    SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                         .setScroll(TimeValue.timeValueSeconds(10L))
                         .setQuery(query)
                         .setSize(1000)
@@ -129,9 +129,9 @@ public class NativePrivilegeStore extends AbstractComponent {
     }
 
     public void getPrivilege(String application, String name, ActionListener<ApplicationPrivilege> listener) {
-        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure,
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure,
             () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
+                client.prepareGet(SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
                 new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse response) {
@@ -159,7 +159,7 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void putPrivileges(Collection<ApplicationPrivilege> privileges, WriteRequest.RefreshPolicy refreshPolicy,
                               ActionListener<Map<String, List<String>>> listener) {
-        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
                 ActionListener.wrap((Collection<IndexResponse> responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()
@@ -197,7 +197,7 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
                                  ActionListener<Map<String, List<String>>> listener) {
-        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(
                 ActionListener.wrap(responses -> {
                     final Map<String, List<String>> deletedNames = responses.stream()

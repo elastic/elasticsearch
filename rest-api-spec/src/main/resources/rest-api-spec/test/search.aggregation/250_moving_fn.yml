@@ -1,0 +1,46 @@
+setup:
+  - skip:
+        version: " - 6.4.0"
+        reason:  "moving_fn added in 6.4.0"
+
+---
+"Bad window":
+
+  - do:
+      catch: /\[window\] must be a positive, non-zero integer\./
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: -1
+                    script: "MovingFunctions.windowMax(values)"
+
+---
+"Not under date_histo":
+
+  - do:
+      catch: /\[window\] must be a positive, non-zero integer\./
+      search:
+        body:
+          size: 0
+          aggs:
+            the_avg:
+              avg:
+                field: "value_field"
+            the_mov_fn:
+              moving_fn:
+                buckets_path: "the_avg"
+                window: -1
+                script: "MovingFunctions.windowMax(values)"
+

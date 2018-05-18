@@ -49,6 +49,13 @@
         job_id: old-cluster-job
   - match: { count: 1 }
 
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+     cluster.health:
+       index: [".ml-state", ".ml-anomalies-shared"]
+       wait_for_status: green
+
 ---
 "Put job on the old cluster with the default model memory limit and post some data":
   - do:
@@ -95,6 +102,13 @@
       xpack.ml.get_buckets:
         job_id: no-model-memory-limit-job
   - match: { count: 201 }
+
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+     cluster.health:
+       index: [".ml-state", ".ml-anomalies-shared"]
+       wait_for_status: green
 
 ---
 "Put job with empty strings in the configuration":

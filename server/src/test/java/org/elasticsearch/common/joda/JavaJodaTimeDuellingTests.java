@@ -45,12 +45,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             .optionalStart()
             .appendOffset("+HHmm", "Z")
             .optionalEnd()
-            .optionalStart()
-            .appendOffset("+HH", "Z")
-            .optionalEnd()
-            .optionalStart()
-            .appendOffset("+hhmm", "Z")
-            .optionalEnd()
             .toFormatter(Locale.ROOT);
         formatter.parse("Z");
         formatter.parse("-08");

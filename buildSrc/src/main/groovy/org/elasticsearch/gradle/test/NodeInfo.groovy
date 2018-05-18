@@ -16,16 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.gradle.test
 
+import com.sun.jna.Native
+import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.Version
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
  */
 class NodeInfo {
+    /** Gradle project this node is part of */
+    Project project
+
     /** common configuration for all nodes, including this one */
     ClusterConfiguration config
 
@@ -54,7 +67,7 @@ class NodeInfo {
     File homeDir
 
     /** config directory */
-    File confDir
+    File pathConf
 
     /** data directory (as an Object, to allow lazy evaluation) */
     Object dataDir
@@ -74,6 +87,9 @@ class NodeInfo {
     /** directory to install plugins from */
     File pluginsTmpDir
 
+    /** Major version of java this node runs with, or {@code null} if using the runtime java version */
+    Integer javaVersion
+
     /** environment variables to start the node with */
     Map<String, String> env
 
@@ -84,21 +100,22 @@ class NodeInfo {
     String executable
 
     /** Path to the elasticsearch start script */
-    File esScript
+    private Object esScript
 
     /** script to run when running in the background */
-    File wrapperScript
+    private File wrapperScript
 
     /** buffer for ant output when starting this node */
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
     /** the version of elasticsearch that this node runs */
-    String nodeVersion
+    Version nodeVersion
 
     /** Holds node configuration for part of a test cluster. */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, Version nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
+        this.project = project
         this.sharedDir = sharedDir
         if (config.clusterName != null) {
             clusterName = config.clusterName
@@ -109,16 +126,13 @@ class NodeInfo {
         pidFile = new File(baseDir, 'es.pid')
         this.nodeVersion = nodeVersion
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
-        confDir = confDir(baseDir, config.distribution, nodeVersion)
+        pathConf = pathConf(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
-            if (config.numNodes != 1) {
-                throw new IllegalArgumentException("Cannot set data dir for integ test with more than one node")
-            }
-            dataDir = config.dataDir
+            dataDir = "${config.dataDir(nodeNum)}"
         } else {
             dataDir = new File(homeDir, "data")
         }
-        configFile = new File(confDir, 'elasticsearch.yml')
+        configFile = new File(pathConf, 'elasticsearch.yml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
         httpPortsFile = new File(logsDir, 'http.ports')
@@ -134,37 +148,109 @@ class NodeInfo {
             args.add('/C')
             args.add('"') // quote the entire command
             wrapperScript = new File(cwd, "run.bat")
-            esScript = new File(homeDir, 'bin/elasticsearch.bat')
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
+            esScript = "${-> binPath().resolve('elasticsearch.bat').toString()}"
         } else {
-            executable = 'sh'
+            executable = 'bash'
             wrapperScript = new File(cwd, "run")
-            esScript = new File(homeDir, 'bin/elasticsearch')
+            esScript = binPath().resolve('elasticsearch')
         }
         if (config.daemonize) {
-            args.add("${wrapperScript}")
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                /*
+                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+                 * getting the short name requiring the path to already exist.
+                 */
+                args.add("${-> getShortPathName(wrapperScript.toString())}")
+            } else {
+                args.add("${wrapperScript}")
+            }
         } else {
             args.add("${esScript}")
         }
 
-        env = [ 'JAVA_HOME' : project.javaHome ]
+
+        if (nodeVersion.before("6.2.0")) {
+            javaVersion = 8
+        } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
+            javaVersion = 9
+        }
+
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
         if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-            esJavaOpts += " -ea -esa"
+            // put the enable assertions options before other options to allow
+            // flexibility to disable assertions for specific packages or classes
+            // in the cluster-specific options
+            esJavaOpts = String.join(" ", "-ea", "-esa", esJavaOpts)
         }
-        env.put('ES_JAVA_OPTS', esJavaOpts)
+        env = ['ES_JAVA_OPTS': esJavaOpts]
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
                 args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
-        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${-> dataDir.toString()}")
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
+            env.put('ES_PATH_CONF', "${-> getShortPathName(pathConf.toString())}")
+        }
+        else {
+            env.put('ES_PATH_CONF', pathConf)
+        }
+        if (!System.properties.containsKey("tests.es.path.data")) {
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                /*
+                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+                 * getting the short name requiring the path to already exist. This one is extra tricky because usually we rely on the node
+                 * creating its data directory on startup but we simply can not do that here because getting the short path name requires
+                 * the directory to already exist. Therefore, we create this directory immediately before getting the short name.
+                 */
+                args.addAll("-E", "path.data=${-> Files.createDirectories(Paths.get(dataDir.toString())); getShortPathName(dataDir.toString())}")
+            } else {
+                args.addAll("-E", "path.data=${-> dataDir.toString()}")
+            }
+        }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }
+    }
+
+    Path binPath() {
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            return Paths.get(getShortPathName(new File(homeDir, 'bin').toString()))
+        } else {
+            return Paths.get(new File(homeDir, 'bin').toURI())
+        }
+    }
+
+    static String getShortPathName(String path) {
+        assert Os.isFamily(Os.FAMILY_WINDOWS)
+        final WString longPath = new WString("\\\\?\\" + path)
+        // first we get the length of the buffer needed
+        final int length = JNAKernel32Library.getInstance().GetShortPathNameW(longPath, null, 0)
+        if (length == 0) {
+            throw new IllegalStateException("path [" + path + "] encountered error [" + Native.getLastError() + "]")
+        }
+        final char[] shortPath = new char[length]
+        // knowing the length of the buffer, now we get the short name
+        if (JNAKernel32Library.getInstance().GetShortPathNameW(longPath, shortPath, length) == 0) {
+            throw new IllegalStateException("path [" + path + "] encountered error [" + Native.getLastError() + "]")
+        }
+        // we have to strip the \\?\ away from the path for cmd.exe
+        return Native.toString(shortPath).substring(4)
+    }
+
+    /** Return the java home used by this node. */
+    String getJavaHome() {
+        return javaVersion == null ? project.runtimeJavaHome : project.javaVersions.get(javaVersion)
     }
 
     /** Returns debug string for the command that started this node. */
@@ -174,6 +260,7 @@ class NodeInfo {
         esCommandString += "|  cwd: ${cwd}\n"
         esCommandString += "|  command: ${executable} ${args.join(' ')}\n"
         esCommandString += '|  environment:\n'
+        esCommandString += "|    JAVA_HOME: ${javaHome}\n"
         env.each { k, v -> esCommandString += "|    ${k}: ${v}\n" }
         if (config.daemonize) {
             esCommandString += "|\n|  [${wrapperScript.name}]\n"
@@ -219,12 +306,14 @@ class NodeInfo {
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */
-    static File homeDir(File baseDir, String distro, String nodeVersion) {
+    static File homeDir(File baseDir, String distro, Version nodeVersion) {
         String path
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
+            case 'oss-zip':
+            case 'oss-tar':
                 path = "elasticsearch-${nodeVersion}"
                 break
             case 'rpm':
@@ -237,11 +326,13 @@ class NodeInfo {
         return new File(baseDir, path)
     }
 
-    static File confDir(File baseDir, String distro, String nodeVersion) {
+    static File pathConf(File baseDir, String distro, Version nodeVersion) {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
+            case 'oss-zip':
             case 'tar':
+            case 'oss-tar':
                 return new File(homeDir(baseDir, distro, nodeVersion), 'config')
             case 'rpm':
             case 'deb':

@@ -81,12 +81,14 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         this.thrower = thrower;
     }
 
-
     @Override
-    public Fields fields() throws IOException {
-        Fields fields = super.fields();
-        thrower.maybeThrow(Flags.Fields);
-        return fields == null ? null : new ThrowingFields(fields, thrower);
+    public Terms terms(String field) throws IOException {
+        Terms terms = super.terms(field);
+        if (thrower.wrapTerms(field)) {
+            thrower.maybeThrow(Flags.Terms);
+            return terms == null ? null : new ThrowingTerms(terms, thrower);
+        }
+        return terms;
     }
 
     @Override

@@ -9,6 +9,8 @@ The following range types are supported:
 `long_range`::      A range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum of +2^63^-1+.
 `double_range`::    A range of double-precision 64-bit IEEE 754 floating point values.
 `date_range`::      A range of date values represented as unsigned 64-bit integer milliseconds elapsed since system epoch.
+`ip_range` ::       A range of ip values supporting either https://en.wikipedia.org/wiki/IPv4[IPv4] or
+                    https://en.wikipedia.org/wiki/IPv6[IPv6] (or mixed) addresses.
 
 Below is an example of configuring a mapping with various range fields followed by an example that indexes several range types.
 
@@ -17,7 +19,7 @@ Below is an example of configuring a mapping with various range fields followed 
 PUT range_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "expected_attendees": {
           "type": "integer_range"
@@ -31,7 +33,7 @@ PUT range_index
   }
 }
 
-PUT range_index/my_type/1
+PUT range_index/_doc/1
 {
   "expected_attendees" : { <2>
     "gte" : 10,
@@ -45,18 +47,21 @@ PUT range_index/my_type/1
 --------------------------------------------------
 //CONSOLE
 
-The following is an example of a `date_range` query over the `date_range` field named "time_frame".
+<1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
+<2> Example indexing a meeting with 10 to 20 attendees.
+<3> Date ranges accept the same format as described in <<ranges-on-dates, date range queries>>.
+<4> Example date range using date time stamp. This also accepts <<date-math, date math>> formatting, or "now" for system time.
+
+The following is an example of a <<query-dsl-term-query, term query>> on the `integer_range` field named "expected_attendees".
 
 [source,js]
 --------------------------------------------------
-POST range_index/_search
+GET range_index/_search
 {
   "query" : {
-    "range" : {
-      "time_frame" : { <5>
-        "gte" : "2015-10-31",
-        "lte" : "2015-11-01",
-        "relation" : "within" <6>
+    "term" : {
+      "expected_attendees" : {
+        "value": 12
       }
     }
   }
@@ -75,6 +80,7 @@ The result produced by the above query.
   "_shards" : {
     "total": 2,
     "successful": 2,
+    "skipped" : 0,
     "failed": 0
   },
   "hits" : {
@@ -83,7 +89,7 @@ The result produced by the above query.
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "my_type",
+        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -101,13 +107,67 @@ The result produced by the above query.
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
-<1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
-<2> Example indexing a meeting with 10 to 20 attendees.
-<3> Date ranges accept the same format as described in <<ranges-on-dates, date range queries>>.
-<4> Example date range using date time stamp. This also accepts <<date-math, date math>> formatting, or "now" for system time.
-<5> Range queries work the same as described in <<query-dsl-range-query, range query>>.
-<6> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
+The following is an example of a `date_range` query over the `date_range` field named "time_frame".
+
+[source,js]
+--------------------------------------------------
+GET range_index/_search
+{
+  "query" : {
+    "range" : {
+      "time_frame" : { <1>
+        "gte" : "2015-10-31",
+        "lte" : "2015-11-01",
+        "relation" : "within" <2>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:range_index]
+
+<1> Range queries work the same as described in <<query-dsl-range-query, range query>>.
+<2> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
     `INTERSECTS` (default).
+
+This query produces a similar result:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 13,
+  "timed_out": false,
+  "_shards" : {
+    "total": 2,
+    "successful": 2,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits" : {
+    "total" : 1,
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "range_index",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "expected_attendees" : {
+            "gte" : 10, "lte" : 20
+          },
+          "time_frame" : {
+            "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 13/"took" : $body.took/]
+
 
 [[range-params]]
 ==== Parameters for range fields

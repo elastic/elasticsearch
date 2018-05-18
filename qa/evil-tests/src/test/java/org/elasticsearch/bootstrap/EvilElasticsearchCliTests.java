@@ -23,6 +23,7 @@ import java.util.Map;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -41,10 +42,10 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    Map<String, String> settings = esSettings.settings().getAsMap();
+                    Settings settings = esSettings.settings();
                     assertThat(settings.size(), equalTo(2));
-                    assertThat(settings, hasEntry("path.home", value));
-                    assertThat(settings, hasKey("path.logs")); // added by env initialization
+                    assertEquals(value, settings.get("path.home"));
+                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
                 });
 
         System.clearProperty("es.path.home");
@@ -54,10 +55,10 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    Map<String, String> settings = esSettings.settings().getAsMap();
+                    Settings settings = esSettings.settings();
                     assertThat(settings.size(), equalTo(2));
-                    assertThat(settings, hasEntry("path.home", commandLineValue));
-                    assertThat(settings, hasKey("path.logs")); // added by env initialization
+                    assertEquals(commandLineValue, settings.get("path.home"));
+                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
                 },
                 "-Epath.home=" + commandLineValue);
 

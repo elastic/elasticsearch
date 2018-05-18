@@ -36,7 +36,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 /**
- * This test works against a {@link RestHighLevelClient} subclass that simulats how custom response sections returned by
+ * This test works against a {@link RestHighLevelClient} subclass that simulates how custom response sections returned by
  * Elasticsearch plugins can be parsed using the high level client.
  */
 public class RestHighLevelClientExtTests extends ESTestCase {
@@ -44,7 +44,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     private RestHighLevelClient restHighLevelClient;
 
     @Before
-    public void initClient() throws IOException {
+    public void initClient() {
         RestClient restClient = mock(RestClient.class);
         restHighLevelClient = new RestHighLevelClientExt(restClient);
     }
@@ -69,7 +69,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     private static class RestHighLevelClientExt extends RestHighLevelClient {
 
         private RestHighLevelClientExt(RestClient restClient) {
-            super(restClient, getNamedXContentsExt());
+            super(restClient, RestClient::close, getNamedXContentsExt());
         }
 
         private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {

@@ -26,9 +26,6 @@
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
-        "operation_threading": {
-          "description" : "TODO: ?"
-        },
         "verbose": {
           "type": "boolean",
           "description": "Includes detailed memory usage by Lucene.",

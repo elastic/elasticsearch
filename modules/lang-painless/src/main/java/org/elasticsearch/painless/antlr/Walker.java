@@ -33,7 +33,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptInterface;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
@@ -56,7 +56,6 @@ import org.elasticsearch.painless.antlr.PainlessParser.DeclContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclarationContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DecltypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclvarContext;
-import org.elasticsearch.painless.antlr.PainlessParser.DelimiterContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DoContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DynamicContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EachContext;
@@ -174,14 +173,13 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(ScriptInterface mainMethod, String sourceName,
-            String sourceText, CompilerSettings settings, Definition definition,
-            Printer debugStream) {
-        return new Walker(mainMethod, sourceName, sourceText, settings, definition,
-                debugStream).source;
+    public static SSource buildPainlessTree(ScriptClassInfo mainMethod, MainMethodReserved reserved, String sourceName,
+                                            String sourceText, CompilerSettings settings, Definition definition,
+                                            Printer debugStream) {
+        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, definition, debugStream).source;
     }
 
-    private final ScriptInterface scriptInterface;
+    private final ScriptClassInfo scriptClassInfo;
     private final SSource source;
     private final CompilerSettings settings;
     private final Printer debugStream;
@@ -193,12 +191,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final Globals globals;
     private int syntheticCounter = 0;
 
-    private Walker(ScriptInterface scriptInterface, String sourceName, String sourceText,
-            CompilerSettings settings, Definition definition, Printer debugStream) {
-        this.scriptInterface = scriptInterface;
+    private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
+                   CompilerSettings settings, Definition definition, Printer debugStream) {
+        this.scriptClassInfo = scriptClassInfo;
+        this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
-        this.sourceName = Location.computeSourceName(sourceName, sourceText);
+        this.sourceName = Location.computeSourceName(sourceName);
         this.sourceText = sourceText;
         this.globals = new Globals(new BitSet(sourceText.length()));
         this.definition = definition;
@@ -252,8 +251,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitSource(SourceContext ctx) {
-        reserved.push(new MainMethodReserved());
-
         List<SFunction> functions = new ArrayList<>();
 
         for (FunctionContext function : ctx.function()) {
@@ -266,7 +263,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptInterface, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+        if (ctx.dstatement() != null) {
+            statements.add((AStatement)visit(ctx.dstatement()));
+        }
+
+        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
 
@@ -292,6 +293,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
+        if (ctx.block().dstatement() != null) {
+            statements.add((AStatement)visit(ctx.block().dstatement()));
+        }
+
         return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name,
                              paramTypes, paramNames, statements, false);
     }
@@ -299,6 +304,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitParameters(ParametersContext ctx) {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public ANode visitStatement(StatementContext ctx) {
+        if (ctx.rstatement() != null) {
+            return visit(ctx.rstatement());
+        } else if (ctx.dstatement() != null) {
+            return visit(ctx.dstatement());
+        } else {
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        }
     }
 
     @Override
@@ -448,13 +464,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBlock(BlockContext ctx) {
-        if (ctx.statement().isEmpty()) {
+        if (ctx.statement().isEmpty() && ctx.dstatement() == null) {
             return null;
         } else {
             List<AStatement> statements = new ArrayList<>();
 
             for (StatementContext statement : ctx.statement()) {
                 statements.add((AStatement)visit(statement));
+            }
+
+            if (ctx.dstatement() != null) {
+                statements.add((AStatement)visit(ctx.dstatement()));
             }
 
             return new SBlock(location(ctx), statements);
@@ -514,11 +534,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         SBlock block = (SBlock)visit(ctx.block());
 
         return new SCatch(location(ctx), type, name, block);
-    }
-
-    @Override
-    public ANode visitDelimiter(DelimiterContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
@@ -1060,7 +1075,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         for (LamtypeContext lamtype : ctx.lamtype()) {
             if (lamtype.decltype() == null) {
-                paramTypes.add("def");
+                paramTypes.add(null);
             } else {
                 paramTypes.add(lamtype.decltype().getText());
             }
@@ -1076,11 +1091,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             for (StatementContext statement : ctx.block().statement()) {
                 statements.add((AStatement)visit(statement));
             }
+
+            if (ctx.block().dstatement() != null) {
+                statements.add((AStatement)visit(ctx.block().dstatement()));
+            }
         }
 
+        FunctionReserved lambdaReserved = (FunctionReserved)reserved.pop();
+        reserved.peek().addUsedVariables(lambdaReserved);
+
         String name = nextLambda();
-        return new ELambda(name, (FunctionReserved)reserved.pop(), location(ctx),
-                           paramTypes, paramNames, statements);
+        return new ELambda(name, lambdaReserved, location(ctx), paramTypes, paramNames, statements);
     }
 
     @Override

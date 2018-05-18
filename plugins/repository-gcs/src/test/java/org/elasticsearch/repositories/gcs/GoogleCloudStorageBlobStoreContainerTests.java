@@ -23,13 +23,14 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 
-import java.io.IOException;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class GoogleCloudStorageBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+
     @Override
-    protected BlobStore newBlobStore() throws IOException {
+    protected BlobStore newBlobStore() {
         String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucket, MockHttpTransport.newStorage(bucket, getTestName()));
+        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucket, new MockStorage(bucket, new ConcurrentHashMap<>()));
     }
 }

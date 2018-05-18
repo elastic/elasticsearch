@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -45,12 +46,14 @@ import java.util.Map;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsBlobStore store;
+    private final HdfsSecurityContext securityContext;
     private final Path path;
     private final int bufferSize;
 
-    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize) {
+    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize, HdfsSecurityContext hdfsSecurityContext) {
         super(blobPath);
         this.store = store;
+        this.securityContext = hdfsSecurityContext;
         this.path = path;
         this.bufferSize = bufferSize;
     }
@@ -90,19 +93,16 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
         // be called with the proper privileges.
-        return store.execute(fileContext -> new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize)));
+        return store.execute(fileContext ->
+            new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
+        );
     }
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
-        }
         store.execute((Operation<Void>) fileContext -> {
             Path blob = new Path(path, blobName);
             // we pass CREATE, which means it fails if a blob already exists.
-            // NOTE: this behavior differs from FSBlobContainer, which passes TRUNCATE_EXISTING
-            // that should be fixed there, no need to bring truncation into this, give the user an error.
             EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
             CreateOpts[] opts = {CreateOpts.bufferSize(bufferSize)};
             try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
@@ -116,6 +116,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                     //  if true synchronous behavior is required"
                     stream.hsync();
                 }
+            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
+                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
             }
             return null;
         });
@@ -144,43 +146,38 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
      */
     private static class HDFSPrivilegedInputSteam extends FilterInputStream {
 
-        HDFSPrivilegedInputSteam(InputStream in) {
+        private final HdfsSecurityContext securityContext;
+
+        HDFSPrivilegedInputSteam(InputStream in, HdfsSecurityContext hdfsSecurityContext) {
             super(in);
+            this.securityContext = hdfsSecurityContext;
         }
 
         public int read() throws IOException {
-            return doPrivilegedOrThrow(in::read);
+            return securityContext.doPrivilegedOrThrow(in::read);
         }
 
         public int read(byte b[]) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b));
         }
 
         public int read(byte b[], int off, int len) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b, off, len));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b, off, len));
         }
 
         public long skip(long n) throws IOException {
-            return doPrivilegedOrThrow(() -> in.skip(n));
+            return securityContext.doPrivilegedOrThrow(() -> in.skip(n));
         }
 
         public int available() throws IOException {
-            return doPrivilegedOrThrow(() -> in.available());
+            return securityContext.doPrivilegedOrThrow(() -> in.available());
         }
 
         public synchronized void reset() throws IOException {
-            doPrivilegedOrThrow(() -> {
+            securityContext.doPrivilegedOrThrow(() -> {
                 in.reset();
                 return null;
             });
-        }
-
-        private static  <T> T doPrivilegedOrThrow(PrivilegedExceptionAction<T> action) throws IOException {
-            try {
-                return AccessController.doPrivileged(action);
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
         }
     }
 }

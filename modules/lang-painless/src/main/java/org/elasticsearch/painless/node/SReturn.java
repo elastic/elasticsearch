@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -68,6 +69,6 @@ public final class SReturn extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(expression); 
+        return singleLineToString(expression);
     }
 }

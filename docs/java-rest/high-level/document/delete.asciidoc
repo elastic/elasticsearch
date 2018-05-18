@@ -4,64 +4,117 @@
 [[java-rest-high-document-delete-request]]
 ==== Delete Request
 
-The most simple Delete Request needs is:
+A `DeleteRequest` requires the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/DeleteDocumentationIT.java[delete-request]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request]
 --------------------------------------------------
-<1> Index name
+<1> Index
 <2> Type
 <3> Document id
 
-
-You can also provide the following properties:
+==== Optional arguments
+The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/DeleteDocumentationIT.java[delete-request-props]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request-routing]
 --------------------------------------------------
-<1> Timeout
-<2> Timeout as String
-<3> Refresh policy
-<4> Refresh policy as String
-<5> Version
-<6> Version type
+<1> Routing value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for primary shard to become available as a `TimeValue`
+<2> Timeout to wait for primary shard to become available as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request-refresh]
+--------------------------------------------------
+<1> Refresh policy as a `WriteRequest.RefreshPolicy` instance
+<2> Refresh policy as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request-version]
+--------------------------------------------------
+<1> Version
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request-version-type]
+--------------------------------------------------
+<1> Version type
 
 [[java-rest-high-document-delete-sync]]
-==== Execution
+==== Synchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/DeleteDocumentationIT.java[delete-execute]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute]
 --------------------------------------------------
 
 [[java-rest-high-document-delete-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a delete request requires both the `DeleteRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/DeleteDocumentationIT.java[delete-execute-async]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute-async]
 --------------------------------------------------
-<1> Implement if needed when execution did not throw an exception
-<2> Implement if needed in case of failure
+<1> The `DeleteRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `DeleteResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-document-delete-response]]
 ==== Delete Response
 
-In the Delete Response object, you can check for example the result of the operation:
+The returned `DeleteResponse` allows to retrieve information about the executed
+ operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/DeleteDocumentationIT.java[delete-notfound]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-response]
 --------------------------------------------------
-<1> Do something if we did not find the document which should have been deleted
+<1> Handle the situation where number of successful shards is less than
+total shards
+<2> Handle the potential failures
 
-Note that if you have a version conflict because you defined the version within the
-<<java-rest-high-document-delete-request>>, it will raise an `ElasticsearchException` like:
+
+It is also possible to check whether the document was found or not:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/DeleteDocumentationIT.java[delete-conflict]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-notfound]
 --------------------------------------------------
-<1> We got a version conflict
+<1> Do something if the document to be deleted was not found
+
+If there is a version conflict, an `ElasticsearchException` will
+be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-conflict]
+--------------------------------------------------
+<1> The raised exception indicates that a version conflict error was returned
+

@@ -19,15 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)
@@ -63,6 +63,6 @@ final class ECast extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(cast.to, child);
+        return singleLineToString(Definition.ClassToName(cast.to), child);
     }
 }

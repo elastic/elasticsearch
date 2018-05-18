@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
@@ -29,7 +30,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
-import java.lang.invoke.LambdaMetafactory;
 import java.util.Objects;
 import java.util.Set;
 
@@ -59,28 +59,40 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void analyze(Locals locals) {
         if (expected == null) {
             ref = null;
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
             try {
                 if ("this".equals(type)) {
                     // user's own function
-                    Method interfaceMethod = expected.struct.getFunctionalMethod();
+                    Method interfaceMethod = locals.getDefinition().ClassToType(expected).struct.functionalMethod;
                     if (interfaceMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], not a functional interface");
+                                                           "to [" + Definition.ClassToName(expected) + "], not a functional interface");
                     }
-                    Method implMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
-                    if (implMethod == null) {
+                    Method delegateMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
+                    if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], function not found");
+                                                           "to [" + Definition.ClassToName(expected) + "], function not found");
                     }
-                    ref = new FunctionRef(expected, interfaceMethod, implMethod, 0);
+                    ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
+
+                    // check casts between the interface method and the delegate method are legal
+                    for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
+                        Class<?> from = interfaceMethod.arguments.get(i);
+                        Class<?> to = delegateMethod.arguments.get(i);
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
+                    }
+
+                    if (interfaceMethod.rtn != void.class) {
+                        AnalyzerCaster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
+                    }
                 } else {
                     // whitelist lookup
                     ref = new FunctionRef(locals.getDefinition(), expected, type, call, 0);
                 }
+
             } catch (IllegalArgumentException e) {
                 throw createError(e);
             }
@@ -92,29 +104,16 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void write(MethodWriter writer, Globals globals) {
         if (ref != null) {
             writer.writeDebugInfo(location);
-            // convert MethodTypes to asm Type for the constant pool.
-            String invokedType = ref.invokedType.toMethodDescriptorString();
-            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
-            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
-            if (ref.needsBridges()) {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     LambdaMetafactory.FLAG_BRIDGES,
-                                     1,
-                                     interfaceType);
-            } else {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     0);
-            }
+            writer.invokeDynamic(
+                ref.interfaceMethodName,
+                ref.factoryDescriptor,
+                LAMBDA_BOOTSTRAP_HANDLE,
+                ref.interfaceType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateType
+            );
         } else {
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);

@@ -1,0 +1,49 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: single_doc_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: single_doc_index
+        ignore_unavailable: true
+
+---
+"Test that remote index names are preserved in top hits":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "sort_field": 0}'
+  - do:
+      search:
+        index: "single_doc_index,my_remote_cluster:single_doc_index"
+        body:
+          sort: "sort_field"
+          aggs:
+            cluster:
+              top_hits:
+                size: 2
+                sort: "sort_field"
+
+  - match: { _shards.total: 2 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: "single_doc_index"}
+  - match: { hits.hits.1._index: "my_remote_cluster:single_doc_index"}
+
+  - length: { aggregations.cluster.hits.hits: 2 }
+  - match: { aggregations.cluster.hits.hits.0._index: "single_doc_index" }
+  - match: { aggregations.cluster.hits.hits.0._source.f1: "local_cluster" }
+  - match: { aggregations.cluster.hits.hits.1._index: "my_remote_cluster:single_doc_index" }
+  - match: { aggregations.cluster.hits.hits.1._source.f1: "remote_cluster" }

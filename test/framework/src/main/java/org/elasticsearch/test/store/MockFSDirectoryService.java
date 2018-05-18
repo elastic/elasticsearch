@@ -97,7 +97,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] crashIndex: [{}]", SeedUtils.formatSeed(seed),
                     throttle, crashIndex);
         }
-        delegateService = randomDirectorService(indexStore, path);
+        delegateService = randomDirectoryService(indexStore, path);
     }
 
 
@@ -119,17 +119,14 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 if (!Lucene.indexExists(dir)) {
                     return;
                 }
-                try (CheckIndex checkIndex = new CheckIndex(dir)) {
+                try {
                     BytesStreamOutput os = new BytesStreamOutput();
                     PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
-                    checkIndex.setInfoStream(out);
+                    CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
-                    CheckIndex.Status status = checkIndex.checkIndex();
                     if (!status.clean) {
                         ESTestCase.checkIndexFailed = true;
-                        logger.warn("check index [failure] index files={}\n{}",
-                                Arrays.toString(dir.listAll()),
-                                os.bytes().utf8ToString());
+                        logger.warn("check index [failure] index files={}\n{}", Arrays.toString(dir.listAll()), os.bytes().utf8ToString());
                         throw new IOException("index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {
@@ -162,9 +159,16 @@ public class MockFSDirectoryService extends FsDirectoryService {
         return w;
     }
 
-    private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
+    private FsDirectoryService randomDirectoryService(IndexStore indexStore, ShardPath path) {
         final IndexSettings indexSettings = indexStore.getIndexSettings();
-        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey())).build();
+        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder()
+                // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
+                // secure settings that should not be copied in here since the new IndexSettings ctor below will barf if we do
+                .put(indexSettings.getIndexMetaData().getSettings())
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
+                    RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
+            .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
         return new FsDirectoryService(newIndexSettings, indexStore, path);
     }

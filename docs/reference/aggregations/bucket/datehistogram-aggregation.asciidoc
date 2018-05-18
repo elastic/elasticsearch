@@ -2,7 +2,7 @@
 === Date Histogram Aggregation
 
 A multi-bucket aggregation similar to the <<search-aggregations-bucket-histogram-aggregation,histogram>> except it can
-only be applied on date values. Since dates are represented in elasticsearch internally as long values, it is possible
+only be applied on date values. Since dates are represented in Elasticsearch internally as long values, it is possible
 to use the normal `histogram` on dates as well, though accuracy will be compromised. The reason for this is in the fact
 that time based intervals are not fixed (think of leap years and on the number of days in a month). For this reason,
 we need special support for time based data. From a functionality perspective, this histogram supports the same features
@@ -27,11 +27,13 @@ POST /sales/_search?size=0
 // CONSOLE
 // TEST[setup:sales]
 
-Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
+Available expressions for interval: `year` (`1y`), `quarter` (`1q`), `month` (`1M`), `week` (`1w`),
+`day` (`1d`), `hour` (`1h`), `minute` (`1m`), `second` (`1s`)
 
 Time values can also be specified via abbreviations supported by <<time-units,time units>> parsing.
 Note that fractional time values are not supported, but you can address this by shifting to another
-time unit (e.g., `1.5h` could instead be specified as `90m`).
+time unit (e.g., `1.5h` could instead be specified as `90m`). Also note that time intervals larger than
+than days do not support arbitrary values but can only be one unit large (e.g. `1y` is valid, `2y` is not).
 
 [source,js]
 --------------------------------------------------
@@ -125,12 +127,12 @@ Consider the following example:
 
 [source,js]
 ---------------------------------
-PUT my_index/log/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/log/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
@@ -247,12 +249,12 @@ to run from 6am to 6am:
 
 [source,js]
 -----------------------------
-PUT my_index/log/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/log/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
@@ -390,3 +392,65 @@ POST /sales/_search?size=0
 // TEST[setup:sales]
 
 <1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.
+
+==== Order
+
+By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controlled using
+the `order` setting. Supports the same `order` functionality as the <<search-aggregations-bucket-terms-aggregation-order,`Terms Aggregation`>>.
+
+deprecated[6.0.0, Use `_key` instead of `_time` to order buckets by their dates/keys]
+
+==== Use of a script to aggregate by day of the week
+
+There are some cases where date histogram can't help us, like for example, when we need
+to aggregate the results by day of the week.
+In this case to overcome the problem, we can use a script that returns the day of the week:
+
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs": {
+        "dayOfWeek": {
+            "terms": {
+                "script": {
+                    "lang": "painless",
+                    "source": "doc['date'].value.dayOfWeek"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  ...
+  "aggregations": {
+    "dayOfWeek": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "7",
+          "doc_count": 4
+        },
+        {
+          "key": "4",
+          "doc_count": 3
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+The response will contain all the buckets having as key the relative day of
+the week: 1 for Monday, 2 for Tuesday... 7 for Sunday.

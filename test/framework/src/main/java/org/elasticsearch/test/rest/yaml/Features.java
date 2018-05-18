@@ -37,9 +37,12 @@ import static java.util.Collections.unmodifiableList;
 public final class Features {
     private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
             "catch_unauthorized",
+            "default_shards",
             "embedded_stash_key",
             "headers",
+            "stash_in_key",
             "stash_in_path",
+            "stash_path_replace",
             "warnings",
             "yaml"));
 

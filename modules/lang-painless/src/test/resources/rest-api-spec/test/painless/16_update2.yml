@@ -1,0 +1,49 @@
+---
+"Stored script":
+  - skip:
+      features: warnings
+
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
+  - match: { acknowledged: true }
+
+  - do:
+     get_script:
+       id: "1"
+  - match: { found: true }
+  - match: { _id: "1" }
+  - match: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
+
+  - do:
+     catch: missing
+     get_script:
+       id: "2"
+  - match: { found: false }
+  - match: { _id: "2" }
+  - is_false: script
+
+  - do:
+     delete_script:
+       id: "1"
+  - match: { acknowledged: true }
+
+  - do:
+     catch: missing
+     delete_script:
+       id: "non_existing"
+
+  - do:
+      catch: request
+      put_script:
+        id: "1"
+        context: "search"
+        body: { "script": {"lang": "painless", "source": "_score * foo bar + doc['myParent.weight'].value"} }
+
+  - do:
+      catch: /compile error/
+      put_script:
+        id: "1"
+        context: "search"
+        body: { "script": {"lang": "painless", "source": "_score * foo bar + doc['myParent.weight'].value"} }

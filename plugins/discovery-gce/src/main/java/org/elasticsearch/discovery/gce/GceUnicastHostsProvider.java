@@ -118,7 +118,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         cachedDiscoNodes = new ArrayList<>();
         String ipAddress = null;
         try {
-            InetAddress inetAddress = networkService.resolvePublishHostAddresses(null);
+            InetAddress inetAddress = networkService.resolvePublishHostAddresses(
+                NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
             if (inetAddress != null) {
                 ipAddress = NetworkAddress.format(inetAddress);
             }

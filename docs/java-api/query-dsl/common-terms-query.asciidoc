@@ -3,10 +3,9 @@
 
 See {ref}/query-dsl-common-terms-query.html[Common Terms Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = commonTermsQuery("name",    <1>
-                                   "kimchy"); <2>
+include-tagged::{query-dsl-test}[common_terms]
 --------------------------------------------------
 <1> field
 <2> value

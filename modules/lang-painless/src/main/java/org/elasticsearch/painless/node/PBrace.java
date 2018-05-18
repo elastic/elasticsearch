@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -58,18 +58,17 @@ public final class PBrace extends AStoreable {
         prefix.expected = prefix.actual;
         prefix = prefix.cast(locals);
 
-        Sort sort = prefix.actual.sort;
-
-        if (sort == Sort.ARRAY) {
+        if (prefix.actual.isArray()) {
             sub = new PSubBrace(location, prefix.actual, index);
-        } else if (sort == Sort.DEF) {
+        } else if (prefix.actual == def.class) {
             sub = new PSubDefArray(location, index);
-        } else if (Map.class.isAssignableFrom(prefix.actual.clazz)) {
-            sub = new PSubMapShortcut(location, prefix.actual.struct, index);
-        } else if (List.class.isAssignableFrom(prefix.actual.clazz)) {
-            sub = new PSubListShortcut(location, prefix.actual.struct, index);
+        } else if (Map.class.isAssignableFrom(prefix.actual)) {
+            sub = new PSubMapShortcut(location, locals.getDefinition().ClassToType(prefix.actual).struct, index);
+        } else if (List.class.isAssignableFrom(prefix.actual)) {
+            sub = new PSubListShortcut(location, locals.getDefinition().ClassToType(prefix.actual).struct, index);
         } else {
-            throw createError(new IllegalArgumentException("Illegal array access on type [" + prefix.actual.name + "]."));
+            throw createError(
+                new IllegalArgumentException("Illegal array access on type [" + Definition.ClassToName(prefix.actual) + "]."));
         }
 
         sub.write = write;
@@ -92,7 +91,7 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         sub.updateActual(actual);
         this.actual = actual;
     }

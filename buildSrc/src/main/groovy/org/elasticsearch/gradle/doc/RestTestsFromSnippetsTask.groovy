@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.doc
 
+import groovy.transform.PackageScope
 import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
@@ -93,19 +94,58 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          *
          * `sh` snippets that contain `curl` almost always should be marked
          * with `// CONSOLE`. In the exceptionally rare cases where they are
-         * not communicating with Elasticsearch, like the xamples in the ec2
+         * not communicating with Elasticsearch, like the examples in the ec2
          * and gce discovery plugins, the snippets should be marked
          * `// NOTCONSOLE`. */
         return snippet.language == 'js' || snippet.curl
+    }
+
+    /**
+     * Converts Kibana's block quoted strings into standard JSON. These
+     * {@code """} delimited strings can be embedded in CONSOLE and can
+     * contain newlines and {@code "} without the normal JSON escaping.
+     * This has to add it.
+     */
+    @PackageScope
+    static String replaceBlockQuote(String body) {
+        int start = body.indexOf('"""');
+        if (start < 0) {
+            return body
+        }
+        /*
+         * 1.3 is a fairly wild guess of the extra space needed to hold
+         * the escaped string.
+         */
+        StringBuilder result = new StringBuilder((int) (body.length() * 1.3));
+        int startOfNormal = 0;
+        while (start >= 0) {
+            int end = body.indexOf('"""', start + 3);
+            if (end < 0) {
+                throw new InvalidUserDataException(
+                    "Invalid block quote starting at $start in:\n$body")
+            }
+            result.append(body.substring(startOfNormal, start));
+            result.append('"');
+            result.append(body.substring(start + 3, end)
+                .replace('"', '\\"')
+                .replace("\n", "\\n"));
+            result.append('"');
+            startOfNormal = end + 3;
+            start = body.indexOf('"""', startOfNormal);
+        }
+        result.append(body.substring(startOfNormal));
+        return result.toString();
     }
 
     private class TestBuilder {
         private static final String SYNTAX = {
             String method = /(?<method>GET|PUT|POST|HEAD|OPTIONS|DELETE)/
             String pathAndQuery = /(?<pathAndQuery>[^\n]+)/
-            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|#/
+            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|startyaml|#/
             String body = /(?<body>(?:\n(?!$badBody)[^\n]+)+)/
-            String nonComment = /$method\s+$pathAndQuery$body?/
+            String rawRequest = /(?:$method\s+$pathAndQuery$body?)/
+            String yamlRequest = /(?:startyaml(?s)(?<yaml>.+?)(?-s)endyaml)/
+            String nonComment = /(?:$rawRequest|$yamlRequest)/
             String comment = /(?<comment>#.+)/
             /(?:$comment|$nonComment)\n+/
         }()
@@ -128,6 +168,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         Set<String> unconvertedCandidates = new HashSet<>()
 
         /**
+         * The last non-TESTRESPONSE snippet.
+         */
+        Snippet previousTest
+
+        /**
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
          */
@@ -142,6 +187,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (snippet.testSetup) {
                 setup(snippet)
+                previousTest = snippet
                 return
             }
             if (snippet.testResponse) {
@@ -150,6 +196,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (snippet.test || snippet.console) {
                 test(snippet)
+                previousTest = snippet
                 return
             }
             // Must be an unmarked snippet....
@@ -158,7 +205,18 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         private void test(Snippet test) {
             setupCurrent(test)
 
-            if (false == test.continued) {
+            if (test.continued) {
+                /* Catch some difficult to debug errors with // TEST[continued]
+                 * and throw a helpful error message. */
+                if (previousTest == null || previousTest.path != test.path) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot be on first snippet in a file: $test")
+                }
+                if (previousTest != null && previousTest.testSetup) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot immediately follow // TESTSETUP: $test")
+                }
+            } else {
                 current.println('---')
                 current.println("\"line_$test.start\":")
                 /* The Elasticsearch test runner doesn't support the warnings
@@ -167,6 +225,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                  * warning every time. */
                 current.println("  - skip:")
                 current.println("      features: ")
+                current.println("        - default_shards")
+                current.println("        - stash_in_key")
+                current.println("        - stash_in_path")
+                current.println("        - stash_path_replace")
                 current.println("        - warnings")
             }
             if (test.skipTest) {
@@ -179,12 +241,14 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (test.setup != null) {
                 // Insert a setup defined outside of the docs
-                String setup = setups[test.setup]
-                if (setup == null) {
-                    throw new InvalidUserDataException("Couldn't find setup "
-                        + "for $test")
+                for (String setupName : test.setup.split(',')) {
+                    String setup = setups[setupName]
+                    if (setup == null) {
+                        throw new InvalidUserDataException("Couldn't find setup "
+                                + "for $test")
+                    }
+                    current.println(setup)
                 }
-                current.println(setup)
             }
 
             body(test, false)
@@ -236,6 +300,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (body != null) {
                 // Throw out the leading newline we get from parsing the body
                 body = body.substring(1)
+                // Replace """ quoted strings with valid json ones
+                body = replaceBlockQuote(body)
                 current.println("        body: |")
                 body.eachLine { current.println("          $it") }
             }
@@ -270,6 +336,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                     // Comment
                     return
                 }
+                String yamlRequest = matcher.group("yaml");
+                if (yamlRequest != null) {
+                    current.println(yamlRequest)
+                    return
+                }
                 String method = matcher.group("method")
                 String pathAndQuery = matcher.group("pathAndQuery")
                 String body = matcher.group("body")
@@ -295,7 +366,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             Path dest = outputRoot().toPath().resolve(test.path)
             // Replace the extension
             String fileName = dest.getName(dest.nameCount - 1)
-            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yaml'))
+            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yml'))
 
             // Now setup the writer
             Files.createDirectories(dest.parent)

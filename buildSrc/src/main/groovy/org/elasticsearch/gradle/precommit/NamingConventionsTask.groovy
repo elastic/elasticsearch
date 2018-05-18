@@ -38,17 +38,7 @@ public class NamingConventionsTask extends LoggedExec {
      * inputs (ie the jars/class files).
      */
     @OutputFile
-    File successMarker = new File(project.buildDir, 'markers/namingConventions')
-
-    /**
-     * The classpath to run the naming conventions checks against. Must contain the files in the test
-     * output directory and everything required to load those classes.
-     *
-     * We don't declare the actual test files as a dependency or input because if they change then
-     * this will change.
-     */
-    @InputFiles
-    FileCollection classpath = project.sourceSets.test.runtimeClasspath
+    File successMarker = new File(project.buildDir, "markers/${this.name}")
 
     /**
      * Should we skip the integ tests in disguise tests? Defaults to true because only core names its
@@ -69,18 +59,35 @@ public class NamingConventionsTask extends LoggedExec {
     @Input
     String integTestClass = 'org.elasticsearch.test.ESIntegTestCase'
 
+    /**
+     * Should the test also check the main classpath for test classes instead of
+     * doing the usual checks to the test classpath.
+     */
+    @Input
+    boolean checkForTestsInMain = false;
+
     public NamingConventionsTask() {
         // Extra classpath contains the actual test
-        project.configurations.create('namingConventions')
-        Dependency buildToolsDep = project.dependencies.add('namingConventions',
-                "org.elasticsearch.gradle:build-tools:${VersionProperties.elasticsearch}")
-        buildToolsDep.transitive = false // We don't need gradle in the classpath. It conflicts.
-        FileCollection extraClasspath = project.configurations.namingConventions
-        dependsOn(extraClasspath)
+        if (false == project.configurations.names.contains('namingConventions')) {
+            project.configurations.create('namingConventions')
+            Dependency buildToolsDep = project.dependencies.add('namingConventions',
+                    "org.elasticsearch.gradle:build-tools:${VersionProperties.elasticsearch}")
+            buildToolsDep.transitive = false // We don't need gradle in the classpath. It conflicts.
+        }
+        FileCollection classpath = project.files(project.configurations.namingConventions,
+                                                 project.sourceSets.test.compileClasspath,
+                                                 project.sourceSets.test.output)
+        dependsOn(classpath)
+        inputs.files(classpath)
+        description = "Tests that test classes aren't misnamed or misplaced"
+        executable = new File(project.runtimeJavaHome, 'bin/java')
+        if (false == checkForTestsInMain) {
+            /* This task is created by default for all subprojects with this
+             * setting and there is no point in running it if the files don't
+             * exist. */
+            onlyIf { project.sourceSets.test.output.classesDir.exists() }
+        }
 
-        description = "Runs NamingConventionsCheck on ${classpath}"
-        executable = new File(project.javaHome, 'bin/java')
-        onlyIf { project.sourceSets.test.output.classesDir.exists() }
         /*
          * We build the arguments in a funny afterEvaluate/doFirst closure so that we can wait for the classpath to be
          * ready for us. Strangely neither one on their own are good enough.
@@ -88,7 +95,7 @@ public class NamingConventionsTask extends LoggedExec {
         project.afterEvaluate {
             doFirst {
                 args('-Djna.nosys=true')
-                args('-cp', (classpath + extraClasspath).asPath, 'org.elasticsearch.test.NamingConventionsCheck')
+                args('-cp', classpath.asPath, 'org.elasticsearch.test.NamingConventionsCheck')
                 args('--test-class', testClass)
                 if (skipIntegTestInDisguise) {
                     args('--skip-integ-tests-in-disguise')
@@ -104,7 +111,14 @@ public class NamingConventionsTask extends LoggedExec {
                 if (':build-tools'.equals(project.path)) {
                     args('--self-test')
                 }
-                args('--', project.sourceSets.test.output.classesDir.absolutePath)
+                if (checkForTestsInMain) {
+                    args('--main')
+                    args('--')
+                    args(project.sourceSets.main.output.classesDir.absolutePath)
+                } else {
+                    args('--')
+                    args(project.sourceSets.test.output.classesDir.absolutePath)
+                }
             }
         }
         doLast { successMarker.setText("", 'UTF-8') }

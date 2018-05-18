@@ -38,6 +38,7 @@ task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
 // setup the initial cluster with one node that will serve as the seed node
 // for unicast discovery
 ClusterConfiguration config = new ClusterConfiguration(project)
+config.distribution = 'integ-test-zip'
 config.clusterName = 'discovery-file-test-cluster'
 List<NodeInfo> nodes = ClusterFormationTasks.setup(project, 'initialCluster', setupSeedNodeAndUnicastHostsFile, config)
 File srcUnicastHostsFile = file('build/cluster/unicast_hosts.txt')
@@ -52,6 +53,7 @@ setupSeedNodeAndUnicastHostsFile.doLast {
 integTestCluster {
     dependsOn setupSeedNodeAndUnicastHostsFile
     clusterName = 'discovery-file-test-cluster'
+    setting 'discovery.zen.hosts_provider', 'file'
     extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
 }
 

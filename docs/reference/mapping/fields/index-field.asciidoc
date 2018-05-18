@@ -16,12 +16,12 @@ but it does not support `prefix`, `wildcard`, `regexp`, or `fuzzy` queries.
 [source,js]
 --------------------------
 # Example documents
-PUT index_1/my_type/1
+PUT index_1/_doc/1
 {
   "text": "Document in index 1"
 }
 
-PUT index_2/my_type/2?refresh=true
+PUT index_2/_doc/2?refresh=true
 {
   "text": "Document in index 2"
 }
@@ -52,7 +52,7 @@ GET index_1,index_2/_search
     "index_name": {
       "script": {
         "lang": "painless",
-        "inline": "doc['_index']" <4>
+        "source": "doc['_index']" <4>
       }
     }
   }

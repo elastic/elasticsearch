@@ -25,13 +25,12 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -50,9 +49,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -62,8 +64,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -76,6 +76,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -89,19 +90,17 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -134,6 +133,7 @@ import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOU
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -157,31 +157,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Logger logger = Loggers.getLogger(getClass());
 
-    /**
-     * The number of ports in the range used for this JVM
-     */
-    public static final int PORTS_PER_JVM = 100;
-
-    /**
-     * The number of ports in the range used for this cluster
-     */
-    public static final int PORTS_PER_CLUSTER = 20;
-
-    private static final int GLOBAL_TRANSPORT_BASE_PORT = 9300;
-    private static final int GLOBAL_HTTP_BASE_PORT = 19200;
-
-    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
-
-    /**
-     * a per-JVM unique offset to be used for calculating unique port ranges.
-     */
-    public static final int JVM_BASE_PORT_OFFSET = PORTS_PER_JVM * (JVM_ORDINAL + 1);
 
     private static final AtomicInteger clusterOrdinal = new AtomicInteger();
-    private final int CLUSTER_BASE_PORT_OFFSET = JVM_BASE_PORT_OFFSET + (clusterOrdinal.getAndIncrement() * PORTS_PER_CLUSTER) % PORTS_PER_JVM;
-
-    public final int TRANSPORT_BASE_PORT = GLOBAL_TRANSPORT_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
-    public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
 
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
@@ -288,7 +265,11 @@ public final class InternalTestCluster extends TestCluster {
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
+        ArrayList<Class<? extends Plugin>> tmpMockPlugins = new ArrayList<>(mockPlugins);
+
+
         this.mockPlugins = mockPlugins;
+
 
         sharedNodesSeeds = new long[numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
@@ -317,8 +298,8 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TransportSettings.PORT.getKey(), TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
-        builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
+        builder.put(TcpTransport.PORT.getKey(), 0);
+        builder.put("http.port", 0);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
@@ -330,8 +311,10 @@ public final class InternalTestCluster extends TestCluster {
         // from failing on nodes without enough disk space
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
+        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
         // Some tests make use of scripting quite a bit, so increase the limit for integration tests
-        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000);
+        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m");
+        builder.put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), random.nextBoolean());
         if (TEST_NIGHTLY) {
             builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 5, 10));
             builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 5, 10));
@@ -342,7 +325,7 @@ public final class InternalTestCluster extends TestCluster {
         // always reduce this - it can make tests really slow
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), TimeValue.timeValueMillis(RandomNumbers.randomIntBetween(random, 20, 50)));
         defaultSettings = builder.build();
-        executor = EsExecutors.newScaling("test runner", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
+        executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
     }
 
     @Override
@@ -376,7 +359,7 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
-    private Collection<Class<? extends Plugin>> getPlugins() {
+    public Collection<Class<? extends Plugin>> getPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         return plugins;
@@ -605,7 +588,17 @@ public final class InternalTestCluster extends TestCluster {
         } else if (!usingSingleNodeDiscovery && finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
-        MockNode node = new MockNode(finalSettings.build(), plugins);
+        SecureSettings secureSettings = finalSettings.getSecureSettings();
+        if (secureSettings instanceof MockSecureSettings) {
+            // we clone this here since in the case of a node restart we might need it again
+            secureSettings = ((MockSecureSettings) secureSettings).clone();
+        }
+        MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId));
+        try {
+            IOUtils.close(secureSettings);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         return new NodeAndClient(name, node, nodeId);
     }
 
@@ -963,8 +956,10 @@ public final class InternalTestCluster extends TestCluster {
                 .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                 .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                 .put(settings);
-            if ( NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
-                builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+            if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
+                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+            } else {
+                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
             }
             TransportClient client = new MockTransportClient(builder.build(), plugins);
             client.addTransportAddress(addr);
@@ -1106,9 +1101,10 @@ public final class InternalTestCluster extends TestCluster {
         // test that have ongoing write operations after the test (for example because ttl is used
         // and not all docs have been purged after the test) and inherit from
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
-        assertShardIndexCounter();
+        assertNoPendingIndexOperations();
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
+        assertOpenTranslogReferences();
     }
 
     private void assertSameSyncIdSameDocs() {
@@ -1135,30 +1131,37 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void assertShardIndexCounter() throws Exception {
+    private void assertNoPendingIndexOperations() throws Exception {
         assertBusy(() -> {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
             for (NodeAndClient nodeAndClient : nodesAndClients) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        int activeOperationsCount = indexShard.getActiveOperationsCount();
-                        if (activeOperationsCount > 0) {
-                            TaskManager taskManager = getInstance(TransportService.class, nodeAndClient.name).getTaskManager();
-                            DiscoveryNode localNode = getInstance(ClusterService.class, nodeAndClient.name).localNode();
-                            List<TaskInfo> taskInfos = taskManager.getTasks().values().stream()
-                                    .filter(task -> task instanceof ReplicationTask)
-                                    .map(task -> task.taskInfo(localNode.getId(), true))
-                                    .collect(Collectors.toList());
-                            ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
-                            try {
-                                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().value(response);
-                                throw new AssertionError("expected index shard counter on shard " + indexShard.shardId() + " on node " +
-                                        nodeAndClient.name + " to be 0 but was " + activeOperationsCount + ". Current replication tasks on node:\n" +
-                                        builder.string());
-                            } catch (IOException e) {
-                                throw new RuntimeException("caught exception while building response [" + response + "]", e);
-                            }
+                        List<String> operations = indexShard.getActiveOperations();
+                        if (operations.size() > 0) {
+                            throw new AssertionError(
+                                "shard " + indexShard.shardId() + " on node [" + nodeAndClient.name + "] has pending operations:\n --> " +
+                                    operations.stream().collect(Collectors.joining("\n --> "))
+                            );
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private void assertOpenTranslogReferences() throws Exception {
+        assertBusy(() -> {
+            final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            for (NodeAndClient nodeAndClient : nodesAndClients) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        try {
+                            IndexShardTestCase.getTranslog(indexShard).getDeletionPolicy().assertNoOpenTranslogRefs();
+                        } catch (AlreadyClosedException ok) {
+                            // all good
                         }
                     }
                 }
@@ -1933,6 +1936,11 @@ public final class InternalTestCluster extends TestCluster {
         };
     }
 
+    @Override
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return getInstance(NamedWriteableRegistry.class);
+    }
+
     /**
      * Returns a predicate that only accepts settings of nodes with one of the given names.
      */
@@ -1970,7 +1978,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         /**
-         * Executed for each node before the <tt>n+1</tt> node is restarted. The given client is
+         * Executed for each node before the {@code n + 1} node is restarted. The given client is
          * an active client to the node that will be restarted next.
          */
         public void doAfterNodes(int n, Client client) throws Exception {
@@ -2007,6 +2015,8 @@ public final class InternalTestCluster extends TestCluster {
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
+                CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+                assertThat("Accounting breaker not reset to 0 on node: " + name, acctBreaker.getUsed(), equalTo(0L));
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of
                 // that the breaker can sometimes be incremented from ping
@@ -2016,12 +2026,9 @@ public final class InternalTestCluster extends TestCluster {
                 // in an assertBusy loop, so it will try for 10 seconds and
                 // fail if it never reached 0
                 try {
-                    assertBusy(new Runnable() {
-                        @Override
-                        public void run() {
-                            CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-                            assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
-                        }
+                    assertBusy(() -> {
+                        CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+                        assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
                     });
                 } catch (Exception e) {
                     fail("Exception during check for request breaker reset to 0: " + e);
@@ -2029,7 +2036,8 @@ public final class InternalTestCluster extends TestCluster {
 
                 NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
-                NodeStats stats = nodeService.stats(flags, false, false, false, false, false, false, false, false, false, false, false);
+                NodeStats stats = nodeService.stats(flags,
+                        false, false, false, false, false, false, false, false, false, false, false, false);
                 assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
                 assertThat("Query cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
                 assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));

@@ -78,7 +78,7 @@ BulkProcessor bulkProcessor = BulkProcessor.builder(
             BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(100), 3)) <9>
         .build();
 --------------------------------------------------
-<1> Add your elasticsearch client
+<1> Add your Elasticsearch client
 <2> This method is called just before bulk is executed. You can for example see the numberOfActions with
     `request.numberOfActions()`
 <3> This method is called after bulk execution. You can for example check if there was some failing requests
@@ -138,7 +138,7 @@ all bulk requests to complete then returns `true`, if the specified waiting time
 [[java-docs-bulk-processor-tests]]
 ==== Using Bulk Processor in tests
 
-If you are running tests with elasticsearch and are using the `BulkProcessor` to populate your dataset
+If you are running tests with Elasticsearch and are using the `BulkProcessor` to populate your dataset
 you should better set the number of concurrent requests to `0` so the flush operation of the bulk will be executed
 in a synchronous manner:
 

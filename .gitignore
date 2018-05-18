@@ -20,15 +20,8 @@ nbactions.xml
 .gradle/
 build/
 
-# gradle wrapper 
-/gradle/
-gradlew
-gradlew.bat
-
-# maven stuff (to be removed when trunk becomes 4.x)
-*-execution-hints.log
-target/
-dependency-reduced-pom.xml
+# vscode stuff
+.vscode/
 
 # testing stuff
 **/.local*
@@ -48,4 +41,3 @@ html_docs
 # random old stuff that we should look at the necessity of...
 /tmp/
 eclipse-build
-

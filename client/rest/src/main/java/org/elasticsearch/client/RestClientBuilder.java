@@ -28,7 +28,9 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 
+import javax.net.ssl.SSLContext;
 import java.security.AccessController;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.Objects;
 
@@ -41,7 +43,6 @@ public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
-    public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
@@ -194,19 +195,31 @@ public final class RestClientBuilder {
         //default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
                 .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
-                .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS);
+                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
-        HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
+        try {
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL);
-        if (httpClientConfigCallback != null) {
-            httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
+                .setSSLContext(SSLContext.getDefault())
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+            if (httpClientConfigCallback != null) {
+                httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
+            }
+
+            final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
+            return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
+                @Override
+                public CloseableHttpAsyncClient run() {
+                    return finalBuilder.build();
+                }
+            });
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("could not create the default ssl context", e);
         }
-        return httpClientBuilder.build();
     }
 
     /**

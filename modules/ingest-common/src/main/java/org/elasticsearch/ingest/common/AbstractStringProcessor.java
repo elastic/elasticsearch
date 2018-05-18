@@ -33,11 +33,13 @@ import java.util.Map;
 abstract class AbstractStringProcessor extends AbstractProcessor {
     private final String field;
     private final boolean ignoreMissing;
+    private final String targetField;
 
-    AbstractStringProcessor(String tag, String field, boolean ignoreMissing) {
+    AbstractStringProcessor(String tag, String field, boolean ignoreMissing, String targetField) {
         super(tag);
         this.field = field;
         this.ignoreMissing = ignoreMissing;
+        this.targetField = targetField;
     }
 
     public String getField() {
@@ -46,6 +48,10 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
 
     boolean isIgnoreMissing() {
         return ignoreMissing;
+    }
+
+    String getTargetField() {
+        return targetField;
     }
 
     @Override
@@ -58,7 +64,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
 
-        document.setFieldValue(field, process(val));
+        document.setFieldValue(targetField, process(val));
     }
 
     protected abstract String process(String value);
@@ -75,9 +81,12 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
                                               Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(processorType, tag, config, "ignore_missing", false);
-            return newProcessor(tag, field, ignoreMissing);
+            String targetField = ConfigurationUtils.readStringProperty(processorType, tag, config, "target_field", field);
+
+            return newProcessor(tag, config, field, ignoreMissing, targetField);
         }
 
-        protected abstract AbstractStringProcessor newProcessor(String processorTag, String field, boolean ignoreMissing);
+        protected abstract AbstractStringProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
+                                                                boolean ignoreMissing, String targetField);
     }
 }

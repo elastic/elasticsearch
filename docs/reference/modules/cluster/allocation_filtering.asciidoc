@@ -21,7 +21,7 @@ refers to an arbitrary node attribute.:
 
 `cluster.routing.allocation.exclude.{attribute}`::
 
-    Do not allocate shards to a node whose `{attribute}` has _none_ of the
+    Do not allocate shards to a node whose `{attribute}` has _any_ of the
     comma-separated values.
 
 These special attributes are also supported:
@@ -65,4 +65,3 @@ PUT _cluster/settings
 }
 ------------------------
 // CONSOLE
-// TEST[skip:indexes don't assign]

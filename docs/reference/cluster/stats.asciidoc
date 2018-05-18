@@ -8,21 +8,28 @@ versions, memory usage, cpu and installed plugins).
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_cluster/stats?human&pretty'
+GET /_cluster/stats?human&pretty
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Will return, for example:
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
-   "timestamp": 1459427693515,
+   "_nodes" : {
+      "total" : 1,
+      "successful" : 1,
+      "failed" : 0
+   },
    "cluster_name": "elasticsearch",
+   "timestamp": 1459427693515,
    "status": "green",
    "indices": {
-      "count": 2,
+      "count": 1,
       "shards": {
-         "total": 10,
-         "primaries": 10,
+         "total": 5,
+         "primaries": 5,
          "replication": 0,
          "index": {
             "shards": {
@@ -48,9 +55,7 @@ Will return, for example:
       },
       "store": {
          "size": "16.2kb",
-         "size_in_bytes": 16684,
-         "throttle_time": "0s",
-         "throttle_time_in_millis": 0
+         "size_in_bytes": 16684
       },
       "fielddata": {
          "memory_size": "0b",
@@ -83,6 +88,8 @@ Will return, for example:
          "term_vectors_memory_in_bytes": 0,
          "norms_memory": "384b",
          "norms_memory_in_bytes": 384,
+         "points_memory" : "0b",
+         "points_memory_in_bytes" : 0,
          "doc_values_memory": "744b",
          "doc_values_memory_in_bytes": 744,
          "index_writer_memory": "0b",
@@ -91,10 +98,8 @@ Will return, for example:
          "version_map_memory_in_bytes": 0,
          "fixed_bit_set": "0b",
          "fixed_bit_set_memory_in_bytes": 0,
+         "max_unsafe_auto_id_timestamp" : -9223372036854775808,
          "file_sizes": {}
-      },
-      "percolator": {
-         "num_queries": 0
       }
    },
    "nodes": {
@@ -167,15 +172,43 @@ Will return, for example:
          "available_in_bytes": 34802409472
       },
       "plugins": [
-         // all plugins installed on nodes
-         {
-            "name": "analysis-stempel",
-            "version": "{version}",
-            "description": "The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.",
-            "classname": "org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin"
+        {
+          "name": "analysis-icu",
+          "version": "{version}",
+          "description": "The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.",
+          "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
+          "has_native_controller": false
+        },
+        {
+          "name": "ingest-geoip",
+          "version": "{version}",
+          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
+          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
+          "has_native_controller": false
+        },
+        {
+          "name": "ingest-user-agent",
+          "version": "{version}",
+          "description": "Ingest processor that extracts information from a user agent",
+          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
+          "has_native_controller": false
+        }
+      ],
+      "network_types" : {
+         "transport_types" : {
+            "netty4" : 1
+         },
+         "http_types" : {
+            "netty4" : 1
          }
-      ]
+      }
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+////
+The TESTRESPONSE above replace all the fields values by the expected ones in the test,
+because we don't really care about the field values but we want to check the fields names.
+////

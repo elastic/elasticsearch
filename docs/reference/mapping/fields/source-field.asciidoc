@@ -16,7 +16,7 @@ within the index. For this reason, it can be disabled as follows:
 PUT tweets
 {
   "mappings": {
-    "tweet": {
+    "_doc": {
       "_source": {
         "enabled": false
       }
@@ -64,8 +64,6 @@ simple queries to filter the dataset by date or tags, and the results are
 returned as aggregations.
 
 In this case, disabling the `_source` field will save space and reduce I/O.
-It is also advisable to disable the <<mapping-all-field,`_all` field>> in the
-metrics case.
 
 **************************************************
 
@@ -90,7 +88,7 @@ as follows:
 PUT logs
 {
   "mappings": {
-    "event": {
+    "_doc": {
       "_source": {
         "includes": [
           "*.count",
@@ -105,7 +103,7 @@ PUT logs
   }
 }
 
-PUT logs/event/1
+PUT logs/_doc/1
 {
   "requests": {
     "count": 10,
@@ -121,7 +119,7 @@ PUT logs/event/1
   }
 }
 
-GET logs/event/_search
+GET logs/_search
 {
   "query": {
     "match": {

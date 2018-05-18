@@ -51,46 +51,6 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(settings, "aws_key", "aws_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchAwsSettingsBackcompat() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.KEY_SETTING.getKey(), "aws_key")
-            .put(AwsEc2Service.SECRET_SETTING.getKey(), "aws_secret")
-            .build();
-        launchAWSCredentialsWithElasticsearchSettingsTest(settings, "aws_key", "aws_secret");
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.KEY_SETTING,
-            AwsEc2Service.SECRET_SETTING
-        });
-    }
-
-    public void testAWSCredentialsWithElasticsearchEc2SettingsBackcompat() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.CLOUD_EC2.KEY_SETTING.getKey(), "ec2_key")
-            .put(AwsEc2Service.CLOUD_EC2.SECRET_SETTING.getKey(), "ec2_secret")
-            .build();
-        launchAWSCredentialsWithElasticsearchSettingsTest(settings, "ec2_key", "ec2_secret");
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.CLOUD_EC2.KEY_SETTING,
-            AwsEc2Service.CLOUD_EC2.SECRET_SETTING
-        });
-    }
-
-    public void testAWSCredentialsWithElasticsearchAwsAndEc2Settings() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.KEY_SETTING.getKey(), "aws_key")
-            .put(AwsEc2Service.SECRET_SETTING.getKey(), "aws_secret")
-            .put(AwsEc2Service.CLOUD_EC2.KEY_SETTING.getKey(), "ec2_key")
-            .put(AwsEc2Service.CLOUD_EC2.SECRET_SETTING.getKey(), "ec2_secret")
-            .build();
-        launchAWSCredentialsWithElasticsearchSettingsTest(settings, "ec2_key", "ec2_secret");
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.KEY_SETTING,
-            AwsEc2Service.SECRET_SETTING,
-            AwsEc2Service.CLOUD_EC2.KEY_SETTING,
-            AwsEc2Service.CLOUD_EC2.SECRET_SETTING
-        });
-    }
-
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings settings, String expectedKey, String expectedSecret) {
         AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger, settings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
@@ -114,59 +74,6 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .build();
         launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password", 10000);
-    }
-
-    public void testAWSConfigurationWithAwsSettingsBackcompat() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.PROTOCOL_SETTING.getKey(), "http")
-            .put(AwsEc2Service.PROXY_HOST_SETTING.getKey(), "aws_proxy_host")
-            .put(AwsEc2Service.PROXY_PORT_SETTING.getKey(), 8080)
-            .put(AwsEc2Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
-            .put(AwsEc2Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsEc2Service.READ_TIMEOUT.getKey(), "10s")
-            .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password",
-            10000);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.PROTOCOL_SETTING,
-            AwsEc2Service.PROXY_HOST_SETTING,
-            AwsEc2Service.PROXY_PORT_SETTING,
-            AwsEc2Service.PROXY_USERNAME_SETTING,
-            AwsEc2Service.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.READ_TIMEOUT
-        });
-    }
-
-    public void testAWSConfigurationWithAwsAndEc2Settings() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.PROTOCOL_SETTING.getKey(), "http")
-            .put(AwsEc2Service.PROXY_HOST_SETTING.getKey(), "aws_proxy_host")
-            .put(AwsEc2Service.PROXY_PORT_SETTING.getKey(), 8080)
-            .put(AwsEc2Service.PROXY_USERNAME_SETTING.getKey(), "aws_proxy_username")
-            .put(AwsEc2Service.PROXY_PASSWORD_SETTING.getKey(), "aws_proxy_password")
-            .put(AwsEc2Service.READ_TIMEOUT.getKey(), "20s")
-            .put(AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING.getKey(), "https")
-            .put(AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING.getKey(), "ec2_proxy_host")
-            .put(AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING.getKey(), 8081)
-            .put(AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING.getKey(), "ec2_proxy_username")
-            .put(AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING.getKey(), "ec2_proxy_password")
-            .put(AwsEc2Service.CLOUD_EC2.READ_TIMEOUT.getKey(), "10s")
-            .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTPS, "ec2_proxy_host", 8081, "ec2_proxy_username", "ec2_proxy_password", 10000);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.PROTOCOL_SETTING,
-            AwsEc2Service.PROXY_HOST_SETTING,
-            AwsEc2Service.PROXY_PORT_SETTING,
-            AwsEc2Service.PROXY_USERNAME_SETTING,
-            AwsEc2Service.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.READ_TIMEOUT,
-            AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.CLOUD_EC2.READ_TIMEOUT
-        });
     }
 
     protected void launchAWSConfigurationTest(Settings settings,
@@ -194,20 +101,9 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
 
     public void testSpecificEndpoint() {
         Settings settings = Settings.builder()
-            .put(AwsEc2Service.DISCOVERY_EC2.ENDPOINT_SETTING.getKey(), "ec2.endpoint")
+            .put(AwsEc2Service.ENDPOINT_SETTING.getKey(), "ec2.endpoint")
             .build();
         String endpoint = AwsEc2ServiceImpl.findEndpoint(logger, settings);
         assertThat(endpoint, is("ec2.endpoint"));
-    }
-
-    public void testSpecificEndpointBackcompat() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING.getKey(), "ec2.endpoint")
-            .build();
-        String endpoint = AwsEc2ServiceImpl.findEndpoint(logger, settings);
-        assertThat(endpoint, is("ec2.endpoint"));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING
-        });
     }
 }

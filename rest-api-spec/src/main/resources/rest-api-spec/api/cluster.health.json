@@ -47,6 +47,10 @@
           "type" : "boolean",
           "description" : "Whether to wait until there are no relocating shards in the cluster"
         },
+        "wait_for_no_initializing_shards": {
+          "type" : "boolean",
+          "description" : "Whether to wait until there are no initializing shards in the cluster"
+        },
         "wait_for_status": {
           "type" : "enum",
           "options" : ["green","yellow","red"],

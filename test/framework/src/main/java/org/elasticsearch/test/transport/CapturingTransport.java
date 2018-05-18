@@ -39,7 +39,8 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -59,7 +60,7 @@ import static org.apache.lucene.util.LuceneTestCase.rarely;
 /** A transport class that doesn't send anything but rather captures all requests for inspection from tests */
 public class CapturingTransport implements Transport {
 
-    private TransportServiceAdapter adapter;
+    private TransportService transportService;
 
     public static class CapturedRequest {
         public final DiscoveryNode node;
@@ -136,7 +137,7 @@ public class CapturingTransport implements Transport {
 
     /** simulate a response for the given requestId */
     public void handleResponse(final long requestId, final TransportResponse response) {
-        adapter.onResponseReceived(requestId).handleResponse(response);
+        transportService.onResponseReceived(requestId).handleResponse(response);
     }
 
     /**
@@ -188,7 +189,7 @@ public class CapturingTransport implements Transport {
      * @param e the failure
      */
     public void handleError(final long requestId, final TransportException e) {
-        adapter.onResponseReceived(requestId).handleException(e);
+        transportService.onResponseReceived(requestId).handleException(e);
     }
 
     @Override
@@ -214,8 +215,13 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public void transportServiceAdapter(TransportServiceAdapter adapter) {
-        this.adapter = adapter;
+    public TransportStats getStats() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void setTransportService(TransportService transportService) {
+        this.transportService = transportService;
     }
 
     @Override
@@ -248,11 +254,6 @@ public class CapturingTransport implements Transport {
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
 
-    }
-
-    @Override
-    public long serverOpen() {
-        return 0;
     }
 
     @Override

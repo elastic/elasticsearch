@@ -3,8 +3,7 @@
 
 See {ref}/query-dsl-query-string-query.html[Query String Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = queryStringQuery("+kimchy -elasticsearch");    <1>
+include-tagged::{query-dsl-test}[query_string]
 --------------------------------------------------
-<1> text

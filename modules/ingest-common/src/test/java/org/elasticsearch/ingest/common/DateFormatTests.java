@@ -50,6 +50,10 @@ public class DateFormatTests extends ESTestCase {
         assertThat(DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null).apply("1000.5").getMillis(), equalTo(1000500L));
     }
 
+    public void testParseUnixWithMsPrecision() {
+        assertThat(DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null).apply("1495718015").getMillis(), equalTo(1495718015000L));
+    }
+
     public void testParseISO8601() {
         assertThat(DateFormat.Iso8601.getFunction(null, DateTimeZone.UTC, null).apply("2001-01-01T00:00:00-0800").getMillis(),
                 equalTo(978336000000L));

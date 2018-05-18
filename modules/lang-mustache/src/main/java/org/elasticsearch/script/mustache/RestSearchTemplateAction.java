@@ -19,11 +19,11 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,37 +47,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
 
-    private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
-    static {
-        PARSER = new ObjectParser<>("search_template");
-        PARSER.declareField((parser, request, s) ->
-                        request.setScriptParams(parser.map())
-                , new ParseField("params"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptType.FILE);
-            request.setScript(s);
-        }, new ParseField("file"));
-        PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptType.STORED);
-            request.setScript(s);
-        }, new ParseField("id"));
-        PARSER.declareBoolean(SearchTemplateRequest::setExplain, new ParseField("explain"));
-        PARSER.declareBoolean(SearchTemplateRequest::setProfile, new ParseField("profile"));
-        PARSER.declareField((parser, request, value) -> {
-            request.setScriptType(ScriptType.INLINE);
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    request.setScript(builder.copyCurrentStructure(parser).string());
-                } catch (IOException e) {
-                    throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
-                }
-            } else {
-                request.setScript(parser.text());
-            }
-        }, new ParseField("inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
-    }
-
     public RestSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
@@ -90,27 +59,24 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.hasContentOrSourceParam() == false) {
-            throw new ElasticsearchException("request body is required");
-        }
+    public String getName() {
+        return "search_template_action";
+    }
 
+    @Override
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, null, size -> searchRequest.source().size(size));
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), null);
+            searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
 
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
-    }
-
-    public static SearchTemplateRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new SearchTemplateRequest(), null);
     }
 
     @Override

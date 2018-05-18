@@ -21,6 +21,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
@@ -108,7 +109,7 @@ public final class RandomObjects {
                         //with CBOR we get back a float
                         expectedParsedValues.add(randomFloat);
                     } else if (xContentType == XContentType.SMILE) {
-                        //with SMILE we get back a double
+                        //with SMILE we get back a double (this will change in Jackson 2.9 where it will return a Float)
                         expectedParsedValues.add(randomFloat.doubleValue());
                     } else {
                         //with JSON AND YAML we get back a double, but with float precision.
@@ -176,7 +177,7 @@ public final class RandomObjects {
             builder.startObject();
             addFields(random, builder, minNumFields, 0);
             builder.endObject();
-            return builder.bytes();
+            return BytesReference.bytes(builder);
         } catch(IOException e) {
             throw new RuntimeException(e);
         }

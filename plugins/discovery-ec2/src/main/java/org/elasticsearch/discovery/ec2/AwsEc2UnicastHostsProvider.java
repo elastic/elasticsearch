@@ -31,7 +31,6 @@ import com.amazonaws.services.ec2.model.Tag;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
-import org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -50,11 +49,11 @@ import java.util.Set;
 import static java.util.Collections.disjoint;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.TAG_PREFIX;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_DNS;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_IP;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_DNS;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_IP;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
 
 class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
@@ -66,7 +65,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
 
     private final Set<String> groups;
 
-    private final Map<String, String> tags;
+    private final Map<String, List<String>> tags;
 
     private final Set<String> availabilityZones;
 
@@ -79,17 +78,17 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         this.transportService = transportService;
         this.client = awsEc2Service.client();
 
-        this.hostType = DISCOVERY_EC2.HOST_TYPE_SETTING.get(settings);
-        this.discoNodes = new DiscoNodesCache(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.get(settings));
+        this.hostType = AwsEc2Service.HOST_TYPE_SETTING.get(settings);
+        this.discoNodes = new DiscoNodesCache(AwsEc2Service.NODE_CACHE_TIME_SETTING.get(settings));
 
-        this.bindAnyGroup = DISCOVERY_EC2.ANY_GROUP_SETTING.get(settings);
+        this.bindAnyGroup = AwsEc2Service.ANY_GROUP_SETTING.get(settings);
         this.groups = new HashSet<>();
-        this.groups.addAll(DISCOVERY_EC2.GROUPS_SETTING.get(settings));
+        this.groups.addAll(AwsEc2Service.GROUPS_SETTING.get(settings));
 
-        this.tags = DISCOVERY_EC2.TAG_SETTING.get(settings).getAsMap();
+        this.tags = AwsEc2Service.TAG_SETTING.getAsMap(settings);
 
         this.availabilityZones = new HashSet<>();
-        availabilityZones.addAll(DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING.get(settings));
+        availabilityZones.addAll(AwsEc2Service.AVAILABILITY_ZONES_SETTING.get(settings));
 
         if (logger.isDebugEnabled()) {
             logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags,
@@ -126,8 +125,8 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
                 // lets see if we can filter based on groups
                 if (!groups.isEmpty()) {
                     List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
-                    ArrayList<String> securityGroupNames = new ArrayList<String>();
-                    ArrayList<String> securityGroupIds = new ArrayList<String>();
+                    List<String> securityGroupNames = new ArrayList<>(instanceSecurityGroups.size());
+                    List<String> securityGroupIds = new ArrayList<>(instanceSecurityGroups.size());
                     for (GroupIdentifier sg : instanceSecurityGroups) {
                         securityGroupNames.add(sg.getGroupName());
                         securityGroupIds.add(sg.getGroupId());
@@ -207,7 +206,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
                 new Filter("instance-state-name").withValues("running", "pending")
             );
 
-        for (Map.Entry<String, String> tagFilter : tags.entrySet()) {
+        for (Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values
             describeInstancesRequest.withFilters(
                 new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue())

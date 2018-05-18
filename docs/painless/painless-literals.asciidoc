@@ -1,0 +1,142 @@
+[[painless-literals]]
+=== Literals
+
+Use literals to specify different types of values directly in a script.
+
+[[integers]]
+==== Integers
+
+Use integer literals to specify an integer value in decimal, octal, or hex
+notation of the <<primitive-types, primitive types>> `int`, `long`, `float`,
+or `double`. Use the following single letter designations to specify the
+<<primitive-types, primitive type>>: `l` or `L` for `long`, `f` or `F` for
+`float`, and `d` or `D` for `double`. If not specified, the type defaults to
+`int`.  Use `0` as a prefix to specify an integer literal as octal, and use
+`0x` or `0X` as a prefix to specify an integer literal as hex.
+
+*Grammar*
+[source,ANTLR4]
+----
+INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
+OCTAL:   '-'? '0' [0-7]+ [lL]?;
+HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
+----
+
+*Examples*
+
+* Integer literals.
++
+[source,Painless]
+----
+<1> 0
+<2> 0D
+<3> 1234L
+<4> -90f
+<5> -022
+<6> 0xF2A
+----
++
+<1> `int 0`
+<2> `double 0.0`
+<3> `long 1234`
+<4> `float -90.0`
+<5> `int -18` in octal
+<6> `int 3882` in hex
+
+[[floats]]
+==== Floats
+
+Use floating point literals to specify a floating point value of the
+<<primitive-types, primitive types>> `float` or `double`. Use the following
+single letter designations to specify the <<primitive-types, primitive type>>:
+`f` or `F` for `float` and `d` or `D` for `double`. If not specified, the type defaults
+to `double`.
+
+*Grammar*
+[source,ANTLR4]
+----
+DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? EXPONENT? [fFdD]?;
+EXPONENT: ( [eE] [+\-]? [0-9]+ );
+----
+
+*Examples*
+
+* Floating point literals.
++
+[source,Painless]
+----
+<1> 0.0
+<2> 1E6
+<3> 0.977777
+<4> -126.34
+<5> 89.9F
+----
++
+<1> `double 0.0`
+<2> `double 1000000.0` in exponent notation
+<3> `double 0.977777`
+<4> `double -126.34`
+<5> `float 89.9`
+
+[[strings]]
+==== Strings
+
+Use string literals to specify <<string-type, String>> values with
+either single-quotes or double-quotes. Use a `\"` token to include a
+double-quote as part of a double-quoted string literal. Use a `\'` token to
+include a single-quote as part of a single-quoted string literal.  Use a `\\`
+token to include a backslash as part of any string literal.
+
+*Grammar*
+[source,ANTLR4]
+----
+STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
+      | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
+----
+
+*Examples*
+
+* String literals using single-quotes.
++
+[source,Painless]
+----
+'single-quoted string literal'
+'\'single-quoted with escaped single-quotes\' and backslash \\'
+'single-quoted with non-escaped "double-quotes"'
+----
++
+* String literals using double-quotes.
++
+[source,Painless]
+----
+"double-quoted string literal"
+"\"double-quoted with escaped double-quotes\" and backslash: \\"
+"double-quoted with non-escaped 'single-quotes'"
+----
+
+[[characters]]
+==== Characters
+
+Use the <<painless-casting, casting operator>> to convert string literals or
+<<string-type, String>> values into <<primitive-types, char>> values.
+<<string-type, String>> values converted into
+<<primitive-types, char>> values must be exactly one character in length
+or an error will occur.
+
+*Examples*
+
+* Casting string literals into <<primitive-types, char>> values.
++
+[source,Painless]
+----
+(char)"C"
+(char)'c'
+----
++
+* Casting a <<string-type, String>> value into a <<primitive-types, char>> value.
++
+[source,Painless]
+----
+String s = "s";
+char c = (char)s;
+----

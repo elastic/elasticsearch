@@ -40,6 +40,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,9 +62,9 @@ import static org.hamcrest.core.Is.is;
 
 public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
-    private ExecutorService executorService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
-    private Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();
-    private Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
+    private final ExecutorService executorService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
+    private final Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();
+    private final Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
 
     @After
     public void tearDown() throws Exception {
@@ -86,7 +87,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWithFastSerializedRequests() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(numberOfRequests), new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+            new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + String.valueOf(i)));
@@ -112,7 +114,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(numberOfRequests), new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+            new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + String.valueOf(i)));
@@ -144,7 +147,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final EmbeddedChannel embeddedChannel =
             new EmbeddedChannel(
                 new AggregateUrisAndHeadersHandler(),
-                new HttpPipeliningHandler(numberOfRequests),
+                new HttpPipeliningHandler(logger, numberOfRequests),
                 new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -173,7 +176,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(numberOfRequests), new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+            new WorkEmulatorHandler());
 
         for (int i = 0; i < 1 + numberOfRequests + 1; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + Integer.toString(i)));
@@ -196,6 +200,40 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         embeddedChannel.flush();
 
         assertFalse(embeddedChannel.isOpen());
+    }
+
+    public void testPipeliningRequestsAreReleased() throws InterruptedException {
+        final int numberOfRequests = 10;
+        final EmbeddedChannel embeddedChannel =
+            new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests + 1));
+
+        for (int i = 0; i < numberOfRequests; i++) {
+            embeddedChannel.writeInbound(createHttpRequest("/" + i));
+        }
+
+        HttpPipelinedRequest inbound;
+        ArrayList<HttpPipelinedRequest> requests = new ArrayList<>();
+        while ((inbound = embeddedChannel.readInbound()) != null) {
+            requests.add(inbound);
+        }
+
+        ArrayList<ChannelPromise> promises = new ArrayList<>();
+        for (int i = 1; i < requests.size(); ++i) {
+            final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK);
+            ChannelPromise promise = embeddedChannel.newPromise();
+            promises.add(promise);
+            HttpPipelinedResponse response = requests.get(i).createHttpResponse(httpResponse, promise);
+            embeddedChannel.writeAndFlush(response, promise);
+        }
+
+        for (ChannelPromise promise : promises) {
+            assertFalse(promise.isDone());
+        }
+        embeddedChannel.close().syncUninterruptibly();
+        for (ChannelPromise promise : promises) {
+            assertTrue(promise.isDone());
+            assertTrue(promise.cause() instanceof ClosedChannelException);
+        }
     }
 
 
@@ -255,7 +293,5 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
                 }
             });
         }
-
     }
-
 }

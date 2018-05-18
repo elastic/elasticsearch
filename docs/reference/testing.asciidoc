@@ -3,7 +3,7 @@
 
 [partintro]
 --
-This section is about utilizing elasticsearch as part of your testing infrastructure.
+This section is about utilizing Elasticsearch as part of your testing infrastructure.
 
 [float]
 [[testing-header]]

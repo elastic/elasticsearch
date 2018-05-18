@@ -433,7 +433,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     public void testSliceArrayOffset() throws IOException {
         int length = randomIntBetween(1, PAGE_SIZE * randomIntBetween(2, 5));
-        BytesReference pbr = newBytesReference(length);
+        BytesReference pbr = newBytesReferenceWithOffsetOfZero(length);
         int sliceOffset = randomIntBetween(0, pbr.length() - 1); // an offset to the end would be len 0
         int sliceLength = randomIntBetween(1, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
@@ -466,7 +466,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     public void testSliceToBytesRef() throws IOException {
         int length = randomIntBetween(0, PAGE_SIZE);
-        BytesReference pbr = newBytesReference(length);
+        BytesReference pbr = newBytesReferenceWithOffsetOfZero(length);
         // get a BytesRef from a slice
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
@@ -543,6 +543,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     }
 
     protected abstract BytesReference newBytesReference(int length) throws IOException;
+
+    protected abstract BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException;
 
     public void testCompareTo() throws IOException {
         final int iters = randomIntBetween(5, 10);

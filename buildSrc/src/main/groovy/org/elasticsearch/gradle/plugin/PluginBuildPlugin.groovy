@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import nebula.plugin.info.scm.ScmInfoPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
+import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
@@ -48,7 +50,8 @@ public class PluginBuildPlugin extends BuildPlugin {
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            boolean isModule = project.path.startsWith(':modules:')
+            boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+            boolean isModule = project.path.startsWith(':modules:') || isXPackModule
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
@@ -68,9 +71,13 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule) {
                 project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
+                project.tasks.run.clusterConfig.distribution = 'integ-test-zip'
             } else {
                 project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
+            }
+
+            if (isModule == false || isXPackModule) {
                 addZipPomGeneration(project)
                 addNoticeGeneration(project)
             }
@@ -88,15 +95,15 @@ public class PluginBuildPlugin extends BuildPlugin {
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+            compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
             testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
-            provided "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
-            provided "com.vividsolutions:jts:${project.versions.jts}"
-            provided "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
-            provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            provided "org.elasticsearch:jna:${project.versions.jna}"
+            compileOnly "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
+            compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
+            compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
+            compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
+            compileOnly "org.elasticsearch:jna:${project.versions.jna}"
         }
     }
 
@@ -104,6 +111,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
+        project.integTestCluster.distribution = 'integ-test-zip'
         project.check.dependsOn(integTest)
     }
 
@@ -131,15 +139,12 @@ public class PluginBuildPlugin extends BuildPlugin {
             }
             from pluginMetadata // metadata (eg custom security policy)
             from project.jar // this plugin's jar
-            from project.configurations.runtime - project.configurations.provided // the dep jars
+            from project.configurations.runtime - project.configurations.compileOnly // the dep jars
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {
                 include 'config/**'
                 include 'bin/**'
-            }
-            if (project.path.startsWith(':modules:') == false) {
-                into('elasticsearch')
             }
         }
         project.assemble.dependsOn(bundle)
@@ -217,7 +222,8 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Adds a task to generate a pom file for the zip distribution. */
-    protected void addZipPomGeneration(Project project) {
+    public static void addZipPomGeneration(Project project) {
+        project.plugins.apply(ScmInfoPlugin.class)
         project.plugins.apply(MavenPublishPlugin.class)
 
         project.publishing {
@@ -255,6 +261,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         if (licenseFile != null) {
             project.bundlePlugin.from(licenseFile.parentFile) {
                 include(licenseFile.name)
+                rename { 'LICENSE.txt' }
             }
         }
         File noticeFile = project.pluginProperties.extension.noticeFile

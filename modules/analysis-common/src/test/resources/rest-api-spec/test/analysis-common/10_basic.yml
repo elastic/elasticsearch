@@ -1,0 +1,11 @@
+"Module loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.modules.0.name: analysis-common }

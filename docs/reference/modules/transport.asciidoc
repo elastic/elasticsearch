@@ -12,7 +12,7 @@ that there is no blocking thread waiting for a response. The benefit of
 using asynchronous communication is first solving the
 http://en.wikipedia.org/wiki/C10k_problem[C10k problem], as well as
 being the ideal solution for scatter (broadcast) / gather operations such
-as search in ElasticSearch.
+as search in Elasticsearch.
 
 [float]
 === TCP Transport
@@ -41,7 +41,7 @@ addressable from the outside. Defaults to the actual port assigned via
 |`transport.tcp.connect_timeout` |The socket connect timeout setting (in
 time setting format). Defaults to `30s`.
 
-|`transport.tcp.compress` |Set to `true` to enable compression (LZF)
+|`transport.tcp.compress` |Set to `true` to enable compression (`DEFLATE`)
 between all nodes. Defaults to `false`.
 
 |`transport.ping_schedule` | Schedule a regular ping message to ensure that connections are kept alive. Defaults to `5s` in the transport client and `-1` (disabled) elsewhere.

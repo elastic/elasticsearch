@@ -15,12 +15,60 @@ GET index1,index2/_recovery?human
 
 To see cluster-wide recovery status simply leave out the index names.
 
+//////////////////////////
+
+Here we create a repository and snapshot index1 in
+order to restore it right after and prints out the
+indices recovery result.
+
+[source,js]
+--------------------------------------------------
+# create the index
+PUT index1
+{"settings": {"index.number_of_shards": 1}}
+
+# create the repository
+PUT /_snapshot/my_repository
+{"type": "fs","settings": {"location": "recovery_asciidoc" }}
+
+# snapshot the index
+PUT /_snapshot/my_repository/snap_1?wait_for_completion=true
+
+# delete the index
+DELETE index1
+
+# and restore the snapshot
+POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
+
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshot": {
+    "snapshot": "snap_1",
+    "indices": [
+      "index1"
+    ],
+    "shards": {
+      "total": 1,
+      "failed": 0,
+      "successful": 1
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
 [source,js]
 --------------------------------------------------
 GET /_recovery?human
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
+// TEST[continued]
 
 Response:
 [source,js]
@@ -34,16 +82,20 @@ Response:
       "primary" : true,
       "start_time" : "2014-02-24T12:15:59.716",
       "start_time_in_millis": 1393244159716,
+      "stop_time" : "0s",
+      "stop_time_in_millis" : 0,
       "total_time" : "2.9m",
       "total_time_in_millis" : 175576,
       "source" : {
         "repository" : "my_repository",
         "snapshot" : "my_snapshot",
-        "index" : "index1"
+        "index" : "index1",
+        "version" : "{version}"
       },
       "target" : {
         "id" : "ryqJ5lO5S4-lSFbGntkEkg",
-        "hostname" : "my.fqdn",
+        "host" : "my.fqdn",
+        "transport_address" : "my.fqdn",
         "ip" : "10.0.1.7",
         "name" : "my_es_node"
       },
@@ -64,7 +116,11 @@ Response:
           "percent" : "94.5%"
         },
         "total_time" : "0s",
-        "total_time_in_millis" : 0
+        "total_time_in_millis" : 0,
+        "source_throttle_time" : "0s",
+        "source_throttle_time_in_millis" : 0,
+        "target_throttle_time" : "0s",
+        "target_throttle_time_in_millis" : 0
       },
       "translog" : {
         "recovered" : 0,
@@ -74,7 +130,7 @@ Response:
         "total_time" : "0s",
         "total_time_in_millis" : 0,
       },
-      "start" : {
+      "verify_index" : {
         "check_index_time" : "0s",
         "check_index_time_in_millis" : 0,
         "total_time" : "0s",
@@ -84,7 +140,12 @@ Response:
   }
 }
 --------------------------------------------------
-// We should really assert that this is up to date but that is hard!
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+////
+The TESTRESPONSE above replace all the fields values by the expected ones in the test,
+because we don't really care about the field values but we want to check the fields names.
+////
 
 The above response shows a single index recovering a single shard. In this case, the source of the recovery is a snapshot repository
 and the target of the recovery is the node with name "my_es_node".
@@ -97,6 +158,8 @@ In some cases a higher level of detail may be preferable. Setting "detailed=true
 --------------------------------------------------
 GET _recovery?human&detailed=true
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
 
 Response:
 
@@ -117,13 +180,15 @@ Response:
       "total_time_in_millis" : 2115,
       "source" : {
         "id" : "RGMdRc-yQWWKIBM4DGvwqQ",
-        "hostname" : "my.fqdn",
+        "host" : "my.fqdn",
+        "transport_address" : "my.fqdn",
         "ip" : "10.0.1.7",
         "name" : "my_es_node"
       },
       "target" : {
         "id" : "RGMdRc-yQWWKIBM4DGvwqQ",
-        "hostname" : "my.fqdn",
+        "host" : "my.fqdn",
+        "transport_address" : "my.fqdn",
         "ip" : "10.0.1.7",
         "name" : "my_es_node"
       },
@@ -154,20 +219,27 @@ Response:
             "name" : "segments_2",
             "length" : 251,
             "recovered" : 251
-          },
-           ...
+          }
           ]
         },
         "total_time" : "2ms",
-        "total_time_in_millis" : 2
+        "total_time_in_millis" : 2,
+        "source_throttle_time" : "0s",
+        "source_throttle_time_in_millis" : 0,
+        "target_throttle_time" : "0s",
+        "target_throttle_time_in_millis" : 0
       },
       "translog" : {
         "recovered" : 71,
+        "total" : 0,
+        "percent" : "100.0%",
+        "total_on_start" : 0,
         "total_time" : "2.0s",
         "total_time_in_millis" : 2025
       },
-      "start" : {
+      "verify_index" : {
         "check_index_time" : 0,
+        "check_index_time_in_millis" : 0,
         "total_time" : "88ms",
         "total_time_in_millis" : 88
       }
@@ -175,7 +247,15 @@ Response:
   }
 }
 --------------------------------------------------
-// We should really assert that this is up to date but that is hard!
+// TESTRESPONSE[s/"source" : \{[^}]*\}/"source" : $body.$_path/]
+// TESTRESPONSE[s/"details" : \[[^\]]*\]//]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+////
+The TESTRESPONSE above replace all the fields values by the expected ones in the test,
+because we don't really care about the field values but we want to check the fields names.
+It also removes the "details" part which is important in this doc but really hard to test.
+////
 
 This response shows a detailed listing (truncated for brevity) of the actual files recovered and their sizes.
 

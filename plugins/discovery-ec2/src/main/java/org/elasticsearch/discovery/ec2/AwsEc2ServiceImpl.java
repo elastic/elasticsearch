@@ -69,8 +69,8 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
     protected static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings) {
         AWSCredentialsProvider credentials;
 
-        try (SecureString key = DISCOVERY_EC2.ACCESS_KEY_SETTING.get(settings);
-             SecureString secret = DISCOVERY_EC2.SECRET_KEY_SETTING.get(settings)) {
+        try (SecureString key = ACCESS_KEY_SETTING.get(settings);
+             SecureString secret = SECRET_KEY_SETTING.get(settings)) {
             if (key.length() == 0 && secret.length() == 0) {
                 logger.debug("Using either environment variables, system properties or instance profile credentials");
                 credentials = new DefaultAWSCredentialsProviderChain();
@@ -88,13 +88,13 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
-        clientConfiguration.setProtocol(DISCOVERY_EC2.PROTOCOL_SETTING.get(settings));
+        clientConfiguration.setProtocol(PROTOCOL_SETTING.get(settings));
 
-        if (PROXY_HOST_SETTING.exists(settings) || DISCOVERY_EC2.PROXY_HOST_SETTING.exists(settings)) {
-            String proxyHost = DISCOVERY_EC2.PROXY_HOST_SETTING.get(settings);
-            Integer proxyPort = DISCOVERY_EC2.PROXY_PORT_SETTING.get(settings);
-            try (SecureString proxyUsername = DISCOVERY_EC2.PROXY_USERNAME_SETTING.get(settings);
-                 SecureString proxyPassword = DISCOVERY_EC2.PROXY_PASSWORD_SETTING.get(settings)) {
+        if (PROXY_HOST_SETTING.exists(settings)) {
+            String proxyHost = PROXY_HOST_SETTING.get(settings);
+            Integer proxyPort = PROXY_PORT_SETTING.get(settings);
+            try (SecureString proxyUsername = PROXY_USERNAME_SETTING.get(settings);
+                 SecureString proxyPassword = PROXY_PASSWORD_SETTING.get(settings)) {
 
                 clientConfiguration
                     .withProxyHost(proxyHost)
@@ -121,15 +121,15 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
             10,
             false);
         clientConfiguration.setRetryPolicy(retryPolicy);
-        clientConfiguration.setSocketTimeout((int) DISCOVERY_EC2.READ_TIMEOUT_SETTING.get(settings).millis());
+        clientConfiguration.setSocketTimeout((int) READ_TIMEOUT_SETTING.get(settings).millis());
 
         return clientConfiguration;
     }
 
     protected static String findEndpoint(Logger logger, Settings settings) {
         String endpoint = null;
-        if (DISCOVERY_EC2.ENDPOINT_SETTING.exists(settings) || CLOUD_EC2.ENDPOINT_SETTING.exists(settings)) {
-            endpoint = DISCOVERY_EC2.ENDPOINT_SETTING.get(settings);
+        if (ENDPOINT_SETTING.exists(settings)) {
+            endpoint = ENDPOINT_SETTING.get(settings);
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
         }
         return endpoint;

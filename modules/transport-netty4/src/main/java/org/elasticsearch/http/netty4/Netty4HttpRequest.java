@@ -23,7 +23,6 @@ import io.netty.channel.Channel;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -45,8 +44,45 @@ public class Netty4HttpRequest extends RestRequest {
     private final Channel channel;
     private final BytesReference content;
 
+    /**
+     * Construct a new request.
+     *
+     * @param xContentRegistry the content registry
+     * @param request          the underlying request
+     * @param channel          the channel for the request
+     * @throws BadParameterException      if the parameters can not be decoded
+     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
+     */
     Netty4HttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
         super(xContentRegistry, request.uri(), new HttpHeadersMap(request.headers()));
+        this.request = request;
+        this.channel = channel;
+        if (request.content().isReadable()) {
+            this.content = Netty4Utils.toBytesReference(request.content());
+        } else {
+            this.content = BytesArray.EMPTY;
+        }
+    }
+
+    /**
+     * Construct a new request. In contrast to
+     * {@link Netty4HttpRequest#Netty4HttpRequest(NamedXContentRegistry, Map, String, FullHttpRequest, Channel)}, the URI is not decoded so
+     * this constructor will not throw a {@link BadParameterException}.
+     *
+     * @param xContentRegistry the content registry
+     * @param params           the parameters for the request
+     * @param uri              the path for the request
+     * @param request          the underlying request
+     * @param channel          the channel for the request
+     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
+     */
+    Netty4HttpRequest(
+            final NamedXContentRegistry xContentRegistry,
+            final Map<String, String> params,
+            final String uri,
+            final FullHttpRequest request,
+            final Channel channel) {
+        super(xContentRegistry, params, uri, new HttpHeadersMap(request.headers()));
         this.request = request;
         this.channel = channel;
         if (request.content().isReadable()) {

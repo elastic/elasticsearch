@@ -20,10 +20,9 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.RuntimeClass;
+import org.elasticsearch.painless.Definition.Struct;
 
 import java.lang.invoke.CallSite;
-import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -113,8 +112,8 @@ public final class Def {
     private static final MethodHandle MAP_INDEX_NORMALIZE;
     /** pointer to {@link Def#listIndexNormalize}. */
     private static final MethodHandle LIST_INDEX_NORMALIZE;
-    /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
-    private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
+    /** factory for arraylength MethodHandle (intrinsic) from Java 9 (pkg-private for tests) */
+    static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
     static {
         final Lookup lookup = MethodHandles.publicLookup();
@@ -132,7 +131,7 @@ public final class Def {
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
-        
+
         // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
         // https://bugs.openjdk.java.net/browse/JDK-8156915
         MethodHandle arrayLengthMHFactory;
@@ -150,7 +149,7 @@ public final class Def {
     static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
     }
-    
+
     /** Returns an array length getter MethodHandle for the given array type */
     static MethodHandle arrayLengthGetter(Class<?> arrayType) {
         if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
@@ -186,7 +185,7 @@ public final class Def {
         Definition.MethodKey key = new Definition.MethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.getRuntimeClass(clazz);
+            Struct struct = definition.RuntimeClassToStruct(clazz);
 
             if (struct != null) {
                 Method method = struct.methods.get(key);
@@ -196,7 +195,7 @@ public final class Def {
             }
 
             for (Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getRuntimeClass(iface);
+                struct = definition.RuntimeClassToStruct(iface);
 
                 if (struct != null) {
                     Method method = struct.methods.get(key);
@@ -206,7 +205,7 @@ public final class Def {
                 }
             }
         }
-        
+
         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
                                            "for class [" + receiverClass.getCanonicalName() + "].");
     }
@@ -239,15 +238,15 @@ public final class Def {
          if (recipeString.isEmpty()) {
              return lookupMethodInternal(definition, receiverClass, name, numArguments - 1).handle;
          }
-         
+
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
-         BitSet lambdaArgs = new BitSet();
+         BitSet lambdaArgs = new BitSet(recipeString.length());
          for (int i = 0; i < recipeString.length(); i++) {
              lambdaArgs.set(recipeString.charAt(i));
          }
 
          // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
-         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i). 
+         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i).
          int arity = callSiteType.parameterCount() - 1;
          int upTo = 1;
          for (int i = 1; i < numArguments; i++) {
@@ -257,7 +256,7 @@ public final class Def {
                  arity -= numCaptures;
              }
          }
-         
+
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
          Method method = lookupMethodInternal(definition, receiverClass, name, arity);
@@ -268,7 +267,7 @@ public final class Def {
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if (lambdaArgs.get(i - 1)) {
-                 // decode signature of form 'type.call,2' 
+                 // decode signature of form 'type.call,2'
                  String signature = (String) args[upTo++];
                  int separator = signature.lastIndexOf('.');
                  int separator2 = signature.indexOf(',');
@@ -280,7 +279,7 @@ public final class Def {
                      captures[capture] = callSiteType.parameterType(i + 1 + capture);
                  }
                  MethodHandle filter;
-                 Definition.Type interfaceType = method.arguments.get(i - 1 - replaced);
+                 Definition.Type interfaceType = definition.ClassToType(method.arguments.get(i - 1 - replaced));
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
@@ -313,10 +312,10 @@ public final class Def {
                  replaced += numCaptures;
              }
          }
-         
+
          return handle;
      }
-     
+
      /**
       * Returns an implementation of interfaceClass that calls receiverClass.name
       * <p>
@@ -326,7 +325,7 @@ public final class Def {
     static MethodHandle lookupReference(Definition definition, Lookup lookup, String interfaceClass,
             Class<?> receiverClass, String name) throws Throwable {
          Definition.Type interfaceType = definition.getType(interfaceClass);
-         Method interfaceMethod = interfaceType.struct.getFunctionalMethod();
+         Method interfaceMethod = interfaceType.struct.functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
@@ -335,7 +334,7 @@ public final class Def {
         return lookupReferenceInternal(definition, lookup, interfaceType, implMethod.owner.name,
                 implMethod.name, receiverClass);
      }
-     
+
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
     private static MethodHandle lookupReferenceInternal(Definition definition, Lookup lookup,
             Definition.Type clazz, String type, String call, Class<?>... captures)
@@ -343,7 +342,7 @@ public final class Def {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             Method interfaceMethod = clazz.struct.getFunctionalMethod();
+             Method interfaceMethod = clazz.struct.functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                     "to [" + clazz.name + "], not a functional interface");
@@ -351,47 +350,37 @@ public final class Def {
              int arity = interfaceMethod.arguments.size() + captures.length;
              final MethodHandle handle;
              try {
-                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(), 
-                                                                 getUserFunctionHandleFieldName(call, arity), 
+                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(),
+                                                                 getUserFunctionHandleFieldName(call, arity),
                                                                  MethodHandle.class);
-                 handle = (MethodHandle) accessor.invokeExact();
+                 handle = (MethodHandle)accessor.invokeExact();
              } catch (NoSuchFieldException | IllegalAccessException e) {
                  // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
                  // because the arity does not match the expected interface type.
                  if (call.contains("$")) {
-                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
+                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
                                                         "] in [" + clazz.clazz + "]");
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
-             ref = new FunctionRef(clazz, interfaceMethod, handle, captures.length);
+             ref = new FunctionRef(clazz.clazz, interfaceMethod, call, handle.type(), captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(definition, clazz, type, call, captures.length);
+             ref = new FunctionRef(definition, clazz.clazz, type, call, captures.length);
          }
-         final CallSite callSite;
-         if (ref.needsBridges()) {
-             callSite = LambdaMetafactory.altMetafactory(lookup, 
-                     ref.invokedName, 
-                     ref.invokedType,
-                     ref.samMethodType,
-                     ref.implMethod,
-                     ref.samMethodType,
-                     LambdaMetafactory.FLAG_BRIDGES,
-                     1,
-                     ref.interfaceMethodType);
-         } else {
-             callSite = LambdaMetafactory.altMetafactory(lookup, 
-                     ref.invokedName, 
-                     ref.invokedType,
-                     ref.samMethodType,
-                     ref.implMethod,
-                     ref.samMethodType,
-                     0);
-         }
+         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
+             lookup,
+             ref.interfaceMethodName,
+             ref.factoryMethodType,
+             ref.interfaceMethodType,
+             ref.delegateClassName,
+             ref.delegateInvokeType,
+             ref.delegateMethodName,
+             ref.delegateMethodType
+         );
          return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
      }
-     
+
      /** gets the field name used to lookup up the MethodHandle for a function. */
      public static String getUserFunctionHandleFieldName(String name, int arity) {
          return "handle$" + name + "$" + arity;
@@ -426,7 +415,7 @@ public final class Def {
     static MethodHandle lookupGetter(Definition definition, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.getRuntimeClass(clazz);
+            Struct struct = definition.RuntimeClassToStruct(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -436,7 +425,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getRuntimeClass(iface);
+                struct = definition.RuntimeClassToStruct(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -497,7 +486,7 @@ public final class Def {
     static MethodHandle lookupSetter(Definition definition, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.getRuntimeClass(clazz);
+            Struct struct = definition.RuntimeClassToStruct(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -507,7 +496,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getRuntimeClass(iface);
+                struct = definition.RuntimeClassToStruct(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);
@@ -595,7 +584,7 @@ public final class Def {
         throw new IllegalArgumentException("Attempting to address a non-array type " +
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
     }
-    
+
     /** Helper class for isolating MethodHandles and methods to get iterators over arrays
      * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
      * as they could be, but works.

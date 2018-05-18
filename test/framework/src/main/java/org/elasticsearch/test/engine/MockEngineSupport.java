@@ -19,14 +19,13 @@
 package org.elasticsearch.test.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.engine.MockInternalEngine;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,14 +47,15 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine}
+ * Support class to build MockEngines like {@link MockInternalEngine}
  * since they need to subclass the actual engine
  */
 public final class MockEngineSupport {
 
     /**
-     * Allows tests to wrap an index reader randomly with a given ratio. This is disabled by default ie. <tt>0.0d</tt> since reader wrapping is insanely
-     * slow if {@link org.apache.lucene.index.AssertingDirectoryReader} is used.
+     * Allows tests to wrap an index reader randomly with a given ratio. This
+     * is disabled by default ie. {@code 0.0d} since reader wrapping is insanely
+     * slow if {@link AssertingDirectoryReader} is used.
      */
     public static final Setting<Double> WRAP_READER_RATIO =
         Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, Property.IndexScope);
@@ -133,8 +134,8 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
-        IndexReader reader = searcher.getIndexReader();
+    public AssertingIndexSearcher newSearcher(Engine.Searcher searcher) throws EngineException {
+        IndexReader reader = searcher.reader();
         IndexReader wrappedReader = reader;
         assert reader != null;
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
@@ -142,7 +143,7 @@ public final class MockEngineSupport {
         }
         // this executes basic query checks and asserts that weights are normalized only once etc.
         final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
+        assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity(true));
         assertingIndexSearcher.setQueryCache(filterCache);
         assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
         return assertingIndexSearcher;
@@ -182,9 +183,9 @@ public final class MockEngineSupport {
 
     }
 
-    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher, SearcherManager manager) {
-        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(source, searcher, manager);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
+    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher) {
+        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(engineSearcher);
+        assertingIndexSearcher.setSimilarity(engineSearcher.searcher().getSimilarity(true));
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
         // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
         // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here

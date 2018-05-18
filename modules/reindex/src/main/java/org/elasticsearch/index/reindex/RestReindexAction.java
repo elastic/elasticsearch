@@ -35,13 +35,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -75,8 +74,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (XContentParser innerParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.bytes())) {
-                request.getSearchRequest().source().parseXContent(new QueryParseContext(innerParser));
+            try (InputStream stream = BytesReference.bytes(builder).streamInput();
+                 XContentParser innerParser = parser.contentType().xContent()
+                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)) {
+                request.getSearchRequest().source().parseXContent(innerParser, false);
             }
         };
 
@@ -102,6 +103,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Override
+    public String getName() {
+        return "reindex_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return doPrepareRequest(request, client, true, true);
     }
@@ -109,12 +115,15 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
         if (request.hasParam("pipeline")) {
-            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parmaeter. "
+            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parameter. "
                     + "Specify it in the [dest] object instead.");
         }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser parser = request.contentParser()) {
             PARSER.parse(parser, internal, null);
+        }
+        if (request.hasParam("scroll")) {
+            internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
         return internal;
     }
@@ -204,13 +213,13 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         Object query = source.remove("query");
         if (query == null) {
-            return matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS).bytes();
+            return BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
         }
         if (!(query instanceof Map)) {
             throw new IllegalArgumentException("Expected [query] to be an object but was [" + query + "]");
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) query;
-        return builder.map(map).bytes();
+        return BytesReference.bytes(builder.map(map));
     }
 }

@@ -99,7 +99,7 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
         logger.info("--> create read-only URL repository");
         assertAcked(client.admin().cluster().preparePutRepository("url-repo")
             .setType(URLRepository.TYPE).setSettings(Settings.builder()
-                .put(URLRepository.URL_SETTING.getKey(), repositoryLocation.toUri().toURL())
+                .put(URLRepository.URL_SETTING.getKey(), repositoryLocation.toUri().toURL().toString())
                 .put("list_directories", randomBoolean())));
         logger.info("--> restore index after deletion");
         RestoreSnapshotResponse restoreSnapshotResponse = client

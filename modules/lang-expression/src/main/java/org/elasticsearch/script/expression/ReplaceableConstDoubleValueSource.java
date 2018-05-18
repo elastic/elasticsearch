@@ -22,6 +22,8 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 
 import java.io.IOException;
 
@@ -46,6 +48,14 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
     }
 
     @Override
+    public Explanation explain(LeafReaderContext ctx, int docId, Explanation scoreExplanation) throws IOException {
+        if (fv.advanceExact(docId))
+            return Explanation.match((float)fv.doubleValue(), "ReplaceableConstDoubleValues");
+        else
+            return Explanation.noMatch("ReplaceableConstDoubleValues");
+    }
+
+    @Override
     public boolean equals(Object o) {
         return o == this;
     }
@@ -57,5 +67,20 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
 
     public void setValue(double v) {
         fv.setValue(v);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName();
+    }
+
+    @Override
+    public boolean isCacheable(LeafReaderContext ctx) {
+        return false;
+    }
+
+    @Override
+    public DoubleValuesSource rewrite(IndexSearcher reader) throws IOException {
+        return this;
     }
 }

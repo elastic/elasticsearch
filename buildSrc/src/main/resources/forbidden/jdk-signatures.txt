@@ -107,3 +107,6 @@ java.util.Collections#EMPTY_MAP
 java.util.Collections#EMPTY_SET
 
 java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffle(java.util.List, java.util.Random) with a reproducible source of randomness
+
+@defaultMessage Avoid creating FilePermission objects directly, but use FilePermissionUtils instead
+java.io.FilePermission#<init>(java.lang.String,java.lang.String)

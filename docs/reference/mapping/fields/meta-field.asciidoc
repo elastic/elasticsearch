@@ -1,7 +1,7 @@
 [[mapping-meta-field]]
 === `_meta` field
 
-Each mapping type can have custom meta data associated with it. These are not
+A mapping type can have custom meta data associated with it. These are not
 used at all by Elasticsearch, but can be used to store application-specific
 metadata, such as the class that a document belongs to:
 

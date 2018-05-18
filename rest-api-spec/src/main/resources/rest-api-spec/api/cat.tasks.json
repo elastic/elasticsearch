@@ -24,10 +24,6 @@
           "type": "boolean",
           "description": "Return detailed task information (default: false)"
         },
-        "parent_node": {
-          "type": "string",
-          "description": "Return tasks with specified parent node."
-        },
         "parent_task": {
           "type" : "number",
           "description" : "Return tasks with specified parent task id. Set to -1 to return all."

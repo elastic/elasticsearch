@@ -39,7 +39,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplit() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
-        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false);
+        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false, fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
     }
@@ -47,7 +47,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplitFieldNotFound() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false);
+        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false, fieldName);
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
@@ -59,7 +59,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplitNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("field", null));
-        Processor processor = new SplitProcessor(randomAlphaOfLength(10), "field", "\\.", false);
+        Processor processor = new SplitProcessor(randomAlphaOfLength(10), "field", "\\.", false, "field");
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
@@ -73,7 +73,7 @@ public class SplitProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap(fieldName, null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", true);
+        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", true, fieldName);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -81,7 +81,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplitNonExistentWithIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new SplitProcessor(randomAlphaOfLength(10), "field", "\\.", true);
+        Processor processor = new SplitProcessor(randomAlphaOfLength(10), "field", "\\.", true, "field");
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -90,7 +90,7 @@ public class SplitProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomInt());
-        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false);
+        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false, fieldName);
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
@@ -115,5 +115,14 @@ public class SplitProcessorTests extends ESTestCase {
         ingestDocument.appendFieldValue("flags", "additional_flag");
         assertThat(ingestDocument.getFieldValue("flags", List.class), equalTo(Arrays.asList("new", "hot", "super",
                 "fun", "interesting", "additional_flag")));
+    }
+
+    public void testSplitWithTargetField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
+        String targetFieldName = fieldName + randomAlphaOfLength(5);
+        Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false, targetFieldName);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(targetFieldName, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
     }
 }

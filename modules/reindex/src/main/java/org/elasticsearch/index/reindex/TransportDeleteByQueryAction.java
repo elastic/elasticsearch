@@ -20,12 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.byscroll.AsyncDeleteByQueryAction;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollParallelizationHelper;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
-import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
-import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -57,15 +51,17 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        if (request.getSlices() > 1) {
-            BulkByScrollParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE,
-                    clusterService.localNode().getId(), (ParentBulkByScrollTask) task, request, listener);
-        } else {
-            ClusterState state = clusterService.state();
-            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncDeleteByQueryAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
+        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, DeleteByQueryAction.INSTANCE, listener, client,
+            clusterService.localNode(),
+            () -> {
+                ClusterState state = clusterService.state();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                    bulkByScrollTask);
+                new AsyncDeleteByQueryAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
                     listener).start();
-        }
+            }
+        );
     }
 
     @Override

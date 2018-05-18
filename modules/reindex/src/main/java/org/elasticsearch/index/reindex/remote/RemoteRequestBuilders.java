@@ -19,17 +19,16 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.lucene.util.BytesRef;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -39,32 +38,45 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
-import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
+/**
+ * Builds requests for remote version of Elasticsearch. Note that unlike most of the
+ * rest of Elasticsearch this file needs to be compatible with very old versions of
+ * Elasticsearch. Thus it often uses identifiers for versions like {@code 2000099}
+ * for {@code 2.0.0-alpha1}. Do not drop support for features from this file just
+ * because the version constants have been removed.
+ */
 final class RemoteRequestBuilders {
     private RemoteRequestBuilders() {}
 
-    static String initialSearchPath(SearchRequest searchRequest) {
+    static Request initialSearch(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
         addIndexesOrTypes(path, "Index", searchRequest.indices());
         addIndexesOrTypes(path, "Type", searchRequest.types());
         path.append("_search");
-        return path.toString();
-    }
+        Request request = new Request("POST", path.toString());
 
-    static Map<String, String> initialSearchParams(SearchRequest searchRequest, Version remoteVersion) {
-        Map<String, String> params = new HashMap<>();
         if (searchRequest.scroll() != null) {
-            params.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
+            TimeValue keepAlive = searchRequest.scroll().keepAlive();
+            if (remoteVersion.before(Version.V_5_0_0)) {
+                /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
+                 * so we toss out that resolution, rounding up because more scroll
+                 * timeout seems safer than less. */
+                keepAlive = timeValueMillis((long) Math.ceil(keepAlive.millisFrac()));
+            }
+            request.addParameter("scroll", keepAlive.getStringRep());
         }
-        params.put("size", Integer.toString(searchRequest.source().size()));
+        request.addParameter("size", Integer.toString(searchRequest.source().size()));
         if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
-            // false is the only value that makes it false. Null defaults to true....
-            params.put("version", null);
+            /*
+             * Passing `null` here just add the `version` request parameter
+             * without any value. This way of requesting the version works
+             * for all supported versions of Elasticsearch.
+             */
+            request.addParameter("version", null);
         }
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
@@ -81,18 +93,24 @@ final class RemoteRequestBuilders {
                 }
             }
             if (useScan) {
-                params.put("search_type", "scan");
+                request.addParameter("search_type", "scan");
             } else {
                 StringBuilder sorts = new StringBuilder(sortToUri(searchRequest.source().sorts().get(0)));
                 for (int i = 1; i < searchRequest.source().sorts().size(); i++) {
                     sorts.append(',').append(sortToUri(searchRequest.source().sorts().get(i)));
                 }
-                params.put("sort", sorts.toString());
+                request.addParameter("sort", sorts.toString());
             }
         }
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
+            if (remoteVersion.before(Version.fromId(1000099))) {
+                // Versions before 1.0.0 don't support `"_source": true` so we have to ask for the _source in a funny way.
+                if (false == searchRequest.source().storedFields().fieldNames().contains("_source")) {
+                    searchRequest.source().storedField("_source");
+                }
+            }
         }
         if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().fieldNames().isEmpty()) {
             StringBuilder fields = new StringBuilder(searchRequest.source().storedFields().fieldNames().get(0));
@@ -100,19 +118,18 @@ final class RemoteRequestBuilders {
                 fields.append(',').append(searchRequest.source().storedFields().fieldNames().get(i));
             }
             String storedFieldsParamName = remoteVersion.before(Version.V_5_0_0_alpha4) ? "fields" : "stored_fields";
-            params.put(storedFieldsParamName, fields.toString());
+            request.addParameter(storedFieldsParamName, fields.toString());
         }
-        return params;
-    }
 
-    static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query) {
         // EMPTY is safe here because we're not calling namedObject
         try (XContentBuilder entity = JsonXContent.contentBuilder();
-                XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, query)) {
+                XContentParser queryParser = XContentHelper
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)) {
             entity.startObject();
 
             entity.field("query"); {
-                /* We're intentionally a bit paranoid here - copying the query as xcontent rather than writing a raw field. We don't want
+                /* We're intentionally a bit paranoid here - copying the query
+                 * as xcontent rather than writing a raw field. We don't want
                  * poorly written queries to escape. Ever. */
                 entity.copyCurrentStructure(queryParser);
                 XContentParser.Token shouldBeEof = queryParser.nextToken();
@@ -125,15 +142,18 @@ final class RemoteRequestBuilders {
             if (searchRequest.source().fetchSource() != null) {
                 entity.field("_source", searchRequest.source().fetchSource());
             } else {
-                entity.field("_source", true);
+                if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
+                    // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
+                    entity.field("_source", true);
+                }
             }
 
             entity.endObject();
-            BytesRef bytes = entity.bytes().toBytesRef();
-            return new ByteArrayEntity(bytes.bytes, bytes.offset, bytes.length, ContentType.APPLICATION_JSON);
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("unexpected error building entity", e);
         }
+        return request;
     }
 
     private static void addIndexesOrTypes(StringBuilder path, String name, String[] indicesOrTypes) {
@@ -163,39 +183,50 @@ final class RemoteRequestBuilders {
         throw new IllegalArgumentException("Unsupported sort [" + sort + "]");
     }
 
-    static String scrollPath() {
-        return "/_search/scroll";
-    }
+    static Request scroll(String scroll, TimeValue keepAlive, Version remoteVersion) {
+        Request request = new Request("POST", "/_search/scroll");
 
-    static Map<String, String> scrollParams(TimeValue keepAlive) {
-        return singletonMap("scroll", keepAlive.getStringRep());
-    }
+        if (remoteVersion.before(Version.V_5_0_0)) {
+            /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
+             * so we toss out that resolution, rounding up so we shouldn't end up
+             * with 0s. */
+            keepAlive = timeValueMillis((long) Math.ceil(keepAlive.millisFrac()));
+        }
+        request.addParameter("scroll", keepAlive.getStringRep());
 
-    static HttpEntity scrollEntity(String scroll, Version remoteVersion) {
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            return new StringEntity(scroll, ContentType.TEXT_PLAIN);
+            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
+            return request;
         }
+
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            return new StringEntity(entity.startObject()
-                .field("scroll_id", scroll)
-                .endObject().string(), ContentType.APPLICATION_JSON);
+            entity.startObject()
+                    .field("scroll_id", scroll)
+                .endObject();
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build scroll entity", e);
         }
+        return request;
     }
 
-    static HttpEntity clearScrollEntity(String scroll, Version remoteVersion) {
+    static Request clearScroll(String scroll, Version remoteVersion) {
+        Request request = new Request("DELETE", "/_search/scroll");
+
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            return new StringEntity(scroll, ContentType.TEXT_PLAIN);
+            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
+            return request;
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            return new StringEntity(entity.startObject()
-                .array("scroll_id", scroll)
-                .endObject().string(), ContentType.APPLICATION_JSON);
+            entity.startObject()
+                    .array("scroll_id", scroll)
+                .endObject();
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build clear scroll entity", e);
         }
+        return request;
     }
 }

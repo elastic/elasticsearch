@@ -24,7 +24,7 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.children.Children;
+import org.elasticsearch.join.aggregations.Children;
 --------------------------------------------------
 
 [source,java]

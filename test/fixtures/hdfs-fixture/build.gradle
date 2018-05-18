@@ -20,7 +20,7 @@
 apply plugin: 'elasticsearch.build'
 
 versions << [
-  'hadoop2': '2.7.1'
+  'hadoop2': '2.8.1'
 ]
 
 // we create MiniHdfsCluster with the hadoop artifact

@@ -1,0 +1,43 @@
+---
+"Rendering using {{url}} function":
+
+  - do:
+      render_search_template:
+        body:  >
+          {
+            "source": {
+              "query": {
+                "match": {
+                  "url": "https://localhost:9200/{{#url}}{{index}}{{/url}}/{{#url}}{{type}}{{/url}}/_search"
+                }
+              }
+            },
+            "params": {
+              "index": "<logstash-{now/d-2d}>",
+              "type" : "métriques"
+            }
+          }
+
+  - match: { template_output.query.match.url: "https://localhost:9200/%3Clogstash-%7Bnow%2Fd-2d%7D%3E/m%C3%A9triques/_search" }
+
+---
+"Rendering using {{url}} and {{join}} functions":
+
+  - do:
+      render_search_template:
+        body:  >
+          {
+            "source": {
+              "query": {
+                "match": {
+                  "url": "{{#url}}https://localhost:9200/{{#join}}indices{{/join}}/_stats{{/url}}"
+                }
+              }
+            },
+            "params": {
+              "indices": ["<logstash-{now/d-2d}>", "<logstash-{now/d-1d}>", "<logstash-{now/d}>"]
+            }
+          }
+
+    # Decoded URL is https://localhost:9200/<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_stats
+  - match: { template_output.query.match.url: "https%3A%2F%2Flocalhost%3A9200%2F%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E%2F_stats" }

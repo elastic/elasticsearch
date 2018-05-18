@@ -3,7 +3,7 @@
 
 See {ref}/query-dsl-match-all-query.html[Match All Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = matchAllQuery();
+include-tagged::{query-dsl-test}[match_all]
 --------------------------------------------------

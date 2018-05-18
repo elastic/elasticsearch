@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -91,12 +90,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             assertThat(e.getMessage(), containsString("_version may only be set to an int or a long but was ["));
             assertThat(e.getMessage(), containsString(junkVersion.toString()));
         }
-    }
-
-    public void testSetParent() throws Exception {
-        String parent = randomRealisticUnicodeOfLengthBetween(5, 20);
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_parent", parent));
-        assertEquals(parent, index.parent());
     }
 
     public void testSetRouting() throws Exception {

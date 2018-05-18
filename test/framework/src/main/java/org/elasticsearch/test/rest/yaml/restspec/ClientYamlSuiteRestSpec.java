@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -94,7 +95,8 @@ public class ClientYamlSuiteRestSpec {
 
     private static void parseSpecFile(ClientYamlSuiteRestApiParser restApiParser, Path jsonFile, ClientYamlSuiteRestSpec restSpec) {
         try (InputStream stream = Files.newInputStream(jsonFile)) {
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, stream)) {
+            try (XContentParser parser =
+                     JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                 String filename = jsonFile.getFileName().toString();
                 if (filename.equals("_common.json")) {
                     String currentFieldName = null;

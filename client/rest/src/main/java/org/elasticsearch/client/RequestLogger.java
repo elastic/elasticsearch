@@ -139,11 +139,12 @@ final class RequestLogger {
      * Creates curl output for given response
      */
     static String buildTraceResponse(HttpResponse httpResponse) throws IOException {
-        String responseLine = "# " + httpResponse.getStatusLine().toString();
+        StringBuilder responseLine = new StringBuilder();
+        responseLine.append("# ").append(httpResponse.getStatusLine());
         for (Header header : httpResponse.getAllHeaders()) {
-            responseLine += "\n# " + header.getName() + ": " + header.getValue();
+            responseLine.append("\n# ").append(header.getName()).append(": ").append(header.getValue());
         }
-        responseLine += "\n#";
+        responseLine.append("\n#");
         HttpEntity entity = httpResponse.getEntity();
         if (entity != null) {
             if (entity.isRepeatable() == false) {
@@ -158,11 +159,11 @@ final class RequestLogger {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {
                 String line;
                 while( (line = reader.readLine()) != null) {
-                    responseLine += "\n# " + line;
+                    responseLine.append("\n# ").append(line);
                 }
             }
         }
-        return responseLine;
+        return responseLine.toString();
     }
 
     private static String getUri(RequestLine requestLine) {

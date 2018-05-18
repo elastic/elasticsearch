@@ -36,6 +36,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
@@ -72,9 +73,9 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     @After
@@ -183,7 +184,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         private final ExecutorService executorService;
 
         CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService, ThreadContext threadContext) {
-            super(transport, randomBoolean(), threadContext);
+            super(transport, transport.httpHandlingSettings, threadContext);
             this.executorService = executorService;
         }
 

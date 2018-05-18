@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin'
+  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 dependencies {
@@ -42,8 +42,12 @@ thirdPartyAudit.excludes = [
   'org.slf4j.LoggerFactory',
 ]
 
+check {
+  // also execute the QA tests when testing the plugin
+  dependsOn 'qa:microsoft-azure-storage:check'
+}
+
 integTestCluster {
-  setting 'cloud.azure.storage.my_account_test.account', 'cloudazureresource'
-  setting 'cloud.azure.storage.my_account_test.key', 'abcdefgh'
-  setting 'script.stored', 'true'
+  keystoreSetting 'azure.client.integration_test.account', 'azure_account'
+  keystoreSetting 'azure.client.integration_test.key', 'azure_key'
 }

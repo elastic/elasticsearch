@@ -9,6 +9,7 @@ import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.UnknownElement
 import org.gradle.api.DefaultTask
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTreeElement
 import org.gradle.api.internal.tasks.options.Option
@@ -259,8 +260,13 @@ class RandomizedTestingTask extends DefaultTask {
                     }
                 }
                 for (Map.Entry<String, Object> prop : systemProperties) {
+                    if (prop.getKey().equals('tests.seed')) {
+                        throw new InvalidUserDataException('Seed should be ' +
+                            'set on the project instead of a system property')
+                    }
                     sysproperty key: prop.getKey(), value: prop.getValue().toString()
                 }
+                systemProperty 'tests.seed', project.testSeed
                 for (Map.Entry<String, Object> envvar : environmentVariables) {
                     env key: envvar.getKey(), value: envvar.getValue().toString()
                 }

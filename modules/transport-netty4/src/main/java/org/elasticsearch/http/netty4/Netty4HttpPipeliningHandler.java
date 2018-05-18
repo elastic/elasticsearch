@@ -64,19 +64,18 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
+    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
         assert msg instanceof Netty4HttpResponse : "Message must be type: " + Netty4HttpResponse.class;
         Netty4HttpResponse response = (Netty4HttpResponse) msg;
         boolean success = false;
         try {
             List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
-            success = true;
             for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
                 ctx.write(readyResponse.v1().getResponse(), readyResponse.v2());
             }
+            success = true;
         } catch (IllegalStateException e) {
             ctx.channel().close();
-            Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
         } finally {
             if (success == false) {
                 promise.setFailure(new ClosedChannelException());

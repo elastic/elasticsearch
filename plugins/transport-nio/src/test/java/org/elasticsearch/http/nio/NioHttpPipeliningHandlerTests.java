@@ -69,10 +69,9 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
     private final Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanup() throws Exception {
         waitingRequests.keySet().forEach(this::finishRequest);
         shutdownExecutorService();
-        super.tearDown();
     }
 
     private CountDownLatch finishRequest(String url) {

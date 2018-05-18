@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -118,12 +117,7 @@ public class TransportNodesListGatewayStartedShards extends
     private ShardStateMetaData safelyLoadLatestState(ShardId shardId) throws Exception {
         final IndexShard indexShard = indicesService.getShardOrNull(shardId);
         if (indexShard != null) {
-            try {
-                return indexShard.loadShardStateMetaDataIfOpen(NamedXContentRegistry.EMPTY, nodeEnv.availableShardPaths(shardId));
-            }
-            catch (AlreadyClosedException ignored) {
-                // Ok, fall through to trying to get the shard lock ourselves.
-            }
+            return indexShard.getShardStateMetaData();
         }
 
         try (ShardLock ignored = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5))) {

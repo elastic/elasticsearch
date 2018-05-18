@@ -359,7 +359,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
-            index.parent(mainRequest.getDestination().parent());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             // OpType is synthesized from version so it is handled when we copy version above.
 
@@ -430,14 +429,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 } else {
                     request.setVersion(asLong(to, VersionFieldMapper.NAME));
                 }
-            }
-
-            @Override
-            protected void scriptChangedParent(RequestWrapper<?> request, Object to) {
-                // Have to override routing with parent just in case its changed
-                String routing = Objects.toString(to, null);
-                request.setParent(routing);
-                request.setRouting(routing);
             }
 
             @Override

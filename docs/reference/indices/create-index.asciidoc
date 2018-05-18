@@ -173,3 +173,28 @@ PUT test?wait_for_active_shards=2
 
 A detailed explanation of `wait_for_active_shards` and its possible values can be found
 <<index-wait-for-active-shards,here>>.
+
+[float]
+=== Skipping types
+
+Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
+in requests or responses anymore. You can opt in for this future behaviour by
+setting `include_type_name=false` and putting mappings directly under `mappings`
+in the index creation call.
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT test?include_type_name=false
+{
+  "mappings": {
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE

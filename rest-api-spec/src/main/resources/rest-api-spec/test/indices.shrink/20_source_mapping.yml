@@ -1,8 +1,9 @@
 ---
 "Shrink index ignores target template mapping":
     - skip:
-        version: " - 5.99.99"
-        reason: bug fixed in 5.6.0
+        version: " - 6.3.99"
+        reason: expects warnings that pre-6.4.0 will not send
+        features: "warnings"
 
     - do:
         cluster.state: {}
@@ -19,7 +20,8 @@
             settings:
               # ensure everything is allocated on a single node
               index.routing.allocation.include._id: $master
-              number_of_replicas: 0
+              index.number_of_shards: 2
+              index.number_of_replicas: 0
             mappings:
               test:
                 properties:
@@ -69,6 +71,8 @@
           body:
             settings:
               index.number_of_replicas: 0
+        warnings:
+          - "resize operations without copying settings is deprecated; set parameter [copy_settings] to [true] for future default behavior"
 
     - do:
         cluster.health:

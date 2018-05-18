@@ -53,12 +53,6 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-request-routing]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-request-parent]
---------------------------------------------------
-<1> Parent value
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-request-preference]
 --------------------------------------------------
 <1> Preference value

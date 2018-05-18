@@ -112,7 +112,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-            builder.parseXContent(parser);
+            builder.parseXContent(parser, false);
             builder.explain(searchTemplateRequest.isExplain());
             builder.profile(searchTemplateRequest.isProfile());
             searchRequest.source(builder);

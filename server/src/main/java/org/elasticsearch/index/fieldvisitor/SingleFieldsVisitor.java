@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 
@@ -41,11 +40,6 @@ public class SingleFieldsVisitor extends FieldsVisitor {
         if (fieldInfo.name.equals(field)) {
             return Status.YES;
         }
-        if (fieldInfo.name.equals(UidFieldMapper.NAME)) {
-            if (TypeFieldMapper.NAME.equals(field) || IdFieldMapper.NAME.equals(field)) {
-                return Status.YES;
-            }
-        }
         return Status.NO;
     }
 
@@ -62,9 +56,6 @@ public class SingleFieldsVisitor extends FieldsVisitor {
         }
         if (type != null) {
             addValue(TypeFieldMapper.NAME, type);
-        }
-        if (type != null && id != null) {
-            addValue(UidFieldMapper.NAME, Uid.createUid(type, id));
         }
     }
 }

@@ -49,13 +49,22 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -63,15 +72,25 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractRawValues;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -183,6 +202,108 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetSettings() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+
+        updateIndexSettings(indexName, Settings.builder().put("refresh_interval", "30s"));
+
+        GetSettingsResponse updatedResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+        assertEquals("30s", updatedResponse.getSetting(indexName, "index.refresh_interval"));
+    }
+
+    public void testGetSettingsNonExistentIndex() throws IOException {
+        String nonExistentIndex = "index_that_doesnt_exist";
+        assertFalse(indexExists(nonExistentIndex));
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(nonExistentIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> execute(getSettingsRequest, highLevelClient().indices()::getSettings, highLevelClient().indices()::getSettingsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testGetSettingsFromMultipleIndices() throws IOException {
+        String indexName1 = "get_multiple_settings_one";
+        createIndex(indexName1, Settings.builder().put("number_of_shards", 2).build());
+
+        String indexName2 = "get_multiple_settings_two";
+        createIndex(indexName2, Settings.builder().put("number_of_shards", 3).build());
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("get_multiple_settings*");
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertEquals("2", getSettingsResponse.getSetting(indexName1, "index.number_of_shards"));
+        assertEquals("3", getSettingsResponse.getSetting(indexName2, "index.number_of_shards"));
+    }
+
+    public void testGetSettingsFiltered() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName).names("index.number_of_shards");
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_replicas"));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+        assertEquals(1, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
+    }
+
+    public void testGetSettingsWithDefaults() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").getAsTime("index.refresh_interval", null));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+    }
+
+    public void testGetSettingsWithDefaultsFiltered() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
+            .indices(indexName)
+            .names("index.refresh_interval")
+            .includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_replicas"));
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+        assertEquals(0, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
+        assertEquals(1, getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").size());
+    }
     public void testPutMapping() throws IOException {
         {
             // Add mappings to index
@@ -608,5 +729,153 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
+    }
+
+    public void testIndexPutSettings() throws IOException {
+
+        final Setting<Integer> dynamicSetting = IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING;
+        final String dynamicSettingKey = IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+        final int dynamicSettingValue = 0;
+
+        final Setting<String> staticSetting = IndexSettings.INDEX_CHECK_ON_STARTUP;
+        final String staticSettingKey = IndexSettings.INDEX_CHECK_ON_STARTUP.getKey();
+        final String staticSettingValue = "true";
+
+        final Setting<Integer> unmodifiableSetting = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
+        final String unmodifiableSettingKey = IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+        final int unmodifiableSettingValue = 3;
+
+        String index = "index";
+        createIndex(index, Settings.EMPTY);
+
+        assertThat(dynamicSetting.getDefault(Settings.EMPTY), not(dynamicSettingValue));
+        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest();
+        dynamicSettingRequest.settings(Settings.builder().put(dynamicSettingKey, dynamicSettingValue).build());
+        UpdateSettingsResponse response = execute(dynamicSettingRequest, highLevelClient().indices()::putSettings,
+                highLevelClient().indices()::putSettingsAsync);
+
+        assertTrue(response.isAcknowledged());
+        Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(index);
+        assertThat(indexSettingsAsMap.get(dynamicSettingKey), equalTo(String.valueOf(dynamicSettingValue)));
+
+        assertThat(staticSetting.getDefault(Settings.EMPTY), not(staticSettingValue));
+        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest();
+        staticSettingRequest.settings(Settings.builder().put(staticSettingKey, staticSettingValue).build());
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(staticSettingRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.getMessage(),
+                startsWith("Elasticsearch exception [type=illegal_argument_exception, "
+                        + "reason=Can't update non dynamic settings [[index.shard.check_on_startup]] for open indices [[index/"));
+
+        indexSettingsAsMap = getIndexSettingsAsMap(index);
+        assertNull(indexSettingsAsMap.get(staticSettingKey));
+
+        closeIndex(index);
+        response = execute(staticSettingRequest, highLevelClient().indices()::putSettings,
+                highLevelClient().indices()::putSettingsAsync);
+        assertTrue(response.isAcknowledged());
+        openIndex(index);
+        indexSettingsAsMap = getIndexSettingsAsMap(index);
+        assertThat(indexSettingsAsMap.get(staticSettingKey), equalTo(staticSettingValue));
+
+        assertThat(unmodifiableSetting.getDefault(Settings.EMPTY), not(unmodifiableSettingValue));
+        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest();
+        unmodifiableSettingRequest.settings(Settings.builder().put(unmodifiableSettingKey, unmodifiableSettingValue).build());
+        exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.getMessage(), startsWith(
+                "Elasticsearch exception [type=illegal_argument_exception, "
+                + "reason=Can't update non dynamic settings [[index.number_of_shards]] for open indices [[index/"));
+        closeIndex(index);
+        exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.getMessage(), startsWith(
+                "Elasticsearch exception [type=illegal_argument_exception, "
+                + "reason=final index setting [index.number_of_shards], not updateable"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexSettings(index);
+        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
+    }
+
+    public void testIndexPutSettingNonExistent() throws IOException {
+
+        String index = "index";
+        UpdateSettingsRequest indexUpdateSettingsRequest = new UpdateSettingsRequest(index);
+        String setting = "no_idea_what_you_are_talking_about";
+        int value = 10;
+        indexUpdateSettingsRequest.settings(Settings.builder().put(setting, value).build());
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+
+        createIndex(index, Settings.EMPTY);
+        exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), equalTo(
+                "Elasticsearch exception [type=illegal_argument_exception, "
+                + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
+                + "or check the breaking changes documentation for removed settings]"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutTemplate() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
+            .name("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("doc", "host_name", "type=keyword", "description", "type=text")
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        PutIndexTemplateResponse putTemplateResponse = execute(putTemplateRequest,
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
+
+        Map<String, Object> templates = getAsMap("/_template/my-template");
+        assertThat(templates.keySet(), hasSize(1));
+        assertThat(extractValue("my-template.order", templates), equalTo(10));
+        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
+        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
+        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
+        assertThat(extractValue("my-template.mappings.doc.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.doc.properties.description.type", templates), equalTo("text"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+    }
+
+    public void testPutTemplateBadRequests() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // Failed to validate because index patterns are missing
+        PutIndexTemplateRequest withoutPattern = new PutIndexTemplateRequest("t1");
+        ValidationException withoutPatternError = expectThrows(ValidationException.class,
+            () -> execute(withoutPattern, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(withoutPatternError.validationErrors(), contains("index patterns are missing"));
+
+        // Create-only specified but an template exists already
+        PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2").patterns(Arrays.asList("qa-*", "prod-*"));
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+        goodTemplate.create(true);
+        ElasticsearchException alreadyExistsError = expectThrows(ElasticsearchException.class,
+            () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(alreadyExistsError.getDetailedMessage(),
+            containsString("[type=illegal_argument_exception, reason=index_template [t2] already exists]"));
+        goodTemplate.create(false);
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+
+        // Rejected due to unknown settings
+        PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3")
+            .patterns(Collections.singletonList("any"))
+            .settings(Settings.builder().put("this-setting-does-not-exist", 100));
+        ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
     }
 }

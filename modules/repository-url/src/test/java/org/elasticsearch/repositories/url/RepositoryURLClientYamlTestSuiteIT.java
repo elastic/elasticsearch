@@ -26,6 +26,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,6 +39,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -72,17 +75,21 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
         Map<String, Object> clusterSettings = entityAsMap(clusterSettingsResponse);
 
         @SuppressWarnings("unchecked")
-        List<String> pathRepo = (List<String>) XContentMapValues.extractValue("defaults.path.repo", clusterSettings);
-        assertThat(pathRepo, hasSize(1));
+        List<String> pathRepos = (List<String>) XContentMapValues.extractValue("defaults.path.repo", clusterSettings);
+        assertThat(pathRepos, notNullValue());
+        assertThat(pathRepos, hasSize(1));
+
+        final String pathRepo = pathRepos.get(0);
+        final URI pathRepoUri = PathUtils.get(pathRepo).toUri().normalize();
 
         // Create a FS repository using the path.repo location
         Response createFsRepositoryResponse = client().performRequest("PUT", "_snapshot/repository-fs", emptyMap(),
-            buildRepositorySettings(FsRepository.TYPE, Settings.builder().put("location", pathRepo.get(0)).build()));
+            buildRepositorySettings(FsRepository.TYPE, Settings.builder().put("location", pathRepo).build()));
         assertThat(createFsRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         // Create a URL repository using the file://{path.repo} URL
         Response createFileRepositoryResponse = client().performRequest("PUT", "_snapshot/repository-file", emptyMap(),
-            buildRepositorySettings(URLRepository.TYPE, Settings.builder().put("url", "file://" + pathRepo.get(0)).build()));
+            buildRepositorySettings(URLRepository.TYPE, Settings.builder().put("url", pathRepoUri.toString()).build()));
         assertThat(createFileRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         // Create a URL repository using the http://{fixture} URL

@@ -498,6 +498,13 @@ will contain your change.
 . Push both branches to your remote repository.
 . Run the tests with `./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec.5.x=index_req_bwc_5.x`.
 
+== Skip fetching latest
+
+For some BWC testing scenarios, you want to use the local clone of the
+repository without fetching latest. For these use cases, you can set the system
+property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip
+fetching the latest from the remote.
+
 == Test coverage analysis
 
 Generating test coverage reports for Elasticsearch is currently not possible through Gradle.

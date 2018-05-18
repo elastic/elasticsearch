@@ -286,7 +286,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
-                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE));
+                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE,
+                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP));
     }
 
     public Settings additionalSettings() {
@@ -402,6 +403,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it
         new InvalidLicenseEnforcer(settings, getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+
+        // run node startup tasks
+        autodetectProcessManager.onNodeStartup();
 
         return Arrays.asList(
                 mlLifeCycleService,

@@ -93,20 +93,6 @@ public class GeoDistanceTests extends ESTestCase {
         }
     }
 
-    public void testWriteToSerializationBWC53() throws Exception {
-        GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_5_3_0, Version.V_5_3_2));
-            geoDistance.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(out.getVersion());
-                int ord = in.readVInt();
-                assertThat(ord, isIn(Arrays.asList(0, 1)));
-                assertThat(in.read(), equalTo(-1));
-            }
-        }
-    }
-
     public void testWriteToSerializationBWC52() throws Exception {
         GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
         try (BytesStreamOutput out = new BytesStreamOutput()) {

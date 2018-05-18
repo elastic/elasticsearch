@@ -22,3 +22,6 @@ esplugin {
   classname 'org.elasticsearch.join.ParentJoinPlugin'
   hasClientJar = true
 }
+test.configure {
+  systemProperty 'es.script.null_for_missing_value', 'true'
+}

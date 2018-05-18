@@ -280,8 +280,8 @@ POST /_aliases
 // CONSOLE
 // TEST[s/^/PUT test\nPUT test2\n/]
 
-In this example, we associate the alias `alias1` to both `test1` and `test2`, where
-`test1` will be the index chosen for writing to.
+In this example, we associate the alias `alias1` to both `test` and `test2`, where
+`test` will be the index chosen for writing to.
 
 [source,js]
 --------------------------------------------------
@@ -294,11 +294,11 @@ PUT /alias1/_doc/1
 // TEST[continued]
 
 The new document that was indexed to `/alias1/_doc/1` will be indexed as if it were
-`/test1/_doc/1`.
+`/test/_doc/1`.
 
 [source,js]
 --------------------------------------------------
-GET /test1/_doc/1
+GET /test/_doc/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -484,7 +484,8 @@ Response:
          "term" : {
            "year" : 2016
          }
-       }
+       },
+       "is_write_index": true
      }
    }
  }
@@ -513,7 +514,8 @@ Response:
           "term" : {
             "year" : 2016
           }
-        }
+        },
+        "is_write_index": true
       }
     }
   }
@@ -542,7 +544,8 @@ Response:
           "term" : {
             "year" : 2016
           }
-        }
+        },
+        "is_write_index": true
       }
     }
   }

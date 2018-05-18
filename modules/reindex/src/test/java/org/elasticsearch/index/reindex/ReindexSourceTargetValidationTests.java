@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests source and target index validation of reindex. Mostly that means testing that indexing from an index back into itself fails the
@@ -80,10 +81,8 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testTargetIsAlias() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_multi", "foo"));
-        assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
-        // The index names can come in either order
-        assertThat(e.getMessage(), containsString("target"));
-        assertThat(e.getMessage(), containsString("target2"));
+        assertThat(e.getMessage(),
+            equalTo("Alias [target_multi] points to multiple indices with none set as a write-index [is_write_index=true]"));
     }
 
     public void testRemoteInfoSkipsValidation() {

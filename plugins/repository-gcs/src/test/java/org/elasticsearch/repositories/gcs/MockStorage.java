@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * {@link MockStorage} mocks a {@link Storage} client by storing all the blobs
@@ -113,7 +114,14 @@ class MockStorage implements Storage {
         if (bucketName.equals(blobInfo.getBucket()) == false) {
             throw new StorageException(404, "Bucket not found");
         }
-        blobs.put(blobInfo.getName(), content);
+        if (Stream.of(options).anyMatch(option -> option.equals(BlobTargetOption.doesNotExist()))) {
+            byte[] existingBytes = blobs.putIfAbsent(blobInfo.getName(), content);
+            if (existingBytes != null) {
+                throw new StorageException(412, "Blob already exists");
+            }
+        } else {
+            blobs.put(blobInfo.getName(), content);
+        }
         return get(BlobId.of(blobInfo.getBucket(), blobInfo.getName()));
     }
 
@@ -243,9 +251,16 @@ class MockStorage implements Storage {
                 }
 
                 @Override
-                public void close() throws IOException {
+                public void close() {
                     IOUtils.closeWhileHandlingException(writableByteChannel);
-                    blobs.put(blobInfo.getName(), output.toByteArray());
+                    if (Stream.of(options).anyMatch(option -> option.equals(BlobWriteOption.doesNotExist()))) {
+                        byte[] existingBytes = blobs.putIfAbsent(blobInfo.getName(), output.toByteArray());
+                        if (existingBytes != null) {
+                            throw new StorageException(412, "Blob already exists");
+                        }
+                    } else {
+                        blobs.put(blobInfo.getName(), output.toByteArray());
+                    }
                 }
             };
         }

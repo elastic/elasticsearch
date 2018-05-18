@@ -59,17 +59,27 @@ public class ClientYamlTestClient {
     private final ClientYamlSuiteRestSpec restSpec;
     protected final RestClient restClient;
     private final Version esVersion;
+    private final Version masterVersion;
 
-    public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
-                                Version esVersion) throws IOException {
+    public ClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClient = restClient;
         this.esVersion = esVersion;
+        this.masterVersion = masterVersion;
     }
 
     public Version getEsVersion() {
         return esVersion;
+    }
+
+    public Version getMasterVersion() {
+        return masterVersion;
     }
 
     /**

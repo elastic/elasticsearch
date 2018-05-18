@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.nio;
 
 import java.util.function.BiConsumer;
@@ -24,11 +23,14 @@ import java.util.function.BiConsumer;
 /**
  * This is a basic write operation that can be queued with a channel. The only requirements of a write
  * operation is that is has a listener and a reference to its channel. The actual conversion of the write
- * operation implementation to bytes will be performed by the {@link SocketChannelContext}.
+ * operation implementation to bytes will be performed by the {@link ReadWriteHandler}.
  */
 public interface WriteOperation {
 
     BiConsumer<Void, Throwable> getListener();
 
     SocketChannelContext getChannel();
+
+    Object getObject();
+
 }

@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ip-filtering]]
-== Restricting Connections with IP Filtering
+== Restricting connections with IP filtering
 
 You can apply IP filtering to application clients, node clients, or transport
 clients, in addition to other nodes that are attempting to join the cluster.
@@ -92,7 +93,7 @@ transport.profiles.client.xpack.security.filter.deny: _all
 NOTE: When you do not specify a profile, `default` is used automatically.
 
 [float]
-=== HTTP Filtering
+=== HTTP filtering
 
 You may want to have different IP filtering for the transport and HTTP protocols.
 
@@ -106,7 +107,7 @@ xpack.security.http.filter.deny: _all
 
 [float]
 [[dynamic-ip-filtering]]
-==== Dynamically updating ip filter settings
+==== Dynamically updating IP filter settings
 
 In case of running in an environment with highly dynamic IP addresses like cloud
 based hosting, it is very hard to know the IP addresses upfront when provisioning

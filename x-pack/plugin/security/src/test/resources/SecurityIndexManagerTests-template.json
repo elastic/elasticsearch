@@ -1,5 +1,5 @@
 {
-  "index_patterns": "IndexLifeCycleManagerTests",
+  "index_patterns": ".security",
   "mappings": {
     "doc": {
       "_meta": {

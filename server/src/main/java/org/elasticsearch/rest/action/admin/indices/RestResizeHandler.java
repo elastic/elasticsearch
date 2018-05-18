@@ -51,18 +51,16 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         final Boolean copySettings;
         if (rawCopySettings == null) {
             copySettings = resizeRequest.getCopySettings();
-        } else if (rawCopySettings.isEmpty()) {
-            copySettings = true;
         } else {
-            copySettings = Booleans.parseBoolean(rawCopySettings);
-            if (copySettings == false) {
-                throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
+            if (rawCopySettings.isEmpty()) {
+                copySettings = true;
+            } else {
+                copySettings = Booleans.parseBoolean(rawCopySettings);
+                if (copySettings == false) {
+                    throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
+                }
             }
-        }
-        if (copySettings == null) {
-            deprecationLogger.deprecated(
-                    "resize operations without copying settings is deprecated; "
-                            + "set parameter [copy_settings] to [true] for future default behavior");
+            deprecationLogger.deprecated("parameter [copy_settings] is deprecated and will be removed in 8.0.0");
         }
         resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);

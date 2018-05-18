@@ -2,6 +2,25 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 subprojects { Project subproj ->
+  subproj.ext {
+    String bwcFlavor = System.getProperty('bwcFlavor')
+    switch (bwcFlavor) {
+    case 'oss':
+      runOssUpgrades = true;
+      runDefaultUpgrades = false;
+      break;
+    case 'default':
+      runOssUpgrades = false;
+      runDefaultUpgrades = true;
+      break;
+    case null:
+      runOssUpgrades = true;
+      runDefaultUpgrades = true;
+      break;
+    default:
+      throw new InvalidUserDataException("Unknown bwc flavor ${bwcFlavor}")
+    }
+  }
   subproj.tasks.withType(RestIntegTestTask) {
     subproj.extensions.configure("${it.name}Cluster") { cluster ->
       cluster.distribution = System.getProperty('tests.distribution', 'oss-zip')

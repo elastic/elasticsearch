@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -51,23 +50,16 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
 
     private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
     private RestStatus status = RestStatus.OK;
-    private String errorMsg = "";
+    private String errorMessage;
 
-    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases, RestStatus status, String errorMsg) {
+    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases, RestStatus status, String errorMessage) {
         this.aliases = aliases;
-        if (status == null) {
-            this.status = RestStatus.OK;
-        }
-        this.status = status;
-        if (errorMsg == null) {
-            this.errorMsg = "";
-        } else {
-            this.errorMsg = errorMsg;
-        }
+        this.status = status == null ? RestStatus.OK : status;
+        this.errorMessage = errorMessage;
     }
 
     public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
-        this(aliases, RestStatus.OK, "");
+        this(aliases, RestStatus.OK, null);
     }
 
     GetAliasesResponse() {
@@ -82,13 +74,13 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         return aliases;
     }
 
-    public String errorMsg() {
-        return errorMsg;
+    public String errorMessage() {
+        return errorMessage;
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true) + ", status:" + status + ", errorMsg:\"" + errorMsg + "\"";
+        return Strings.toString(this, true, true);
     }
 
     @Override
@@ -107,10 +99,10 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         }
         aliases = aliasesBuilder.build();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            // if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            // if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            status = RestStatus.fromCode(in.readInt());
             if (in.readBoolean()) {
-                status = RestStatus.fromCode(in.readInt());
-                errorMsg = in.readString();
+                errorMessage = in.readString();
             }
         }
     }
@@ -127,11 +119,11 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            // if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            if (status != RestStatus.OK) {
+            // if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeInt(status.getStatus());
+            if (null != errorMessage) {
                 out.writeBoolean(true);
-                out.writeInt(status.getStatus());
-                out.writeString(errorMsg);
+                out.writeString(errorMessage);
             } else {
                 out.writeBoolean(false);
             }
@@ -149,15 +141,15 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         GetAliasesResponse that = (GetAliasesResponse) o;
         return Objects.equals(fromListAliasesToSet(aliases), fromListAliasesToSet(that.aliases))
                 && Objects.equals(status, that.status)
-                && Objects.equals(errorMsg, that.errorMsg);
+                && Objects.equals(errorMessage, that.errorMessage);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fromListAliasesToSet(aliases), status, errorMsg);
+        return Objects.hash(fromListAliasesToSet(aliases), status, errorMessage);
     }
 
-    private ImmutableOpenMap<String, Set<AliasMetaData>> fromListAliasesToSet(ImmutableOpenMap<String, List<AliasMetaData>> list) {
+    private static ImmutableOpenMap<String, Set<AliasMetaData>> fromListAliasesToSet(ImmutableOpenMap<String, List<AliasMetaData>> list) {
         ImmutableOpenMap.Builder<String, Set<AliasMetaData>> builder = ImmutableOpenMap.builder();
         list.forEach(e -> builder.put(e.key, new HashSet<>(e.value)));
         return builder.build();
@@ -182,12 +174,12 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         builder.startObject();
         {
             if (status != null && RestStatus.OK != status) {
-                builder.field("error", errorMsg);
+                builder.field("error", errorMessage);
                 builder.field("status", status.getStatus());
             }
 
             for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
-                if (namesProvided == false || indicesToDisplay.contains(entry.key)) {
+                if (false == namesProvided || indicesToDisplay.contains(entry.key)) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
@@ -215,11 +207,10 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
 
         String currentFieldName;
         Token token;
-        String exceptionMsg = null;
+        String exceptionMessage = null;
         RestStatus status = RestStatus.OK;
-        ElasticsearchException exception = null;
 
-        while ((token = parser.nextToken()) != Token.END_OBJECT) {
+        while (parser.nextToken() != Token.END_OBJECT) {
             if (parser.currentToken() == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
 
@@ -231,10 +222,10 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 } else if ("error".equals(currentFieldName)) {
                     if ((token = parser.nextToken()) != Token.FIELD_NAME) {
                         if (token == Token.VALUE_STRING) {
-                            exceptionMsg = parser.text();
+                            exceptionMessage = parser.text();
                         } else if (token == Token.START_OBJECT) {
-                            token = parser.nextToken();
-                            exception = ElasticsearchException.innerFromXContent(parser, true);
+                            parser.nextToken();
+                            exceptionMessage = ElasticsearchException.innerFromXContent(parser, true).getMessage();
                         }
                     }
                 } else {
@@ -246,15 +237,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 }
             }
         }
-        if (exception != null) {
-            throw new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
-        }
-        if (RestStatus.OK != status && aliasesBuilder.isEmpty()) {
-            throw new ElasticsearchStatusException(exceptionMsg, status);
-        }
-        GetAliasesResponse getAliasesResponse = new GetAliasesResponse(aliasesBuilder.build(), status, exceptionMsg);
-
-        return getAliasesResponse;
+        return new GetAliasesResponse(aliasesBuilder.build(), status, exceptionMessage);
     }
 
     private static List<AliasMetaData> parseAliases(XContentParser parser) throws IOException {

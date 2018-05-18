@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
@@ -45,12 +43,7 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
 
     @Override
     protected GetAliasesResponse doParseInstance(XContentParser parser) throws IOException {
-        try {
-            return GetAliasesResponse.fromXContent(parser);
-        } catch (ElasticsearchStatusException e) {
-            ImmutableOpenMap.Builder<String, List<AliasMetaData>> builder = ImmutableOpenMap.builder();
-            return new GetAliasesResponse(builder.build(), e.status(), e.getMessage());
-        }
+        return GetAliasesResponse.fromXContent(parser);
     }
 
     @Override
@@ -67,19 +60,18 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
     protected GetAliasesResponse mutateInstance(GetAliasesResponse response) {
         switch (randomInt(2)) {
         case 0:
-            return new GetAliasesResponse(mutateAliases(response.getAliases()), response.status(), response.errorMsg());
+            return new GetAliasesResponse(mutateAliases(response.getAliases()), response.status(), response.errorMessage());
         case 1:
             return new GetAliasesResponse(response.getAliases(),
-                    randomValueOtherThan(response.status(), () -> randomFrom(RestStatus.values())), response.errorMsg());
+                    randomValueOtherThan(response.status(), () -> randomFrom(RestStatus.values())), response.errorMessage());
         case 2:
             if (response.status() == RestStatus.OK) {
                 return new GetAliasesResponse(response.getAliases(),
-                        randomValueOtherThan(response.status(), () -> randomFrom(RestStatus.values())), randomAlphaOfLengthBetween(0, 100));
+                        randomValueOtherThan(response.status(), () -> randomFrom(RestStatus.values())), randomAlphaOfLengthBetween(5, 100));
             }
             return new GetAliasesResponse(response.getAliases(), response.status(), randomAlphaOfLengthBetween(5, 100));
         default:
-            assert false;
-            return null;
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -128,10 +120,10 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
     }
 
     private static GetAliasesResponse createTestItem() {
-        RestStatus status = randomFrom(RestStatus.values());
-        // only if the status is not OK, then there is an error msg in the response body
-        String errorMsg = RestStatus.OK == status ? (randomBoolean() ? null : "") : randomAlphaOfLengthBetween(0, 10);
-        return new GetAliasesResponse(createIndicesAliasesMap(0, 0).build(), status, errorMsg);
+        RestStatus status = randomFrom(/*RestStatus.OK, */RestStatus.NOT_FOUND);
+        // only if the status is not OK, then there is an error message/exception in the response body
+        String errorMessage = RestStatus.OK == status ? null : randomAlphaOfLengthBetween(5, 10);
+        return new GetAliasesResponse(createIndicesAliasesMap(1, 5).build(), status, errorMessage);
     }
 
     private static ImmutableOpenMap.Builder<String, List<AliasMetaData>> createIndicesAliasesMap(int min, int max) {
@@ -194,14 +186,15 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
                 "  }\n" +
                 " }\n" +
                 "}";
+        final String index = "index";
         XContentParser parser = createParser(JsonXContent.jsonXContent, xContent);
         GetAliasesResponse response = GetAliasesResponse.fromXContent(parser);
         assertThat(response.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(response.errorMsg(), equalTo("alias [something] missing"));
+        assertThat(response.errorMessage(), equalTo("alias [something] missing"));
         assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("index").size(), equalTo(1));
-        assertThat(response.getAliases().get("index").get(0), notNullValue());
-        assertThat(response.getAliases().get("index").get(0).alias(), equalTo("alias"));
+        assertThat(response.getAliases().get(index).size(), equalTo(1));
+        assertThat(response.getAliases().get(index).get(0), notNullValue());
+        assertThat(response.getAliases().get(index).get(0).alias(), equalTo("alias"));
     }
 
     public void testFromXContentWithElasticsearchException() throws IOException {
@@ -228,10 +221,12 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
                 "  \"status\": 404\n" +
                 "}";
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, xContent);
-        ElasticsearchException expectThrows = expectThrows(ElasticsearchException.class, () -> GetAliasesResponse.fromXContent(parser));
-        assertThat(expectThrows.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(expectThrows.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            GetAliasesResponse getAliasesResponse = GetAliasesResponse.fromXContent(parser);
+            assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
+            assertThat(getAliasesResponse.errorMessage(),
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        }
     }
 
     public void testFromXContentWithNoAliasFound() throws IOException {
@@ -240,10 +235,11 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
                 "  \"error\": \"alias [aa] missing\",\n" +
                 "  \"status\": 404\n" +
                 "}";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, xContent);
-        ElasticsearchException expectThrows = expectThrows(ElasticsearchException.class, () -> GetAliasesResponse.fromXContent(parser));
-        assertThat(expectThrows.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(expectThrows.getMessage(), equalTo("alias [aa] missing"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            GetAliasesResponse getAliasesResponse = GetAliasesResponse.fromXContent(parser);
+            assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
+            assertThat(getAliasesResponse.errorMessage(), equalTo("alias [aa] missing"));
+        }
     }
 
 }

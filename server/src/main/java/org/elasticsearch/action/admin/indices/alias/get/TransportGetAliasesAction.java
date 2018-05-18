@@ -78,8 +78,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
 
-        SetOnce<String> message = new SetOnce<>();
-        SetOnce<RestStatus> status = new SetOnce<>();
+        String message = null;
+        RestStatus status = RestStatus.OK;
         if (false == Strings.isAllOrWildcard(request.aliases())) {
             String[] aliasesNames = Strings.EMPTY_ARRAY;
 
@@ -113,21 +113,15 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
             difference.removeAll(matches);
             if (false == difference.isEmpty()) {
-                status.set(RestStatus.NOT_FOUND);
+                status = RestStatus.NOT_FOUND;
                 if (difference.size() == 1) {
-                    message.set(String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next())));
+                    message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
                 } else {
-                    message.set(String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0]))));
+                    message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
                 }
             }
         }
-        if (status.get() == null) {
-            status.set(RestStatus.OK);
-        }
-        if (message.get() == null) {
-            message.set("");
-        }
-        listener.onResponse(new GetAliasesResponse(result, status.get(), message.get()));
+        listener.onResponse(new GetAliasesResponse(result, status, message));
     }
 
     private static String toNamesString(final String... names) {

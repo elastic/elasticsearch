@@ -17,6 +17,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 
@@ -48,6 +49,11 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
         }
 
         if (event.localNodeMaster()) {
+            if (XPackPlugin.isReadyForXPackCustomMetadata(event.state()) == false) {
+                logger.debug("cannot add ML metadata to cluster as the following nodes might not understand the ML metadata: {}",
+                    () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(event.state()));
+                return;
+            }
             MetaData metaData = event.state().metaData();
             installMlMetadata(metaData);
             installDailyMaintenanceService();
@@ -63,6 +69,7 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
                     clusterService.submitStateUpdateTask("install-ml-metadata", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
+                            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
                             // If the metadata has been added already don't try to update
                             if (currentState.metaData().custom(MLMetadataField.TYPE) != null) {
                                 return currentState;

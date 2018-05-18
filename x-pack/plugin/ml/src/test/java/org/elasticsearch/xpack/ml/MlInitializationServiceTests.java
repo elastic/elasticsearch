@@ -19,12 +19,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,12 +70,18 @@ public class MlInitializationServiceTests extends ESTestCase {
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
     }
 
+    private static DiscoveryNode newNode(String name) {
+        return new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200),
+            Collections.singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"), Collections.emptySet(),
+            Version.CURRENT);
+    }
+
     public void testInitialize() throws Exception {
         MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .add(newNode("_node_id"))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder())
@@ -89,9 +97,26 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT)))
+                    .add(newNode("_node_id")))
                 .metaData(MetaData.builder())
                 .build();
+        initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
+
+        verify(clusterService, times(0)).submitStateUpdateTask(eq("install-ml-metadata"), any());
+        assertThat(initializationService.getDailyMaintenanceService(), is(nullValue()));
+    }
+
+    public void testInitialize_nonXpackNodePresent() throws Exception {
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .nodes(DiscoveryNodes.builder()
+                .add(newNode("_node_id"))
+                .add(new DiscoveryNode("_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9201), Version.CURRENT))
+                .localNodeId("_node_id")
+                .masterNodeId("_node_id"))
+            .metaData(MetaData.builder())
+            .build();
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(0)).submitStateUpdateTask(eq("install-ml-metadata"), any());
@@ -103,7 +128,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .add(newNode("_node_id"))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder()
@@ -122,7 +147,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .add(newNode("_node_id"))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder())
@@ -147,7 +172,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .add(newNode("_node_id"))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder())
@@ -180,7 +205,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ClusterState masterCs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .add(newNode("_node_id"))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder())

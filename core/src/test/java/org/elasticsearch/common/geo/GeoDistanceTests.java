@@ -27,12 +27,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.collection.IsIn.isIn;
 
 /**
  * Basic Tests for {@link GeoDistance}
@@ -88,15 +93,16 @@ public class GeoDistanceTests extends ESTestCase {
         }
     }
 
-    public void testWriteToSerializationBWC() throws Exception {
+    public void testWriteToSerializationBWC52() throws Exception {
         GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_3_2));
+            out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_2_2));
             geoDistance.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(out.getVersion());
-                GeoDistance copy = GeoDistance.readFromStream(in);
-                assertThat(copy, isOneOf(GeoDistance.PLANE, GeoDistance.ARC));
+                int ord = in.readVInt();
+                assertThat(ord, isIn(Arrays.asList(0, 2)));
+                assertThat(in.read(), equalTo(-1));
             }
         }
     }

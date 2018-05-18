@@ -44,7 +44,7 @@ public enum GeoDistance implements Writeable {
         Version clientVersion = in.getVersion();
         int ord = in.readVInt();
         // bwc client deprecation for FACTOR and SLOPPY_ARC
-        if (clientVersion.before(Version.V_5_3_3)) {
+        if (clientVersion.before(Version.V_5_3_0)) {
             switch (ord) {
                 case 0: return PLANE;
                 case 1: // FACTOR uses PLANE
@@ -72,7 +72,7 @@ public enum GeoDistance implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         Version clientVersion = out.getVersion();
         int ord = this.ordinal();
-        if (clientVersion.before(Version.V_5_3_3)) {
+        if (clientVersion.before(Version.V_5_3_0)) {
             switch (ord) {
                 case 0:
                     out.write(0);  // write PLANE ordinal
@@ -83,8 +83,9 @@ public enum GeoDistance implements Writeable {
                 default:
                     throw new IOException("Unknown GeoDistance ordinal [" + ord + "]");
             }
+        } else {
+            out.writeVInt(this.ordinal());
         }
-        out.writeVInt(this.ordinal());
     }
 
     /**

@@ -224,16 +224,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Beats management index
         String index = ".management-beats";
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(false));
     }
 

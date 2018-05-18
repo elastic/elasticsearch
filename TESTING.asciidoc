@@ -48,12 +48,12 @@ To for example start the open source distribution:
 ==== License type
 
 By default a node is started with the `basic` license type.
-In order to start with a different license type use the `-Drun.distribution` argument.
+In order to start with a different license type use the `-Drun.license_type` argument.
 
-In order to start a node with a trail license execute the following command:
+In order to start a node with a trial license execute the following command:
 
 -------------------------------------
-./gradlew run -Dlicense_type=trial
+./gradlew run -Drun.license_type=trial
 -------------------------------------
 
 This enables security and other paid features and adds a superuser with the username: `elastic-admin` and

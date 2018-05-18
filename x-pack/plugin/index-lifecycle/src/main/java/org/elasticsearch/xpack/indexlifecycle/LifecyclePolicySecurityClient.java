@@ -14,16 +14,26 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.util.Map;
 
-public class LifecyclePolicyClient extends AbstractClient {
+/**
+ * This class wraps a client and calls the client using the headers provided in
+ * constructor. The intent is to abstract away the fact that there are headers
+ * so {@link Step}s etc. can call this client as if it was a normal client.
+ * 
+ * Note: This client will not close the wrapped {@link Client} instance since
+ * the intent is that the wrapped client is shared between multiple instances of
+ * this class.
+ */
+public class LifecyclePolicySecurityClient extends AbstractClient {
 
     private Client client;
     private Map<String, String> headers;
     private String origin;
 
-    public LifecyclePolicyClient(Client client, String origin, Map<String, String> headers) {
+    public LifecyclePolicySecurityClient(Client client, String origin, Map<String, String> headers) {
         super(client.settings(), client.threadPool());
         this.client = client;
         this.origin = origin;

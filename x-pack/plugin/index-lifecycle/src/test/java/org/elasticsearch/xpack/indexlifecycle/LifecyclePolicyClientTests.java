@@ -54,7 +54,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
 
         SearchRequest request = new SearchRequest("foo");
 
-        try (LifecyclePolicyClient policyClient = new LifecyclePolicyClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+        try (LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                 Collections.emptyMap())) {
             policyClient.execute(SearchAction.INSTANCE, request, listener);
         }
@@ -88,7 +88,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         headers.put("foo", "foo");
         headers.put("bar", "bar");
 
-        try (LifecyclePolicyClient policyClient = new LifecyclePolicyClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers)) {
+        try (LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers)) {
             policyClient.execute(SearchAction.INSTANCE, request, listener);
         }
 
@@ -123,7 +123,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
 
-        try (LifecyclePolicyClient policyClient = new LifecyclePolicyClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers)) {
+        try (LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers)) {
             policyClient.execute(SearchAction.INSTANCE, request, listener);
         }
 

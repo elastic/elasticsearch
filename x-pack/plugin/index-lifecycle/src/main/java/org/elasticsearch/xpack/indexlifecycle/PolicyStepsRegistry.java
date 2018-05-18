@@ -64,7 +64,7 @@ public class PolicyStepsRegistry {
         DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;
         if (mapDiff.getUpserts().isEmpty() == false) {
             for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
-                LifecyclePolicyClient policyClient = new LifecyclePolicyClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+                LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                         policyMetadata.getHeaders());
                 lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
                 List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient, nowSupplier);

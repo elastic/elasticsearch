@@ -178,6 +178,21 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
 
+    public void testNodeConnectWithDifferentNodeIdSucceedsIfNoValidation() {
+        Settings settings = Settings.builder().put("cluster.name", "test").build();
+        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
+        NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            randomAlphaOfLength(10),
+            handleB.discoveryNode.getAddress(),
+            emptyMap(),
+            emptySet(),
+            handleB.discoveryNode.getVersion());
+
+        handleA.transportService.connectToNode(discoveryNode, MockTcpTransport.LIGHT_PROFILE, false);
+        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
+    }
+
 
     private static class NetworkHandle {
         private TransportService transportService;

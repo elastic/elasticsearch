@@ -363,16 +363,16 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
         protected abstract void doSample();
 
         /**
-         * validates a set of potentially newly discovered nodes and returns an immutable
-         * list of the nodes that has passed.
+         * Establishes the node connections. If validateInHandshake is set to true, the connection will fail if
+         * node returned in the handshake response is different than the discovery node.
          */
-        protected List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes) {
+        List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes, boolean validateInHandshake) {
             for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
                 if (!transportService.nodeConnected(node)) {
                     try {
                         logger.trace("connecting to node [{}]", node);
-                        transportService.connectToNode(node);
+                        transportService.connectToNode(node, null, validateInHandshake);
                     } catch (Exception e) {
                         it.remove();
                         logger.debug(() -> new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);
@@ -382,7 +382,6 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
             return Collections.unmodifiableList(new ArrayList<>(nodes));
         }
-
     }
 
     class ScheduledNodeSampler implements Runnable {
@@ -439,7 +438,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 }
             }
 
-            nodes = establishNodeConnections(newNodes);
+            nodes = establishNodeConnections(newNodes, false);
             filteredNodes = Collections.unmodifiableList(newFilteredNodes);
         }
     }
@@ -561,7 +560,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 }
             }
 
-            nodes = establishNodeConnections(newNodes);
+            nodes = establishNodeConnections(newNodes, true);
             filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }

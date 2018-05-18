@@ -314,6 +314,11 @@ public class TransportService extends AbstractLifecycleComponent {
         return isLocalNode(node) || transport.nodeConnected(node);
     }
 
+    /**
+     * Connect to the specified node with the default connection profile
+     *
+     * @param node the node to connect to
+     */
     public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
         connectToNode(node, null);
     }
@@ -325,13 +330,25 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
+        connectToNode(node, connectionProfile, true);
+    }
+
+    /**
+     * Connect to the specified node with the given connection profile. This method allows the caller to
+     * specify whether the node connection should be validated against the specified node.
+     *
+     * @param node the node to connect to
+     * @param connectionProfile the connection profile to use when connecting to this node
+     * @param validateNodeConnection boolean indicating if the node connection should be validated
+     */
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, boolean validateNodeConnection) {
         if (isLocalNode(node)) {
             return;
         }
         transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true);
-            if (node.equals(remote) == false) {
+            if (validateNodeConnection && node.equals(remote) == false) {
                 throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
             }
         });

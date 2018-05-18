@@ -50,7 +50,7 @@ public AuthenticationFailureHandler getAuthenticationFailureHandler() {
 ----------------------------------------------------
 +
 The `getAuthenticationFailureHandler` method is used to optionally provide a
-custom `AuthenticationFailureHandler`, which will control how X-Pack responds
+custom `AuthenticationFailureHandler`, which will control how {security} responds
 in certain authentication failure events.
 +
 [source,java]

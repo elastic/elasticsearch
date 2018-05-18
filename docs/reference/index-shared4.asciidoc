@@ -7,4 +7,4 @@ include::glossary.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 
-include::{docdir}/../CHANGELOG.asciidoc[]
+include::release-notes.asciidoc[]

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -297,7 +297,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             this.jobsStats = jobsStats;
         }
 
-        public Response(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures,
+        public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
                  QueryPage<JobStats> jobsStats) {
             super(taskFailures, nodeFailures);
             this.jobsStats = jobsStats;

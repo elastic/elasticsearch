@@ -41,7 +41,7 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
 
         Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
         Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
-        jobProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), from, size,
+        jobProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), true, from, size,
                 r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
     }
 }

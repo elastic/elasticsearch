@@ -77,18 +77,13 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
         return watches.remove(jobId) != null;
     }
 
-    public void trigger(String jobName) {
-        trigger(jobName, 1, null);
+    public boolean trigger(String jobName) {
+        return trigger(jobName, 1, null);
     }
 
-    public void trigger(String jobName, int times) {
-        trigger(jobName, times, null);
-    }
-
-    public void trigger(String jobName, int times, TimeValue interval) {
+    public boolean trigger(String jobName, int times, TimeValue interval) {
         if (watches.containsKey(jobName) == false) {
-            logger.trace("not executing job [{}], not found", jobName);
-            return;
+            return false;
         }
 
         for (int i = 0; i < times; i++) {
@@ -108,5 +103,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
                 }
             }
         }
+
+        return true;
     }
 }

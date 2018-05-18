@@ -25,8 +25,8 @@ Security protects Elasticsearch clusters by:
 To prevent unauthorized access to your Elasticsearch cluster, you must have a
 way to _authenticate_ users. This simply means that you need a way to validate
 that a user is who they claim to be. For example, you have to make sure only
-the person named _Kelsey Andorra_ can sign in as the user `kandorra`. X-Pack
-Security provides a standalone authentication mechanism that enables you to
+the person named _Kelsey Andorra_ can sign in as the user `kandorra`. {security} 
+provides a standalone authentication mechanism that enables you to
 quickly password-protect your cluster. If you're already using {xpack-ref}/ldap-realm.html[LDAP],
 {xpack-ref}/active-directory-realm.html[ Active Directory], or {xpack-ref}/pki-realm.html[ PKI] to manage
 users in your organization, {security} is able to integrate with those
@@ -83,7 +83,7 @@ issues.
 
 * {xpack-ref}/ccs-clients-integrations.html[Integrations]
   shows you how to interact with an Elasticsearch cluster protected by
-  X-Pack Security.
+  {security}.
 
 * {xpack-ref}/security-reference.html[Reference]
   provides detailed information about the access privileges you can grant to

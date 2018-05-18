@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -206,8 +207,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         assertThat(e.getMessage(), equalTo("Cannot run forecast: Forecast cannot be executed as model memory status is not OK"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/30399")
-    public void testMemoryLimit() throws Exception {
+    public void testOverflowToDisk() throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 
@@ -216,7 +216,9 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         analysisConfig.setBucketSpan(bucketSpan);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
-        Job.Builder job = new Job.Builder("forecast-it-test-memory-limit");
+        Job.Builder job = new Job.Builder("forecast-it-test-overflow-to-disk");
+        AnalysisLimits limits = new AnalysisLimits(2048L, null);
+        job.setAnalysisLimits(limits);
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
@@ -224,28 +226,47 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
         openJob(job.getId());
         createDataWithLotsOfClientIps(bucketSpan, job);
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null));
-        assertThat(e.getMessage(),
-                equalTo("Cannot run forecast: Forecast cannot be executed as forecast memory usage is predicted to exceed 20MB"));
+
+        try {
+            String forecastId = forecast(job.getId(), TimeValue.timeValueHours(1), null);
+
+            waitForecastToFinish(job.getId(), forecastId);
+        } catch (ElasticsearchStatusException e) {
+            if (e.getMessage().contains("disk space")) {
+                throw new ElasticsearchStatusException(
+                        "Test likely fails due to insufficient disk space on test machine, please free up space.", e.status(), e);
+            }
+            throw e;
+        }
+
+        closeJob(job.getId());
+
+        List<ForecastRequestStats> forecastStats = getForecastStats();
+        assertThat(forecastStats.size(), equalTo(1));
+        ForecastRequestStats forecastRequestStats = forecastStats.get(0);
+        List<Forecast> forecasts = getForecasts(job.getId(), forecastRequestStats);
+
+        assertThat(forecastRequestStats.getRecordCount(), equalTo(8000L));
+        assertThat(forecasts.size(), equalTo(8000));
     }
 
     private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {
         long now = Instant.now().getEpochSecond();
-        long timestamp = now - 50 * bucketSpan.seconds();
-        while (timestamp < now) {
-            for (int i = 1; i < 256; i++) {
+        long timestamp = now - 15 * bucketSpan.seconds();
+
+        for (int h = 0; h < 15; h++) {
+            for (int i = 1; i < 101; i++) {
                 List<String> data = new ArrayList<>();
-                for (int j = 1; j < 100; j++) {
+                for (int j = 1; j < 81; j++) {
                     Map<String, Object> record = new HashMap<>();
                     record.put("time", timestamp);
-                    record.put("value", 10.0);
+                    record.put("value", 10.0 + h);
                     record.put("clientIP", String.format(Locale.ROOT, "192.168.%d.%d", i, j));
                     data.add(createJsonRecord(record));
                 }
                 postData(job.getId(), data.stream().collect(Collectors.joining()));
-                timestamp += bucketSpan.seconds();
             }
+            timestamp += bucketSpan.seconds();
         }
         flushJob(job.getId(), false);
     }

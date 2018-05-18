@@ -41,6 +41,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -128,12 +129,21 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                     Version.CURRENT,
                     changes.get().v1().size(),
                     changes.get().v2().size());
-                threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
+
+                final ThreadContext threadContext = threadPool.getThreadContext();
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    threadContext.markAsSystemContext();
+                    threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
+                }
             }
         }
     }
 
     void updateTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
+        if (threadPool.getThreadContext().isSystemContext() == false) {
+            throw new IllegalStateException("template updates from the template upgrade service should always happen in a system context");
+        }
+
         for (Map.Entry<String, BytesReference> change : changes.entrySet()) {
             PutIndexTemplateRequest request =
                 new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
@@ -141,7 +151,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
-                    if(updatesInProgress.decrementAndGet() == 0) {
+                    if (updatesInProgress.decrementAndGet() == 0) {
                         logger.info("Finished upgrading templates to version {}", Version.CURRENT);
                     }
                     if (response.isAcknowledged() == false) {
@@ -151,7 +161,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
                 @Override
                 public void onFailure(Exception e) {
-                    if(updatesInProgress.decrementAndGet() == 0) {
+                    if (updatesInProgress.decrementAndGet() == 0) {
                         logger.info("Templates were upgraded to version {}", Version.CURRENT);
                     }
                     logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);

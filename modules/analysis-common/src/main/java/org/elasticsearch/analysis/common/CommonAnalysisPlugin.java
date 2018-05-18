@@ -237,9 +237,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, input ->
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
-        // TODO deprecate edgeNGram
-        filters.add(PreConfiguredTokenFilter.singleton("edgeNGram", false, input ->
-                new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("edgeNGram", false, (reader, version) -> {
+            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("edgeNGram_deprecation",
+                        "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                                + "Please change the filter name to [edge_ngram] instead.");
+            }
+            return new EdgeNGramTokenFilter(reader, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
+            }));
         filters.add(PreConfiguredTokenFilter.singleton("elision", true,
                 input -> new ElisionFilter(input, FrenchAnalyzer.DEFAULT_ARTICLES)));
         filters.add(PreConfiguredTokenFilter.singleton("french_stem", false, input -> new SnowballFilter(input, new FrenchStemmer())));
@@ -256,8 +261,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                         LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT,
                         LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS)));
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, NGramTokenFilter::new));
-        // TODO deprecate nGram
-        filters.add(PreConfiguredTokenFilter.singleton("nGram", false, NGramTokenFilter::new));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("nGram", false, (reader, version) -> {
+            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("nGram_deprecation",
+                        "The [nGram] token filter name is deprecated and will be removed in a future version. "
+                                + "Please change the filter name to [ngram] instead.");
+            }
+            return new NGramTokenFilter(reader);
+        }));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("reverse", false, ReverseStringFilter::new));

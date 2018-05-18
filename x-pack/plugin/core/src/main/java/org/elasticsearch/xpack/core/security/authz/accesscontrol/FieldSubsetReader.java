@@ -195,6 +195,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
                 Map<String, Object> filteredValue = filter((Map<String, ?>)value, includeAutomaton, state);
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
+                } else {
+                    filtered.add(new HashMap<>());
                 }
             } else if (value instanceof Iterable) {
                 List<Object> filteredValue = filter((Iterable<?>) value, includeAutomaton, initialState);

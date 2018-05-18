@@ -30,6 +30,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,53 +46,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RecoveryIT extends ESRestTestCase {
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    private enum CLUSTER_TYPE {
-        OLD,
-        MIXED,
-        UPGRADED;
-
-        public static CLUSTER_TYPE parse(String value) {
-            switch (value) {
-                case "old_cluster":
-                    return OLD;
-                case "mixed_cluster":
-                    return MIXED;
-                case "upgraded_cluster":
-                    return UPGRADED;
-                    default:
-                        throw new AssertionError("unknown cluster type: " + value);
-            }
-        }
-    }
-
-    private final CLUSTER_TYPE clusterType = CLUSTER_TYPE.parse(System.getProperty("tests.rest.suite"));
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(super.restClientSettings())
-            // increase the timeout here to 90 seconds to handle long waits for a green
-            // cluster health. the waits for green need to be longer than a minute to
-            // account for delayed shards
-            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
-            .build();
-    }
-
+public class RecoveryIT extends AbstractRollingTestCase {
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
-        if (clusterType == CLUSTER_TYPE.OLD) {
+        if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
@@ -101,7 +59,7 @@ public class RecoveryIT extends ESRestTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build());
-        } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             ensureGreen(index);
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));
             assertOK(response);
@@ -151,11 +109,16 @@ public class RecoveryIT extends ESRestTestCase {
 
     public void testRecoveryWithConcurrentIndexing() throws Exception {
         final String index = "recovery_with_concurrent_indexing";
-        switch (clusterType) {
+        Response response = client().performRequest("GET", "_nodes");
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+        List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+        switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
                     // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -173,8 +136,9 @@ public class RecoveryIT extends ESRestTestCase {
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
-                assertCount(index, "_primary", 60);
-                assertCount(index, "_replica", 60);
+                assertCount(index, "_only_nodes:" + nodes.get(0), 60);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 60);
+                assertCount(index, "_only_nodes:" + nodes.get(2), 60);
                 // make sure that we can index while the replicas are recovering
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
@@ -183,11 +147,12 @@ public class RecoveryIT extends ESRestTestCase {
                 asyncIndexDocs(index, 60, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
-                assertCount(index, "_primary", 110);
-                assertCount(index, "_replica", 110);
+                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(2), 110);
                 break;
             default:
-                throw new IllegalStateException("unknown type " + clusterType);
+                throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
     }
 
@@ -215,11 +180,11 @@ public class RecoveryIT extends ESRestTestCase {
 
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
-        switch (clusterType) {
+        switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
                     // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -252,23 +217,29 @@ public class RecoveryIT extends ESRestTestCase {
                 break;
             case UPGRADED:
                 updateIndexSettings(index, Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     .put("index.routing.allocation.include._id", (String)null)
                 );
                 asyncIndexDocs(index, 60, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
-                assertCount(index, "_primary", 110);
-                assertCount(index, "_replica", 110);
+                Response response = client().performRequest("GET", "_nodes");
+                ObjectPath objectPath = ObjectPath.createFromResponse(response);
+                final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+                List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(2), 110);
                 break;
             default:
-                throw new IllegalStateException("unknown type " + clusterType);
+                throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
     }
 
     public void testSearchGeoPoints() throws Exception {
         final String index = "geo_index";
-        if (clusterType == CLUSTER_TYPE.OLD) {
+        if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
@@ -279,7 +250,7 @@ public class RecoveryIT extends ESRestTestCase {
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build(), "\"doc\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}");
             ensureGreen(index);
-        } else if (clusterType == CLUSTER_TYPE.MIXED) {
+        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             ensureGreen(index);
             String requestBody = "{\n" +
                 "  \"query\": {\n" +

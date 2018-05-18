@@ -13,19 +13,68 @@ The `char_group` tokenizer accepts one parameter:
 
 [horizontal]
 `tokenize_on_chars`::
-    A string containing a list of characters to tokenize the string on. Whenever a character 
-    from this list is encountered, a new token is started. Also supports escaped values like `\\n` and `\\f`,
-    and in addition `\\s` to represent whitespace, `\\d` to represent digits and `\\w` to represent letters.
-    Defaults to an empty list.
+    A list containing a list of characters to tokenize the string on. Whenever a character 
+    from this list is encountered, a new token is started. This accepts either single
+    characters like eg. `-`, or character groups: `whitespace`, `letter`, `digit`,
+    `punctuation`, `symbol`.
+
 
 [float]
 === Example output
 
-```The 2 QUICK Brown-Foxes jumped over the lazy dog's bone for $2```
-
-When the configuration `\\s-:<>` is used for `tokenize_on_chars`, the above sentence would produce the following terms:
-
-[source,text]
+[source,js]
 ---------------------------
-[ The, 2, QUICK, Brown, Foxes, jumped, over, the, lazy, dog's, bone, for, $2 ]
+POST _analyze
+{
+  "tokenizer": {
+    "type": "char_group",
+    "tokenize_on_chars": [
+      "whitespace",
+      "-",
+      "\n"
+    ]
+  },
+  "text": "The QUICK brown-fox"
+}
 ---------------------------
+// CONSOLE
+
+returns
+
+[source,js]
+---------------------------
+{
+  "tokens": [
+    {
+      "token": "The",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "QUICK",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "brown",
+      "start_offset": 10,
+      "end_offset": 15,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "fox",
+      "start_offset": 16,
+      "end_offset": 19,
+      "type": "word",
+      "position": 3
+    }
+  ]
+}
+---------------------------
+// TESTRESPONSE
+

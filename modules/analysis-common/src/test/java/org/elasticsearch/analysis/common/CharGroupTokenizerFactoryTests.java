@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.common.settings.Settings;
@@ -34,23 +34,28 @@ import java.util.Arrays;
 public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
     public void testParseTokenChars() {
         final Index index = new Index("test", "_na_");
-        final String name = "cg";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
-        for (String conf : Arrays.asList("\\v", "abc\\$")) {
-            final Settings settings = newAnalysisSettingsBuilder().put("tokenize_on_chars", conf).build();
-            try {
-                new CharGroupTokenizerFactory(indexProperties, null, name, settings).create();
-                fail();
-            } catch (RuntimeException expected) {
-                // OK
-            }
+        final String name = "cg";
+        for (String[] conf : Arrays.asList(
+                new String[] { "\\v" },
+                new String[] { "\\u00245" },
+                new String[] { "commas" },
+                new String[] { "a", "b", "c", "\\$" })) {
+            final Settings settings = newAnalysisSettingsBuilder().putList("tokenize_on_chars", conf).build();
+            expectThrows(RuntimeException.class, () -> new CharGroupTokenizerFactory(indexProperties, null, name, settings).create());
         }
 
-        for (String conf : Arrays.asList("", "\\s", "abc", "abc\\s", "\\w", "foo\\d")) {
-            final Settings settings = newAnalysisSettingsBuilder().put("tokenize_on_chars", conf).build();
-            indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
-
+        for (String[] conf : Arrays.asList(
+                new String[0],
+                new String[] { "\\n" },
+                new String[] { "\\u0024" },
+                new String[] { "whitespace" },
+                new String[] { "a", "b", "c" },
+                new String[] { "a", "b", "c", "\\r" },
+                new String[] { "\\r" },
+                new String[] { "f", "o", "o", "symbol" })) {
+            final Settings settings = newAnalysisSettingsBuilder().putList("tokenize_on_chars", Arrays.asList(conf)).build();
             new CharGroupTokenizerFactory(indexProperties, null, name, settings).create();
             // no exception
         }
@@ -60,7 +65,7 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Index index = new Index("test", "_na_");
         final String name = "cg";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
-        final Settings settings = newAnalysisSettingsBuilder().put("tokenize_on_chars", "\\s:<>$").build();
+        final Settings settings = newAnalysisSettingsBuilder().putList("tokenize_on_chars", "whitespace", ":", "\\u0024").build();
         Tokenizer tokenizer = new CharGroupTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings),
                 null, name, settings).create();
         tokenizer.setReader(new StringReader("foo bar $34 test:test2"));

@@ -17,13 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.util.CharTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -40,9 +41,9 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        for (final String c : settings.getAsArray(settings.get("tokenize_on_chars"))) {
+        for (final String c : settings.getAsList("tokenize_on_chars")) {
             if (c == null || c.length() == 0) {
-                throw new RuntimeException("tokenize_on_chars cannot contain empty characters");
+                throw new RuntimeException("[tokenize_on_chars] cannot contain empty characters");
             }
 
             if (c.length() == 1) {
@@ -95,9 +96,10 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
                 case 'f':
                     return '\f';
                 case 'u':
-                    if (4 >= len)
+                    if (len > 6) {
                         throw new RuntimeException("Invalid escaped char in [" + s + "]");
-                    return (char) Integer.parseInt(s.substring(1, 5), 16);
+                    }
+                    return (char) Integer.parseInt(s.substring(2), 16);
                 default:
                     throw new RuntimeException("Invalid escaped char " + c + " in [" + s + "]");
             }

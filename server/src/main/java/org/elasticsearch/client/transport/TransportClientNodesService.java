@@ -270,7 +270,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
         private volatile int i;
 
         RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener,
-                             List<DiscoveryNode> nodes, int index, TransportClient.HostFailureListener hostFailureListener) {
+                      List<DiscoveryNode> nodes, int index, TransportClient.HostFailureListener hostFailureListener) {
             this.callback = callback;
             this.listener = listener;
             this.nodes = nodes;

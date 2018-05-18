@@ -24,10 +24,13 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.internal.Constants;
+import com.amazonaws.util.AwsHostNameUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -41,6 +44,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static com.amazonaws.services.s3.AmazonS3Client.S3_SERVICE_NAME;
+
 
 class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
@@ -49,7 +54,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
     private final Map<String, S3ClientSettings> clientsSettings;
 
-    private final Map<String, AmazonS3Client> clientsCache = new HashMap<>();
+    private final Map<String, AmazonS3> clientsCache = new HashMap<>();
 
     InternalAwsS3Service(Settings settings, Map<String, S3ClientSettings> clientsSettings) {
         super(settings);
@@ -58,35 +63,47 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
     @Override
     public synchronized AmazonS3 client(Settings repositorySettings) {
-        String clientName = CLIENT_NAME.get(repositorySettings);
-        AmazonS3Client client = clientsCache.get(clientName);
+        final String clientName = CLIENT_NAME.get(repositorySettings);
+        AmazonS3 client = clientsCache.get(clientName);
         if (client != null) {
             return client;
         }
 
-        S3ClientSettings clientSettings = clientsSettings.get(clientName);
+        final S3ClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
             throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: " +
                 Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
 
-        logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
+        final AmazonS3ClientBuilder clientBuilder = AmazonS3ClientBuilder.standard();
+        logger.debug("creating client with name [{}] and endpoint [{}]", clientName, clientSettings.endpoint);
 
-        AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
-        ClientConfiguration configuration = buildConfiguration(clientSettings);
+        final AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
+        clientBuilder.withCredentials(credentials);
 
-        client = new AmazonS3Client(credentials, configuration);
+        final ClientConfiguration configuration = buildConfiguration(clientSettings);
+        clientBuilder.withClientConfiguration(configuration);
 
-        if (Strings.hasText(clientSettings.endpoint)) {
-            client.setEndpoint(clientSettings.endpoint);
+        final EndpointConfiguration endpoint = buildEndpoint(clientSettings);
+        clientBuilder.withEndpointConfiguration(endpoint);
+        if (Constants.S3_HOSTNAME.equals(endpoint.getServiceEndpoint())) {
+            // Enable global bucket access when using the default AWS endpoint. We rely on the AWS SDK to
+            // execute the first HTTP request using the default endpoint and to catch the redirect HTTP
+            // response. This response contains a "x-amz-bucket-region" header which indicates the region
+            // of the bucket. The AWS SDK also keeps an internal bucket/region cache.
+            clientBuilder.enableForceGlobalBucketAccess();
         }
+
+        client = clientBuilder.build();
+        logger.debug("client [{}] created with service endpoint [{}] and signing region [{}]",
+            clientName, endpoint.getServiceEndpoint(), endpoint.getSigningRegion());
 
         clientsCache.put(clientName, client);
         return client;
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
+    static ClientConfiguration buildConfiguration(final S3ClientSettings clientSettings) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -111,7 +128,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     // pkg private for tests
     static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
                                                    S3ClientSettings clientSettings, Settings repositorySettings) {
-
 
         BasicAWSCredentials credentials = clientSettings.credentials;
         if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
@@ -139,6 +155,36 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         }
     }
 
+    /**
+     * Builds a {@link EndpointConfiguration} from the client settings.
+     *
+     * When no endpoint is defined in the client settings, the default "s3.amazonaws.com" endpoint is used with the
+     * default region provided by the AWS SDK. We rely on the AWS SDK and {@link AmazonS3ClientBuilder#enableForceGlobalBucketAccess()}
+     * to later change this default region to the appropriate one.
+     *
+     * When the endpoint is defined in the client settings, the region is derived from the endpoint using the AWS SDK
+     * if the endpoint is a known Amazon S3 endpoint. If it's not an Amazon S3 endpoint, then the region is null.
+     *
+     * @param clientSettings the client settings
+     * @return a new {@link EndpointConfiguration}
+     */
+    static EndpointConfiguration buildEndpoint(final S3ClientSettings clientSettings) {
+        final String serviceEndpoint = Strings.hasText(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+
+        String signingRegion = null;
+        if (isAwsStandardEndpoint(serviceEndpoint)) {
+            signingRegion = AwsHostNameUtils.parseRegion(serviceEndpoint, S3_SERVICE_NAME);
+            if (signingRegion == null) {
+                throw new IllegalArgumentException("Unable to find region for endpoint [" + serviceEndpoint + "]");
+            }
+        }
+        return new EndpointConfiguration(serviceEndpoint, signingRegion);
+    }
+
+    static boolean isAwsStandardEndpoint(final String endpoint) {
+        return endpoint.endsWith(".amazonaws.com") || endpoint.endsWith(".amazonaws.com.cn");
+    }
+
     @Override
     protected void doStart() throws ElasticsearchException {
     }
@@ -149,7 +195,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        for (AmazonS3Client client : clientsCache.values()) {
+        for (AmazonS3 client : clientsCache.values()) {
             client.shutdown();
         }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
@@ -73,7 +74,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     }
 
     @Override
-    public boolean doesBucketExist(final String bucket) {
+    public boolean doesBucketExistV2(String bucketName) throws SdkClientException {
         return this.bucket.equalsIgnoreCase(bucket);
     }
 

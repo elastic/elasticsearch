@@ -81,10 +81,12 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
         builder.storeScript("template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
+        assertWarnings("the template context is now deprecated.");
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("template", "value").endObject();
         builder.storeScript("template_field", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
+        assertWarnings("the template context is now deprecated.");
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
@@ -98,15 +100,20 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
 
     public void testDiff() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("1", StoredScriptSource.parse(new BytesArray("{\"template\":\"abc\"}"), XContentType.JSON));
-        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"template\":\"def\"}"), XContentType.JSON));
-        builder.storeScript("3", StoredScriptSource.parse(new BytesArray("{\"template\":\"ghi\"}"), XContentType.JSON));
+        builder.storeScript("1", StoredScriptSource.parse(new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON));
+        assertWarnings("scripts should not be stored without a context.");
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON));
+        assertWarnings("scripts should not be stored without a context.");
+        builder.storeScript("3", StoredScriptSource.parse(new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON));
+        assertWarnings("scripts should not be stored without a context.");
         ScriptMetaData scriptMetaData1 = builder.build();
 
         builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"template\":\"changed\"}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON));
+        assertWarnings("scripts should not be stored without a context.");
         builder.deleteScript("3");
-        builder.storeScript("4", StoredScriptSource.parse(new BytesArray("{\"template\":\"jkl\"}"), XContentType.JSON));
+        builder.storeScript("4", StoredScriptSource.parse(new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON));
+        assertWarnings("scripts should not be stored without a context.");
         ScriptMetaData scriptMetaData2 = builder.build();
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
@@ -118,9 +125,9 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
 
         ScriptMetaData result = (ScriptMetaData) diff.apply(scriptMetaData1);
-        assertEquals("abc", result.getStoredScript("1").getSource());
-        assertEquals("changed", result.getStoredScript("2").getSource());
-        assertEquals("jkl", result.getStoredScript("4").getSource());
+        assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1").getSource());
+        assertEquals("{\"foo\":\"changed\"}", result.getStoredScript("2").getSource());
+        assertEquals("{\"foo\":\"jkl\"}", result.getStoredScript("4").getSource());
     }
 
     public void testBuilder() {

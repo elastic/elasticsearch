@@ -329,12 +329,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
-            } else if (
-                TEMPLATE_PARSE_FIELD.getPreferredName().equals(name) ||
-                    TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName().equals(name)
-                ) {
+            } else if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
 
-                DEPRECATION_LOGGER.deprecated("the templates context is now deprecated.");
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated.");
 
                 token = parser.nextToken();
                 if (token == Token.VALUE_STRING) {
@@ -348,8 +345,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 } else {
                     return parseRemaining(token, parser);
                 }
+            } else if (TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName().equals(name)) {
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated.");
+                return parseRemaining(token, parser);
             } else {
-                DEPRECATION_LOGGER.deprecated("scripts should not be stored without a context. Please look at the docs.");
+                DEPRECATION_LOGGER.deprecated("scripts should not be stored without a context.");
                 return parseRemaining(token, parser);
             }
         } catch (IOException ioe) {

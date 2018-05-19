@@ -1,16 +1,17 @@
 [[painless-casting]]
 === Casting
 
-A cast is the conversion of the value of one type to the equivalent value of an
-inferred or specified type. Implicit casts are an inferred operation that
-automatically convert values between types within a statement or
-<<painless-operators, expression>> when necessary. Explicit casts are a
-specified operation that forcefully convert values between types and are
-required when an appropriate type for a statement or
-<<painless-operators, expression>> cannot be inferred.  If there exists no
-equivalent value for the type converted to during a cast operation an error
-will occur.  If an implicit cast is given but an explicit cast is required an
-error will occur.
+A cast converts the value of an original <<painless-types, type>> to the
+equivalent value of a target <<painless-types, type>>. An implicit cast infers
+the target type and automatically occurs during certain
+<<painless-operators, operations>>. An explicit cast specifies the target type
+and forcefully occurs as its own operation.  Use the *cast operator ()* to
+specify an explicit cast.
+
+*Errors*
+
+* If during a cast there exists no equivalent value for the target type.
+* If an implicit cast is given, but an explicit cast is required.
 
 *Grammar*
 [source,ANTLR4]
@@ -20,7 +21,7 @@ cast: '(' TYPE ')' expression
 
 *Examples*
 
-* Valid general casts.
+* Valid casts.
 +
 [source,Painless]
 ----
@@ -30,35 +31,29 @@ cast: '(' TYPE ')' expression
 ----
 +
 <1> declare `int i`;
-    explicit cast value of `long 5` to value of `int 5` -> `int 5`;
-    assign value of `int 5` to `i`
+    explicit cast `long 5` to `int 5` -> `int 5`;
+    assign `int 5` to `i`
 <2> declare `Map m`;
     allocate `HashMap` instance -> `HashMap reference`;
-    implicit cast value of `HashMap reference` to value of `Map reference`
-            -> `Map reference`;
-    assign value of `Map reference` to `m`
+    implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
+    assign `Map reference` to `m`
 <3> declare `HashMap hm`;
-    access value of `m` -> `Map reference`;
-    explicit cast value of `Map reference` to value of `HashMap reference`
-            -> `HashMap reference`;
-    assign value of `HashMap reference` to `hm`
+    access `m` -> `Map reference`;
+    explicit cast `Map reference` to `HashMap reference` -> `HashMap reference`;
+    assign `HashMap reference` to `hm`
 
 [[numeric-type-casting]]
 ==== Numeric Type Casting
 
-A <<primitive-types, numeric type>> cast is the conversion of the value of one
-<<primitive-types, numeric type>> to the equivalent value of an inferred or
-specified <<primitive-types, numeric type>>. Casts between values of
-<<primitive-types, numeric types>> will result in data loss when the value of
-the type converted from is larger than the equivalent value of the type
-converted to can accommodate. Casts between values of integral types and values
-of floating point types will result in precision loss when the value of the
-integral type converted from is unable to accurately represent the equivalent
-value of the floating point type converted to and vice versa.
+A <<primitive-types, numeric type>> cast converts the value of an original
+numeric type to the equivalent value of a target numeric type. A cast between
+two numeric type values results in data loss when the value of the original
+numeric type is larger than the target numeric type can accommodate. A cast
+between an integer type value and a floating point type value can result in
+precision loss.
 
-The table below illustrates allowed casts between values of
-<<primitive-types, numeric types>> and which specific casts must be explicit.
-Each cast is read as a conversion of row to column.
+The allowed casts for values of each numeric type is shown as a row in the table
+below.
 
 |====
 |        | byte     | short    | char     | int      | long     | float    | double
@@ -73,7 +68,7 @@ Each cast is read as a conversion of row to column.
 
 *Examples*
 
-* Valid <<primitive-types, numeric type>> casts.
+* Valid numeric type casts.
 +
 [source,Painless]
 ----
@@ -84,22 +79,22 @@ Each cast is read as a conversion of row to column.
 ----
 +
 <1> declare `int a`;
-    assign value of `int 1` to `a`
+    assign `int 1` to `a`
 <2> declare `long b`;
-    access value of `a` -> `int 1`;
-    implicit cast value of `int 1` to value of `long 1` -> `long 1`;
-    assign value of `long 1` to `b`
+    access `a` -> `int 1`;
+    implicit cast `int 1` to `long 1` -> `long 1`;
+    assign `long 1` to `b`
 <3> declare `short c`;
-    access value of `b` -> `long 1`;
-    explicit cast value of `long 1` to value of `short 1` -> `short 1`;
-    assign value of `short 1` value to `c`
+    access `b` -> `long 1`;
+    explicit cast `long 1` to `short 1` -> `short 1`;
+    assign `short 1` value to `c`
 <4> declare `double e`;
-    access value of `a` -> `int 1`;
-    explicit cast value of `int 1` to `double 1.0`;
-    assign value of `double 1.0` to `e`;
-    (note the explicit cast is extraneous, and an implicit cast is valid)
+    access `a` -> `int 1`;
+    explicit cast `int 1` to `double 1.0`;
+    assign `double 1.0` to `e`;
+    (note the explicit cast is extraneous since an implicit cast is valid)
 +
-* Invalid <<primitive-types, numeric type>> casts resulting in errors.
+* Invalid numeric type casts resulting in errors.
 +
 [source,Painless]
 ----
@@ -109,30 +104,28 @@ Each cast is read as a conversion of row to column.
 ----
 +
 <1> declare `int i`;
-    *error* -> cannot implicit cast value of `double 1.0` to value of `int 1`;
+    *error* -> cannot implicit cast `double 1.0` to `int 1`;
     (note an explicit cast is valid)
 <2> declare `int b`;
-    assign value of `int 2` to `b`
+    assign `int 2` to `b`
 <3> declare byte `c`;
-    access value of `b` -> `int 2`;
-    *error* -> cannot implicit cast value of `int 2` to value of `byte 2`;
+    access `b` -> `int 2`;
+    *error* -> cannot implicit cast `int 2` to `byte 2`;
     (note an explicit cast is valid)
 
 [[reference-type-casting]]
 ==== Reference Type Casting
 
-A <<reference-types, reference type>> cast is the conversion of the value of
-one <<reference-types, reference type>> to the equivalent value of an inferred
-or specified <<reference-types, reference type>>. Implicit casts between
-reference type values are allowed when the reference type being cast *from*
-is a descendant of the reference type being cast *to*. Explicit casts between
-reference type values are allowed when the reference type being cast *from*
-is a descendant of the reference type being cast *to* or the reference type
-being cast *to* is a descendant of the reference type being cast *from*.
+A <<reference-types, reference type>> cast converts the value of an original
+reference type to the equivalent value of a target reference type. An implicit
+cast between two reference type values is allowed when the original reference
+type is a descendant of the target type. An explicit cast between two reference
+type values is allowed when the original type is a descendant of the target type
+or the target type is a descendant of the original type.
 
 *Examples*
 
-* Valid <<reference-types, reference type>> casts.
+* Valid reference type casts.
 +
 [source,Painless]
 ----
@@ -147,23 +140,21 @@ being cast *to* is a descendant of the reference type being cast *from*.
     assign default value `null` to `x`
 <2> declare `ArrayList y`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    assign value of `ArrayList reference` to `y`;
-<3> access value of `y` -> `ArrayList reference`;
-    implicit cast value of `ArrayList reference` to value of `List reference`
-            -> `List reference`;
-    assign value of `List reference` to `x`;
+    assign `ArrayList reference` to `y`;
+<3> access `y` -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    assign `List reference` to `x`;
     (note `ArrayList` is a descendant of `List`)
-<4> access value of `x` -> `List reference`;
-    explicit cast value of `List reference` to value of `ArrayList reference`
+<4> access `x` -> `List reference`;
+    explicit cast `List reference` to `ArrayList reference`
             -> `ArrayList reference`;
-    assign value of `ArrayList reference` to `y`;
-<5> access value of `y` -> `ArrayList reference`;
-    explicit cast value of `ArrayList reference` to value of `List reference`
-            -> `List reference`;
-    assign value of `List reference` to `x`;
+    assign `ArrayList reference` to `y`;
+<5> access `y` -> `ArrayList reference`;
+    explicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    assign `List reference` to `x`;
     (note the explicit cast is extraneous, and an implicit cast is valid)
 +
-* Invalid <<reference-types, reference type>> casts resulting in errors.
+* Invalid reference type casts resulting in errors.
 +
 [source,Painless]
 ----
@@ -174,16 +165,14 @@ being cast *to* is a descendant of the reference type being cast *from*.
 +
 <1> declare `List x`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    implicit cast value of `ArrayList reference` to value of `List reference`
-            -> `List reference`;
-    assign value of `List reference` to `x`
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    assign `List reference` to `x`
 <2> declare `ArrayList y`;
-    access value of `x` -> `List reference`;
+    access `x` -> `List reference`;
     *error* -> cannot implicit cast `List reference` to `ArrayList reference`;
-    (note an explicit cast is valid since `ArrayList` is a descendant of
-            `List`)
+    (note an explicit cast is valid since `ArrayList` is a descendant of `List`)
 <3> declare `ArrayList y`;
-    access value of `x` -> `List reference`;
+    access `x` -> `List reference`;
     *error* -> cannot explicit cast `List reference` to `Map reference`;
     (note no cast would be valid since neither `List` nor `Map` is a descendant
             of the other)
@@ -191,24 +180,21 @@ being cast *to* is a descendant of the reference type being cast *from*.
 [[dynamic-type-casting]]
 ==== Dynamic Type Casting
 
-A <<dynamic-types, dynamic type>> cast is the conversion of the value of one
-<<dynamic-types, dynamic type>>, `def`, to the equivalent value of any inferred
-or specified other <<painless-types, type>> or vice versa.
+A <<dynamic-types, dynamic (`def`) type>> cast converts the value of an original
+`def` type to the equivalent value of any target type or converts the value of
+any original type to the equivalent value of a target `def` type.
 
-Implicit casts from <<painless-types, any type>> value to a
-<<dynamic-types, `def` type>> value are always allowed. Explicit casts from
-<<painless-types, any type>> value to a <<dynamic-types, `def` type>> value are
-allowed but never necessary.
+An implicit cast from any original type value to a `def` type value is always
+allowed. An explicit cast from any original type value to a `def` type value is
+always allowed but never necessary.
 
-Implicit and explicit casts from a <dynamic-types, `def` type>>, value to
-<<painless-types, any type>> value are allowed if and only if the cast is
-normally allowed based on the current type value the
-<dynamic-types, `def` type>> value represents.
+An implicit or explicit cast from an original `def` type value to
+any target type value is allowed if and only if the cast is normally allowed
+based on the current type value the `def` type value represents.
 
 *Examples*
 
-* Examples of casting <<painless-types, any type>> to the
-  <<dynamic-types, dynamic type>>.
+* Valid dynamic type casts with any original type to a target `def` type.
 +
 [source,Painless]
 ----
@@ -220,32 +206,30 @@ normally allowed based on the current type value the
 ----
 +
 <1> declare `def d0`;
-    implicit cast value of `int 3` to `def`;
-    assign value of `int 3` to `d0`
+    implicit cast `int 3` to `def`;
+    assign `int 3` to `d0`
 <2> allocate `ArrayList` instance -> `ArrayList reference`;
-    implicit cast value of `ArrayList reference` to value of `def` -> `def`;
-    assign value of `def` to `d0`
+    implicit cast `ArrayList reference` to `def` -> `def`;
+    assign `def` to `d0`
 <3> declare `Object o`;
     allocate `HashMap` instance -> `HashMap reference`;
-    implicit cast value of `HashMap reference` to value of `Object reference`
+    implicit cast `HashMap reference` to `Object reference`
             -> `Object reference`;
-    assign value of `Object reference` to `o`
+    assign `Object reference` to `o`
 <4> declare `def d1`;
-    access value of `o` -> `Object reference`;
-    implicit cast value of `Object reference` to value of `def` -> `def`;
-    assign value of `def` to `d1`
+    access `o` -> `Object reference`;
+    implicit cast `Object reference` to `def` -> `def`;
+    assign `def` to `d1`
 <5> declare `int i`;
-    access value of `d1` -> `def`;
-    implicit cast value of `def` to value of `HashMap reference`
-            -> HashMap reference`;
+    access `d1` -> `def`;
+    implicit cast `def` to `HashMap reference` -> HashMap reference`;
     call `size` on `HashMap reference` -> `int 0`;
-    assign value of `int 0` to `i`;
-    (note value of `def` was implicit cast to value of `HashMap reference`
-            since `HashMap` is the child-most descendant type value that the
-            `def` type value represents)
+    assign `int 0` to `i`;
+    (note `def` was implicit cast to `HashMap reference` since `HashMap` is the
+            child-most descendant type value that the `def` type value
+            represents)
 +
-* Examples of casting from the <<dynamic-types, dynamic type>> to
-  <<painless-types, any type>>.
+* Valid dynamic type casts with an original `def` type to any target type.
 +
 [source,Painless]
 ----
@@ -258,34 +242,32 @@ normally allowed based on the current type value the
 ----
 +
 <1> declare `def d`;
-    implicit cast value of `double 1.0` to value of `def` -> `def`;
-    assign value of `def` to `d`
+    implicit cast `double 1.0` to `def` -> `def`;
+    assign `def` to `d`
 <2> declare `int i`;
-    access value of `d` -> `def`;
-    implicit cast value of `def` to value of `double 1.0` -> `double 1.0`;
-    explicit cast value of `double 1.0` to value of `int 1` -> `int 1`;
-    assign value of `int 1` to `i`;
+    access `d` -> `def`;
+    implicit cast `def` to `double 1.0` -> `double 1.0`;
+    explicit cast `double 1.0` to `int 1` -> `int 1`;
+    assign `int 1` to `i`;
     (note the explicit cast is necessary since a `double` value cannot be
      converted to an `int` value implicitly)
-<3> assign value of `int 1` to `d`;
+<3> assign `int 1` to `d`;
     (note the switch in the type `d` represents from `double` to `int`)
 <4> declare `float i`;
-    access value of `d` -> `def`;
-    implicit cast value of `def` to value of `int 1` -> `int 1`;
-    implicit cast value of `int 1` to value of `float 1.0` -> `float 1.0`;
-    assign value of `float 1.0` to `f`
+    access `d` -> `def`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    implicit cast `int 1` to `float 1.0` -> `float 1.0`;
+    assign `float 1.0` to `f`
 <5> allocate `ArrayList` instance -> `ArrayList reference`;
-    assign value of `ArrayList reference` to `d`;
+    assign `ArrayList reference` to `d`;
     (note the switch in the type `d` represents from `int` to `ArrayList`)
 <6> declare `List l`;
-    access value of `d` -> `def`;
-    implicit cast value of `def` to value of `ArrayList reference`
-            -> `ArrayList reference`;
-    implicit cast value of `ArrayList reference` to value of `List reference`
-            -> `List reference`;
-    assign value of `List reference` to `l`
+    access `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    assign `List reference` to `l`
 +
-* Examples of errors when casting with the <<dynamic-types, dynamic-type>>.
+* Invalid dynamic type casts resulting in errors.
 +
 [source,Painless]
 ----
@@ -295,19 +277,19 @@ normally allowed based on the current type value the
 <4> List l = d;        // error
 ----
 <1> declare `def d`;
-    implicit cast value of `int 1` to value of `def` -> `def`;
-    assign value of `def` to `d`
+    implicit cast `int 1` to `def` -> `def`;
+    assign `def` to `d`
 <2> declare `short s`;
-    access value of `d` -> `def`;
-    implicit cast value of `def` to value of `int 1` -> `int 1`;
-    *error* -> cannot implicit cast value of `int 1` to value of `short 1`;
+    access `d` -> `def`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    *error* -> cannot implicit cast `int 1` to `short 1`;
     (note an explicit cast is valid)
 <3> allocate `HashMap` instance -> `HashMap reference`;
-    implicit cast value of `HashMap reference` to value of `def` -> `def`;
-    assign value of `def` to `d`
+    implicit cast `HashMap reference` to `def` -> `def`;
+    assign `def` to `d`
 <4> declare `List l`;
-    access value of `d` -> `def`;
-    implicit cast value of `def` to value of `HashMap reference`;
+    access `d` -> `def`;
+    implicit cast `def` to `HashMap reference`;
     *error* -> cannot implicit cast `HashMap reference` to `List reference`;
     (note no cast would be valid since neither `HashMap` nor `List` is a
             descendant of the other)
@@ -315,14 +297,16 @@ normally allowed based on the current type value the
 [[string-character-casting]]
 ==== String to Character Casting
 
-Use the <<painless-casting, `cast operator '()'`>> to convert
-<<string-type, String>> values into <<primitive-types, char>> values. Use only
-<<string-type, String>> values one character in length for this conversion or
-an error will occur.
+Use the <<painless-casting, *cast operator ()*>> to convert a
+<<string-type, String type>> value into a <<primitive-types, char type>> value.
+
+*Errors*
+
+* If the String type value isn't one character in length.
 
 *Examples*
 
-* Casting <<strings, string literals>> into <<primitive-types, char>> values.
+* Casting <<strings, string literals>> into char type values.
 +
 [source,Painless]
 ----
@@ -331,13 +315,12 @@ an error will occur.
 ----
 +
 <1> declare `char c`;
-    explicit cast value of `String "C"` to value of `char C` -> `char C`;
-    assign value of `char C` to `c`
-<2> explicit cast value of `String 'c'` to value of `char c` -> `char c`;
-    assign value of `char c` to `c`
+    explicit cast `String "C"` to `char C` -> `char C`;
+    assign `char C` to `c`
+<2> explicit cast `String 'c'` to `char c` -> `char c`;
+    assign `char c` to `c`
 +
-* Casting a <<string-type, String>> value into a <<primitive-types, char>>
-  value.
+* Casting a String type value into a char type value.
 +
 [source,Painless]
 ----
@@ -345,11 +328,11 @@ an error will occur.
 <2> char c = (char)s;
 ----
 <1> declare `String s`;
-    assign value of `String "s"` to `s`;
+    assign `String "s"` to `s`;
 <2> declare `char c`
-    access value of `s` -> `String "s"`;
-    explicit cast value of `String "s"` to value of `char s` -> `char s`;
-    assign value of `char s` to `c`
+    access `s` -> `String "s"`;
+    explicit cast `String "s"` to `char s` -> `char s`;
+    assign `char s` to `c`
 
 [[boxing-unboxing]]
 ==== Boxing and Unboxing
@@ -357,25 +340,27 @@ an error will occur.
 Boxing is a special type of cast used to convert a
 <<primitive-types, primitive type>> to its corresponding
 <<reference-types, reference type>>. Unboxing is the reverse used to convert a
-<<reference-types, reference type>> to its corresponding
-<<primitive-types, primitive type>>.
+reference type to its corresponding primitive type.
 
 Implicit boxing/unboxing occurs during the following
 <<painless-operators, operations>>:
 
 * Conversions between the <<dynamic-types, `def` type>> and
-  <<primitive-types, primitive types>> will be implicitly boxed/unboxed as
+  primitive types will be implicitly boxed/unboxed as
   necessary, though this is referred to as an implicit cast throughout the
   documentation.
 * <<method-access, Method>>/function call arguments will be implicitly
   boxed/unboxed as necessary.
-* <<primitive-types, Primitive type>> values will be implicitly boxed when a
-  <<reference-types, reference type>> <<method-access, method call>> is made on a
-  <<primitive-types, primitive type>> value.
+* Primitive type values will be implicitly boxed when a reference type method
+  call is invoked on a primitive type value.
 
-Explicit boxing/unboxing is not allowed and will result in an error. Use the
-reference type API to explicitly convert primitive type values to their
-respective reference type values and vice versa.
+Explicit boxing/unboxing is not allowed. Use the reference type API to
+explicitly convert primitive type values to their respective reference type
+values and vice versa.
+
+*Errors*
+
+* If an explicit cast is made to box/unbox a primitive type.
 
 *Examples*
 
@@ -391,22 +376,22 @@ respective reference type values and vice versa.
 +
 <1> declare `List l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    assign value of `ArrayList reference` to `l`;
-<2> access value of `l` -> `List reference`;
-    implicit cast value of `int 1` to value of `def` -> `def`;
+    assign `ArrayList reference` to `l`;
+<2> access `l` -> `List reference`;
+    implicit cast `int 1` to `def` -> `def`;
     call `add` on `List reference` with arguments (`def`);
     (note internally `int 1` is boxed to `Integer 1` to store as a `def` type
             value)
 <3> declare `Integer I`;
     call `valueOf` on `Integer` with arguments of (`int 0`) -> `Integer 0`;
-    assign value of `Integer 0` to `I`;
+    assign `Integer 0` to `I`;
 <4> declare `int i`;
-    access value of `I` -> `Integer 0`;
+    access `I` -> `Integer 0`;
     unbox `Integer 0` -> `int 0`;
-    access value of `l` -> `List reference`;
+    access `l` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def`;
-    implicit cast value of `def` to value of `int 1` -> `int 1`;
-    assign value of `int 1` to `i`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    assign `int 1` to `i`;
     (note internally `int 1` is unboxed from `Integer 1` when read from a `def`
             type value)
 +
@@ -436,11 +421,15 @@ respective reference type values and vice versa.
 
 Promotion is when a value is converted into either a certain type or when
 multiple values are converted into equivalent types for use during an
-<<painless-operators, operation>>. Each <<painless-operators, operation>> that
-requires promotion will have a promotion table that shows all allowed
-conversions. Values can be promoted to the `def` type at compile-time; however,
-at run-time, the promoted type of value is derived from what the `def` type
-value represents.
+<<painless-operators, operation>>. Each operation that requires promotion will
+have a promotion table that shows all allowed conversions. Values can be
+promoted to the `def` type at compile-time; however, at run-time, the promoted
+type value is derived from what the `def` type value represents.
+
+*Errors*
+
+* If a specific operation cannot find an allowed promotion type for the type(s)
+  of value(s) given.
 
 *Examples*
 
@@ -453,20 +442,19 @@ value represents.
 <3> float f = x + 2.0F;
 ----
 <1> declare `double d`;
-    promote value of `int 2` and value of `double 2.0 @0` -> `double 2.0 @0`;
-    implicit cast value of `int 2` to value of `double 2.0 @1`
-            -> `double 2.0 @1`;
+    promote `int 2` and `double 2.0 @0` -> `double 2.0 @0`;
+    implicit cast `int 2` to `double 2.0 @1` -> `double 2.0 @1`;
     add `double 2.0 @1` and `double 2.0 @0` -> `double 4.0`;
-    assign value of `double 4.0` to `d`
+    assign `double 4.0` to `d`
 <2> declare `def x`;
-    implicit cast value of `int 1` to value of `def` -> `def`;
-    assign value of `def` to `x`;
+    implicit cast `int 1` to `def` -> `def`;
+    assign `def` to `x`;
 <3> declare `float f`;
-    access value of `x` -> `def`;
-    implicit cast value of `def` to value of `int 1` -> `int 1`;
-    promote value of `int 1` and value of `float 2.0` -> `float 2.0`;
-    implicit cast value of `int 1` to value of `float 1.0` -> `float `1.0`;
+    access `x` -> `def`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    promote `int 1` and `float 2.0` -> `float 2.0`;
+    implicit cast `int 1` to `float 1.0` -> `float `1.0`;
     add `float 1.0` and `float 2.0` -> `float 3.0`;
-    assign value of `float 3.0` to `f`;
+    assign `float 3.0` to `f`;
     (note this example illustrates promotion done at run-time as promotion
-     done at compile-time would have resolved to a `def` type value)
+            done at compile-time would have resolved to a `def` type value)

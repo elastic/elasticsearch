@@ -1,10 +1,6 @@
 [role="xpack"]
 [[bootstrap-checks-xpack]]
 == Bootstrap Checks for {xpack}
-++++
-<titleabbrev>Bootstrap Checks</titleabbrev>
-++++
-
 
 In addition to the <<bootstrap-checks,{es} bootstrap checks>>, there are
 checks that are specific to {xpack} features.

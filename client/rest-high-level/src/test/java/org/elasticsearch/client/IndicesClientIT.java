@@ -642,7 +642,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SHRINK);
-        Settings targetSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
+        Settings targetSettings =
+                Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+                        .putNull("index.routing.allocation.require._name")
+                        .build();
         resizeRequest.setTargetIndex(new CreateIndexRequest("target").settings(targetSettings).alias(new Alias("alias")));
         ResizeResponse resizeResponse = highLevelClient().indices().shrink(resizeRequest);
         assertTrue(resizeResponse.isAcknowledged());

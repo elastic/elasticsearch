@@ -21,9 +21,11 @@ package org.elasticsearch.common.hash;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.File;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Locale;
 
 public class MessageDigestsTests extends ESTestCase {
     private void assertHash(String expected, String test, MessageDigest messageDigest) {

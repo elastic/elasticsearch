@@ -759,17 +759,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public String toString() {
             return "store(" + in.toString() + ")";
         }
-
-        @Override
-        public boolean checkPendingDeletions() throws IOException {
-            if (super.checkPendingDeletions()) {
-                deletesLogger.warn("directory has still pending deletes");
-            }
-            // we skip this check since our IW usage always goes forward.
-            // we still might run into situations where we have pending deletes ie. in shrink / split case
-            // and that will cause issues on windows since we open multiple IW instance one after another during the split/shrink recovery
-            return false;
-        }
     }
 
     /**

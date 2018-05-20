@@ -1529,7 +1529,7 @@ public class TranslogTests extends ESTestCase {
                 fail();
             } catch (AssertionError e) {
                 assertThat(e.getMessage(),
-                    is("current should not have any operations with seq#:primaryTerm [1:" + (pt - 1) + "] >= 0:" + pt));
+                    is("current should not have any operations with seq#:primaryTerm [1:" + (pt - 1) + "] > 0:" + pt));
             }
 
             anotherTranslog.rollGeneration();

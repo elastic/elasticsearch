@@ -47,13 +47,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
@@ -118,54 +115,6 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         } else {
             assertEquals(0, fut.get().getSkippedOperations());
             assertEquals(0, fut.get().getResyncedOperations());
-        }
-
-        closeShards(shard);
-    }
-
-    public void testSyncerSendsMaxSeqNo() throws Exception {
-        IndexShard shard = newStartedShard(true);
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        AtomicReference<ResyncReplicationRequest> resyncRequest = new AtomicReference<>();
-        PrimaryReplicaSyncer.SyncAction syncAction =
-            (request, parentTask, allocationId, primaryTerm, listener) -> {
-                assertThat("has to be called once", resyncRequest.compareAndSet(null, request), is(true));
-                assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
-                listener.onResponse(new ResyncReplicationResponse());
-            };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, taskManager, syncAction);
-
-        int numDocs = randomInt(10);
-        for (int i = 0; i < numDocs; i++) {
-            // Index doc but not advance local checkpoint.
-            shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
-        }
-
-        String allocationId = shard.routingEntry().allocationId().getId();
-        shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
-
-        // move globalCheckPoint to maxSeqNo
-        long globalCheckPoint = numDocs;
-        shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
-        assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
-
-        PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
-        syncer.resync(shard, fut);
-        fut.get();
-
-        if (numDocs > 0) {
-            assertThat("Sync action was not called", resyncRequest.get(), is(notNullValue()));
-            assertThat("sync action has to be call to send trimAboveSeqNo even if there is no ops to sync",
-                fut.get().getTotalOperations(), equalTo(0));
-            assertThat(resyncRequest.get().getTrimAboveSeqNo(), equalTo(numDocs - 1L));
-            assertThat(fut.get().getSkippedOperations(), equalTo(0));
-            assertThat(fut.get().getResyncedOperations(), equalTo(0));
-        } else {
-            assertThat("Sync action should not be called, trimAboveSeqNo is unassigned",
-                resyncRequest.get(), is(nullValue()));
         }
 
         closeShards(shard);

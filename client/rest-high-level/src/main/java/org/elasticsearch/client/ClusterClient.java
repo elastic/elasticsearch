@@ -96,7 +96,6 @@ public final class ClusterClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * </p>
-     * @throws IOException
      */
     public CancelTasksResponse cancelTasks(CancelTasksRequest cancelTasksRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
@@ -113,7 +112,6 @@ public final class ClusterClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * </p>
-     * @throws IOException
      */
     public void cancelTasksAsync(CancelTasksRequest cancelTasksRequest, ActionListener<CancelTasksResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(

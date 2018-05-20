@@ -712,12 +712,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             if (current.getPrimaryTerm() < belowTerm) {
-                throw new IllegalArgumentException("Latest translog primary term [" + current.getPrimaryTerm()
-                    + "] has to be not less that trimming term [" + belowTerm + "]");
+                throw new IllegalArgumentException("Trimming the translog can only be done for terms lower than the current one. " +
+                    "Trim requested for term [ " + belowTerm + " ] , current is [ " + current.getPrimaryTerm() + " ]");
             }
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
+                // assume that there are no any trimmable ops in current
                 assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
 
                 for (TranslogReader reader : readers) {

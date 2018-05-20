@@ -102,8 +102,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             } finally {
                 IOUtils.close(toCloseOnFailure);
             }
+        } else {
+            throw new AlreadyClosedException(toString() + " is already closed");
         }
-        throw new AlreadyClosedException(toString() + " is already closed");
     }
 
     public long sizeInBytes() {

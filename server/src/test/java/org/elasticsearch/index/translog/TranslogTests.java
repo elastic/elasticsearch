@@ -1513,25 +1513,30 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testSnapshotCurrentHasUnexpectedOperationsForTrimmedOperations() throws Exception {
-        long pt = primaryTerm.get();
-        int extraDocs = randomIntBetween(10, 15);
-        for (int op = 0; op < extraDocs; op++) {
-            String ascii = randomAlphaOfLengthBetween(1, 50);
-            Translog.Index operation = new Translog.Index("test", "" + op, op, pt, ascii.getBytes("UTF-8"));
-            translog.add(operation);
-        }
-        try {
-            translog.trimOperations(pt - 1, 0);
-            fail();
-        } catch (AssertionError e) {
-            assertThat(e.getMessage(),
-                is("current should not have any operations with seq#:primaryTerm [0:" + pt + "] >= 0:" + (pt - 1)));
-        }
+        primaryTerm.addAndGet(randomIntBetween(5, 10));
 
-        translog.rollGeneration();
+        try(Translog anotherTranslog = createTranslog(translog.getConfig())) {
+            long pt = primaryTerm.get();
 
-        // it is possible to trim after generation rollover
-        translog.trimOperations(pt - 1, 0);
+            int extraDocs = randomIntBetween(10, 15);
+            for (int op = 0; op < extraDocs; op++) {
+                String ascii = randomAlphaOfLengthBetween(1, 50);
+                Translog.Index operation = new Translog.Index("test", "" + op, op, pt - op, ascii.getBytes("UTF-8"));
+                anotherTranslog.add(operation);
+            }
+            try {
+                anotherTranslog.trimOperations(pt, 0);
+                fail();
+            } catch (AssertionError e) {
+                assertThat(e.getMessage(),
+                    is("current should not have any operations with seq#:primaryTerm [1:" + (pt - 1) + "] >= 0:" + pt));
+            }
+
+            anotherTranslog.rollGeneration();
+
+            // it is possible to trim after generation rollover
+            anotherTranslog.trimOperations(pt, 0);
+        }
     }
 
     public void testSnapshotTrimmedOperations() throws Exception {

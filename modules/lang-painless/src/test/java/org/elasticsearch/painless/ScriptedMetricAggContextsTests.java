@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptContext;
@@ -62,12 +64,23 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> agg = new HashMap<>();
-        double _score = 0.5;
+
+        Scorer scorer = new Scorer(null) {
+            @Override
+            public int docID() { return 0; }
+
+            @Override
+            public float score() { return 0.5f; }
+
+            @Override
+            public DocIdSetIterator iterator() { return null; }
+        };
 
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, agg, null);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(null);
 
-        script.execute(_score);
+        script.setScorer(scorer);
+        script.execute();
 
         assert(agg.containsKey("testField"));
         assertEquals(1.0, agg.get("testField"));

@@ -64,24 +64,17 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
             final LeafBucketCollector sub) throws IOException {
         final ScriptedMetricAggContexts.MapScript leafMapScript = mapScript.newInstance(ctx);
         return new LeafBucketCollectorBase(sub, leafMapScript) {
-            private Scorer scorer;
-
             @Override
             public void setScorer(Scorer scorer) throws IOException {
-                this.scorer = scorer;
+                leafMapScript.setScorer(scorer);
             }
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0 : bucket;
 
-                double _score = 0.0;
-                if (scorer != null) {
-                    _score = scorer.score();
-                }
-
                 leafMapScript.setDocument(doc);
-                leafMapScript.execute(_score);
+                leafMapScript.execute();
             }
         };
     }

@@ -400,7 +400,7 @@ public class MockScriptEngine implements ScriptEngine {
         public ScriptedMetricAggContexts.MapScript newInstance(LeafReaderContext context) {
             return new ScriptedMetricAggContexts.MapScript(params, agg, lookup, context) {
                 @Override
-                public void execute(double _score) {
+                public void execute() {
                     Map<String, Object> map = new HashMap<>();
 
                     if (getParams() != null) {
@@ -410,7 +410,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                     map.put("agg", getAgg());
                     map.put("doc", getDoc());
-                    map.put("_score", _score);
+                    map.put("_score", get_score());
 
                     script.apply(map);
                 }

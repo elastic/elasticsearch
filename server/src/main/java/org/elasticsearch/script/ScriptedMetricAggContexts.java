@@ -20,10 +20,13 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -63,6 +66,7 @@ public class ScriptedMetricAggContexts {
 
     public abstract static class MapScript extends ParamsAndAggBase {
         private final LeafSearchLookup leafLookup;
+        private Scorer scorer;
 
         public MapScript(Map<String, Object> params, Object agg, SearchLookup lookup, LeafReaderContext leafContext) {
             super(params, agg);
@@ -82,7 +86,24 @@ public class ScriptedMetricAggContexts {
             }
         }
 
-        public abstract void execute(double _score);
+        public void setScorer(Scorer scorer) {
+            this.scorer = scorer;
+        }
+
+        // get_score() is named this way so that it's picked up by Painless as '_score'
+        public double get_score() {
+            if (scorer == null) {
+                return 0.0;
+            }
+
+            try {
+                return scorer.score();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Couldn't look up score", e);
+            }
+        }
+
+        public abstract void execute();
 
         public interface LeafFactory {
             MapScript newInstance(LeafReaderContext ctx);
@@ -92,7 +113,7 @@ public class ScriptedMetricAggContexts {
             LeafFactory newFactory(Map<String, Object> params, Object agg, SearchLookup lookup);
         }
 
-        public static String[] PARAMETERS = new String[] {"_score"};
+        public static String[] PARAMETERS = new String[] {};
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_map", Factory.class);
     }
 

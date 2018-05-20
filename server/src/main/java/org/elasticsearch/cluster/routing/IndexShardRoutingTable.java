@@ -544,20 +544,20 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     static class AttributesKey {
 
-        final String[] attributes;
+        final List<String> attributes;
 
-        AttributesKey(String[] attributes) {
+        AttributesKey(List<String> attributes) {
             this.attributes = attributes;
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(attributes);
+            return attributes.hashCode();
         }
 
         @Override
         public boolean equals(Object obj) {
-            return obj instanceof AttributesKey && Arrays.equals(attributes, ((AttributesKey) obj).attributes);
+            return obj instanceof AttributesKey && attributes.equals(((AttributesKey) obj).attributes);
         }
     }
 
@@ -621,11 +621,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return Collections.unmodifiableList(to);
     }
 
-    public ShardIterator preferAttributesActiveInitializingShardsIt(String[] attributes, DiscoveryNodes nodes) {
+    public ShardIterator preferAttributesActiveInitializingShardsIt(List<String> attributes, DiscoveryNodes nodes) {
         return preferAttributesActiveInitializingShardsIt(attributes, nodes, shuffler.nextSeed());
     }
 
-    public ShardIterator preferAttributesActiveInitializingShardsIt(String[] attributes, DiscoveryNodes nodes, int seed) {
+    public ShardIterator preferAttributesActiveInitializingShardsIt(List<String> attributes, DiscoveryNodes nodes, int seed) {
         AttributesKey key = new AttributesKey(attributes);
         AttributesRoutings activeRoutings = getActiveAttribute(key, nodes);
         AttributesRoutings initializingRoutings = getInitializingAttribute(key, nodes);

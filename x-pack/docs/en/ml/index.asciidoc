@@ -17,11 +17,20 @@ from {es} for analysis and anomaly results are displayed in {kib} dashboards.
 
 --
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/overview.asciidoc
 include::overview.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/getting-started.asciidoc
 include::getting-started.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/configuring.asciidoc
 include::configuring.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/stopping-ml.asciidoc
 include::stopping-ml.asciidoc[]
-// include::ml-scenarios.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/api-quickref.asciidoc
 include::api-quickref.asciidoc[]
-//include::troubleshooting.asciidoc[]  Referenced from x-pack/docs/public/xpack-troubleshooting.asciidoc
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions.asciidoc
 include::functions.asciidoc[]

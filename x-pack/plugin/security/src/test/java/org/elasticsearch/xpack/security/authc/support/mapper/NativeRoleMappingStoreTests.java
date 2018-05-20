@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -73,12 +72,10 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 Arrays.asList("mutants"), Collections.emptyMap(), false);
 
         final Client client = mock(Client.class);
-        final SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
 
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, lifecycleService) {
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, securityIndex) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 final List<ExpressionRoleMapping> mappings = Arrays.asList(mapping1, mapping2, mapping3, mapping4);
@@ -212,7 +209,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, mock(SecurityLifecycleService.class));
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, mock(SecurityIndexManager.class));
         store.refreshRealmOnChange(mockRealm);
         return store;
     }

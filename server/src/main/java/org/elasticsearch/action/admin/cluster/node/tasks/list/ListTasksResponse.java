@@ -50,9 +50,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Returns the list of tasks currently running on the nodes
  */
 public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
-    private static final String TASKS = "tasks";
-    private static final String TASK_FAILURES = "task_failures";
-    private static final String NODE_FAILURES = "node_failures";
+    protected static final String TASKS = "tasks";
+    protected static final String TASK_FAILURES = "task_failures";
+    protected static final String NODE_FAILURES = "node_failures";
 
     private List<TaskInfo> tasks;
 

@@ -22,38 +22,21 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksResponse> {
-
-    public void testEmptyToString() {
-        assertEquals("{\"tasks\":[]}", new ListTasksResponse().toString());
-    }
-
-    public void testNonEmptyToString() {
-        TaskInfo info = new TaskInfo(
-            new TaskId("node1", 1), "dummy-type", "dummy-action", "dummy-description", null, 0, 1, true, new TaskId("node1", 0),
-            Collections.singletonMap("foo", "bar"));
-        ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
-        assertEquals("{\"tasks\":[{\"node\":\"node1\",\"id\":1,\"type\":\"dummy-type\",\"action\":\"dummy-action\","
-                + "\"description\":\"dummy-description\",\"start_time_in_millis\":0,\"running_time_in_nanos\":1,\"cancellable\":true,"
-                + "\"parent_task_id\":\"node1:0\",\"headers\":{\"foo\":\"bar\"}}]}", tasksResponse.toString());
-    }
+public class CancelTaskResponseTests  extends AbstractXContentTestCase<CancelTasksResponse> {
 
     @Override
-    protected ListTasksResponse createTestInstance() {
+    protected CancelTasksResponse createTestInstance() {
         List<TaskInfo> tasks = new ArrayList<>();
         for (int i = 0; i < randomInt(10); i++) {
             tasks.add(TaskInfoTests.randomTaskInfo());
@@ -61,14 +44,14 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         List<TaskOperationFailure> taskFailures = new ArrayList<>();
         for (int i = 0; i < randomInt(5); i++) {
             taskFailures.add(new TaskOperationFailure(
-                    randomAlphaOfLength(5), randomNonNegativeLong(), new IllegalStateException("message")));
+                randomAlphaOfLength(5), randomNonNegativeLong(), new IllegalStateException("message")));
         }
-        return new ListTasksResponse(tasks, taskFailures, Collections.singletonList(new FailedNodeException("", "message", null)));
+        return new CancelTasksResponse(tasks, taskFailures, Collections.singletonList(new FailedNodeException("", "message", null)));
     }
 
     @Override
-    protected ListTasksResponse doParseInstance(XContentParser parser) throws IOException {
-        return ListTasksResponse.fromXContent(parser);
+    protected CancelTasksResponse doParseInstance(XContentParser parser) {
+        return CancelTasksResponse.fromXContent(parser);
     }
 
     @Override
@@ -77,7 +60,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     }
 
     @Override
-    protected void assertEqualInstances(ListTasksResponse expectedInstance, ListTasksResponse newInstance) {
+    protected void assertEqualInstances(CancelTasksResponse expectedInstance, CancelTasksResponse newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.getTasks(), equalTo(expectedInstance.getTasks()));
         assertThat(newInstance.getNodeFailures().size(), equalTo(1));
@@ -91,4 +74,5 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     protected boolean assertToXContentEquivalence() {
         return false;
     }
+
 }

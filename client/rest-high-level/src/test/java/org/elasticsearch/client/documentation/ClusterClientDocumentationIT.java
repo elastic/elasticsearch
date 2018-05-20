@@ -21,9 +21,10 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -80,19 +81,19 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request
 
         // tag::put-settings-create-settings
-        String transientSettingKey = 
+        String transientSettingKey =
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int transientSettingValue = 10;
-        Settings transientSettings = 
+        Settings transientSettings =
                 Settings.builder()
                 .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES)
                 .build(); // <1>
 
-        String persistentSettingKey = 
+        String persistentSettingKey =
                 EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
-        String persistentSettingValue = 
+        String persistentSettingValue =
                 EnableAllocationDecider.Allocation.NONE.name();
-        Settings persistentSettings = 
+        Settings persistentSettings =
                 Settings.builder()
                 .put(persistentSettingKey, persistentSettingValue)
                 .build(); // <2>
@@ -105,9 +106,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-settings-settings-builder
-            Settings.Builder transientSettingsBuilder = 
+            Settings.Builder transientSettingsBuilder =
                     Settings.builder()
-                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES); 
+                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES);
             request.transientSettings(transientSettingsBuilder); // <1>
             // end::put-settings-settings-builder
         }
@@ -164,7 +165,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
             // tag::put-settings-execute-listener
-            ActionListener<ClusterUpdateSettingsResponse> listener = 
+            ActionListener<ClusterUpdateSettingsResponse> listener =
                     new ActionListener<ClusterUpdateSettingsResponse>() {
                 @Override
                 public void onResponse(ClusterUpdateSettingsResponse response) {
@@ -268,6 +269,76 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::list-tasks-execute-async
             client.cluster().listTasksAsync(request, listener); // <1>
             // end::list-tasks-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testCancelTasks() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::cancel-tasks-request
+            CancelTasksRequest request = new CancelTasksRequest();
+            // end::cancel-tasks-request
+
+            // tag::cancel-tasks-request-filter
+            request.setTaskId(new TaskId("nodeId1", 42)); //<1>
+            request.setActions("cluster:*"); // <2>
+            request.setNodes("nodeId1", "nodeId2"); // <3>
+            // end::cancel-tasks-request-filter
+
+        }
+
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTaskId(TaskId.EMPTY_TASK_ID);
+
+        // tag::cancel-tasks-execute
+        CancelTasksResponse response = client.cluster().cancelTasks(request);
+        // end::cancel-tasks-execute
+
+        assertThat(response, notNullValue());
+
+        // tag::cancel-tasks-response-tasks
+        List<TaskInfo> tasks = response.getTasks(); // <1>
+        // end::cancel-tasks-response-tasks
+
+
+        // tag::cancel-tasks-response-failures
+        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
+        List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
+        // end::-tasks-response-failures
+
+        assertThat(response.getNodeFailures(), equalTo(emptyList()));
+        assertThat(response.getTaskFailures(), equalTo(emptyList()));
+    }
+
+    public void testAsyncCancelTasks() throws InterruptedException {
+
+        RestHighLevelClient client = highLevelClient();
+        {
+            CancelTasksRequest request = new CancelTasksRequest();
+
+            // tag::cancel-tasks-execute-listener
+            ActionListener<CancelTasksResponse> listener =
+                new ActionListener<CancelTasksResponse>() {
+                    @Override
+                    public void onResponse(CancelTasksResponse response) {
+                        // <1>
+                    }
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::cancel-tasks-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::cancel-tasks-execute-async
+            client.cluster().cancelTasksAsync(request, listener); // <1>
+            // end::cancel-tasks-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

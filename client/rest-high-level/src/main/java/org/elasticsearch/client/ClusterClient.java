@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -86,5 +88,40 @@ public final class ClusterClient {
     public void listTasksAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
                 listener, emptySet(), headers);
+    }
+
+    /**
+     * Cancel one or more cluster tasks using the Task Management API
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * </p>
+     * @throws IOException
+     */
+    public CancelTasksResponse cancelTasks(CancelTasksRequest cancelTasksRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            cancelTasksRequest,
+            RequestConverters::cancelTasks,
+            parser -> CancelTasksResponse.fromXContent(parser),
+            emptySet(),
+            headers);
+    }
+
+    /**
+     * Asynchronously cancel one or more cluster tasks using the Task Management API
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * </p>
+     * @throws IOException
+     */
+    public void cancelTasksAsync(CancelTasksRequest cancelTasksRequest, ActionListener<CancelTasksResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            cancelTasksRequest,
+            RequestConverters::cancelTasks,
+            parser -> CancelTasksResponse.fromXContent(parser),
+            listener,
+            emptySet(),
+            headers);
     }
 }

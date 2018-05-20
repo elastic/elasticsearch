@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -135,5 +138,30 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
             }
         }
         assertTrue("List tasks were not found", listTasksFound);
+    }
+
+    public void testCancelTasks() throws IOException {
+        ListTasksRequest listRequest = new ListTasksRequest();
+        ListTasksResponse listResponse = execute(
+            listRequest,
+            highLevelClient().cluster()::listTasks,
+            highLevelClient().cluster()::listTasksAsync
+        );
+
+        // TODO[PCS] submit a task that is cancellable and assert it's cancelled
+        // this case is covered in TasksIT.testTasksCancellation
+        TaskInfo firstTask = listResponse.getTasks().get(0);
+        String node = listResponse.getPerNodeTasks().keySet().iterator().next();
+
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTaskId(new TaskId(node, firstTask.getId()));
+        request.setReason("persistent action was removed");
+        CancelTasksResponse response = execute(
+            request,
+            highLevelClient().cluster()::cancelTasks,
+            highLevelClient().cluster()::cancelTasksAsync
+        );
+
+        assertThat(response, notNullValue());
     }
 }

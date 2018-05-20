@@ -19,23 +19,64 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
-import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskInfo;
 
+import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Returns the list of tasks that were cancelled
  */
 public class CancelTasksResponse extends ListTasksResponse {
 
+    private static final ConstructingObjectParser<CancelTasksResponse, Void> PARSER =
+        new ConstructingObjectParser<>("cancel_tasks_response", true,
+            constructingObjects -> {
+                int i = 0;
+                @SuppressWarnings("unchecked")
+                List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
+                @SuppressWarnings("unchecked")
+                List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
+                @SuppressWarnings("unchecked")
+                List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
+                return new CancelTasksResponse(tasks, tasksFailures, nodeFailures);
+            });
+    static {
+        PARSER.declareObjectArray(optionalConstructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
+        PARSER.declareObjectArray(optionalConstructorArg(),
+            (parser, c) -> ElasticsearchException.fromXContent(parser), new ParseField(NODE_FAILURES));
+    }
+
     public CancelTasksResponse() {
     }
 
-    public CancelTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException>
+    public CancelTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException>
         nodeFailures) {
         super(tasks, taskFailures, nodeFailures);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return super.toXContent(builder, params);
+    }
+
+    public static CancelTasksResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

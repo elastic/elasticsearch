@@ -360,7 +360,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggInitScript extends ScriptedMetricAggContexts.InitScript {
+    public static class MockMetricAggInitScript extends ScriptedMetricAggContexts.InitScript {
         private final Function<Map<String, Object>, Object> script;
 
         MockMetricAggInitScript(Map<String, Object> params, Object agg,
@@ -382,7 +382,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggMapScript implements ScriptedMetricAggContexts.MapScript.LeafFactory {
+    public static class MockMetricAggMapScript implements ScriptedMetricAggContexts.MapScript.LeafFactory {
         private final Map<String, Object> params;
         private final Object agg;
         private final SearchLookup lookup;
@@ -418,7 +418,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggCombineScript extends ScriptedMetricAggContexts.CombineScript {
+    public static class MockMetricAggCombineScript extends ScriptedMetricAggContexts.CombineScript {
         private final Function<Map<String, Object>, Object> script;
 
         MockMetricAggCombineScript(Map<String, Object> params, Object agg,
@@ -440,7 +440,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggReduceScript extends ScriptedMetricAggContexts.ReduceScript {
+    public static class MockMetricAggReduceScript extends ScriptedMetricAggContexts.ReduceScript {
         private final Function<Map<String, Object>, Object> script;
 
         MockMetricAggReduceScript(Map<String, Object> params, List<Object> aggs,

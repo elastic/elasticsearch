@@ -1550,7 +1550,7 @@ public class TranslogTests extends ESTestCase {
             final AtomicBoolean wasRollover = new AtomicBoolean(false);
 
             for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
-
+                logger.info("attempt {}", attempt);
                 int extraDocs = randomIntBetween(10, 15);
 
                 List<Translog.Index> newOperations = new ArrayList<>();
@@ -1576,7 +1576,10 @@ public class TranslogTests extends ESTestCase {
                     newOperations.add(operation);
                 }
 
+                logger.info("newOperations: {}", newOperations);
                 boolean rollOver = randomBoolean();
+                logger.info("rollOver: {}", rollOver);
+
                 wasRollover.set(rollOver);
                 if (rollOver) {
                     primaryTerm.incrementAndGet();
@@ -1586,6 +1589,7 @@ public class TranslogTests extends ESTestCase {
                 int trimmedDocs = randomIntBetween(4, 8);
                 long maxTrimmedSeqNo = rollOver ? translogOperations + extraDocs - trimmedDocs : translogOperations + extraDocs + 1;
 
+                logger.info("trimOperations( {}, {} )", primaryTerm.get(), maxTrimmedSeqNo);
                 anotherTranslog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
                 anotherTranslog.sync();
 
@@ -1607,10 +1611,21 @@ public class TranslogTests extends ESTestCase {
                     .filter(op -> op.primaryTerm() <= primaryTerm.get() && op.seqNo() <= maxTrimmedSeqNo)
                     .forEach(effectiveOperations::add);
 
-                effectiveOperations = effectiveOperations
-                    .stream().distinct().sorted(Comparator.comparing(Translog.Operation::seqNo)).collect(Collectors.toList());
+                Set<Long> seqNoSet = new HashSet<>();
+                // sort by ascending seq#
+                // but descending for primaryTerm if seq# are equal
+                effectiveOperations =
+                    effectiveOperations
+                        .stream().distinct()
+                        .sorted(Comparator.comparingLong(Translog.Index::seqNo)
+                            .thenComparing(Comparator.comparingLong(Translog.Index::primaryTerm).reversed()))
+                        .filter(op -> seqNoSet.add(op.seqNo()))
+                        .collect(Collectors.toList());
 
                 Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
+
+                logger.info("effectiveOperations {} {}", effectiveOperations.size(), effectiveOperations);
+                logger.info("actualOperations    {} {}", actualOperations.size(), actualOperations);
 
                 assertThat(actualOperations, is(effectiveOperations));
 

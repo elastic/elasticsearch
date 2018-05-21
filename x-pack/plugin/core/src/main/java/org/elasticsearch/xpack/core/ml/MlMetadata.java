@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -465,6 +466,14 @@ public class MlMetadata implements MetaData.Custom {
             // which is the same as if the datafeed was't started
             return DatafeedState.STOPPED;
         }
+    }
+
+    public static MlMetadata getMlMetadata(ClusterState state) {
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(MLMetadataField.TYPE);
+        if (mlMetadata == null) {
+            return EMPTY_METADATA;
+        }
+        return mlMetadata;
     }
 
     public static class JobAlreadyMarkedAsDeletedException extends RuntimeException {

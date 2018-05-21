@@ -65,7 +65,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private XPackLicenseState licenseState;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         commonSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
@@ -232,9 +232,28 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             source = new XContentSource(builder);
-            assertThat(source.getValue("jobs"), equalTo(Collections.emptyMap()));
-            assertThat(source.getValue("datafeeds"), equalTo(Collections.emptyMap()));
         }
+
+        assertThat(source.getValue("jobs._all.count"), equalTo(0));
+        assertThat(source.getValue("jobs._all.detectors.min"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.detectors.max"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.detectors.total"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.detectors.avg"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.min"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.max"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.total"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.avg"), equalTo(0.0));
+
+        assertThat(source.getValue("jobs.opening"), is(nullValue()));
+        assertThat(source.getValue("jobs.opened"), is(nullValue()));
+        assertThat(source.getValue("jobs.closing"), is(nullValue()));
+        assertThat(source.getValue("jobs.closed"), is(nullValue()));
+        assertThat(source.getValue("jobs.failed"), is(nullValue()));
+
+        assertThat(source.getValue("datafeeds._all.count"), equalTo(0));
+
+        assertThat(source.getValue("datafeeds.started"), is(nullValue()));
+        assertThat(source.getValue("datafeeds.stopped"), is(nullValue()));
     }
 
     private void givenJobs(List<Job> jobs, List<GetJobsStatsAction.Response.JobStats> jobsStats) {

@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -52,10 +51,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
                                    ActionListener<GetDatafeedsAction.Response> listener) throws Exception {
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
-        MlMetadata mlMetadata = state.metaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
         Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
         List<DatafeedConfig> datafeedConfigs = new ArrayList<>();
         for (String expandedDatafeedId : expandedDatafeedIds) {

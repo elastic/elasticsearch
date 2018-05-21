@@ -1,6 +1,8 @@
 [[painless-execute-api]]
 === Painless execute API
 
+experimental[The painless execute api is new and the request / response format may change in a breaking way in the future]
+
 The Painless execute API allows an arbitrary script to be executed and a result to be returned.
 
 [[painless-execute-api-parameters]]

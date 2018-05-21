@@ -65,7 +65,7 @@ public class NamingConventionsTask extends LoggedExec {
     @Input
     boolean checkForTestsInMain = false;
 
-    NamingConventionsTask() {
+    public NamingConventionsTask() {
         // Extra classpath contains the actual test
         if (false == project.configurations.names.contains('namingConventions')) {
             project.configurations.create('namingConventions')

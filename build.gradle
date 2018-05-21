@@ -39,7 +39,7 @@ import java.security.MessageDigest
 plugins {
     id 'com.gradle.build-scan' version '1.13.2'
 }
-if (properties.get("org.elasticsearch.scanTOS", "no") == "agree") {
+if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
     buildScan {
         termsOfServiceUrl = 'https://gradle.com/terms-of-service'
         termsOfServiceAgree = 'yes'

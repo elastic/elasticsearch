@@ -32,6 +32,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -708,6 +709,19 @@ final class RequestConverters {
         parameters.withVerify(putRepositoryRequest.verify());
 
         request.setEntity(createEntity(putRepositoryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(verifyRepositoryRequest.name())
+            .addPathPartAsIs("_verify")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(verifyRepositoryRequest.timeout());
         return request;
     }
 

@@ -143,7 +143,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
             this.nodes = in.readList(NodeView::new).stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
         } else {
             clusterName = new ClusterName(in);
-            in.readList(DiscoveryNode::new);
+            this.nodes = in.readList(DiscoveryNode::new);
         }
     }
 

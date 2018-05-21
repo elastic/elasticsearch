@@ -133,8 +133,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     /**
      * List blobs in the bucket under the specified path. The path root is removed.
      *
-     * @param path
-     *            base path of the blobs to list
+     * @param path base path of the blobs to list
      * @return a map of blob names and their metadata
      */
     Map<String, BlobMetaData> listBlobs(String path) throws IOException {
@@ -147,8 +146,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param path
      *            base path of the blobs to list. This path is removed from the
      *            names of the blobs returned.
-     * @param prefix
-     *            prefix of the blobs to list.
+     * @param prefix prefix of the blobs to list.
      * @return a map of blob names and their metadata.
      */
     Map<String, BlobMetaData> listBlobsByPrefix(String path, String prefix) throws IOException {
@@ -175,7 +173,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Returns an {@link java.io.InputStream} for a given blob
+     * Returns an {@link java.io.InputStream} for the given blob name
      *
      * @param blobName name of the blob
      * @return an InputStream
@@ -231,8 +229,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream) throws IOException {
         try {
-            final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(
-                () -> storage.writer(blobInfo, Storage.BlobWriteOption.doesNotExist()));
+            final WriteChannel writeChannel = storageAccess(storage -> storage.writer(blobInfo, Storage.BlobWriteOption.doesNotExist()));
             Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
                 @Override
                 public boolean isOpen() {
@@ -272,21 +269,18 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
         Streams.copy(inputStream, baos);
-        SocketAccess.doPrivilegedVoidIOException(
-            () -> {
-                try {
-                    storage.create(blobInfo, baos.toByteArray(), Storage.BlobTargetOption.doesNotExist());
-                } catch (StorageException se) {
-                    if (se.getCode() == HTTP_PRECON_FAILED) {
-                        throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
-                    }
-                    throw se;
-                }
-            });
+        try {
+            storageAccessConsumer(storage -> storage.create(blobInfo, baos.toByteArray(), Storage.BlobTargetOption.doesNotExist()));
+        } catch (StorageException se) {
+            if (se.getCode() == HTTP_PRECON_FAILED) {
+                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+            }
+            throw se;
+        }
     }
 
     /**
-     * Deletes a blob in the bucket
+     * Deletes the blob from the bucket
      *
      * @param blobName name of the blob
      */
@@ -299,18 +293,18 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Deletes multiple blobs in the bucket that have a given prefix
+     * Deletes multiple blobs from the bucket all of which have names prefixed
      *
-     * @param prefix prefix of the buckets to delete
+     * @param prefix prefix of the blobs to delete
      */
     void deleteBlobsByPrefix(String prefix) throws IOException {
         deleteBlobs(listBlobsByPrefix("", prefix).keySet());
     }
 
     /**
-     * Deletes multiple blobs in the given bucket (uses a batch request to perform this)
+     * Deletes multiple blobs from the given bucket using a batch request
      *
-     * @param blobNames names of the bucket to delete
+     * @param blobNames names of the blobs to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
         if (blobNames.isEmpty()) {

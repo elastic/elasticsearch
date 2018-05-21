@@ -214,16 +214,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     synchronized boolean assertNoSeqAbove(long belowTerm, long aboveSeqNo) throws IOException {
-        if (aboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            TranslogSnapshot snapshot = newSnapshot();
-            Translog.Operation operation;
-            while ((operation = snapshot.next()) != null){
-                long seqNo = operation.seqNo();
-                long primaryTerm = operation.primaryTerm();
-                if (primaryTerm < belowTerm && seqNo > aboveSeqNo) {
-                    throw new AssertionError("current should not have any operations with seq#:primaryTerm ["
-                        + seqNo + ":" + primaryTerm + "] > " + aboveSeqNo + ":" + belowTerm);
-                }
+        TranslogSnapshot snapshot = newSnapshot();
+        Translog.Operation operation;
+        while ((operation = snapshot.next()) != null){
+            long seqNo = operation.seqNo();
+            long primaryTerm = operation.primaryTerm();
+            if (primaryTerm < belowTerm && seqNo > aboveSeqNo) {
+                throw new AssertionError("current should not have any operations with seq#:primaryTerm ["
+                    + seqNo + ":" + primaryTerm + "] > " + aboveSeqNo + ":" + belowTerm);
             }
         }
         return true;

@@ -20,9 +20,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MergePolicyWrapper;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.Version;
@@ -44,7 +44,7 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
-public final class ElasticsearchMergePolicy extends MergePolicyWrapper {
+public final class ElasticsearchMergePolicy extends FilterMergePolicy {
 
     private static Logger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
 

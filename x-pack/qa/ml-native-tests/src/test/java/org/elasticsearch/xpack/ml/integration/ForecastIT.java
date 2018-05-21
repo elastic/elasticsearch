@@ -217,7 +217,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
         Job.Builder job = new Job.Builder("forecast-it-test-overflow-to-disk");
-        AnalysisLimits limits = new AnalysisLimits(2048L, null);
+        AnalysisLimits limits = new AnalysisLimits(1200L, null);
         job.setAnalysisLimits(limits);
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);

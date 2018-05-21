@@ -53,7 +53,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         static {
             ObjectParser<NodeView, Void> parser = new ObjectParser<>("nodes");
             parser.declareString(NodeView::setName, new ParseField(Fields.NAME));
-            PARSER = (XContentParser p, Void v, String name )-> parser.parse(p, new NodeView(name), null);
+            PARSER = (p, v, name) -> parser.parse(p, new NodeView(name), null);
         }
 
         final String nodeId;
@@ -71,6 +71,12 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
             this.name = in.readString();
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(nodeId);
+            out.writeString(name);
+        }
+
         void setName(String name) { this.name = name; }
 
         public String getName() { return name; }
@@ -85,11 +91,13 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         }
 
         /**
-         * Temporary method that allows turning a {@link NodeView} into a {@link DiscoveryNode}. This will never be used in practice, but
-         * will be used to represent a the former as the latter in the {@link VerifyRepositoryResponse}. Effectively this will be used to
-         * hold the state of the object in 6.x so there is no need to have 2 backing objects that represent the state of the Response. In
-         * practice these will always be read by a consumer as a NodeView, but it eases the transition to master which will not contain any
-         * representation of a {@link DiscoveryNode}.
+         * Temporary method that allows turning a {@link NodeView} into a {@link DiscoveryNode}. This representation will never be used in
+         * practice, because in >= 6.4 a consumer of the response will only be able to retrieve a representation of {@link NodeView}
+         * objects.
+         *
+         * Effectively this will be used to hold the state of the object in 6.x so there is no need to have 2 backing objects that
+         * represent the state of the Response. In practice these will always be read by a consumer as a NodeView, but it eases the
+         * transition to master which will not contain any representation of a {@link DiscoveryNode}.
          */
         DiscoveryNode convertToDiscoveryNode() {
             return new DiscoveryNode(name, nodeId, "", "", "", new TransportAddress(TransportAddress.META_ADDRESS, 0),
@@ -112,12 +120,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         @Override
         public int hashCode() {
             return Objects.hash(nodeId, name);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(nodeId);
-            out.writeString(name);
         }
     }
 

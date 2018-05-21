@@ -60,4 +60,3 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
             .build();
     }
 }
-

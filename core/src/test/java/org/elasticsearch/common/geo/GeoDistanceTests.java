@@ -75,14 +75,13 @@ public class GeoDistanceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30764")
     public void testReadFromSerializationBWC() throws Exception {
         int ordinal = randomInt(3);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(ordinal);
             try (StreamInput in = out.bytes().streamInput()) {
                 // set client version (should this be done in .streamInput()?)
-                in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_3_2));
+                in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_2_2));
                 GeoDistance copy = GeoDistance.readFromStream(in);
                 assertThat(copy, isOneOf(GeoDistance.PLANE, GeoDistance.ARC));
                 if (ordinal == 1) {

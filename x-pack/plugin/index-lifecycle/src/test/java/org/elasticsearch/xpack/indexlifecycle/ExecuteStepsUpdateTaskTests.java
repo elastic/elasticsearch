@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -21,6 +22,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateWaitStep;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockInitializePolicyContextStep;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,9 +59,12 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     private MockClusterStateWaitStep secondStep;
     private MockClusterStateWaitStep allClusterSecondStep;
     private MockStep thirdStep;
+    private Client client;
 
     @Before
     public void prepareState() {
+        client = Mockito.mock(Client.class);
+        Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         firstStep = new MockInitializePolicyContextStep(firstStepKey, secondStepKey);
         secondStep = new MockClusterStateWaitStep(secondStepKey, thirdStepKey);
         secondStep.setWillComplete(true);
@@ -75,9 +81,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             Collections.singletonMap(mixedPhase.getName(), mixedPhase));
         LifecyclePolicy allClusterPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, allClusterPolicyName,
             Collections.singletonMap(allClusterPhase.getName(), allClusterPhase));
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        policyMap.put(mixedPolicyName, mixedPolicy);
-        policyMap.put(allClusterPolicyName, allClusterPolicy);
+        Map<String, LifecyclePolicyMetadata> policyMap = new HashMap<>();
+        policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap()));
+        policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap()));
         policyStepsRegistry = new PolicyStepsRegistry();
 
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
@@ -102,7 +108,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
-        policyStepsRegistry.update(clusterState, null, () -> 0L);
+        policyStepsRegistry.update(clusterState, client, () -> 0L);
     }
 
     public void testExecuteAllUntilEndOfPolicy() throws IOException {

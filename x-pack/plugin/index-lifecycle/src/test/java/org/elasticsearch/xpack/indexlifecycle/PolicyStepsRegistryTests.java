@@ -6,22 +6,27 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -90,9 +95,17 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     }
 
     public void testUpdateFromNothingToSomethingToNothing() {
+        Client client = Mockito.mock(Client.class);
+        Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         LifecyclePolicy newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(randomAlphaOfLength(5));
-        List<Step> policySteps = newPolicy.toSteps(null, () -> 0L);
-        Map<String, LifecyclePolicy> policyMap = Collections.singletonMap(newPolicy.getName(), newPolicy);
+        List<Step> policySteps = newPolicy.toSteps(client, () -> 0L);
+        Map<String, String> headers = new HashMap<>();
+        if (randomBoolean()) {
+            headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        }
+        Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
+                new LifecyclePolicyMetadata(newPolicy, headers));
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
@@ -110,10 +123,12 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry();
 
         // add new policy
-        registry.update(currentState, null, () -> 0L);
+        registry.update(currentState, client, () -> 0L);
 
         assertThat(registry.getFirstStep(newPolicy.getName()), equalTo(policySteps.get(0)));
         assertThat(registry.getLifecyclePolicyMap().size(), equalTo(1));
+        assertNotNull(registry.getLifecyclePolicyMap().get(newPolicy.getName()));
+        assertThat(registry.getLifecyclePolicyMap().get(newPolicy.getName()).getHeaders(), equalTo(headers));
         assertThat(registry.getFirstStepMap().size(), equalTo(1));
         assertThat(registry.getStepMap().size(), equalTo(1));
         Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
@@ -123,10 +138,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             assertThat(registry.getStep(newPolicy.getName(), step.getKey()), equalTo(step));
         }
 
-        Map<String, LifecyclePolicy> registryPolicyMap = registry.getLifecyclePolicyMap();
+        Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
         Map<String, Step> registryFirstStepMap = registry.getFirstStepMap();
         Map<String, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
-        registry.update(currentState, null, () -> 0L);
+        registry.update(currentState, client, () -> 0L);
         assertThat(registry.getLifecyclePolicyMap(), equalTo(registryPolicyMap));
         assertThat(registry.getFirstStepMap(), equalTo(registryFirstStepMap));
         assertThat(registry.getStepMap(), equalTo(registryStepMap));
@@ -136,16 +151,24 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .metaData(
                 MetaData.builder(metaData)
                     .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptyMap()))).build();
-        registry.update(currentState, null, () -> 0L);
+        registry.update(currentState, client, () -> 0L);
         assertTrue(registry.getLifecyclePolicyMap().isEmpty());
         assertTrue(registry.getFirstStepMap().isEmpty());
         assertTrue(registry.getStepMap().isEmpty());
     }
 
     public void testUpdateChangedPolicy() {
+        Client client = Mockito.mock(Client.class);
+        Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLengthBetween(5, 10);
         LifecyclePolicy newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(policyName);
-        Map<String, LifecyclePolicy> policyMap = Collections.singletonMap(newPolicy.getName(), newPolicy);
+        Map<String, String> headers = new HashMap<>();
+        if (randomBoolean()) {
+            headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        }
+        Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
+                new LifecyclePolicyMetadata(newPolicy, headers));
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
@@ -160,7 +183,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         PolicyStepsRegistry registry = new PolicyStepsRegistry();
         // add new policy
-        registry.update(currentState, null, () -> 0L);
+        registry.update(currentState, client, () -> 0L);
 
         // swap out policy
         newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(policyName);
@@ -168,8 +191,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .metaData(
                 MetaData.builder(metaData)
                     .putCustom(IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(Collections.singletonMap(policyName, newPolicy)))).build();
-        registry.update(currentState, null, () -> 0L);
+                                        new IndexLifecycleMetadata(Collections.singletonMap(policyName,
+                                                new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())))))
+                .build();
+        registry.update(currentState, client, () -> 0L);
         // TODO(talevy): assert changes... right now we do not support updates to policies. will require internal cleanup
     }
 }

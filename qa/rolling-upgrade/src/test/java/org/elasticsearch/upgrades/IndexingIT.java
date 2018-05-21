@@ -18,13 +18,19 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -37,38 +43,33 @@ public class IndexingIT extends AbstractRollingTestCase {
         case OLD:
             break;
         case MIXED:
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
+            Map<String, String> waitForYellow = new HashMap<>();
+            waitForYellow.put("wait_for_nodes", "3");
+            waitForYellow.put("wait_for_status", "yellow");
+            client().performRequest("GET", "/_cluster/health", waitForYellow);
             break;
         case UPGRADED:
-            Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-            waitForGreen.addParameter("wait_for_nodes", "3");
-            waitForGreen.addParameter("wait_for_status", "green");
+            Map<String, String> waitForGreen = new HashMap<>();
+            waitForGreen.put("wait_for_nodes", "3");
+            waitForGreen.put("wait_for_status", "green");
             // wait for long enough that we give delayed unassigned shards to stop being delayed
-            waitForGreen.addParameter("timeout", "70s");
-            waitForGreen.addParameter("level", "shards");
-            client().performRequest(waitForGreen);
+            waitForGreen.put("timeout", "70s");
+            waitForGreen.put("level", "shards");
+            client().performRequest("GET", "/_cluster/health/test_index,index_with_replicas,empty_index", waitForGreen);
             break;
         default:
             throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            Request createTestIndex = new Request("PUT", "/test_index");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
-            client().performRequest(createTestIndex);
+            client().performRequest("PUT", "/test_index", emptyMap(),
+                    new NStringEntity("{\"settings\": {\"index.number_of_replicas\": 0}}", ContentType.APPLICATION_JSON));
 
-            String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
-            Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
-            createIndexWithReplicas.setJsonEntity(recoverQuickly);
-            client().performRequest(createIndexWithReplicas);
-
-            Request createEmptyIndex = new Request("PUT", "/empty_index");
-            // Ask for recovery to be quick
-            createEmptyIndex.setJsonEntity(recoverQuickly);
-            client().performRequest(createEmptyIndex);
+            NStringEntity recoverQuickly = new NStringEntity(
+                    "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}",
+                    ContentType.APPLICATION_JSON);
+            client().performRequest("PUT", "/index_with_replicas", emptyMap(), recoverQuickly);
+            client().performRequest("PUT", "/empty_index", emptyMap(), recoverQuickly);
 
             bulk("test_index", "_OLD", 5);
             bulk("index_with_replicas", "_OLD", 5);
@@ -99,15 +100,12 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
             bulk("test_index", "_" + CLUSTER_TYPE, 5);
-            Request toBeDeleted = new Request("PUT", "/test_index/doc/to_be_deleted");
-            toBeDeleted.addParameter("refresh", "true");
-            toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
-            client().performRequest(toBeDeleted);
+            Map<String, String> parameters = new HashMap<>();
+            client().performRequest("PUT", "/test_index/doc/to_be_deleted", singletonMap("refresh", "true"),
+                new NStringEntity("{\"f1\": \"delete-me\"}", ContentType.APPLICATION_JSON));
             assertCount("test_index", expectedCount + 6);
 
-            Request delete = new Request("DELETE", "/test_index/doc/to_be_deleted");
-            delete.addParameter("refresh", "true");
-            client().performRequest(delete);
+            client().performRequest("DELETE", "/test_index/doc/to_be_deleted", singletonMap("refresh", "true"));
 
             assertCount("test_index", expectedCount + 5);
         }
@@ -119,16 +117,13 @@ public class IndexingIT extends AbstractRollingTestCase {
             b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"doc\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(b.toString());
-        client().performRequest(bulk);
+        client().performRequest("POST", "/_bulk", singletonMap("refresh", "true"),
+                new NStringEntity(b.toString(), ContentType.APPLICATION_JSON));
     }
 
     private void assertCount(String index, int count) throws IOException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
-        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+        Response searchTestIndexResponse = client().performRequest("POST", "/" + index + "/_search",
+                singletonMap("filter_path", "hits.total"));
         assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }

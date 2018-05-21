@@ -51,6 +51,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30562")
     public void testDocsAuditedInMixedCluster() throws Exception {
         assumeTrue("only runs against mixed cluster", clusterType == CLUSTER_TYPE.MIXED);
         // the isOneOf(0, 1) check is necessary for instances where this test runs across an

@@ -107,9 +107,9 @@ public class NioTransport extends TcpTransport {
                 acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
             }
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                (s) -> new AcceptorEventHandler(s, this::nonChannelExceptionCaught),
+                (s) -> new AcceptorEventHandler(s, this::onNonChannelException),
                 daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), NioTransport.NIO_WORKER_COUNT.get(settings),
-                () -> new SocketEventHandler(this::nonChannelExceptionCaught));
+                () -> new SocketEventHandler(this::onNonChannelException));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = channelFactory(clientProfileSettings, true);

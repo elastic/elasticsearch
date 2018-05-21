@@ -1030,8 +1030,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected void nonChannelExceptionCaught(Exception ex) {
-        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()), ex);
+    /**
+     * Exception handler for exceptions that are not associated with a specific channel.
+     *
+     * @param exception the exception
+     */
+    protected void onNonChannelException(Exception exception) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+            exception);
     }
 
     protected void serverAcceptedChannel(TcpChannel channel) {

@@ -99,9 +99,9 @@ public class MockNioTransport extends TcpTransport {
                 acceptorCount = 1;
             }
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                (s) -> new AcceptorEventHandler(s, this::nonChannelExceptionCaught),
+                (s) -> new AcceptorEventHandler(s, this::onNonChannelException),
                 daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
-                () -> new TestingSocketEventHandler(this::nonChannelExceptionCaught));
+                () -> new TestingSocketEventHandler(this::onNonChannelException));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new MockTcpChannelFactory(clientProfileSettings, "client");

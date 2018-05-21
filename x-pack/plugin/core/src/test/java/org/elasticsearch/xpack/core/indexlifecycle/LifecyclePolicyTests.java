@@ -135,7 +135,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.put(firstPhase.getName(), firstPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
-        StepKey secondStepKey = new StepKey("test", "pre-test", "after");
+        StepKey secondStepKey = new StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
         List<Step> steps = policy.toSteps(client, nowSupplier);
         assertThat(steps.size(), equalTo(4));
         assertSame(steps.get(0).getKey(), firstStepKey);
@@ -151,10 +151,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Client client = mock(Client.class);
         LongSupplier nowSupplier = () -> 0L;
         MockStep secondActionStep = new MockStep(new StepKey("second_phase", "test2", "test"), TerminalPolicyStep.KEY);
-        MockStep secondAfter = new MockStep(new StepKey("second_phase", "pre-test2", "after"), secondActionStep.getKey());
+        MockStep secondAfter = new MockStep(new StepKey("first_phase", PhaseAfterStep.NAME, PhaseAfterStep.NAME),
+                secondActionStep.getKey());
         MockStep firstActionAnotherStep = new MockStep(new StepKey("first_phase", "test", "bar"), secondAfter.getKey());
         MockStep firstActionStep = new MockStep(new StepKey("first_phase", "test", "foo"), firstActionAnotherStep.getKey());
-        MockStep firstAfter = new MockStep(new StepKey("first_phase", "pre-test", "after"), firstActionStep.getKey());
+        MockStep firstAfter = new MockStep(new StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME), firstActionStep.getKey());
         MockStep init = new MockStep(InitializePolicyContextStep.KEY, firstAfter.getKey());
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);

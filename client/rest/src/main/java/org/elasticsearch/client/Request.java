@@ -36,15 +36,11 @@ import static java.util.Collections.unmodifiableMap;
  * HTTP Request to Elasticsearch.
  */
 public final class Request {
-    private static final Header[] NO_HEADERS = new Header[0];
     private final String method;
     private final String endpoint;
     private final Map<String, String> parameters = new HashMap<>();
 
     private HttpEntity entity;
-    private Header[] headers = NO_HEADERS;
-    private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
-            HttpAsyncResponseConsumerFactory.DEFAULT;
 
     /**
      * Create the {@linkplain Request}.
@@ -124,45 +120,6 @@ public final class Request {
         return entity;
     }
 
-    /**
-     * Set the headers to attach to the request.
-     */
-    public void setHeaders(Header... headers) {
-        Objects.requireNonNull(headers, "headers cannot be null");
-        for (Header header : headers) {
-            Objects.requireNonNull(header, "header cannot be null");
-        }
-        this.headers = headers;
-    }
-
-    /**
-     * Headers to attach to the request.
-     */
-    public Header[] getHeaders() {
-        return headers;
-    }
-
-    /**
-     * set the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
-     * response body gets streamed from a non-blocking HTTP connection on the
-     * client side.
-     */
-    public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
-        this.httpAsyncResponseConsumerFactory =
-                Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
-    }
-
-    /**
-     * The {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
-     * response body gets streamed from a non-blocking HTTP connection on the
-     * client side.
-     */
-    public HttpAsyncResponseConsumerFactory getHttpAsyncResponseConsumerFactory() {
-        return httpAsyncResponseConsumerFactory;
-    }
-
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
@@ -174,18 +131,6 @@ public final class Request {
         }
         if (entity != null) {
             b.append(", entity=").append(entity);
-        }
-        if (headers.length > 0) {
-            b.append(", headers=");
-            for (int h = 0; h < headers.length; h++) {
-                if (h != 0) {
-                    b.append(',');
-                }
-                b.append(headers[h].toString());
-            }
-        }
-        if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
-            b.append(", consumerFactory=").append(httpAsyncResponseConsumerFactory);
         }
         return b.append('}').toString();
     }
@@ -203,13 +148,11 @@ public final class Request {
         return method.equals(other.method)
                 && endpoint.equals(other.endpoint)
                 && parameters.equals(other.parameters)
-                && Objects.equals(entity, other.entity)
-                && Arrays.equals(headers, other.headers)
-                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
+                && Objects.equals(entity, other.entity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, endpoint, parameters, entity, Arrays.hashCode(headers), httpAsyncResponseConsumerFactory);
+        return Objects.hash(method, endpoint, parameters, entity);
     }
 }

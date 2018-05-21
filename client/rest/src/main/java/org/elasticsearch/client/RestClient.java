@@ -163,14 +163,15 @@ public class RestClient implements Closeable {
      * {@link Exception#getCause()}.
      *
      * @param request the request to perform
+     * @param options options on the request to perform
      * @return the response returned by Elasticsearch
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
-    public Response performRequest(Request request) throws IOException {
+    public Response performRequest(Request request, RequestOptions options) throws IOException {
         SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
-        performRequestAsyncNoCatch(request, listener);
+        performRequestAsyncNoCatch(request, options, listener);
         return listener.get();
     }
 
@@ -187,12 +188,13 @@ public class RestClient implements Closeable {
      * them does, in which case an {@link IOException} will be thrown.
      *
      * @param request the request to perform
+     * @param options options on the request to perform
      * @param responseListener the {@link ResponseListener} to notify when the
      *      request is completed or fails
      */
-    public void performRequestAsync(Request request, ResponseListener responseListener) {
+    public void performRequestAsync(Request request, RequestOptions options, ResponseListener responseListener) {
         try {
-            performRequestAsyncNoCatch(request, responseListener);
+            performRequestAsyncNoCatch(request, options, responseListener);
         } catch (Exception e) {
             responseListener.onFailure(e);
         }
@@ -215,8 +217,9 @@ public class RestClient implements Closeable {
     @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
-        request.setHeaders(headers);
-        return performRequest(request);
+        RequestOptions.Builder options = RequestOptions.builder();
+        options.setHeaders(headers);
+        return performRequest(request, options.build());
     }
 
     /**
@@ -428,7 +431,7 @@ public class RestClient implements Closeable {
         performRequestAsync(request, responseListener);
     }
 
-    void performRequestAsyncNoCatch(Request request, ResponseListener listener) {
+    void performRequestAsyncNoCatch(Request request, RequestOptions options, ResponseListener listener) {
         Map<String, String> requestParams = new HashMap<>(request.getParameters());
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
         String ignoreString = requestParams.remove("ignore");
@@ -457,11 +460,11 @@ public class RestClient implements Closeable {
         }
         URI uri = buildUri(pathPrefix, request.getEndpoint(), requestParams);
         HttpRequestBase httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
-        setHeaders(httpRequest, request.getHeaders());
+        setHeaders(httpRequest, options.getHeaders());
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
         long startTime = System.nanoTime();
         performRequestAsync(startTime, nextHost(), httpRequest, ignoreErrorCodes,
-                request.getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
+                options.getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,

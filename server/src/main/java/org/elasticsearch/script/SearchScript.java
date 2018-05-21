@@ -158,6 +158,12 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
 
     /** The context used to compile {@link SearchScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("search", Factory.class);
-    // TODO: remove aggs context when it has its own interface
+    // TODO: remove these contexts when it has its own interface
     public static final ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs", Factory.class);
+    // Can return a double. (For ScriptSortType#NUMBER only, for ScriptSortType#STRING normal CONTEXT should be used)
+    public static final ScriptContext<Factory> SCRIPT_SORT_CONTEXT = new ScriptContext<>("sort", Factory.class);
+    // Can return a float
+    public static final ScriptContext<Factory> SCRIPT_SCORE_CONTEXT = new ScriptContext<>("score", Factory.class);
+    // Can return a long
+    public static final ScriptContext<Factory> TERMS_SET_QUERY_CONTEXT = new ScriptContext<>("terms_set", Factory.class);
 }

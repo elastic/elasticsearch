@@ -6,7 +6,7 @@ See: https://github.com/elastic/docs
 Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
 CONSOLE" and "COPY AS CURL" in the documentation and are automatically tested
 by the command `gradle :docs:check`. To test just the docs from a single page,
-use e.g. `gradle :docs:check -Dtests.method="\*rollover*"`.
+use e.g. `gradle :docs:check -Dtests.method="*rollover*"`.
 
 By default each `// CONSOLE` snippet runs as its own isolated test. You can
 manipulate the test execution in the following ways:

@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Request;
@@ -74,10 +74,10 @@ public class TransportDeleteLifcycleAction extends TransportMasterNodeAction<Req
                         }
                         ClusterState.Builder newState = ClusterState.builder(currentState);
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-                        if (currentMetadata.getPolicies().containsKey(request.getPolicyName()) == false) {
+                        if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
                             throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
                         }
-                        SortedMap<String, LifecyclePolicy> newPolicies = new TreeMap<>(currentMetadata.getPolicies());
+                        SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
                         newPolicies.remove(request.getPolicyName());
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies);
                         newState.metaData(MetaData.builder(currentState.getMetaData())

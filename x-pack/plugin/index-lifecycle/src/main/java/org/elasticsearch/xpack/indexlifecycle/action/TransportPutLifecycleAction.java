@@ -20,14 +20,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
 
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -61,12 +64,17 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         ClusterState.Builder newState = ClusterState.builder(currentState);
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-                        if (currentMetadata.getPolicies().containsKey(request.getPolicy().getName())) {
+                        if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicy().getName())) {
                             throw new ResourceAlreadyExistsException("Lifecycle policy already exists: {}",
                                     request.getPolicy().getName());
                         }
-                        SortedMap<String, LifecyclePolicy> newPolicies = new TreeMap<>(currentMetadata.getPolicies());
-                        newPolicies.put(request.getPolicy().getName(), request.getPolicy());
+                        SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
+
+                        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+                                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders);
+                        newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies);
                         newState.metaData(MetaData.builder(currentState.getMetaData())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());

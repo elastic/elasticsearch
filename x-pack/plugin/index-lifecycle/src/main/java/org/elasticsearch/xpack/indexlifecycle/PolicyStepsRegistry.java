@@ -9,9 +9,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.util.HashMap;
@@ -23,7 +24,7 @@ import java.util.function.LongSupplier;
 
 public class PolicyStepsRegistry {
     // keeps track of existing policies in the cluster state
-    private SortedMap<String, LifecyclePolicy> lifecyclePolicyMap;
+    private SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is
     private Map<String, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step
@@ -35,14 +36,14 @@ public class PolicyStepsRegistry {
         this.stepMap = new HashMap<>();
     }
 
-    PolicyStepsRegistry(SortedMap<String, LifecyclePolicy> lifecyclePolicyMap,
+    PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
                         Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;
         this.firstStepMap = firstStepMap;
         this.stepMap = stepMap;
     }
 
-    SortedMap<String, LifecyclePolicy> getLifecyclePolicyMap() {
+    SortedMap<String, LifecyclePolicyMetadata> getLifecyclePolicyMap() {
         return lifecyclePolicyMap;
     }
 
@@ -58,17 +59,19 @@ public class PolicyStepsRegistry {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void update(ClusterState currentState, Client client, LongSupplier nowSupplier) {
         IndexLifecycleMetadata meta = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        Diff<Map<String, LifecyclePolicy>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicies(),
+        Diff<Map<String, LifecyclePolicyMetadata>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicyMetadatas(),
             DiffableUtils.getStringKeySerializer());
-        DiffableUtils.MapDiff<String, LifecyclePolicy, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;
+        DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;
         if (mapDiff.getUpserts().isEmpty() == false) {
-            for (LifecyclePolicy policy : mapDiff.getUpserts().values()) {
-                lifecyclePolicyMap.put(policy.getName(), policy);
-                List<Step> policyAsSteps = policy.toSteps(client, nowSupplier);
+            for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
+                LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+                        policyMetadata.getHeaders());
+                lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
+                List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient, nowSupplier);
                 if (policyAsSteps.isEmpty() == false) {
-                    firstStepMap.put(policy.getName(), policyAsSteps.get(0));
-                    stepMap.put(policy.getName(), new HashMap<>());
-                    Map<Step.StepKey, Step> stepMapForPolicy = stepMap.get(policy.getName());
+                    firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
+                    stepMap.put(policyMetadata.getName(), new HashMap<>());
+                    Map<Step.StepKey, Step> stepMapForPolicy = stepMap.get(policyMetadata.getName());
                     for (Step step : policyAsSteps) {
                         assert ErrorStep.NAME.equals(step.getKey().getName()) == false;
                         stepMapForPolicy.put(step.getKey(), step);

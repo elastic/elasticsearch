@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 
 public class IndexLifecycleMetadata implements MetaData.Custom {
@@ -35,40 +37,45 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(
             TYPE, a -> new IndexLifecycleMetadata(
-                    ObjectParserUtils.convertListToMapValues(LifecyclePolicy::getName, (List<LifecyclePolicy>) a[0])));
+                    ObjectParserUtils.convertListToMapValues(LifecyclePolicyMetadata::getName, (List<LifecyclePolicyMetadata>) a[0])));
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicy.parse(p, n),
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicyMetadata.parse(p, n),
                 v -> {
                     throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
                 }, POLICIES_FIELD);
     }
 
-    private final Map<String, LifecyclePolicy> policies;
+    private final Map<String, LifecyclePolicyMetadata> policyMetadatas;
 
-    public IndexLifecycleMetadata(Map<String, LifecyclePolicy> policies) {
-        this.policies = Collections.unmodifiableMap(policies);
+    public IndexLifecycleMetadata(Map<String, LifecyclePolicyMetadata> policies) {
+        this.policyMetadatas = Collections.unmodifiableMap(policies);
     }
 
     public IndexLifecycleMetadata(StreamInput in) throws IOException {
         int size = in.readVInt();
-        TreeMap<String, LifecyclePolicy> policies = new TreeMap<>();
+        TreeMap<String, LifecyclePolicyMetadata> policies = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            policies.put(in.readString(), new LifecyclePolicy(in));
+            policies.put(in.readString(), new LifecyclePolicyMetadata(in));
         }
-        this.policies = policies;
+        this.policyMetadatas = policies;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(policies.size());
-        for (Map.Entry<String, LifecyclePolicy> entry : policies.entrySet()) {
+        out.writeVInt(policyMetadatas.size());
+        for (Map.Entry<String, LifecyclePolicyMetadata> entry : policyMetadatas.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
     }
 
+    public Map<String, LifecyclePolicyMetadata> getPolicyMetadatas() {
+        return policyMetadatas;
+    }
+
     public Map<String, LifecyclePolicy> getPolicies() {
-        return policies;
+        return policyMetadatas.values().stream().map(LifecyclePolicyMetadata::getPolicy)
+                .collect(Collectors.toMap(LifecyclePolicy::getName, Function.identity()));
     }
 
     @Override
@@ -78,7 +85,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(POLICIES_FIELD.getPreferredName(), policies);
+        builder.field(POLICIES_FIELD.getPreferredName(), policyMetadatas);
         return builder;
     }
 
@@ -99,7 +106,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(policies);
+        return Objects.hash(policyMetadatas);
     }
 
     @Override
@@ -111,7 +118,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
             return false;
         }
         IndexLifecycleMetadata other = (IndexLifecycleMetadata) obj;
-        return Objects.equals(policies, other.policies);
+        return Objects.equals(policyMetadatas, other.policyMetadatas);
     }
 
     @Override
@@ -121,20 +128,21 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
 
     public static class IndexLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
 
-        final Diff<Map<String, LifecyclePolicy>> policies;
+        final Diff<Map<String, LifecyclePolicyMetadata>> policies;
 
         IndexLifecycleMetadataDiff(IndexLifecycleMetadata before, IndexLifecycleMetadata after) {
-            this.policies = DiffableUtils.diff(before.policies, after.policies, DiffableUtils.getStringKeySerializer());
+            this.policies = DiffableUtils.diff(before.policyMetadatas, after.policyMetadatas, DiffableUtils.getStringKeySerializer());
         }
 
         public IndexLifecycleMetadataDiff(StreamInput in) throws IOException {
-            this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), LifecyclePolicy::new,
+            this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), LifecyclePolicyMetadata::new,
                     IndexLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
-            TreeMap<String, LifecyclePolicy> newPolicies = new TreeMap<>(policies.apply(((IndexLifecycleMetadata) part).policies));
+            TreeMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(
+                    policies.apply(((IndexLifecycleMetadata) part).policyMetadatas));
             return new IndexLifecycleMetadata(newPolicies);
         }
 
@@ -148,8 +156,8 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
             return TYPE;
         }
 
-        static Diff<LifecyclePolicy> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(LifecyclePolicy::new, in);
+        static Diff<LifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
+            return AbstractDiffable.readDiffFrom(LifecyclePolicyMetadata::new, in);
         }
     }
 }

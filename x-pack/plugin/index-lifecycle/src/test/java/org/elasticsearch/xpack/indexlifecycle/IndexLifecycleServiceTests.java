@@ -184,7 +184,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             ClusterStateUpdateTask updateTask = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
             ClusterState newState = updateTask.execute(state);
             IndexLifecycleMetadata indexLifecycleMetadata = newState.metaData().custom(IndexLifecycleMetadata.TYPE);
-            assertThat(indexLifecycleMetadata.getPolicies(), equalTo(Collections.emptySortedMap()));
+            assertThat(indexLifecycleMetadata.getPolicyMetadatas(), equalTo(Collections.emptySortedMap()));
             installedEvent.set(new ClusterChangedEvent(event.source(), newState, state));
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));

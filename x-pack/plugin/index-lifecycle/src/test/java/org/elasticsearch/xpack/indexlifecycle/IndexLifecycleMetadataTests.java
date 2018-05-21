@@ -19,12 +19,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata.IndexLifecycleMetadataDiff;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata.IndexLifecycleMetadataDiff;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
         int numPolicies = randomInt(5);
-        SortedMap<String, LifecyclePolicy> policies = new TreeMap<>();
+        SortedMap<String, LifecyclePolicyMetadata> policies = new TreeMap<>();
         for (int i = 0; i < numPolicies; i++) {
             int numberPhases = randomInt(5);
             Map<String, Phase> phases = new HashMap<>(numberPhases);
@@ -55,7 +56,8 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
                 phases.put(phaseName, new Phase(phaseName, after, actions));
             }
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases));
+            policies.put(policyName, new LifecyclePolicyMetadata(new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases),
+                    Collections.emptyMap()));
         }
         return new IndexLifecycleMetadata(policies);
     }
@@ -89,10 +91,11 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Override
     protected MetaData.Custom mutateInstance(MetaData.Custom instance) {
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
-        Map<String, LifecyclePolicy> policies = metadata.getPolicies();
+        Map<String, LifecyclePolicyMetadata> policies = metadata.getPolicyMetadatas();
         policies = new TreeMap<>(policies);
         String policyName = randomAlphaOfLength(10);
-        policies.put(policyName, new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, Collections.emptyMap()));
+        policies.put(policyName, new LifecyclePolicyMetadata(
+                new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, Collections.emptyMap()), Collections.emptyMap()));
         return new IndexLifecycleMetadata(policies);
     }
 

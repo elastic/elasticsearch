@@ -120,7 +120,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1540,91 +1539,85 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testSnapshotTrimmedOperations() throws Exception {
-        int translogOperations = 0;
-        int skipped = 0;
-        boolean wasRollover = false;
-        Set<Long> expectedSeqNo = new HashSet<>();
+        // to guarantee primaryTerm is always positive number (we gonna generate old primary terms)
+        primaryTerm.addAndGet(randomIntBetween(5, 10));
 
-        for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
-            int extraDocs = randomIntBetween(10, 15);
+        List<Translog.Index> allOperations = new ArrayList<>();
+        List<Translog.Index> effectiveOperations = new ArrayList<>();
 
-            List<Translog.Index> operations = new ArrayList<>();
-            for (int op = 0; op < extraDocs; op++) {
-                String ascii = randomAlphaOfLengthBetween(1, 50);
-                long seqNo = translogOperations + op;
-                Translog.Index operation = new Translog.Index("test", "" + seqNo, seqNo,
-                    this.primaryTerm.get(), ascii.getBytes("UTF-8"));
-                operations.add(operation);
-            }
+        try(Translog anotherTranslog = createTranslog(translog.getConfig())) {
+            long translogOperations = 0;
+            final AtomicBoolean wasRollover = new AtomicBoolean(false);
 
-            // add some duplicate ops (seq#, term) that have to be identical
-            int duplicateCount = randomInt(5);
-            for(int i = 0; i < duplicateCount; i++) {
-                Translog.Index operation = operations.get(randomInt(extraDocs - 1));
-                operations.add(operation);
-            }
+            for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
 
-            skipped += duplicateCount;
+                int extraDocs = randomIntBetween(10, 15);
 
-            // add duplicates with the same seq# but diff term
-            Set<Long> lowerTermOpSeqNos = new HashSet<>();
-            if (wasRollover) {
-                int lowerTermDups = randomInt(expectedSeqNo.size());
-                for(long seqNo = 0; seqNo < lowerTermDups; seqNo++) {
-                    String ascii = randomAlphaOfLengthBetween(1, 50);
-                    Translog.Index operation = new Translog.Index("test", "" + seqNo, seqNo,
-                        this.primaryTerm.get() - randomIntBetween(2, 10), ascii.getBytes("UTF-8"));
+                List<Translog.Index> newOperations = new ArrayList<>();
 
-                    operations.add(operation);
-                    lowerTermOpSeqNos.add(operation.seqNo());
+                List<Long> ops = LongStream.range(0, translogOperations + extraDocs)
+                    .boxed().collect(Collectors.toList());
+                Randomness.shuffle(ops);
+                for (final Long op : ops) {
+                    // if was rollover - we can add old primaryTerms - otherwise it has to be only duplicate
+                    final long pt = this.primaryTerm.get() - (wasRollover.get() ? randomInt(5) : 0);
+
+                    String str = randomAlphaOfLengthBetween(1, 50);
+                    String source =
+                        allOperations.stream().filter(o -> (!wasRollover.get() || o.primaryTerm() == pt) && o.seqNo() == op)
+                        .map(index -> index.source().utf8ToString())
+                        .findFirst()
+                        .orElse(str);
+
+                    Translog.Index operation = new Translog.Index("test", "" + op, op, pt, source.getBytes("UTF-8"));
+                    anotherTranslog.add(operation);
+
+                    allOperations.add(operation);
+                    newOperations.add(operation);
                 }
-            }
 
-            Randomness.shuffle(operations);
+                boolean rollOver = randomBoolean();
+                wasRollover.set(rollOver);
+                if (rollOver) {
+                    primaryTerm.incrementAndGet();
+                    anotherTranslog.rollGeneration();
+                }
 
-            for (Translog.Index operation : operations) {
-                translog.add(operation);
-            }
+                int trimmedDocs = randomIntBetween(4, 8);
+                long maxTrimmedSeqNo = rollOver ? translogOperations + extraDocs - trimmedDocs : translogOperations + extraDocs + 1;
 
-            final boolean rollover = randomBoolean();
-            wasRollover = rollover;
-            if (rollover) {
-                primaryTerm.incrementAndGet();
-                translog.rollGeneration();
-            }
+                anotherTranslog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+                anotherTranslog.sync();
 
-            int trimmedDocs = randomIntBetween(4, 8);
-            int maxTrimmedSeqNo = rollover ? translogOperations + extraDocs - trimmedDocs : translogOperations + extraDocs + 1;
-
-            translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
-            translog.sync();
-
-            final Set<Long> expectedForAttempt;
-            if (rollover) {
-                skipped += trimmedDocs - 1;
-                expectedForAttempt = LongStream.range(translogOperations, maxTrimmedSeqNo + 1).boxed().collect(Collectors.toSet());
-            } else {
-                expectedForAttempt = LongStream.range(translogOperations, translogOperations + extraDocs).boxed().collect(Collectors.toSet());
-            }
-            expectedSeqNo.addAll(lowerTermOpSeqNos);
-            expectedSeqNo.addAll(expectedForAttempt);
-
-            translogOperations += extraDocs;
-
-            final Set<Long> expectedSeqNoSet = new HashSet<>(expectedSeqNo);
-            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-                Translog.Operation next;
-                while ((next = snapshot.next()) != null) {
-                    if (expectedForAttempt.contains(next.seqNo())) {
-                        assertThat(next.primaryTerm(), is(rollover ? primaryTerm.get() - 1 : primaryTerm.get()));
+                List<Translog.Operation> actualOperations = new ArrayList<>();
+                int actualTotalOperations;
+                int actualSkippedOperations;
+                try (Translog.Snapshot snapshot = anotherTranslog.newSnapshot()) {
+                    Translog.Operation next;
+                    while ((next = snapshot.next()) != null) {
+                        actualOperations.add(next);
                     }
-                    final boolean remove = expectedSeqNoSet.remove(next.seqNo());
-                    assertThat(next.primaryTerm() + ":" + next.seqNo() + " is expected", remove, is(true));
+                    actualTotalOperations = snapshot.totalOperations();
+                    actualSkippedOperations = snapshot.skippedOperations();
                 }
-                // duplicates with lower primary term make skipped operation even higher (+ there is overlapping of them)
-                assertThat(snapshot.skippedOperations(), greaterThanOrEqualTo(skipped));
+
+                assertThat(actualTotalOperations, is(allOperations.size()));
+
+                newOperations.stream()
+                    .filter(op -> op.primaryTerm() <= primaryTerm.get() && op.seqNo() <= maxTrimmedSeqNo)
+                    .forEach(effectiveOperations::add);
+
+                effectiveOperations = effectiveOperations
+                    .stream().distinct().sorted(Comparator.comparing(Translog.Operation::seqNo)).collect(Collectors.toList());
+
+                Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
+
+                assertThat(actualOperations, is(effectiveOperations));
+
+                assertThat(actualSkippedOperations, is(allOperations.size() - effectiveOperations.size()));
+
+                translogOperations += ops.size();
             }
-            assertThat("expectedSeqNoSet:" + expectedSeqNoSet, expectedSeqNoSet, hasSize(0));
         }
     }
 

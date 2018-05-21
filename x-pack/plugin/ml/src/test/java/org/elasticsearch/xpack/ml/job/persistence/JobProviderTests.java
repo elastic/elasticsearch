@@ -39,8 +39,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -94,7 +92,7 @@ public class JobProviderTests extends ESTestCase {
         AtomicReference<Boolean> resultHolder = new AtomicReference<>();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(ImmutableOpenMap.of()))
+                .metaData(MetaData.builder().indices(ImmutableOpenMap.of()))
                 .build();
 
         ClusterService clusterService = mock(ClusterService.class);
@@ -158,7 +156,7 @@ public class JobProviderTests extends ESTestCase {
                 .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), indexMetaData).build();
 
         ClusterState cs2 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
+                .metaData(MetaData.builder().indices(indexMap)).build();
 
         ClusterService clusterService = mock(ClusterService.class);
 
@@ -210,7 +208,7 @@ public class JobProviderTests extends ESTestCase {
         ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder().build();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
+                .metaData(MetaData.builder().indices(indexMap)).build();
 
         ClusterService clusterService = mock(ClusterService.class);
 

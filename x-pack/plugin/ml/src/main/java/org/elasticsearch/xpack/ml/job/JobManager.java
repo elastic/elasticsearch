@@ -67,6 +67,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -420,8 +421,13 @@ public class JobManager extends AbstractComponent {
 
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {
         ClusterState clusterState = clusterService.state();
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+
+        List<String> existingJobsOrGroups =
+                calendarJobIds.stream().filter(mlMetadata::isGroupOrJob).collect(Collectors.toList());
+
         Set<String> expandedJobIds = new HashSet<>();
-        calendarJobIds.forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
+        existingJobsOrGroups.forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
         for (String jobId : expandedJobIds) {
             if (isJobOpen(clusterState, jobId)) {
                 updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId), ActionListener.wrap(

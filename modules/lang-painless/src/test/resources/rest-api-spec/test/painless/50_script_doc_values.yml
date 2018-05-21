@@ -106,28 +106,6 @@ setup:
                             source: "doc.date.value"
     - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
-    - do:
-        warnings:
-            - getDate is no longer necessary on date fields as the value is now a date.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['date'].date"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
-
-    - do:
-        warnings:
-            - getDates is no longer necessary on date fields as the values are now dates.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['date'].dates.get(0)"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
-
 ---
 "geo_point":
     - do:
@@ -212,28 +190,6 @@ setup:
                         script:
                             source: "doc['long'].value"
     - match: { hits.hits.0.fields.field.0: 12348732141234 }
-
-    - do:
-        warnings:
-            - getDate on numeric fields is deprecated. Use a date field to get dates.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['long'].date"
-    - match: { hits.hits.0.fields.field.0: '2361-04-26T03:22:21.234Z' }
-
-    - do:
-        warnings:
-            - getDates on numeric fields is deprecated. Use a date field to get dates.
-        search:
-            body:
-                script_fields:
-                    field:
-                        script:
-                            source: "doc['long'].dates.get(0)"
-    - match: { hits.hits.0.fields.field.0: '2361-04-26T03:22:21.234Z' }
 
 ---
 "integer":

@@ -21,8 +21,15 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.channels.Selector;
+import java.util.function.Consumer;
 
 public abstract class EventHandler {
+
+    protected final Consumer<Exception> exceptionHandler;
+
+    protected EventHandler(Consumer<Exception> exceptionHandler) {
+        this.exceptionHandler = exceptionHandler;
+    }
 
     /**
      * This method handles an IOException that was thrown during a call to {@link Selector#select(long)} or
@@ -31,7 +38,7 @@ public abstract class EventHandler {
      * @param exception the exception
      */
     protected void selectorException(IOException exception) {
-//        logger.warn(new ParameterizedMessage("io exception during select [thread={}]", Thread.currentThread().getName()), exception);
+        exceptionHandler.accept(exception);
     }
 
     /**
@@ -65,9 +72,7 @@ public abstract class EventHandler {
      * @param exception that occurred
      */
     protected void closeException(ChannelContext<?> channel, Exception exception) {
-        // TODO: Check that this exception handler should be called
         channel.handleException(exception);
-//        logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", context.getChannel()), exception);
     }
 
     /**
@@ -79,8 +84,6 @@ public abstract class EventHandler {
      * @param exception that was thrown
      */
     protected void genericChannelException(ChannelContext<?> channel, Exception exception) {
-        // TODO: Check that this exception handler should be called
         channel.handleException(exception);
-//        logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel.getChannel()), exception);
     }
 }

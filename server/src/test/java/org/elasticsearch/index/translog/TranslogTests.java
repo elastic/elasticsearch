@@ -1639,7 +1639,8 @@ public class TranslogTests extends ESTestCase {
 
         Throwable expectedException = null;
         int translogOperations = 0;
-        for(int attempt = 0; attempt < 10; attempt++) {
+        final int maxAttempts = 10;
+        for(int attempt = 0; attempt < maxAttempts; attempt++) {
             int maxTrimmedSeqNo;
             fail.failNever();
             int extraTranslogOperations = randomIntBetween(10, 100);
@@ -1666,8 +1667,8 @@ public class TranslogTests extends ESTestCase {
 
             maxTrimmedSeqNo = rollover ? translogOperations - randomIntBetween(4, 8) : translogOperations + 1;
 
-            // chance to fail is proportional to number of attempt to get on the last attempt 100% chance of failure
-            fail.failRate(10 + 10 * attempt);
+            // if we are so happy to reach the max attempts - fail it always`
+            fail.failRate(attempt < maxAttempts - 1 ? 25 : 100);
             try {
                 failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
             } catch (TranslogException e) {

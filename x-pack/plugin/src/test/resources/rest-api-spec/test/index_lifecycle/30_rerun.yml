@@ -1,0 +1,141 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      acknowlege: true
+      xpack.index_lifecycle.put_lifecycle:
+        lifecycle: "my_lifecycle"
+        body: |
+           {
+             "policy": {
+               "type": "timeseries",
+               "phases": {
+                 "warm": {
+                   "after": "1000s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "hot": {
+                   "after": "1000s",
+                   "actions": { }
+                 }
+               }
+             }
+           }
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_lifecycle"
+
+---
+teardown:
+
+  - do:
+      acknowledge: true
+      indices.delete:
+        index: my_index
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.delete_lifecycle:
+        lifecycle: "my_lifecycle"
+
+  - do:
+      catch: missing
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_lifecycle"
+
+---
+"Test Basic Re-run":
+
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index.lifecycle.name: "my_lifecycle"
+            index.lifecycle.step: "error"
+            index.lifecycle.action: "pre-pre-readonly"
+            index.lifecycle.phase: "hot"
+            index.lifecycle.failed_step: "after"
+
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.rerun:
+        index: "my_index"
+
+  - do:
+      acknowledge: true
+      indices.get:
+        index: my_index
+  - match: { my_index.settings.index.lifecycle.name: "my_lifecycle" }
+  - match: { my_index.settings.index.lifecycle.step: "after" }
+  - match: { my_index.settings.index.lifecycle.action: "pre-pre-readonly" }
+  - match: { my_index.settings.index.lifecycle.phase: "hot" }
+
+---
+"Test Invalid Re-run With Non-errored Policy":
+
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index.lifecycle.name: "my_lifecycle"
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.rerun:
+        index: "my_index"
+
+  - do:
+      catch: bad_request
+      xpack.index_lifecycle.rerun:
+        index: "my_index"
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "cannot re-run an action for an index [my_index] that has not encountered an error when running a Lifecycle Policy" }
+
+  - do:
+      acknowledge: true
+      indices.get:
+        index: my_index
+  - match: { my_index.settings.index.lifecycle.name: "my_lifecycle" }
+  - match: { my_index.settings.index.lifecycle.step: "after" }
+  - match: { my_index.settings.index.lifecycle.action: "pre-pre-readonly" }
+  - match: { my_index.settings.index.lifecycle.phase: "hot" }
+
+
+---
+"Test Invalid Re-run With No Policy":
+
+  - do:
+      indices.create:
+        index: my_index
+
+  - do:
+      catch: bad_request
+      xpack.index_lifecycle.rerun:
+        index: "my_index"
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "cannot re-run an action for an index [my_index] that has not encountered an error when running a Lifecycle Policy" }
+
+---
+"Test Invalid Re-run With Invalid Index":
+  - do:
+      indices.create:
+        index: my_index
+
+  - do:
+      catch: bad_request
+      xpack.index_lifecycle.rerun:
+        index: "does_not_exist"
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "index [does_not_exist] does not exist" }

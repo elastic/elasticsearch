@@ -122,7 +122,7 @@ public class IndexLifecycleRunner {
      * @param indexSettings
      *            the index settings to extract the {@link StepKey} from.
      */
-    static StepKey getCurrentStepKey(Settings indexSettings) {
+    public static StepKey getCurrentStepKey(Settings indexSettings) {
         String currentPhase = LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(indexSettings);
         String currentAction = LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(indexSettings);
         String currentStep = LifecycleSettings.LIFECYCLE_STEP_SETTING.get(indexSettings);

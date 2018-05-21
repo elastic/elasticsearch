@@ -1547,7 +1547,7 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testCreateRepository() throws IOException {
-        String repository = "repo";
+        String repository = randomIndicesNames(1, 1)[0];
         String endpoint = "/_snapshot/" + repository;
         Path repositoryLocation = PathUtils.get(".");
         PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
@@ -1569,11 +1569,12 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testDeleteRepository() {
         Map<String, String> expectedParams = new HashMap<>();
-        String repoName = "test";
-        StringBuilder endpoint = new StringBuilder("/_snapshot/" + repoName);
+        String repository = randomIndicesNames(1, 1)[0];
+
+        StringBuilder endpoint = new StringBuilder("/_snapshot/" + repository);
 
         DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest();
-        deleteRepositoryRequest.name(repoName);
+        deleteRepositoryRequest.name(repository);
         setRandomMasterTimeout(deleteRepositoryRequest, expectedParams);
         setRandomTimeout(deleteRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
@@ -1581,6 +1582,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
     }
 
     public void testPutTemplateRequest() throws Exception {

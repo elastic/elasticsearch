@@ -713,7 +713,7 @@ final class RequestConverters {
     }
 
     static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addPathPartAsIs(deleteRepositoryRequest.name()).build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addPathPart(deleteRepositoryRequest.name()).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);

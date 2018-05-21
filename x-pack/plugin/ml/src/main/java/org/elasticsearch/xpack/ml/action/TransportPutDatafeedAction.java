@@ -141,7 +141,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     }
 
     private ClusterState putDatafeed(PutDatafeedAction.Request request, ClusterState clusterState) {
-        MlMetadata currentMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+        MlMetadata currentMetadata = MlMetadata.getMlMetadata(clusterState);
         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                 .putDatafeed(request.getDatafeed(), threadPool.getThreadContext()).build();
         return ClusterState.builder(clusterState).metaData(

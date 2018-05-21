@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -188,6 +189,16 @@ final class RequestConverters {
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getMappings(GetMappingsRequest getMappingsRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(getMappingsRequest.indices(),
+            "_mapping", getMappingsRequest.types()));
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
         return request;
     }
 

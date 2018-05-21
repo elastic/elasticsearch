@@ -5,7 +5,7 @@ A cast converts the value of an original <<painless-types, type>> to the
 equivalent value of a target <<painless-types, type>>. An implicit cast infers
 the target type and automatically occurs during certain
 <<painless-operators, operations>>. An explicit cast specifies the target type
-and forcefully occurs as its own operation.  Use the *cast operator ()* to
+and forcefully occurs as its own operation.  Use the *cast operator* to
 specify an explicit cast.
 
 *Errors*
@@ -297,7 +297,7 @@ based on the current type value the `def` type value represents.
 [[string-character-casting]]
 ==== String to Character Casting
 
-Use the <<painless-casting, *cast operator ()*>> to convert a
+Use the <<painless-casting, *cast operator*>> to convert a
 <<string-type, String type>> value into a <<primitive-types, char type>> value.
 
 *Errors*
@@ -345,18 +345,18 @@ reference type to its corresponding primitive type.
 Implicit boxing/unboxing occurs during the following
 <<painless-operators, operations>>:
 
-* Conversions between the <<dynamic-types, `def` type>> and
-  primitive types will be implicitly boxed/unboxed as
+* Conversions between a <<dynamic-types, `def` type>> and
+  a primitive type will be implicitly boxed/unboxed as
   necessary, though this is referred to as an implicit cast throughout the
   documentation.
 * <<method-access, Method>>/function call arguments will be implicitly
   boxed/unboxed as necessary.
-* Primitive type values will be implicitly boxed when a reference type method
-  call is invoked on a primitive type value.
+* A primitive type value will be implicitly boxed when a reference type method
+  call is invoked on it.
 
 Explicit boxing/unboxing is not allowed. Use the reference type API to
-explicitly convert primitive type values to their respective reference type
-values and vice versa.
+explicitly convert a primitive type value to its respective reference type
+value and vice versa.
 
 *Errors*
 
@@ -419,12 +419,14 @@ values and vice versa.
 [[promotion]]
 ==== Promotion
 
-Promotion is when a single value is or multiple values are converted to a
-certain type for use during an <<painless-operators, operation>>. Each operation
-that requires promotion has a promotion table that shows all allowed
-conversions. Values can be promoted to the `def` type at compile-time; however,
-at run-time, the promoted type value is derived from what the `def` type value
-represents.
+Promotion is when a single value is implicitly <<painless-casting, cast>> to a
+certain type or multiple values are implicitly <<painless-casting, cast>> to the
+same type as required for evaluation by certain
+<<painless-operators, operations>>. Each operation that requires promotion has a
+promotion table that shows all required implicit casts based on the type(s) of
+value(s). A value can be promoted to a `def` type at compile-time; however, the
+promoted type value is derived from what the `def` type value represents at
+run-time.
 
 *Errors*
 

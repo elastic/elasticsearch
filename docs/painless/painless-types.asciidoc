@@ -11,19 +11,18 @@ categories: <<primitive-types, primitive types>>,
 [[primitive-types]]
 ==== Primitive Types
 
-Primitive types are built straight into the JVM, directly contain their data,
+Primitive types are built into the JVM natively, directly contain their data,
 and are allocated to non-heap memory.  Primitive type values are copied when
 <<assignment, assigned>> and when passed into a <<method-access, method>> or
 function as arguments.
 
 Primitive types have corresponding <<reference-types, reference types>> (also
 known as <<boxing-unboxing, boxed types>>). Any member of the corresponding
-<<reference-types, reference type>> can be <<field-access, accessed>> or
-<<method-access, called>> by executing the appropriate operation on the
-primitive type value. Operations performed in this manner convert
-(<<boxing-unboxing, box>>) the primitive type value to its corresponding
-<<reference-types, reference type>> value at runtime and execute the specified
-<<field-access, field access>> or <<method-access, method call>>.
+reference type can be <<field-access, accessed>> or <<method-access, called>> by
+executing the appropriate operation on the primitive type value. Operations
+performed in this manner box the primitive type value to its corresponding
+reference type value at runtime and execute the specified field access or
+method call.
 
 The following primitive types are available:
 
@@ -93,7 +92,7 @@ logical quantity with two possible values of `true` and `false`
     assign value of `boolean true` to `b`
 +
 * Method call on a primitive type from the corresponding
-<<reference-types, reference type>>.
+<<reference-types, reference type.
 +
 [source,Painless]
 ----

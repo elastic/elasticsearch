@@ -419,12 +419,12 @@ values and vice versa.
 [[promotion]]
 ==== Promotion
 
-Promotion is when a value is converted into either a certain type or when
-multiple values are converted into equivalent types for use during an
-<<painless-operators, operation>>. Each operation that requires promotion will
-have a promotion table that shows all allowed conversions. Values can be
-promoted to the `def` type at compile-time; however, at run-time, the promoted
-type value is derived from what the `def` type value represents.
+Promotion is when a single value is or multiple values are converted to a
+certain type for use during an <<painless-operators, operation>>. Each operation
+that requires promotion has a promotion table that shows all allowed
+conversions. Values can be promoted to the `def` type at compile-time; however,
+at run-time, the promoted type value is derived from what the `def` type value
+represents.
 
 *Errors*
 

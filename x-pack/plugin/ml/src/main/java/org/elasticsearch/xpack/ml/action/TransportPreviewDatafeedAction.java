@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
@@ -52,7 +51,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     @Override
     protected void doExecute(PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
-        MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MLMetadataField.TYPE);
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
         DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());

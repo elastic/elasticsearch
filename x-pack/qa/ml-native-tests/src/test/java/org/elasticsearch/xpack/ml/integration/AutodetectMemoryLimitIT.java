@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void cleanUpTest() throws Exception {
+    public void cleanUpTest() {
         cleanUp();
     }
 
@@ -75,19 +75,10 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         closeJob(job.getId());
 
         // Assert we haven't violated the limit too much
-        // and a balance of partitions/by fields were created
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(35000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
-
-        // it is important to check that while we rejected partitions, we still managed
-        // to create some by fields; it shows we utilize memory in a meaningful way
-        // rather than creating empty partitions
-        assertThat(modelSizeStats.getTotalPartitionFieldCount(), lessThan(900L));
-        assertThat(modelSizeStats.getTotalPartitionFieldCount(), greaterThan(650L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(900L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(650L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
@@ -133,8 +124,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(1900L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(1500L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
@@ -184,9 +173,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), equalTo(7L));
-        assertThat(modelSizeStats.getTotalOverFieldCount(), greaterThan(40000L));
-        assertThat(modelSizeStats.getTotalOverFieldCount(), lessThan(50000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
@@ -237,7 +223,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(90000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(75000000L));
-        assertThat(modelSizeStats.getTotalOverFieldCount(), greaterThan(140000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));
     }
 

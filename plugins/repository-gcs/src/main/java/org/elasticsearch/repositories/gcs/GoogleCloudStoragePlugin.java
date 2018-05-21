@@ -40,8 +40,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     public GoogleCloudStoragePlugin(final Settings settings) {
         this.storageService = createStorageService(settings);
         // eagerly load client settings so that secure settings are readable (not closed)
-        final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
-        this.storageService.updateClientsSettings(clientsSettings);
+        reinit(settings);
     }
 
     // overridable for tests

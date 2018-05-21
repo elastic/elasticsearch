@@ -130,7 +130,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                         new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new));
             }
         } else {
-            MlMetadata mlMetadata = state.getMetaData().custom(MLMetadataField.TYPE);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
             PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
             List<String> startedDatafeeds = new ArrayList<>();

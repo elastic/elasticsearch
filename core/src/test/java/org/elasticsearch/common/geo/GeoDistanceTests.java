@@ -75,6 +75,7 @@ public class GeoDistanceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30764")
     public void testReadFromSerializationBWC() throws Exception {
         int ordinal = randomInt(3);
         try (BytesStreamOutput out = new BytesStreamOutput()) {

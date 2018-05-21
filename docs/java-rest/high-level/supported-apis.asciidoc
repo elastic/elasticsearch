@@ -31,6 +31,7 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-search>>
 * <<java-rest-high-search-scroll>>
 * <<java-rest-high-clear-scroll>>
+* <<java-rest-high-search-template>>
 * <<java-rest-high-multi-search>>
 * <<java-rest-high-field-caps>>
 * <<java-rest-high-rank-eval>>
@@ -38,6 +39,7 @@ The Java High Level REST Client supports the following Search APIs:
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]
+include::search/search-template.asciidoc[]
 include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 
@@ -102,8 +104,10 @@ include::indices/put_template.asciidoc[]
 The Java High Level REST Client supports the following Cluster APIs:
 
 * <<java-rest-high-cluster-put-settings>>
+* <<java-rest-high-cluster-list-tasks>>
 
 include::cluster/put_settings.asciidoc[]
+include::cluster/list_tasks.asciidoc[]
 
 == Snapshot APIs
 
@@ -112,3 +116,4 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-get-repository>>
 
 include::snapshot/get_repository.asciidoc[]
+include::snapshot/create_repository.asciidoc[]

@@ -48,7 +48,7 @@ public class SocketEventHandler extends EventHandler {
         context.register();
         SelectionKey selectionKey = context.getSelectionKey();
         selectionKey.attach(context);
-        if (context.hasQueuedWriteOps()) {
+        if (context.readyForFlush()) {
             SelectionKeyUtils.setConnectReadAndWriteInterested(selectionKey);
         } else {
             SelectionKeyUtils.setConnectAndReadInterested(selectionKey);
@@ -150,7 +150,7 @@ public class SocketEventHandler extends EventHandler {
         } else {
             SelectionKey selectionKey = context.getSelectionKey();
             boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
-            boolean pendingWrites = context.hasQueuedWriteOps();
+            boolean pendingWrites = context.readyForFlush();
             if (currentlyWriteInterested == false && pendingWrites) {
                 SelectionKeyUtils.setWriteInterested(selectionKey);
             } else if (currentlyWriteInterested && pendingWrites == false) {

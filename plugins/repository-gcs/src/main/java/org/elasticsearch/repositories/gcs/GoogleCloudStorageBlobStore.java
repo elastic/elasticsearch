@@ -345,8 +345,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                 .setTarget(targetBlobId)
                 .build();
         // There's no atomic "move" in GCS so we need to copy and delete
-        storageAccessConsumer(storage -> storage.copy(request).getResult());
-        final boolean deleted = storageAccess(storage -> storage.delete(sourceBlobId));
+        final boolean deleted = storageAccess(storage -> {
+            storage.copy(request).getResult();
+            return storage.delete(sourceBlobId);
+        });
         if (deleted == false) {
             throw new IOException("Failed to move source [" + sourceBlobName + "] to target [" + targetBlobName + "]");
         }

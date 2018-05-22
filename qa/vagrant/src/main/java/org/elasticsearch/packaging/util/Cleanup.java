@@ -59,15 +59,16 @@ public class Cleanup {
         if (Platforms.WINDOWS) {
 
             // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
-            sh.run("powershell.exe", "-Command",
+            sh.runIgnoreExitCode("powershell.exe", "-Command",
                 "Get-WmiObject Win32_Process | " +
                 "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | " +
                 "ForEach-Object { $_.Terminate() }");
 
         } else {
 
-            sh.run("pkill", "-u", "elasticsearch");
-            sh.run("bash", "-c", "ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
+            sh.runIgnoreExitCode("pkill", "-u", "elasticsearch");
+            sh.runIgnoreExitCode("bash", "-c",
+                "ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
 
         }
 
@@ -77,8 +78,8 @@ public class Cleanup {
 
         // remove elasticsearch users
         if (Platforms.LINUX) {
-            sh.run("userdel", "elasticsearch");
-            sh.run("groupdel", "elasticsearch");
+            sh.runIgnoreExitCode("userdel", "elasticsearch");
+            sh.runIgnoreExitCode("groupdel", "elasticsearch");
         }
 
         // delete files that may still exist
@@ -94,7 +95,7 @@ public class Cleanup {
         // disable elasticsearch service
         // todo add this for windows when adding tests for service intallation
         if (Platforms.LINUX && isSystemd()) {
-            sh.runAndAssertSuccess("systemctl", "unmask", "systemd-sysctl.service");
+            sh.run("systemctl", "unmask", "systemd-sysctl.service");
         }
     }
 
@@ -102,19 +103,19 @@ public class Cleanup {
         final Shell sh = new Shell();
 
         if (isRPM()) {
-            sh.run("rpm", "--quiet", "-e", "elasticsearch", "elasticsearch-oss");
+            sh.runIgnoreExitCode("rpm", "--quiet", "-e", "elasticsearch", "elasticsearch-oss");
         }
 
         if (isYUM()) {
-            sh.run("yum", "remove", "-y", "elasticsearch", "elasticsearch-oss");
+            sh.runIgnoreExitCode("yum", "remove", "-y", "elasticsearch", "elasticsearch-oss");
         }
 
         if (isDPKG()) {
-            sh.run("dpkg", "--purge", "elasticsearch", "elasticsearch-oss");
+            sh.runIgnoreExitCode("dpkg", "--purge", "elasticsearch", "elasticsearch-oss");
         }
 
         if (isAptGet()) {
-            sh.run("apt-get", "--quiet", "--yes", "purge", "elasticsearch", "elasticsearch-oss");
+            sh.runIgnoreExitCode("apt-get", "--quiet", "--yes", "purge", "elasticsearch", "elasticsearch-oss");
         }
     }
 }

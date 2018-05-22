@@ -55,15 +55,15 @@ public class Shell {
         this.workingDirectory = workingDirectory;
     }
 
-    public Result runAndAssertSuccess(String... command) {
-        Result result = run(command);
+    public Result run(String... command) {
+        Result result = runIgnoreExitCode(command);
         if (result.isSuccess() == false) {
             throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "] result: " + result.toString());
         }
         return result;
     }
 
-    public Result run(String... command) {
+    public Result runIgnoreExitCode(String... command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
 
@@ -157,7 +157,7 @@ public class Shell {
         private final InputStream input;
         private final Appendable appendable;
 
-        public StreamCollector(InputStream input, Appendable appendable) {
+        StreamCollector(InputStream input, Appendable appendable) {
             this.input = Objects.requireNonNull(input);
             this.appendable = Objects.requireNonNull(appendable);
         }

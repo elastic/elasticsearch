@@ -28,41 +28,41 @@ public class Platforms {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().run("which", "dpkg").isSuccess();
+        return new Shell().runIgnoreExitCode("which", "dpkg").isSuccess();
     }
 
     public static boolean isAptGet() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().run("which", "apt-get").isSuccess();
+        return new Shell().runIgnoreExitCode("which", "apt-get").isSuccess();
     }
 
     public static boolean isRPM() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().run("which", "rpm").isSuccess();
+        return new Shell().runIgnoreExitCode("which", "rpm").isSuccess();
     }
 
     public static boolean isYUM() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().run("which", "yum").isSuccess();
+        return new Shell().runIgnoreExitCode("which", "yum").isSuccess();
     }
 
     public static boolean isSystemd() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().run("which", "systemctl").isSuccess();
+        return new Shell().runIgnoreExitCode("which", "systemctl").isSuccess();
     }
 
     public static boolean isSysVInit() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().run("which", "service").isSuccess();
+        return new Shell().runIgnoreExitCode("which", "service").isSuccess();
     }
 }

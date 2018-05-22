@@ -14,9 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -26,16 +24,12 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -43,17 +37,15 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportPutCalendarAction extends HandledTransportAction<PutCalendarAction.Request, PutCalendarAction.Response> {
 
     private final Client client;
-    private final ClusterService clusterService;
 
     @Inject
     public TransportPutCalendarAction(Settings settings, ThreadPool threadPool,
                            TransportService transportService, ActionFilters actionFilters,
                            IndexNameExpressionResolver indexNameExpressionResolver,
-                           Client client, ClusterService clusterService) {
+                           Client client) {
         super(settings, PutCalendarAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, PutCalendarAction.Request::new);
         this.client = client;
-        this.clusterService = clusterService;
     }
 
     @Override

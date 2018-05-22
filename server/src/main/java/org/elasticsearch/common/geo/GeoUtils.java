@@ -391,7 +391,6 @@ public class GeoUtils {
      * Represents the point of the geohash cell that should be used as the value of geohas
      */
     public enum EffectivePoint {
-        DEFAULT,
         TOP_LEFT,
         TOP_RIGHT,
         BOTTOM_LEFT,
@@ -400,7 +399,7 @@ public class GeoUtils {
 
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue)
             throws IOException, ElasticsearchParseException {
-        return parseGeoPoint(parser, point, ignoreZValue, EffectivePoint.DEFAULT);
+        return parseGeoPoint(parser, point, ignoreZValue, EffectivePoint.BOTTOM_LEFT);
     }
 
     /**
@@ -518,7 +517,7 @@ public class GeoUtils {
     }
 
     private static GeoPoint parseGeoHash(GeoPoint point, String geohash, EffectivePoint effectivePoint) {
-        if (effectivePoint == EffectivePoint.DEFAULT) {
+        if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
             return point.resetFromGeoHash(geohash);
         } else {
             Rectangle rectangle = GeoHashUtils.bbox(geohash);
@@ -527,8 +526,6 @@ public class GeoUtils {
                     return point.reset(rectangle.maxLat, rectangle.minLon);
                 case TOP_RIGHT:
                     return point.reset(rectangle.maxLat, rectangle.maxLon);
-                case BOTTOM_LEFT:
-                    return point.reset(rectangle.minLat, rectangle.minLon);
                 case BOTTOM_RIGHT:
                     return point.reset(rectangle.minLat, rectangle.maxLon);
                 default:

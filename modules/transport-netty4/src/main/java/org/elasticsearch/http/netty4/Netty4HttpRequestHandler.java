@@ -29,6 +29,7 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -39,14 +40,15 @@ import java.util.Collections;
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     private final Netty4HttpServerTransport serverTransport;
+    private final HttpHandlingSettings handlingSettings;
     private final boolean httpPipeliningEnabled;
-    private final boolean detailedErrorsEnabled;
     private final ThreadContext threadContext;
 
-    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport, boolean detailedErrorsEnabled, ThreadContext threadContext) {
+    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport, HttpHandlingSettings handlingSettings,
+                             ThreadContext threadContext) {
         this.serverTransport = serverTransport;
         this.httpPipeliningEnabled = serverTransport.pipelining;
-        this.detailedErrorsEnabled = detailedErrorsEnabled;
+        this.handlingSettings = handlingSettings;
         this.threadContext = threadContext;
     }
 
@@ -109,7 +111,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 Netty4HttpChannel innerChannel;
                 try {
                     innerChannel =
-                            new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
+                        new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, handlingSettings, threadContext);
                 } catch (final IllegalArgumentException e) {
                     if (badRequestCause == null) {
                         badRequestCause = e;
@@ -124,7 +126,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                                     copy,
                                     ctx.channel());
                     innerChannel =
-                            new Netty4HttpChannel(serverTransport, innerRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
+                        new Netty4HttpChannel(serverTransport, innerRequest, pipelinedRequest, handlingSettings, threadContext);
                 }
                 channel = innerChannel;
             }

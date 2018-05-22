@@ -31,13 +31,18 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -52,7 +57,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class GoogleCloudStorageTestServer {
 
-    private static byte[] EMPTY_BYTE = new byte[0];
+    private static final byte[] EMPTY_BYTE = new byte[0];
 
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();
@@ -62,13 +67,6 @@ public class GoogleCloudStorageTestServer {
 
     /** Server endpoint **/
     private final String endpoint;
-
-    /**
-     * Creates a {@link GoogleCloudStorageTestServer} with the default endpoint
-     */
-    GoogleCloudStorageTestServer() {
-        this("https://www.googleapis.com");
-    }
 
     /**
      * Creates a {@link GoogleCloudStorageTestServer} with a custom endpoint
@@ -85,29 +83,6 @@ public class GoogleCloudStorageTestServer {
 
     public String getEndpoint() {
         return endpoint;
-    }
-
-    /**
-     * Returns a Google Cloud Storage response for the given request
-     *
-     * @param method the HTTP method of the request
-     * @param url the HTTP URL of the request
-     * @param headers the HTTP headers of the request
-     * @param body the HTTP request body
-     * @return a {@link Response}
-     *
-     * @throws IOException if something goes wrong
-     */
-    public Response handle(final String method,
-                           final String url,
-                           final Map<String, List<String>> headers,
-                           byte[] body) throws IOException {
-
-        final int questionMark = url.indexOf('?');
-        if (questionMark == -1) {
-            return handle(method, url, null, headers, body);
-        }
-        return handle(method, url.substring(0, questionMark), url.substring(questionMark + 1), headers, body);
     }
 
     /**
@@ -165,7 +140,7 @@ public class GoogleCloudStorageTestServer {
         //
         // https://cloud.google.com/storage/docs/json_api/v1/buckets/get
         handlers.insert("GET " + endpoint + "/storage/v1/b/{bucket}", (params, headers, body) -> {
-            String name = params.get("bucket");
+            final String name = params.get("bucket");
             if (Strings.hasText(name) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "bucket name is missing");
             }
@@ -181,7 +156,7 @@ public class GoogleCloudStorageTestServer {
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/get
         handlers.insert("GET " + endpoint + "/storage/v1/b/{bucket}/o/{object}", (params, headers, body) -> {
-            String objectName = params.get("object");
+            final String objectName = params.get("object");
             if (Strings.hasText(objectName) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
             }
@@ -191,7 +166,7 @@ public class GoogleCloudStorageTestServer {
                 return newError(RestStatus.NOT_FOUND, "bucket not found");
             }
 
-            for (Map.Entry<String, byte[]> object : bucket.objects.entrySet()) {
+            for (final Map.Entry<String, byte[]> object : bucket.objects.entrySet()) {
                 if (object.getKey().equals(objectName)) {
                     return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, objectName, object.getValue()));
                 }
@@ -203,7 +178,7 @@ public class GoogleCloudStorageTestServer {
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/delete
         handlers.insert("DELETE " + endpoint + "/storage/v1/b/{bucket}/o/{object}", (params, headers, body) -> {
-            String objectName = params.get("object");
+            final String objectName = params.get("object");
             if (Strings.hasText(objectName) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
             }
@@ -224,25 +199,149 @@ public class GoogleCloudStorageTestServer {
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
         handlers.insert("POST " + endpoint + "/upload/storage/v1/b/{bucket}/o", (params, headers, body) -> {
-            if ("resumable".equals(params.get("uploadType")) == false) {
-                return newError(RestStatus.INTERNAL_SERVER_ERROR, "upload type must be resumable");
-            }
-
-            final String objectName = params.get("name");
-            if (Strings.hasText(objectName) == false) {
-                return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
-            }
-
-            final Bucket bucket = buckets.get(params.get("bucket"));
-            if (bucket == null) {
-                return newError(RestStatus.NOT_FOUND, "bucket not found");
-            }
-
-            if (bucket.objects.put(objectName, EMPTY_BYTE) == null) {
-                String location = endpoint + "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id=" + objectName;
-                return new Response(RestStatus.CREATED, singletonMap("Location", location), XContentType.JSON.mediaType(), EMPTY_BYTE);
+            final String uploadType = params.get("uploadType");
+            if ("resumable".equals(uploadType)) {
+                final String objectName = params.get("name");
+                if (Strings.hasText(objectName) == false) {
+                    return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
+                }
+                final Bucket bucket = buckets.get(params.get("bucket"));
+                if (bucket == null) {
+                    return newError(RestStatus.NOT_FOUND, "bucket not found");
+                }
+                if (bucket.objects.putIfAbsent(objectName, EMPTY_BYTE) == null) {
+                    final String location = endpoint + "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
+                            + objectName;
+                    return new Response(RestStatus.CREATED, singletonMap("Location", location), XContentType.JSON.mediaType(), EMPTY_BYTE);
+                } else {
+                    return newError(RestStatus.CONFLICT, "object already exist");
+                }
+            } else if ("multipart".equals(uploadType)) {
+                /*
+                 *  A multipart/related request body looks like this (note the binary dump inside a text blob! nice!):
+                 * --__END_OF_PART__
+                 * Content-Length: 135
+                 * Content-Type: application/json; charset=UTF-8
+                 * content-transfer-encoding: binary
+                 *
+                 * {"bucket":"bucket_test","crc32c":"7XacHQ==","md5Hash":"fVztGkklMlUamsSmJK7W+w==",
+                 * "name":"tests-KEwE3bU4TuyetBgQIghmUw/master.dat-temp"}
+                 * --__END_OF_PART__
+                 * content-transfer-encoding: binary
+                 *
+                 * KEwE3bU4TuyetBgQIghmUw
+                 * --__END_OF_PART__--
+                 */
+                String boundary = "__END_OF_PART__";
+                // Determine the multipart boundary
+                final List<String> contentTypes = headers.getOrDefault("Content-Type", headers.get("Content-type"));
+                if (contentTypes != null) {
+                    final String contentType = contentTypes.get(0);
+                    if ((contentType != null) && contentType.contains("multipart/related; boundary=")) {
+                        boundary = contentType.replace("multipart/related; boundary=", "");
+                    }
+                }
+                InputStream inputStreamBody = new ByteArrayInputStream(body);
+                final List<String> contentEncodings = headers.getOrDefault("Content-Encoding", headers.get("Content-encoding"));
+                if (contentEncodings != null) {
+                    if (contentEncodings.stream().anyMatch(x -> "gzip".equalsIgnoreCase(x))) {
+                        inputStreamBody = new GZIPInputStream(inputStreamBody);
+                    }
+                }
+                // Read line by line ?both? parts of the multipart. Decoding headers as
+                // IS_8859_1 is safe.
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStreamBody, StandardCharsets.ISO_8859_1))) {
+                    String line;
+                    // read first part delimiter
+                    line = reader.readLine();
+                    if ((line == null) || (line.equals("--" + boundary) == false)) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Does not start with the part delimiter.");
+                    }
+                    final Map<String, List<String>> firstPartHeaders = new HashMap<>();
+                    // Reads the first part's headers, if any
+                    while ((line = reader.readLine()) != null) {
+                        if (line.equals("\r\n") || (line.length() == 0)) {
+                            // end of headers
+                            break;
+                        } else {
+                            final String[] header = line.split(":", 2);
+                            firstPartHeaders.put(header[0], singletonList(header[1]));
+                        }
+                    }
+                    final List<String> firstPartContentTypes = firstPartHeaders.getOrDefault("Content-Type",
+                            firstPartHeaders.get("Content-type"));
+                    if ((firstPartContentTypes == null)
+                            || (firstPartContentTypes.stream().noneMatch(x -> x.contains("application/json")))) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Metadata part expected to have the \"application/json\" content type.");
+                    }
+                    // read metadata part, a single line
+                    line = reader.readLine();
+                    final byte[] metadata = line.getBytes(StandardCharsets.ISO_8859_1);
+                    if ((firstPartContentTypes != null) && (firstPartContentTypes.stream().anyMatch((x -> x.contains("charset=utf-8"))))) {
+                        // decode as utf-8
+                        line = new String(metadata, StandardCharsets.UTF_8);
+                    }
+                    final Matcher objectNameMatcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
+                    objectNameMatcher.find();
+                    final String objectName = objectNameMatcher.group(1);
+                    final Matcher bucketNameMatcher = Pattern.compile("\"bucket\":\"([^\"]*)\"").matcher(line);
+                    bucketNameMatcher.find();
+                    final String bucketName = bucketNameMatcher.group(1);
+                    // read second part delimiter
+                    line = reader.readLine();
+                    if ((line == null) || (line.equals("--" + boundary) == false)) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Second part does not start with delimiter. "
+                                        + "Is the metadata multi-line?");
+                    }
+                    final Map<String, List<String>> secondPartHeaders = new HashMap<>();
+                    // Reads the second part's headers, if any
+                    while ((line = reader.readLine()) != null) {
+                        if (line.equals("\r\n") || (line.length() == 0)) {
+                            // end of headers
+                            break;
+                        } else {
+                            final String[] header = line.split(":", 2);
+                            secondPartHeaders.put(header[0], singletonList(header[1]));
+                        }
+                    }
+                    final List<String> secondPartTransferEncoding = secondPartHeaders.getOrDefault("Content-Transfer-Encoding",
+                            secondPartHeaders.get("content-transfer-encoding"));
+                    if ((secondPartTransferEncoding == null)
+                            || (secondPartTransferEncoding.stream().noneMatch(x -> x.contains("binary")))) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Data part expected to have the \"binary\" content transfer encoding.");
+                    }
+                    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    int c;
+                    while ((c = reader.read()) != -1) {
+                        // one char to one byte, because of the ISO_8859_1 encoding
+                        baos.write(c);
+                    }
+                    final byte[] temp = baos.toByteArray();
+                    final byte[] trailingEnding = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1);
+                    // check trailing
+                    for (int i = trailingEnding.length - 1; i >= 0; i--) {
+                        if (trailingEnding[i] != temp[(temp.length - trailingEnding.length) + i]) {
+                            return newError(RestStatus.INTERNAL_SERVER_ERROR, "Error parsing multipart request.");
+                        }
+                    }
+                    final Bucket bucket = buckets.get(bucketName);
+                    if (bucket == null) {
+                        return newError(RestStatus.NOT_FOUND, "bucket not found");
+                    }
+                    final byte[] objectData = Arrays.copyOf(temp, temp.length - trailingEnding.length);
+                    if ((objectName != null) && (bucketName != null) && (objectData != null)) {
+                        bucket.objects.put(objectName, objectData);
+                        return new Response(RestStatus.OK, emptyMap(), XContentType.JSON.mediaType(), metadata);
+                    } else {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "error parsing multipart request");
+                    }
+                }
             } else {
-                return newError(RestStatus.CONFLICT, "object already exist");
+                return newError(RestStatus.INTERNAL_SERVER_ERROR, "upload type must be resumable or multipart");
             }
         });
 
@@ -250,7 +349,7 @@ public class GoogleCloudStorageTestServer {
         //
         // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
         handlers.insert("PUT " + endpoint + "/upload/storage/v1/b/{bucket}/o", (params, headers, body) -> {
-            String objectId = params.get("upload_id");
+            final String objectId = params.get("upload_id");
             if (Strings.hasText(objectId) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "upload id is missing");
             }
@@ -268,38 +367,46 @@ public class GoogleCloudStorageTestServer {
             return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, objectId, body));
         });
 
-        // Copy Object
+        // Rewrite or Copy Object
         //
+        // https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
         // https://cloud.google.com/storage/docs/json_api/v1/objects/copy
-        handlers.insert("POST " + endpoint + "/storage/v1/b/{srcBucket}/o/{src}/copyTo/b/{destBucket}/o/{dest}", (params, headers, body)-> {
-            String source = params.get("src");
-            if (Strings.hasText(source) == false) {
-                return newError(RestStatus.INTERNAL_SERVER_ERROR, "source object name is missing");
-            }
-
-            final Bucket srcBucket = buckets.get(params.get("srcBucket"));
-            if (srcBucket == null) {
-                return newError(RestStatus.NOT_FOUND, "source bucket not found");
-            }
-
-            String dest = params.get("dest");
-            if (Strings.hasText(dest) == false) {
-                return newError(RestStatus.INTERNAL_SERVER_ERROR, "destination object name is missing");
-            }
-
-            final Bucket destBucket = buckets.get(params.get("destBucket"));
-            if (destBucket == null) {
-                return newError(RestStatus.NOT_FOUND, "destination bucket not found");
-            }
-
-            final byte[] sourceBytes = srcBucket.objects.get(source);
-            if (sourceBytes == null) {
-                return newError(RestStatus.NOT_FOUND, "source object not found");
-            }
-
-            destBucket.objects.put(dest, sourceBytes);
-            return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(destBucket.name, dest, sourceBytes));
-        });
+        handlers.insert("POST " + endpoint + "/storage/v1/b/{srcBucket}/o/{src}/{action}/b/{destBucket}/o/{dest}",
+                (params, headers, body) -> {
+                    final String action = params.get("action");
+                    if ((action.equals("rewriteTo") == false) && (action.equals("copyTo") == false)) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "Action not implemented. None of \"rewriteTo\" or \"copyTo\".");
+                    }
+                    final String source = params.get("src");
+                    if (Strings.hasText(source) == false) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "source object name is missing");
+                    }
+                    final Bucket srcBucket = buckets.get(params.get("srcBucket"));
+                    if (srcBucket == null) {
+                        return newError(RestStatus.NOT_FOUND, "source bucket not found");
+                    }
+                    final String dest = params.get("dest");
+                    if (Strings.hasText(dest) == false) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "destination object name is missing");
+                    }
+                    final Bucket destBucket = buckets.get(params.get("destBucket"));
+                    if (destBucket == null) {
+                        return newError(RestStatus.NOT_FOUND, "destination bucket not found");
+                    }
+                    final byte[] sourceBytes = srcBucket.objects.get(source);
+                    if (sourceBytes == null) {
+                        return newError(RestStatus.NOT_FOUND, "source object not found");
+                    }
+                    destBucket.objects.put(dest, sourceBytes);
+                    if (action.equals("rewriteTo")) {
+                        final XContentBuilder respBuilder = jsonBuilder();
+                        buildRewriteResponse(respBuilder, destBucket.name, dest, sourceBytes.length);
+                        return newResponse(RestStatus.OK, emptyMap(), respBuilder);
+                    } else {
+                        assert action.equals("copyTo");
+                        return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(destBucket.name, dest, sourceBytes));
+                    }
+                });
 
         // List Objects
         //
@@ -317,8 +424,8 @@ public class GoogleCloudStorageTestServer {
                 builder.startArray("items");
 
                 final String prefixParam = params.get("prefix");
-                for (Map.Entry<String, byte[]> object : bucket.objects.entrySet()) {
-                    if (prefixParam != null && object.getKey().startsWith(prefixParam) == false) {
+                for (final Map.Entry<String, byte[]> object : bucket.objects.entrySet()) {
+                    if ((prefixParam != null) && (object.getKey().startsWith(prefixParam) == false)) {
                         continue;
                     }
                     buildObjectResource(builder, bucket.name, object.getKey(), object.getValue());
@@ -333,7 +440,7 @@ public class GoogleCloudStorageTestServer {
         //
         // https://cloud.google.com/storage/docs/request-body
         handlers.insert("GET " + endpoint + "/download/storage/v1/b/{bucket}/o/{object}", (params, headers, body) -> {
-            String object = params.get("object");
+            final String object = params.get("object");
             if (Strings.hasText(object) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object id is missing");
             }
@@ -353,7 +460,7 @@ public class GoogleCloudStorageTestServer {
         // Batch
         //
         // https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch
-        handlers.insert("POST " + endpoint + "/batch", (params, headers, body) -> {
+        handlers.insert("POST " + endpoint + "/batch/storage/v1", (params, headers, body) -> {
             final List<Response> batchedResponses = new ArrayList<>();
 
             // A batch request body looks like this:
@@ -385,7 +492,7 @@ public class GoogleCloudStorageTestServer {
             final List<String> contentTypes = headers.getOrDefault("Content-Type", headers.get("Content-type"));
             if (contentTypes != null) {
                 final String contentType = contentTypes.get(0);
-                if (contentType != null && contentType.contains("multipart/mixed; boundary=")) {
+                if ((contentType != null) && contentType.contains("multipart/mixed; boundary=")) {
                     boundary = contentType.replace("multipart/mixed; boundary=", "");
                 }
             }
@@ -398,25 +505,25 @@ public class GoogleCloudStorageTestServer {
                 while ((line = reader.readLine()) != null) {
                     // Start of a batched request
                     if (line.equals("--" + boundary)) {
-                        Map<String, List<String>> batchedHeaders = new HashMap<>();
+                        final Map<String, List<String>> batchedHeaders = new HashMap<>();
 
                         // Reads the headers, if any
                         while ((line = reader.readLine()) != null) {
-                            if (line.equals("\r\n") || line.length() == 0) {
+                            if (line.equals("\r\n") || (line.length() == 0)) {
                                 // end of headers
                                 break;
                             } else {
-                                String[] header = line.split(":", 2);
+                                final String[] header = line.split(":", 2);
                                 batchedHeaders.put(header[0], singletonList(header[1]));
                             }
                         }
 
                         // Reads the method and URL
                         line = reader.readLine();
-                        String batchedUrl = line.substring(0, line.lastIndexOf(' '));
+                        final String batchedUrl = line.substring(0, line.lastIndexOf(' '));
 
                         final Map<String, String> batchedParams = new HashMap<>();
-                        int questionMark = batchedUrl.indexOf('?');
+                        final int questionMark = batchedUrl.indexOf('?');
                         if (questionMark != -1) {
                             RestUtils.decodeQueryString(batchedUrl.substring(questionMark + 1), 0, batchedParams);
                         }
@@ -424,16 +531,16 @@ public class GoogleCloudStorageTestServer {
                         // Reads the body
                         line = reader.readLine();
                         byte[] batchedBody = new byte[0];
-                        if (line != null || line.startsWith("--" + boundary) == false) {
+                        if ((line != null) || (line.startsWith("--" + boundary) == false)) {
                             batchedBody = line.getBytes(StandardCharsets.UTF_8);
                         }
 
                         // Executes the batched request
-                        RequestHandler handler = handlers.retrieve(batchedUrl, batchedParams);
+                        final RequestHandler handler = handlers.retrieve(batchedUrl, batchedParams);
                         if (handler != null) {
                             try {
                                 batchedResponses.add(handler.execute(batchedParams, batchedHeaders, batchedBody));
-                            } catch (IOException e) {
+                            } catch (final IOException e) {
                                 batchedResponses.add(newError(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
                             }
                         }
@@ -442,11 +549,11 @@ public class GoogleCloudStorageTestServer {
             }
 
             // Now we can build the response
-            String sep = "--";
-            String line = "\r\n";
+            final String sep = "--";
+            final String line = "\r\n";
 
-            StringBuilder builder = new StringBuilder();
-            for (Response response : batchedResponses) {
+            final StringBuilder builder = new StringBuilder();
+            for (final Response response : batchedResponses) {
                 builder.append(sep).append(boundary).append(line);
                 builder.append("Content-Type: application/http").append(line);
                 builder.append(line);
@@ -465,7 +572,7 @@ public class GoogleCloudStorageTestServer {
             builder.append(line);
             builder.append(sep).append(boundary).append(sep);
 
-            byte[] content = builder.toString().getBytes(StandardCharsets.UTF_8);
+            final byte[] content = builder.toString().getBytes(StandardCharsets.UTF_8);
             return new Response(RestStatus.OK, emptyMap(), "multipart/mixed; boundary=" + boundary, content);
         });
 
@@ -525,7 +632,7 @@ public class GoogleCloudStorageTestServer {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             BytesReference.bytes(xContentBuilder).writeTo(out);
             return new Response(status, headers, XContentType.JSON.mediaType(), out.toByteArray());
-        } catch (IOException e) {
+        } catch (final IOException e) {
             return newError(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
@@ -552,8 +659,8 @@ public class GoogleCloudStorageTestServer {
                 BytesReference.bytes(builder).writeTo(out);
             }
             return new Response(status, emptyMap(), XContentType.JSON.mediaType(), out.toByteArray());
-        } catch (IOException e) {
-            byte[] bytes = (message != null ? message : "something went wrong").getBytes(StandardCharsets.UTF_8);
+        } catch (final IOException e) {
+            final byte[] bytes = (message != null ? message : "something went wrong").getBytes(StandardCharsets.UTF_8);
             return new Response(RestStatus.INTERNAL_SERVER_ERROR, emptyMap(), " text/plain", bytes);
         }
     }
@@ -565,6 +672,7 @@ public class GoogleCloudStorageTestServer {
     private static XContentBuilder buildBucketResource(final String name) throws IOException {
         return jsonBuilder().startObject()
                                 .field("kind", "storage#bucket")
+                                .field("name", name)
                                 .field("id", name)
                             .endObject();
     }
@@ -573,8 +681,7 @@ public class GoogleCloudStorageTestServer {
      * Storage Object JSON representation as defined in
      * https://cloud.google.com/storage/docs/json_api/v1/objects#resource
      */
-    private static XContentBuilder buildObjectResource(final String bucket, final String name, final byte[] bytes)
-            throws IOException {
+    private static XContentBuilder buildObjectResource(final String bucket, final String name, final byte[] bytes) throws IOException {
         return buildObjectResource(jsonBuilder(), bucket, name, bytes);
     }
 
@@ -590,7 +697,32 @@ public class GoogleCloudStorageTestServer {
                             .field("kind", "storage#object")
                             .field("id", String.join("/", bucket, name))
                             .field("name", name)
+                            .field("bucket", bucket)
                             .field("size", String.valueOf(bytes.length))
                         .endObject();
+    }
+
+    /**
+     * Builds the rewrite response as defined by
+     * https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
+     */
+    private static XContentBuilder buildRewriteResponse(final XContentBuilder builder,
+                                                        final String destBucket,
+                                                        final String dest,
+                                                        final int byteSize) throws IOException {
+        builder.startObject()
+                    .field("kind", "storage#rewriteResponse")
+                    .field("totalBytesRewritten", String.valueOf(byteSize))
+                    .field("objectSize", String.valueOf(byteSize))
+                    .field("done", true)
+                    .startObject("resource")
+                        .field("kind", "storage#object")
+                        .field("id", String.join("/", destBucket, dest))
+                        .field("name", dest)
+                        .field("bucket", destBucket)
+                        .field("size", String.valueOf(byteSize))
+                    .endObject()
+                .endObject();
+        return builder;
     }
 }

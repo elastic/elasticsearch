@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -389,19 +390,23 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertNotNull(query);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> constantScore = (Map<String, Object>) query.get("constant_score");
-        assertNotNull(constantScore);
+        Map<String, Object> bool = (Map<String, Object>) query.get("bool");
+        assertNotNull(bool);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> filter = (Map<String, Object>) constantScore.get("filter");
+        List<Object> filter = (List<Object>) bool.get("filter");
         assertNotNull(filter);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> match = (Map<String, Object>) filter.get("match");
-        assertNotNull(match);
+        Map<String, Object> map = (Map<String, Object>) filter.get(0);
+        assertNotNull(map);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> matchQuery = (Map<String, Object>) match.get("test");
+        Map<String, Object> matchQ = (Map<String, Object>) map.get("match");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> matchQuery = (Map<String, Object>) matchQ.get("test");
+
         assertNotNull(matchQuery);
         assertEquals("foo", matchQuery.get("query"));
     }

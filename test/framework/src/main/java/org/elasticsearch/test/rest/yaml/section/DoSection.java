@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -233,7 +234,7 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders());
+            checkWarningHeaders(response.getWarningHeaders(), executionContext.masterVersion());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (!Strings.hasLength(catchParam)) {
@@ -259,7 +260,7 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders) {
+    void checkWarningHeaders(final List<String> warningHeaders, final Version masterVersion) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -271,8 +272,19 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = matcher.group(1);
-                if (expected.remove(message) == false) {
-                    unexpected.add(header);
+                // noinspection StatementWithEmptyBody
+                if (masterVersion.before(Version.V_7_0_0_alpha1)
+                        && message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
+                        + "if you wish to continue using the default of [5] shards, "
+                        + "you must manage this on the create index request or with an index template")) {
+                    /*
+                     * This warning header will come back in the vast majority of our tests that create an index when running against an
+                     * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
+                     */
+                } else {
+                    if (expected.remove(message) == false) {
+                        unexpected.add(header);
+                    }
                 }
             } else {
                 unmatched.add(header);

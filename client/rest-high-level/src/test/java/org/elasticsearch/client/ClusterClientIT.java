@@ -155,13 +155,14 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
 
         CancelTasksRequest request = new CancelTasksRequest();
         request.setTaskId(new TaskId(node, firstTask.getId()));
-        request.setReason("persistent action was removed");
+        request.setReason("testreason");
         CancelTasksResponse response = execute(
             request,
             highLevelClient().cluster()::cancelTasks,
             highLevelClient().cluster()::cancelTasksAsync
         );
-
+        // Since the task may or may not have been cancelled, assert that we received a response only
+        // The actual testing of task cancellation is covered by TasksIT.testTasksCancellation
         assertThat(response, notNullValue());
     }
 }

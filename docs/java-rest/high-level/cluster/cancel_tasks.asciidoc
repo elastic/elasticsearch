@@ -60,5 +60,23 @@ provided as an argument
 
 ==== Cancel Tasks Response
 
-TBD
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[list-tasks-response-tasks]
+--------------------------------------------------
+<1> List of cancelled tasks
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[list-tasks-response-calc]
+--------------------------------------------------
+<1> List of cancelled tasks grouped by a node
+<2> List of cancelled tasks grouped by a parent task
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[list-tasks-response-failures]
+--------------------------------------------------
+<1> List of node failures
+<2> List of task cancellation failures
 

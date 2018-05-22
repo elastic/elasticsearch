@@ -98,21 +98,10 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field", 1, 1), parsedQuery);
+        assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
     public void testIllegalField() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        String query = "{\n" +
-                "    \"feature\" : {\n" +
-                "        \"field\": \"my_feature_field\"\n" +
-                "    }\n" +
-                "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field", 1, 1), parsedQuery);
-    }
-
-    public void testIllegalCombination() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"feature\" : {\n" +
@@ -121,5 +110,21 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
                 "}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
         assertEquals("[feature] query only works on [feature] fields, not [text]", e.getMessage());
+    }
+
+    public void testIllegalCombination() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+                "    \"feature\" : {\n" +
+                "        \"field\": \"my_negative_feature_field\",\n" +
+                "        \"log\" : {\n" +
+                "            \"scaling_factor\": 4.5\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        assertEquals(
+                "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
+                e.getMessage());
     }
 }

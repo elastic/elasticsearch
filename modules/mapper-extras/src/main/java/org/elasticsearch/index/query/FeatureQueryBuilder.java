@@ -20,8 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
@@ -46,26 +44,11 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
      */
     public abstract static class ScoreFunction {
 
-        private static float getPivot(Float pivot, boolean positiveScoreImpact, String feature, IndexReader reader) throws IOException {
-            if (pivot != null) {
-                return positiveScoreImpact ? pivot : 1 / pivot;
-            } else if (reader == null) {
-                return 1;
-            } else {
-                float computedPivot = FeatureField.computePivotFeatureValue(new IndexSearcher(reader), "_feature", feature);
-                if (computedPivot == 0) {
-                    // happens when the feature is not indexed
-                    return 1;
-                }
-                return computedPivot;
-            }
-        }
-
         private ScoreFunction() {} // prevent extensions by users
 
         abstract void writeTo(StreamOutput out) throws IOException;
 
-        abstract Query toQuery(String feature, boolean positiveScoreImpact, IndexReader reader) throws IOException;
+        abstract Query toQuery(String feature, boolean positiveScoreImpact) throws IOException;
 
         abstract void doXContent(XContentBuilder builder) throws IOException;
 
@@ -119,7 +102,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             }
 
             @Override
-            Query toQuery(String feature, boolean positiveScoreImpact, IndexReader reader) throws IOException {
+            Query toQuery(String feature, boolean positiveScoreImpact) throws IOException {
                 if (positiveScoreImpact == false) {
                     throw new IllegalArgumentException("Cannot use the [log] function with a field that has a negative score impact as " +
                             "it would trigger negative scores");
@@ -190,9 +173,12 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             }
 
             @Override
-            Query toQuery(String feature, boolean positiveScoreImpact, IndexReader reader) throws IOException {
-                float pivot = getPivot(this.pivot, positiveScoreImpact, feature, reader);
-                return FeatureField.newSaturationQuery("_feature", feature, DEFAULT_BOOST, pivot);
+            Query toQuery(String feature, boolean positiveScoreImpact) throws IOException {
+                if (pivot == null) {
+                    return FeatureField.newSaturationQuery("_feature", feature);
+                } else {
+                    return FeatureField.newSaturationQuery("_feature", feature, DEFAULT_BOOST, pivot);
+                }
             }
         }
 
@@ -209,7 +195,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
                 PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField("exponent"));
             }
 
-            private final Float pivot;
+            private final float pivot;
             private final float exp;
 
             public Sigmoid(float pivot, float exp) {
@@ -227,7 +213,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
                     return false;
                 }
                 Sigmoid that = (Sigmoid) obj;
-                return Objects.equals(pivot, that.pivot)
+                return pivot == that.pivot
                         && exp == that.exp;
             }
 
@@ -252,8 +238,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             }
 
             @Override
-            Query toQuery(String feature, boolean positiveScoreImpact, IndexReader reader) throws IOException {
-                float pivot = getPivot(this.pivot, positiveScoreImpact, feature, reader);
+            Query toQuery(String feature, boolean positiveScoreImpact) throws IOException {
                 return FeatureField.newSigmoidQuery("_feature", feature, DEFAULT_BOOST, pivot, exp);
             }
         }
@@ -353,7 +338,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             throw new IllegalArgumentException("[feature] query only works on [feature] fields, not [" + ft.typeName() + "]");
         }
         final FeatureFieldType fft = (FeatureFieldType) ft;
-        return scoreFunction.toQuery(field, fft.positiveScoreImpact(), context.getIndexReader());
+        return scoreFunction.toQuery(field, fft.positiveScoreImpact());
     }
 
     @Override

@@ -378,7 +378,9 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         String requestBody = "{ \"field\": \"value\" }";
         Request request = new Request(method, "/" + statusCode);
         request.setJsonEntity(requestBody);
-        request.setHeaders(headers);
+        for (Header header : headers) {
+            request.addHeader(header.getName(), header.getValue());
+        }
         Response esResponse;
         try {
             esResponse = restClient.performRequest(request);

@@ -379,7 +379,7 @@ You can choose which boxes to test by setting the `-Pvagrant.boxes` project prop
 the valid options for this property are:
 
 * `sample` - The default, only chooses ubuntu-1404 and centos-7
-* List of box names, comma separated (e.g. `oel-7,fedora-26`) - Chooses exactly the boxes listed.
+* List of box names, comma separated (e.g. `oel-7,fedora-28`) - Chooses exactly the boxes listed.
 * `linux-all` - All linux boxes.
 * `windows-all` - All Windows boxes. If there are any Windows boxes which do not
 have images available when this value is provided, the build will fail.
@@ -406,8 +406,8 @@ These are the linux flavors supported, all of which we provide images for
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-26
 * fedora-27
+* fedora-28
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12

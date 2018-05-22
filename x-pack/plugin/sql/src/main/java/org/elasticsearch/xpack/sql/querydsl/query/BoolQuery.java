@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
-import java.util.Objects;
-
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
@@ -63,9 +63,8 @@ public class BoolQuery extends Query {
     public QueryBuilder asBuilder() {
         BoolQueryBuilder boolQuery = boolQuery();
         if (isAnd) {
-            // TODO are we throwing out score by using filter?
-            boolQuery.filter(left.asBuilder());
-            boolQuery.filter(right.asBuilder());
+            boolQuery.must(left.asBuilder());
+            boolQuery.must(right.asBuilder());
         } else {
             boolQuery.should(left.asBuilder());
             boolQuery.should(right.asBuilder());

@@ -151,8 +151,11 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
-                    if (calculateTemplateChanges(clusterService.state().getMetaData().getTemplates()).isPresent()) {
-                        throw new IllegalStateException("Successful template upgrade is not successful");
+                    // check successful template change
+                    final Optional<Tuple<Map<String, BytesReference>, Set<String>>> afterChanges =
+                            calculateTemplateChanges(clusterService.state().getMetaData().getTemplates());
+                    if (afterChanges.isPresent() && afterChanges.get().v1().containsKey(request.name())) {
+                        throw new IllegalStateException("Successful template [" + request.name() + "] upgrade is not successful");
                     }
                     if (updatesInProgress.decrementAndGet() == 0) {
                         logger.info("Finished upgrading templates to version {}", Version.CURRENT);
@@ -178,7 +181,15 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             client.admin().indices().deleteTemplate(request, new ActionListener<DeleteIndexTemplateResponse>() {
                 @Override
                 public void onResponse(DeleteIndexTemplateResponse response) {
-                    updatesInProgress.decrementAndGet();
+                    // check successful template deletion
+                    final Optional<Tuple<Map<String, BytesReference>, Set<String>>> afterChanges =
+                            calculateTemplateChanges(clusterService.state().getMetaData().getTemplates());
+                    if (afterChanges.isPresent() && afterChanges.get().v2().contains(request.name())) {
+                        throw new IllegalStateException("Successful template [" + request.name() + "] delete is not successful");
+                    }
+                    if (updatesInProgress.decrementAndGet() == 0) {
+                        logger.info("Finished upgrading templates to version {}", Version.CURRENT);
+                    }
                     if (response.isAcknowledged() == false) {
                         logger.warn("Error deleting template [{}], request was not acknowledged", template);
                     }
@@ -186,7 +197,9 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
                 @Override
                 public void onFailure(Exception e) {
-                    updatesInProgress.decrementAndGet();
+                    if (updatesInProgress.decrementAndGet() == 0) {
+                        logger.info("Templates were upgraded to version {}", Version.CURRENT);
+                    }
                     if (e instanceof IndexTemplateMissingException == false) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn

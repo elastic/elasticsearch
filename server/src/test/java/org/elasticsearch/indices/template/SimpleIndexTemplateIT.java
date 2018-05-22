@@ -677,7 +677,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     "            \"analysis\" : {\n" +
                     "                \"analyzer\" : {\n" +
                     "                    \"custom_1\" : {\n" +
-                    "                        \"tokenizer\" : \"whitespace\"\n" +
+                    "                        \"tokenizer\" : \"standard\"\n" +
                     "                    }\n" +
                     "                }\n" +
                     "            }\n" +

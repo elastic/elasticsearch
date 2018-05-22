@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -47,17 +48,22 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
+        // copy_settings should be removed in Elasticsearch 8.0.0; cf. https://github.com/elastic/elasticsearch/issues/28347
+        assert Version.CURRENT.major < 8;
         final String rawCopySettings = request.param("copy_settings");
-        final boolean copySettings;
+        final Boolean copySettings;
         if (rawCopySettings == null) {
             copySettings = resizeRequest.getCopySettings();
         } else {
-            deprecationLogger.deprecated("parameter [copy_settings] is deprecated but was [" + rawCopySettings + "]");
-            if (rawCopySettings.length() == 0) {
+            if (rawCopySettings.isEmpty()) {
                 copySettings = true;
             } else {
                 copySettings = Booleans.parseBoolean(rawCopySettings);
+                if (copySettings == false) {
+                    throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
+                }
             }
+            deprecationLogger.deprecated("parameter [copy_settings] is deprecated and will be removed in 8.0.0");
         }
         resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);

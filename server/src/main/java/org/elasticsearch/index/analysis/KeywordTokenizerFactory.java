@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
 

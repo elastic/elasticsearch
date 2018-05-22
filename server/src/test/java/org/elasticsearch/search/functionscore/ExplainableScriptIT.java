@@ -76,7 +76,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 @Override
                 public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
-                    assert context == SearchScript.CONTEXT;
+                    assert context == SearchScript.SCRIPT_SCORE_CONTEXT;
                     SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                         @Override
                         public SearchScript newInstance(LeafReaderContext context) throws IOException {

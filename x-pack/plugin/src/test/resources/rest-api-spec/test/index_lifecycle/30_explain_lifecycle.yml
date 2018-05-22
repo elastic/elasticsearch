@@ -1,0 +1,84 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do:
+      acknowlege: true
+      xpack.index_lifecycle.put_lifecycle:
+        lifecycle: "my_moveable_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "type": "timeseries",
+               "phases": {
+                 "warm": {
+                   "after": "1000s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "hot": {
+                   "after": "1000s",
+                   "actions": { }
+                 }
+               }
+             }
+           }
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: my_index_no_policy
+
+---
+teardown:
+
+  - do:
+      acknowledge: true
+      indices.delete:
+        index: my_index
+
+  - do:
+      acknowledge: true
+      indices.delete:
+        index: my_index_no_policy
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.delete_lifecycle:
+        lifecycle: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_moveable_timeseries_lifecycle"
+
+---
+"Test Basic Lifecycle Explain":
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.explain_lifecycle:
+        index: "my_index"
+
+  - match: { my_index.index: "my_index" }
+  - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { my_index.phase: "hot" }
+  - match: { my_index.action: "pre-pre-readonly" }
+  - match: { my_index.step: "after" }
+  - match: { my_index.failed_step: null }
+  - match: { my_index.step_info: null }

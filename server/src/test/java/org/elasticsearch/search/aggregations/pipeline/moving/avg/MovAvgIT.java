@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -45,7 +43,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,7 +65,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29456")
 @ESIntegTestCase.SuiteScopeTestCase
 public class MovAvgIT extends ESIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
@@ -316,7 +312,7 @@ public class MovAvgIT extends ESIntegTestCase {
         double last;
         for (double value : window) {
             last = value;
-            if (counter == 1) {
+            if (counter == 0) {
                 s = value;
                 b = value - last;
             } else {
@@ -1296,7 +1292,7 @@ public class MovAvgIT extends ESIntegTestCase {
         } else {
             assertThat("[_count] movavg is null", countMovAvg, notNullValue());
             assertEquals("[_count] movavg does not match expected [" + countMovAvg.value() + " vs " + expectedCount + "]",
-                    countMovAvg.value(), expectedCount, 0.1);
+                    countMovAvg.value(), expectedCount, 0.1 * Math.abs(countMovAvg.value()));
         }
 
         // This is a gap bucket
@@ -1308,7 +1304,7 @@ public class MovAvgIT extends ESIntegTestCase {
         } else {
             assertThat("[value] movavg is null", valuesMovAvg, notNullValue());
             assertEquals("[value] movavg does not match expected [" + valuesMovAvg.value() + " vs " + expectedValue + "]",
-                    valuesMovAvg.value(), expectedValue, 0.1);
+                    valuesMovAvg.value(), expectedValue, 0.1 * Math.abs(valuesMovAvg.value()));
         }
     }
 

@@ -129,7 +129,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     /**
      * Sets the values that indicates which composite bucket this request should "aggregate after".
-     * Defaults to <tt>null</tt>.
+     * Defaults to {@code null}.
      */
     public CompositeAggregationBuilder aggregateAfter(Map<String, Object> afterKey) {
         this.after = afterKey;
@@ -137,7 +137,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     /**
-     * The number of composite buckets to return. Defaults to <tt>10</tt>.
+     * The number of composite buckets to return. Defaults to {@code 10}.
      */
     public CompositeAggregationBuilder size(int size) {
         this.size = size;

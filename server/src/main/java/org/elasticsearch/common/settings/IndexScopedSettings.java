@@ -43,6 +43,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -58,7 +59,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
-        IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,

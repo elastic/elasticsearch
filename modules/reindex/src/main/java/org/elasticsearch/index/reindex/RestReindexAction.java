@@ -77,7 +77,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             try (InputStream stream = BytesReference.bytes(builder).streamInput();
                  XContentParser innerParser = parser.contentType().xContent()
                      .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)) {
-                request.getSearchRequest().source().parseXContent(innerParser);
+                request.getSearchRequest().source().parseXContent(innerParser, false);
             }
         };
 
@@ -115,7 +115,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
         if (request.hasParam("pipeline")) {
-            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parmaeter. "
+            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parameter. "
                     + "Specify it in the [dest] object instead.");
         }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());

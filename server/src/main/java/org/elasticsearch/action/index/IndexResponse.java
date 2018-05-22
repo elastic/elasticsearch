@@ -41,7 +41,16 @@ public class IndexResponse extends DocWriteResponse {
     }
 
     public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean created) {
-        super(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
+        this(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
+    }
+
+    private IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, type, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
+    }
+
+    private static Result assertCreatedOrUpdated(Result result) {
+        assert result == Result.CREATED || result == Result.UPDATED;
+        return result;
     }
 
     @Override
@@ -87,11 +96,9 @@ public class IndexResponse extends DocWriteResponse {
      * instantiate the {@link IndexResponse}.
      */
     public static class Builder extends DocWriteResponse.Builder {
-
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version,
-                    result == Result.CREATED ? true : false);
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version, result);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

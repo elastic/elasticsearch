@@ -62,5 +62,4 @@ public interface HttpServerTransport extends LifecycleComponent {
         void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause);
 
     }
-
 }

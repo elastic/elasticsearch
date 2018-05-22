@@ -73,3 +73,8 @@ Executing a Regexp Query with a long regex string may degrade search performance
 To safeguard against this, the maximum length of regex that can be used in a
 Regexp Query request has been limited to 1000. This default maximum can be changed
 for a particular index with the index setting `index.max_regex_length`.
+
+==== Invalid `_search` request body
+
+Search requests with extra content after the main object will no longer be accepted
+by the `_search` endpoint. A parsing exception will be thrown instead.

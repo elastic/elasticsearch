@@ -60,6 +60,11 @@ directory.  Instead, mappings should be created using the API with:
 
 The `_parent` field has been removed in favour of the <<parent-join,`join` field>>.
 
+[role="exclude",id="mapping-uid-field"]
+=== `_uid` field
+
+The `_uid` field has been removed in favour of the <<mapping-id-field,`_id` field>>.
+
 [role="exclude",id="modules-memcached"]
 === memcached
 
@@ -240,7 +245,7 @@ as a query in ``query context'' and as a filter in ``filter context'' (see
 [role="exclude",id="query-dsl-flt-query"]
 === Fuzzy Like This Query
 
-The `fuzzy_like_this` or `flt` query has been removed.  Instead use
+The `fuzzy_like_this`, alternatively known as `flt`, query has been removed.  Instead use either
 the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
 <<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
 
@@ -484,7 +489,7 @@ Using `_index` in scripts has been replaced with writing `ScriptEngine` backends
 === Painless Syntax
 
 See the
-{painless}/painless-specification.html[Painless Language Specification]
+{painless}/painless-lang-spec.html[Painless Language Specification]
 in the guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="modules-scripting-painless-debugging"]

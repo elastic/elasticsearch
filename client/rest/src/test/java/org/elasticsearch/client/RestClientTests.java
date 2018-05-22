@@ -27,11 +27,13 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -54,81 +56,155 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithUnsupportedMethod() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
+            restClient.performRequestAsync(new Request("unsupported", randomAsciiLettersOfLength(5)), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of unsupported method");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(UnsupportedOperationException.class));
-                    assertEquals("http method not supported: unsupported", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(UnsupportedOperationException.class));
+                        assertEquals("http method not supported: unsupported", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
-    public void testPerformAsyncWithNullParams() throws Exception {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithUnsupportedMethod()}.
+     */
+    @Deprecated
+    public void testPerformAsyncOldStyleWithUnsupportedMethod() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        try (RestClient restClient = createRestClient()) {
+            restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    try {
+                        assertThat(exception, instanceOf(UnsupportedOperationException.class));
+                        assertEquals("http method not supported: unsupported", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
+        }
+    }
+
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
+     */
+    @Deprecated
+    public void testPerformOldStyleAsyncWithNullParams() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of null parameters");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("params must not be null", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(NullPointerException.class));
+                        assertEquals("parameters cannot be null", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
-    public void testPerformAsyncWithNullHeaders() throws Exception {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeader()}.
+     */
+    @Deprecated
+    public void testPerformOldStyleAsyncWithNullHeaders() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             ResponseListener listener = new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of null headers");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("request header must not be null", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(NullPointerException.class));
+                        assertEquals("header cannot be null", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             };
             restClient.performRequestAsync("GET", randomAsciiLettersOfLength(5), listener, (Header) null);
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
     public void testPerformAsyncWithWrongEndpoint() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
+            restClient.performRequestAsync(new Request("GET", "::http:///"), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of wrong endpoint");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(IllegalArgumentException.class));
-                    assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(IllegalArgumentException.class));
+                        assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
+        }
+    }
+
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithWrongEndpoint()}.
+     */
+    @Deprecated
+    public void testPerformAsyncOldStyleWithWrongEndpoint() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        try (RestClient restClient = createRestClient()) {
+            restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    try {
+                        assertThat(exception, instanceOf(IllegalArgumentException.class));
+                        assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
@@ -175,6 +251,10 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testConstructor()}.
+     */
+    @Deprecated
     public void testNullPath() throws IOException {
         try (RestClient restClient = createRestClient()) {
             for (String method : getHttpMethods()) {
@@ -182,7 +262,7 @@ public class RestClientTests extends RestClientTestCase {
                     restClient.performRequest(method, null);
                     fail("path set to null should fail!");
                 } catch (NullPointerException e) {
-                    assertEquals("path must not be null", e.getMessage());
+                    assertEquals("endpoint cannot be null", e.getMessage());
                 }
             }
         }

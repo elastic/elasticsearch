@@ -86,7 +86,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
     public final Request timeout(TimeValue timeout) {
@@ -95,7 +95,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final Request timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
@@ -118,7 +118,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         } else {
             shardId = null;
         }
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
         concreteIndex = in.readOptionalString();
     }
 
@@ -127,7 +127,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         super.writeTo(out);
         out.writeString(index);
         out.writeOptionalStreamable(shardId);
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
         out.writeOptionalString(concreteIndex);
     }
 

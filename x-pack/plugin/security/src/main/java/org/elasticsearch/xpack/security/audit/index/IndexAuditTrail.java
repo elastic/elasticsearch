@@ -147,7 +147,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
     private static final Setting<Settings> INDEX_SETTINGS =
-            Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope);
+            Setting.groupSetting(setting("audit.index.settings."), Property.NodeScope);
     private static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(),
                     Property.NodeScope);
@@ -1001,8 +1001,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
         // Filter out forbidden settings:
         Settings.Builder builder = Settings.builder();
-        builder.put(newSettings.filter(k -> {
-            String name = "index." + k;
+        builder.put(newSettings.filter(name -> {
             if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                 logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 return false;

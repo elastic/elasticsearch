@@ -20,8 +20,6 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -41,8 +39,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
@@ -98,18 +94,6 @@ public final class NetworkModule {
             new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
-                PersistentTasksNodeService.Status::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
-                PersistentTasksCustomMetaData::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE,
-                PersistentTasksCustomMetaData::readDiffFrom));
-        namedXContents.add(
-            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
-                PersistentTasksCustomMetaData::fromXContent));
     }
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();

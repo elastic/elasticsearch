@@ -19,8 +19,6 @@
  */
 package org.elasticsearch.test.test;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
@@ -63,8 +62,6 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -86,16 +83,15 @@ public class InternalTestClusterTests extends ESTestCase {
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
         NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 10);
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
         Path baseDir = createTempDir();
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
+            nodePrefix, Collections.emptyList(), Function.identity());
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
+            nodePrefix, Collections.emptyList(), Function.identity());
         // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
         assertClusters(cluster0, cluster1, false);
 
@@ -211,16 +207,15 @@ public class InternalTestClusterTests extends ESTestCase {
             }
         };
 
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, mockPlugins(), Function.identity());
+            nodePrefix, mockPlugins(), Function.identity());
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, mockPlugins(), Function.identity());
+            nodePrefix, mockPlugins(), Function.identity());
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
@@ -280,12 +275,11 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             true, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, mockPlugins(), Function.identity());
+            nodePrefix, mockPlugins(), Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
             final int originalMasterCount = cluster.numMasterNodes();
@@ -390,7 +384,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
-        }, 0, randomBoolean(), "", mockPlugins(), Function.identity());
+        }, 0, "", mockPlugins(), Function.identity());
         cluster.beforeTest(random(), 0.0);
         List<DiscoveryNode.Role> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
@@ -473,11 +467,10 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
-        boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, true, 2, 2,
-            "test", nodeConfigurationSource, 0, enableHttpPipelining, nodePrefix,
+            "test", nodeConfigurationSource, 0, nodePrefix,
             mockPlugins(), Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);

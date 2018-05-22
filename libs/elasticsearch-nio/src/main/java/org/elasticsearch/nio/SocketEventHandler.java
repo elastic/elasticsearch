@@ -19,23 +19,17 @@
 
 package org.elasticsearch.nio;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Event handler designed to handle events from non-server sockets
  */
 public class SocketEventHandler extends EventHandler {
 
-    private final Logger logger;
-
-    public SocketEventHandler(Logger logger) {
-        super(logger);
-        this.logger = logger;
+    public SocketEventHandler(Consumer<Exception> exceptionHandler) {
+        super(exceptionHandler);
     }
 
     /**
@@ -62,7 +56,6 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void registrationException(SocketChannelContext context, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", context.getChannel()), exception);
         context.handleException(exception);
     }
 
@@ -85,7 +78,6 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void connectException(SocketChannelContext context, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("failed to connect to socket channel: {}", context.getChannel()), exception);
         context.handleException(exception);
     }
 
@@ -106,7 +98,6 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void readException(SocketChannelContext context, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while reading from socket channel: {}", context.getChannel()), exception);
         context.handleException(exception);
     }
 
@@ -127,18 +118,16 @@ public class SocketEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void writeException(SocketChannelContext context, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while writing to socket channel: {}", context.getChannel()), exception);
         context.handleException(exception);
     }
 
     /**
      * This method is called when a listener attached to a channel operation throws an exception.
      *
-     * @param listener that was called
      * @param exception that occurred
      */
-    protected <V> void listenerException(BiConsumer<V, Throwable> listener, Exception exception) {
-        logger.warn(new ParameterizedMessage("exception while executing listener: {}", listener), exception);
+    protected void listenerException(Exception exception) {
+        exceptionHandler.accept(exception);
     }
 
     /**

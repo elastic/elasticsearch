@@ -1,12 +1,79 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
+:include-xpack:         true
 :es-test-dir:           {docdir}/../src/test
 :plugins-examples-dir:  {docdir}/../../plugins/examples
+:xes-repo-dir:          {docdir}/../../x-pack/docs/{lang}
+:es-repo-dir:           {docdir}
+
 
 include::../Versions.asciidoc[]
-include::index-shared1.asciidoc[]
-include::index-shared2.asciidoc[]
-include::index-shared3.asciidoc[]
-include::index-shared4.asciidoc[]
-include::index-shared5.asciidoc[]
+
+include::getting-started.asciidoc[]
+
+include::setup.asciidoc[]
+
+include::{xes-repo-dir}/setup/setup-xes.asciidoc[]
+
+include::{xes-repo-dir}/monitoring/configuring-monitoring.asciidoc[]
+
+include::{xes-repo-dir}/security/configuring-es.asciidoc[]
+
+include::{xes-repo-dir}/setup/setup-xclient.asciidoc[]
+
+include::{xes-repo-dir}/settings/configuring-xes.asciidoc[]
+
+include::{xes-repo-dir}/setup/bootstrap-checks-xes.asciidoc[]
+
+include::upgrade.asciidoc[]
+
+include::migration/index.asciidoc[]
+
+include::api-conventions.asciidoc[]
+
+include::docs.asciidoc[]
+
+include::search.asciidoc[]
+
+include::aggregations.asciidoc[]
+
+include::indices.asciidoc[]
+
+include::cat.asciidoc[]
+
+include::cluster.asciidoc[]
+
+include::query-dsl.asciidoc[]
+
+include::mapping.asciidoc[]
+
+include::analysis.asciidoc[]
+
+include::modules.asciidoc[]
+
+include::index-modules.asciidoc[]
+
+include::ingest.asciidoc[]
+
+include::{xes-repo-dir}/sql/index.asciidoc[]
+
+include::{xes-repo-dir}/monitoring/index.asciidoc[]
+
+include::{xes-repo-dir}/rollup/index.asciidoc[]
+
+include::{xes-repo-dir}/rest-api/index.asciidoc[]
+
+include::{xes-repo-dir}/commands/index.asciidoc[]
+
+include::how-to.asciidoc[]
+
+include::testing.asciidoc[]
+
+include::glossary.asciidoc[]
+
+include::release-notes/highlights.asciidoc[]
+
+include::release-notes.asciidoc[]
+
+include::redirects.asciidoc[]

@@ -22,8 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 /**
@@ -84,20 +82,7 @@ public class NativeController {
     }
 
     public Map<String, Object> getNativeCodeInfo() throws TimeoutException {
-        String copyrightMessage = cppLogHandler.getCppCopyright(CONTROLLER_CONNECT_TIMEOUT);
-        Matcher matcher = Pattern.compile("Version (.+) \\(Build ([^)]+)\\) Copyright ").matcher(copyrightMessage);
-        if (matcher.find()) {
-            Map<String, Object> info = new HashMap<>(2);
-            info.put("version", matcher.group(1));
-            info.put("build_hash", matcher.group(2));
-            return info;
-        } else {
-            // If this happens it probably means someone has changed the format in lib/ver/CBuildInfo.cc
-            // in the machine-learning-cpp repo without changing the pattern above to match
-            String msg = "Unexpected native controller process copyright format: " + copyrightMessage;
-            LOGGER.error(msg);
-            throw new ElasticsearchException(msg);
-        }
+        return cppLogHandler.getNativeCodeInfo(CONTROLLER_CONNECT_TIMEOUT);
     }
 
     public void startProcess(List<String> command) throws IOException {

@@ -450,7 +450,7 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         final TimeValue defaultExpiration = TokenService.TOKEN_EXPIRATION.get(Settings.EMPTY);
-        final int fastForwardAmount = randomIntBetween(1, Math.toIntExact(defaultExpiration.getSeconds()));
+        final int fastForwardAmount = randomIntBetween(1, Math.toIntExact(defaultExpiration.getSeconds()) - 5);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // move the clock forward but don't go to expiry
             clock.fastForwardSeconds(fastForwardAmount);

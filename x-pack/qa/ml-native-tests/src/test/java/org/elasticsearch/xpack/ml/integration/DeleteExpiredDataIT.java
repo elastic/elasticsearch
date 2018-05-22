@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
@@ -31,13 +35,16 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
@@ -78,9 +85,14 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     }
 
     @After
-    public void tearDownData() throws Exception {
+    public void tearDownData() {
         client().admin().indices().prepareDelete(DATA_INDEX).get();
         cleanUp();
+    }
+
+    public void testDeleteExpiredDataGivenNothingToDelete() throws Exception {
+        // Tests that nothing goes wrong when there's nothing to delete
+        client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
     public void testDeleteExpiredData() throws Exception {
@@ -166,6 +178,18 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()), equalTo(forecastStat.getRecordCount()));
         }
 
+        // Index some unused state documents (more than 10K to test scrolling works)
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10010; i++) {
+            String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexName(), "doc", docId);
+            indexRequest.source(Collections.emptyMap());
+            bulkRequestBuilder.add(indexRequest);
+        }
+        assertThat(bulkRequestBuilder.get().status(), equalTo(RestStatus.OK));
+
+        // Now call the action under test
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
 
         // We need to refresh to ensure the deletion is visible
@@ -215,6 +239,16 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             for (String forecastId : shortExpiryForecastIds) {
                 assertThat(countForecastDocs(job.getId(), forecastId), equalTo(0L));
             }
+        }
+
+        // Verify .ml-state doesn't contain unused state documents
+        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+                .setFetchSource(false)
+                .setSize(10000)
+                .get();
+        assertThat(stateDocsResponse.getHits().getTotalHits(), lessThan(10000L));
+        for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
+            assertThat(hit.getId().startsWith("non_existing_job"), is(false));
         }
     }
 

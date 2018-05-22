@@ -83,7 +83,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             Closeable toCloseOnFailure = channel;
             final TranslogReader newReader;
             try {
-                if (aboveSeqNo < checkpoint.maxSeqNo) {
+                if (aboveSeqNo < checkpoint.trimmedAboveSeqNo
+                    || aboveSeqNo < checkpoint.maxSeqNo && checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
                     final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
                         checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,

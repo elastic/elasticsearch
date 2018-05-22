@@ -1707,6 +1707,105 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testSnapshotTrimTrimmedOperations() throws Exception {
+        int extraDocs = randomIntBetween(10, 15);
+        List<Long> ops = LongStream.range(0, extraDocs)
+            .boxed().collect(Collectors.toList());
+        Randomness.shuffle(ops);
+
+        List<Translog.Index> allOperations = new ArrayList<>();
+        for (final long op : ops) {
+            Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(),
+                randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8"));
+            translog.add(operation);
+            allOperations.add(operation);
+        }
+
+        primaryTerm.incrementAndGet();
+        translog.rollGeneration();
+
+        int aboveSeqNo = randomIntBetween(2, extraDocs - 2);
+        translog.trimOperations(primaryTerm.get(), aboveSeqNo);
+        translog.sync();
+
+
+        List<Translog.Operation> actualOperations = new ArrayList<>();
+        int actualTotalOperations;
+        int actualSkippedOperations;
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation next;
+            while ((next = snapshot.next()) != null) {
+                actualOperations.add(next);
+            }
+            actualTotalOperations = snapshot.totalOperations();
+            actualSkippedOperations = snapshot.skippedOperations();
+        }
+
+        Collections.sort(allOperations, Comparator.comparing(Translog.Operation::seqNo));
+        Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
+
+        List<Translog.Index> trimmedOperations = aboveSeqNo + 1 < allOperations.size()
+            ? allOperations.subList(0, aboveSeqNo + 1) : allOperations;
+        assertThat(actualTotalOperations, is(allOperations.size()));
+        assertThat(actualOperations, is(trimmedOperations));
+        assertThat(actualSkippedOperations, is(allOperations.size() - trimmedOperations.size()));
+
+        // trim trimmed translog => when aboveSeqNo is higher than original aboveSeqNo
+        // no any ops are shrunk
+
+        int aboveSeqNo2 = randomIntBetween(aboveSeqNo + 1, extraDocs);
+
+        translog.trimOperations(primaryTerm.get(), aboveSeqNo2);
+        translog.sync();
+
+        List<Translog.Operation> actualOperations2 = new ArrayList<>();
+        int actualTotalOperations2;
+        int actualSkippedOperations2;
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation next;
+            while ((next = snapshot.next()) != null) {
+                actualOperations2.add(next);
+            }
+            actualTotalOperations2 = snapshot.totalOperations();
+            actualSkippedOperations2 = snapshot.skippedOperations();
+        }
+
+        Collections.sort(actualOperations2, Comparator.comparing(Translog.Operation::seqNo));
+
+        assertThat(actualTotalOperations2, is(allOperations.size()));
+        assertThat(actualOperations2, is(trimmedOperations));
+        assertThat(actualSkippedOperations2, is(allOperations.size() - trimmedOperations.size()));
+
+        // trim trimmed translog => when aboveSeqNo is lower than original aboveSeqNo
+        // several ops have to be shrunk
+
+        int aboveSeqNo3 = randomInt(aboveSeqNo - 1);
+
+        translog.trimOperations(primaryTerm.get(), aboveSeqNo3);
+        translog.sync();
+
+        List<Translog.Operation> actualOperations3 = new ArrayList<>();
+        int actualTotalOperations3;
+        int actualSkippedOperations3;
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation next;
+            while ((next = snapshot.next()) != null) {
+                actualOperations3.add(next);
+            }
+            actualTotalOperations3 = snapshot.totalOperations();
+            actualSkippedOperations3 = snapshot.skippedOperations();
+        }
+
+        Collections.sort(actualOperations3, Comparator.comparing(Translog.Operation::seqNo));
+
+        trimmedOperations = aboveSeqNo3 + 1 < allOperations.size()
+            ? allOperations.subList(0, aboveSeqNo3 + 1) : allOperations;
+
+        assertThat(actualTotalOperations3, is(allOperations.size()));
+        assertThat(actualOperations3, is(trimmedOperations));
+        assertThat(actualSkippedOperations3, is(allOperations.size() - trimmedOperations.size()));
+    }
+
     public void testLocationHashCodeEquals() throws IOException {
         List<Translog.Location> locations = new ArrayList<>();
         List<Translog.Location> locations2 = new ArrayList<>();

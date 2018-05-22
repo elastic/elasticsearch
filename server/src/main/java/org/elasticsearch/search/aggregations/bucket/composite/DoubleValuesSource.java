@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -33,7 +32,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
-import java.util.function.LongConsumer;
 
 /**
  * A {@link SingleDimensionValuesSource} for doubles.
@@ -45,12 +43,11 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private double currentValue;
     private boolean missingCurrentValue;
 
-    DoubleValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
-                       MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
+    DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
+                       CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
                        DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, breakerConsumer, format, fieldType, missingBucket, missing, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        breakerConsumer.accept(FixedBitSet.bits2words(size));
         this.bits = missingBucket ? new BitArray(bigArrays, 1) : null;
         this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
     }

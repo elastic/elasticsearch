@@ -42,6 +42,7 @@ import java.util.function.LongConsumer;
  * A {@link SingleDimensionValuesSource} for binary source ({@link BytesRef}).
  */
 class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
+    private final LongConsumer breakerConsumer;
     private final CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc;
     private ObjectArray<BytesRef> values;
     private ObjectArray<BytesRefBuilder> valueBuilders;
@@ -50,14 +51,15 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     BinaryValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
                        MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
                        DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, breakerConsumer, format, fieldType, missingBucket, missing, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
+        this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
         this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
     }
 
     @Override
-    public void copyCurrent(int slot) {
+    void copyCurrent(int slot) {
         values =  bigArrays.grow(values, slot+1);
         valueBuilders = bigArrays.grow(valueBuilders, slot+1);
         BytesRefBuilder builder = valueBuilders.get(slot);
@@ -77,7 +79,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    public int compare(int from, int to) {
+    int compare(int from, int to) {
         if (missingBucket) {
             if (values.get(from) == null) {
                 return values.get(to) == null ? 0 : -1 * reverseMul;

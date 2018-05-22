@@ -32,14 +32,12 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.function.LongConsumer;
 
 /**
  * A source that can record and compare values of similar type.
  */
 abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements Releasable {
     protected final BigArrays bigArrays;
-    protected final LongConsumer breakerConsumer;
     protected final DocValueFormat format;
     @Nullable
     protected final MappedFieldType fieldType;
@@ -63,12 +61,11 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * @param size The number of values to record.
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
-    SingleDimensionValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer, DocValueFormat format,
+    SingleDimensionValuesSource(BigArrays bigArrays, DocValueFormat format,
                                 @Nullable MappedFieldType fieldType, boolean missingBucket, @Nullable Object missing,
                                 int size, int reverseMul) {
         assert missing == null || missingBucket == false;
         this.bigArrays = bigArrays;
-        this.breakerConsumer = breakerConsumer;
         this.format = format;
         this.fieldType = fieldType;
         this.missing = missing;

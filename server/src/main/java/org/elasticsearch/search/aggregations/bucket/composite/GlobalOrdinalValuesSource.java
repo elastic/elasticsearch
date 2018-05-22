@@ -35,7 +35,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
-import java.util.function.LongConsumer;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
@@ -53,10 +52,10 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private long lastLookupOrd = -1;
     private BytesRef lastLookupValue;
 
-    GlobalOrdinalValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
-                              MappedFieldType type, CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
+    GlobalOrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
+                              CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
                               DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, breakerConsumer, format, type, missingBucket, missing, size, reverseMul);
+        super(bigArrays, format, type, missingBucket, missing, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
     }

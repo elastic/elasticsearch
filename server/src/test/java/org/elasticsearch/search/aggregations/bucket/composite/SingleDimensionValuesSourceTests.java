@@ -118,7 +118,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         keyword.setName("keyword");
         GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             keyword, context -> null,
             DocValueFormat.RAW,
             false,
@@ -135,7 +134,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -149,7 +147,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -163,7 +160,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -178,7 +174,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         ip.setName("ip");
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             ip,
             context -> null,
             DocValueFormat.RAW,
@@ -202,7 +197,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
                 source = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
-                    (b) -> {},
                     number,
                     context -> null,
                     value -> value,
@@ -221,7 +215,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
                 LongValuesSource sourceWithMissing = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
-                    (b) -> {},
                     number,
                     context -> null,
                     value -> value,
@@ -236,7 +229,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
                 sourceWithMissing = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
-                    (b) -> {},
                     number,
                     context -> null,
                     value -> value,
@@ -251,7 +243,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
                 LongValuesSource sourceRev = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
-                    (b) -> {},
                     number,
                     context -> null,
                     value -> value,
@@ -267,7 +258,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                             numberType == NumberFieldMapper.NumberType.DOUBLE) {
                 source = new DoubleValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,
-                    (b) -> {},
                     number,
                     context -> null,
                     DocValueFormat.RAW,

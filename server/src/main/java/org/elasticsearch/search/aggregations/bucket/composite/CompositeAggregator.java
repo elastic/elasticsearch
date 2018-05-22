@@ -267,7 +267,6 @@ final class CompositeAggregator extends BucketsAggregator {
             ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) config.valuesSource();
             SingleDimensionValuesSource<?> source = new GlobalOrdinalValuesSource(
                 bigArrays,
-                this::addRequestCircuitBreakerBytes,
                 config.fieldType(),
                 vs::globalOrdinalsValues,
                 config.format(),
@@ -315,7 +314,6 @@ final class CompositeAggregator extends BucketsAggregator {
             if (vs.isFloatingPoint()) {
                 return new DoubleValuesSource(
                     bigArrays,
-                    this::addRequestCircuitBreakerBytes,
                     config.fieldType(),
                     vs::doubleValues,
                     config.format(),
@@ -334,7 +332,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 }
                 return new LongValuesSource(
                     bigArrays,
-                    this::addRequestCircuitBreakerBytes,
                     config.fieldType(),
                     vs::longValues,
                     rounding,

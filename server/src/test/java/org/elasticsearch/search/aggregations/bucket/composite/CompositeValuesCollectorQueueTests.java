@@ -219,7 +219,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 if (types[i].clazz == Long.class) {
                     sources[i] = new LongValuesSource(
                         bigArrays,
-                        (b) -> {},
                         fieldType,
                         context -> DocValues.getSortedNumeric(context.reader(), fieldType.name()),
                         value -> value,
@@ -232,7 +231,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 } else if (types[i].clazz == Double.class) {
                     sources[i] = new DoubleValuesSource(
                         bigArrays,
-                        (b) -> {},
                         fieldType,
                         context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
                         DocValueFormat.RAW,
@@ -247,7 +245,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         // since ordinals are global in this case.
                         sources[i] = new GlobalOrdinalValuesSource(
                             bigArrays,
-                            (b) -> {},
                             fieldType,
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,

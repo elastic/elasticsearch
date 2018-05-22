@@ -38,7 +38,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
-import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
@@ -55,10 +54,10 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private long currentValue;
     private boolean missingCurrentValue;
 
-    LongValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
+    LongValuesSource(BigArrays bigArrays,
                      MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
                      LongUnaryOperator rounding, DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, breakerConsumer, format, fieldType, missingBucket, missing, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;

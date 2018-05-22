@@ -599,26 +599,22 @@ Returns this:
         "start_time_in_millis": 1526280280355,
         "time_in_millis": 358,
 
-        <!-- backward-compatible section -->
-
         "number_of_files": 8,
         "processed_files": 8,
         "total_size_in_bytes": 4704,
         "processed_size_in_bytes": 4704
-      },
-      "indices": {
-        // ...
       }
     }
   ]
 }
 --------------------------------------------------
-// TEST[continued]
+// TESTRESPONSE
 
 Where `stats` provides snapshot details - how many files the snapshot consists of and sizes in bytes.
 `processed` is an optional property that could be visible while snapshot has not been finished yet.
-Properties go after `backward-compatible section` describe stats in compatible with version
-`5.x`, `6.x` way - and will be dropped in next major version.
+
+*Note*: Properties `number_of_files`, `processed_files`, `total_size_in_bytes` and `processed_size_in_bytes` describe
+stats in backward compatible with version `5.x`, `6.x` way - and will be dropped in next major version.
 
 Multiple ids are also supported:
 

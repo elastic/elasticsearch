@@ -120,9 +120,9 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
+                    public ClusterState execute(ClusterState currentState) {
                         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                        MlMetadata currentMetadata = currentState.getMetaData().custom(MLMetadataField.TYPE);
+                        MlMetadata currentMetadata = MlMetadata.getMlMetadata(currentState);
                         PersistentTasksCustomMetaData persistentTasks =
                                 currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)

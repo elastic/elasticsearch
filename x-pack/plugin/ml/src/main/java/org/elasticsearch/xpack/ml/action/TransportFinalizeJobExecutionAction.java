@@ -57,9 +57,9 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
         logger.debug("finalizing jobs [{}]", jobIdString);
         clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                MlMetadata mlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
+                MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
                 MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
                 Date finishedTime = new Date();
 

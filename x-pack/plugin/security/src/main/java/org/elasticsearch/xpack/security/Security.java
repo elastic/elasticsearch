@@ -904,12 +904,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     @Override
-    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-        // TODO: Remove this whole concept of InitialClusterStateCustomSupplier
-        return Collections.emptyMap();
-    }
-
-    @Override
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {

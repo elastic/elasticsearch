@@ -19,35 +19,19 @@
 
 package org.elasticsearch.http.nio;
 
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.WriteOperation;
+import io.netty.handler.codec.http.FullHttpResponse;
+import org.elasticsearch.http.HttpPipelinedMessage;
 
-import java.util.function.BiConsumer;
+public class NioHttpResponse extends HttpPipelinedMessage {
 
-public class HttpWriteOperation implements WriteOperation {
+    private final FullHttpResponse response;
 
-    private final SocketChannelContext channelContext;
-    private final NioHttpResponse response;
-    private final BiConsumer<Void, Throwable> listener;
-
-    HttpWriteOperation(SocketChannelContext channelContext, NioHttpResponse response, BiConsumer<Void, Throwable> listener) {
-        this.channelContext = channelContext;
+    public NioHttpResponse(int sequence, FullHttpResponse response) {
+        super(sequence);
         this.response = response;
-        this.listener = listener;
     }
 
-    @Override
-    public BiConsumer<Void, Throwable> getListener() {
-        return listener;
-    }
-
-    @Override
-    public SocketChannelContext getChannel() {
-        return channelContext;
-    }
-
-    @Override
-    public NioHttpResponse getObject() {
+    public FullHttpResponse getResponse() {
         return response;
     }
 }

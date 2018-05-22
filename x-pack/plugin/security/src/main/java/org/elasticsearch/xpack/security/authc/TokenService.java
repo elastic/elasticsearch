@@ -1376,14 +1376,15 @@ public final class TokenService extends AbstractComponent {
         });
     }
 
-    private final AtomicBoolean installTokenMetadataCheck = new AtomicBoolean(false);
+    // to prevent too many cluster state update tasks to be queued for doing the same update
+    private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
 
     private void installTokenMetadata(MetaData metaData) {
         if (metaData.custom(TokenMetaData.TYPE) == null) {
-            if (installTokenMetadataCheck.compareAndSet(false, true)) {
+            if (installTokenMetadataInProgress.compareAndSet(false, true)) {
                 clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
+                    public ClusterState execute(ClusterState currentState) {
                         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
 
                         if (currentState.custom(TokenMetaData.TYPE) == null) {
@@ -1395,13 +1396,16 @@ public final class TokenService extends AbstractComponent {
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        installTokenMetadataCheck.set(false);
+                        installTokenMetadataInProgress.set(false);
                         logger.error("unable to install token metadata", e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        installTokenMetadataInProgress.set(false);
                     }
                 });
             }
-        } else {
-            installTokenMetadataCheck.set(false);
         }
     }
 

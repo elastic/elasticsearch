@@ -336,20 +336,6 @@ setup:
   - length: { suggest.result.0.options: 1  }
   - match:  { suggest.result.0.options.0.text: "foo" }
 
-  - do:
-       search:
-        body:
-          suggest:
-            result:
-              text: "foo"
-              completion:
-                skip_duplicates: true
-                field: suggest_context
-
-  - length: { suggest.result: 1  }
-  - length: { suggest.result.0.options: 1  }
-  - match:  { suggest.result.0.options.0.text: "foo" }
-
 ---
 "Querying without contexts is deprecated":
   - skip:

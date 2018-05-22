@@ -31,8 +31,14 @@ setup:
 
 ---
 "Test typed keys parameter for suggesters":
+  - skip:
+      version: " - 6.99.99"
+      reason: queying a context suggester with no context was deprecated in 7.0
+      features: "warnings"
 
   - do:
+      warnings:
+        - "The ability to query with no context on a context enabled completion field is deprecated and will be removed in the next major release."
       search:
         typed_keys: true
         body:

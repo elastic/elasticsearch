@@ -74,7 +74,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource("mustache", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-            assertWarnings("the template context is now deprecated.");
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
         }
 
         // complex template with wrapper template object
@@ -90,7 +90,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-            assertWarnings("the template context is now deprecated.");
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
         }
 
         // complex template with no wrapper object
@@ -106,7 +106,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-            assertWarnings("the template context is now deprecated.");
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
         }
 
         // complex template using script as the field name
@@ -227,7 +227,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
             assertWarnings(
-                "the template context is now deprecated.",
+                "the template context is now deprecated. Specify templates in a \"script\" element.",
                 "empty templates should no longer be used"
             );
         }

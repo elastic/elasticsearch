@@ -331,7 +331,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 }
             } else if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
 
-                DEPRECATION_LOGGER.deprecated("the template context is now deprecated.");
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
 
                 token = parser.nextToken();
                 if (token == Token.VALUE_STRING) {
@@ -346,10 +346,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     return parseRemaining(token, parser);
                 }
             } else if (TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName().equals(name)) {
-                DEPRECATION_LOGGER.deprecated("the template context is now deprecated.");
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
                 return parseRemaining(token, parser);
             } else {
-                DEPRECATION_LOGGER.deprecated("scripts should not be stored without a context.");
+                DEPRECATION_LOGGER.deprecated("scripts should not be stored without a context. Specify them in a \"script\" element.");
                 return parseRemaining(token, parser);
             }
         } catch (IOException ioe) {

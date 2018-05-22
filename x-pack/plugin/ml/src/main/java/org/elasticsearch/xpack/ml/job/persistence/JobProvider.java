@@ -1114,7 +1114,7 @@ public class JobProvider {
                 result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
-    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove, MlMetadata mlMetadata,
+    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,
                                Consumer<Calendar> handler, Consumer<Exception> errorHandler) {
 
         ActionListener<Calendar> getCalendarListener = ActionListener.wrap(

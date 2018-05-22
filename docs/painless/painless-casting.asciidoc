@@ -296,16 +296,17 @@ based on the current type value the `def` type value represents.
 [[string-character-casting]]
 ==== String to Character Casting
 
-Use the *cast operator* to convert a <<string-type, String type>> value into a
-<<primitive-types, char type>> value.
+Use the *cast operator* to convert a <<string-type, `String` type>> value into a
+<<primitive-types, `char` type>> value.
 
 *Errors*
 
-* If the String type value isn't one character in length.
+* If the `String` type value isn't one character in length.
+* If the `String` type value is `null`.
 
 *Examples*
 
-* Casting strings, string literals into char type values.
+* Casting string literals into `char` type values.
 +
 [source,Painless]
 ----
@@ -319,7 +320,7 @@ Use the *cast operator* to convert a <<string-type, String type>> value into a
 <2> explicit cast `String 'c'` to `char c` -> `char c`;
     assign `char c` to `c`
 +
-* Casting a String type value into a char type value.
+* Casting a `String` reference into a `char` value.
 +
 [source,Painless]
 ----
@@ -342,10 +343,9 @@ reference type to its corresponding primitive type.
 
 Implicit boxing/unboxing occurs during the following operations:
 
-* Conversions between a `def` type and
-  a primitive type will be implicitly boxed/unboxed as
-  necessary, though this is referred to as an implicit cast throughout the
-  documentation.
+* Conversions between a `def` type and a primitive type will be implicitly
+  boxed/unboxed as necessary, though this is referred to as an implicit cast
+  throughout the documentation.
 * Method/function call arguments will be implicitly boxed/unboxed as necessary.
 * A primitive type value will be implicitly boxed when a reference type method
   call is invoked on it.
@@ -388,8 +388,8 @@ value and vice versa.
     call `get` on `List reference` with arguments (`int 0`) -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
     assign `int 1` to `i`;
-    (note internally `int 1` is unboxed from `Integer 1` when read from a `def`
-            type value)
+    (note internally `int 1` is unboxed from `Integer 1` when loaded from a
+            `def` type value)
 +
 * Uses of invalid boxing/unboxing resulting in errors.
 +

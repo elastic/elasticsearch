@@ -1,0 +1,4 @@
+[[painless-operators-array]]
+=== Operators: Array Type
+
+test

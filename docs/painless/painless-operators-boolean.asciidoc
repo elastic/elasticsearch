@@ -1,0 +1,4 @@
+[[painless-operators-boolean]]
+=== Operators: Boolean
+
+test

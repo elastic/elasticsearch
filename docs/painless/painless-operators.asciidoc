@@ -1,62 +1,66 @@
 [[painless-operators]]
 === Operators
 
-The following is a table of the available operators in Painless.  Each operator will have further information and examples outside of the table.  Many operators will have a promotion table as described by the documentation on promotion [MARK].
+An operator is the most basic action that can be taken to evaluate values in a
+script. An expression is one-to-many consecutive operations.  Precedence is the
+order in which an operator will be evaluated relative to another operator.
+Associativity is the direction within an expression in which a specific operator
+is evaluated.  The following table lists all available operators:
 
 [options="header",cols="6,3,2,4"]
 |====
-|Operator|Symbol(s)|Precedence|Associativity
-|Precedence|()|0|left-to-right
-|Field Access|.|1|left-to-right
-|Method Call|. ()|1|left-to-right
-|Null Safe|?.|1|left-to-right
-|Function Call|()|1|left-to-right
-|Array Initialization|[] {}|1|left-to-right
-|Array Access|[]|1|left-to-right
-|Array Length|.|1|left-to-right
-|List Initialization|[]|1|left-to-right
-|List Access|[]|1|left-to-right
-|Map Initialization|[:]|1|left-to-right
-|Map Access|[]|1|left-to-right
-|Post Increment|++|1|left-to-right
-|Post Decrement|--|1|left-to-right
-|Pre Increment|++|2|right-to-left
-|Pre Decrement|--|2|right-to-left
-|Unary Positive|+|2|right-to-left
-|Unary Negative|-|2|right-to-left
-|Boolean Not|!|2|right-to-left
-|Bitwise Not|~|2|right-to-left
-|Cast|()|3|right-to-left
-|Constructor Call|new ()|3|right-to-left
-|New Array|new|3|right-to-left
-|Multiplication|*|4|left-to-right
-|Division|/|4|left-to-right
-|Remainder|%|4|left-to-right
-|String Concatenation|+|5|left-to-right
-|Addition|+|5|left-to-right
-|Subtraction|-|5|left-to-right
-|Left Shift|<<|6|left-to-right
-|Right Shift|>>|6|left-to-right
-|Unsigned Right Shift|>>>|6|left-to-right
-|Greater Than|>|7|left-to-right
-|Greater Than Or Equal|>=|7|left-to-right
-|Less Than|<|7|left-to-right
-|Less Than Or Equal|<=|7|left-to-right
-|Instance Of|instanceof|8|left-to-right
-|Equality Equals|==|9|left-to-right
-|Equality Not Equals|!=|9|left-to-right
-|Identity Equals|===|9|left-to-right
-|Identity Not Equals|!==|9|left-to-right
-|Bitwise And|&|10|left-to-right
-|Boolean Xor|^|11|left-to-right
-|Bitwise Xor|^|11|left-to-right
-|Bitwise Or|\||12|left-to-right
-|Boolean And|&&|13|left-to-right
-|Boolean Or|\|\||14|left-to-right
-|Conditional|? :|15|right-to-left
-|Elvis|?:|16|right-to-left
-|Assignment|=|17|right-to-left
-|Compound Assignment|$=|17|right-to-left
+| Operator              | Symbol(s)  | Precedence | Associativity
+| Precedence            | ()         | 0          | ->
+| Field Access          | .          | 1          | ->
+| Method Call           | . ()       | 1          | ->
+| Null Safe             | ?.         | 1          | ->
+| Function Call         | ()         | 1          | ->
+| Array Initialization  | [] {}      | 1          | ->
+| Array Access          | []         | 1          | ->
+| Array Length          | .          | 1          | ->
+| List Initialization   | []         | 1          | ->
+| List Access           | []         | 1          | ->
+| Map Initialization    | [:]        | 1          | ->
+| Map Access            | []         | 1          | ->
+| Post Increment        | ++         | 1          | ->
+| Post Decrement        | --         | 1          | ->
+| Pre Increment         | ++         | 2          | <-
+| Pre Decrement         | --         | 2          | <-
+| Unary Positive        | +          | 2          | <-
+| Unary Negative        | -          | 2          | <-
+| Boolean Not           | !          | 2          | <-
+| Bitwise Not           | ~          | 2          | <-
+| Cast                  | ()         | 3          | <-
+| Mew Instance          | new ()     | 3          | <-
+| New Array             | new        | 3          | <-
+| Multiplication        | *          | 4          | ->
+| Division              | /          | 4          | ->
+| Remainder             | %          | 4          | ->
+| String Concatenation  | +          | 5          | ->
+| Addition              | +          | 5          | ->
+| Subtraction           | -          | 5          | ->
+| Left Shift            | <<         | 6          | ->
+| Right Shift           | >>         | 6          | ->
+| Unsigned Right Shift  | >>>        | 6          | ->
+| Greater Than          | >          | 7          | ->
+| Greater Than Or Equal | >=         | 7          | ->
+| Less Than             | <          | 7          | ->
+| Less Than Or Equal    | <=         | 7          | ->
+| Instance Of           | instanceof | 8          | ->
+| Equality Equals       | ==         | 9          | ->
+| Equality Not Equals   | !=         | 9          | ->
+| Identity Equals       | ===        | 9          | ->
+| Identity Not Equals   | !==        | 9          | ->
+| Bitwise And           | &          | 10         | ->
+| Boolean Xor           | ^          | 11         | ->
+| Bitwise Xor           | ^          | 11         | ->
+| Bitwise Or            | \|         | 12         | ->
+| Boolean And           | &&         | 13         | ->
+| Boolean Or            | \|\|       | 14         | ->
+| Conditional           | ? :        | 15         | <-
+| Elvis                 | ?:         | 16         | <-
+| Assignment            | =          | 17         | <-
+| Compound Assignment   | $=         | 17         | <-
 |====
 
 [[precedence-operator]]

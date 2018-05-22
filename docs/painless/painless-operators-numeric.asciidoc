@@ -1,0 +1,4 @@
+[[painless-operators-numeric]]
+=== Operators: Numeric
+
+test

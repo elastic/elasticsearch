@@ -52,19 +52,23 @@ public class CorsRegexIT extends HttpSmokeTestCase {
     }
 
     public void testThatRegularExpressionWorksOnMatch() throws IOException {
-        String corsValue = "http://localhost:9200";
-        Request request = new Request("GET", "/");
-        request.addHeader("User-Agent", "Mozilla Bar");
-        request.addHeader("Origin", corsValue);
-        Response response = getRestClient().performRequest(request);
-        assertResponseWithOriginHeader(response, corsValue);
-
-        corsValue = "https://localhost:9201";
-        request.addHeader("User-Agent", "Mozilla Bar");
-        request.addHeader("Origin", corsValue);
-        response = getRestClient().performRequest(request);
-        assertResponseWithOriginHeader(response, corsValue);
-        assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
+        {
+            String corsValue = "http://localhost:9200";
+            Request request = new Request("GET", "/");
+            request.addHeader("User-Agent", "Mozilla Bar");
+            request.addHeader("Origin", corsValue);
+            Response response = getRestClient().performRequest(request);
+            assertResponseWithOriginHeader(response, corsValue);
+        }
+        {
+            String corsValue = "https://localhost:9201";
+            Request request = new Request("GET", "/");
+            request.addHeader("User-Agent", "Mozilla Bar");
+            request.addHeader("Origin", corsValue);
+            Response response = getRestClient().performRequest(request);
+            assertResponseWithOriginHeader(response, corsValue);
+            assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
+        }
     }
 
     public void testThatRegularExpressionReturnsForbiddenOnNonMatch() throws IOException {

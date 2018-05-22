@@ -49,7 +49,7 @@ public class IndexLifecycleRunner {
             boolean fromClusterStateChange) {
         Settings indexSettings = indexMetaData.getSettings();
         if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
-            logger.debug("skipping policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "]."
+            logger.info("skipping policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "]."
                 + LifecycleSettings.LIFECYCLE_SKIP + "== true");
             return;
         }

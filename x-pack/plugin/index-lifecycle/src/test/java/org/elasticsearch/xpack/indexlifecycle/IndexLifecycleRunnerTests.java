@@ -704,7 +704,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         runner.runPolicy(policy, clusterState.metaData().index(index), clusterState, randomBoolean());
         Mockito.verifyZeroInteractions(clusterService);
-        List<String> warnings = thread.getResponseHeaders().get("Warning");
     }
 
     private ClusterState buildClusterState(String indexName, Settings.Builder indexSettingsBuilder) {

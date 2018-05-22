@@ -26,6 +26,8 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.shingle.FixedShingleFilter;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -33,6 +35,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.collect.Iterators;
@@ -550,16 +553,25 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MatchQuery matchQuery(QueryShardContext context, String analyzer, int slop) {
-            if (indexPhrases == false || slop != 0) {
-                MatchQuery mq = new MatchQuery(context);
-                if (analyzer != null) {
-                    mq.setAnalyzer(analyzer);
-                }
-                mq.setPhraseSlop(slop);
-                return mq;
+        public Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
+            if (indexPhrases && slop == 0) {
+                stream = new FixedShingleFilter(stream, 2);
+                field = field + FAST_PHRASE_SUFFIX;
             }
-            return new ShingledMatchQuery(context, analyzer);
+            PhraseQuery.Builder builder = new PhraseQuery.Builder();
+            builder.setSlop(slop);
+
+            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+            int position = -1;
+
+            stream.reset();
+            while (stream.incrementToken()) {
+                position += posIncrAtt.getPositionIncrement();
+                builder.add(new Term(field, termAtt.getBytesRef()), position);
+            }
+
+            return builder.build();
         }
 
         @Override
@@ -570,29 +582,6 @@ public class TextFieldMapper extends FieldMapper {
                                 + "use significant memory. Alternatively use a keyword field instead.");
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
-        }
-    }
-
-    private static class ShingledMatchQuery extends MatchQuery {
-
-        ShingledMatchQuery(QueryShardContext context, String analyzer) {
-            super(context);
-            if (analyzer != null) {
-                this.setAnalyzer(analyzer);
-            }
-        }
-
-        @Override
-        protected MatchQuery.MatchQueryBuilder newMatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
-            return new MatchQuery.MatchQueryBuilder(analyzer, mapper){
-                @Override
-                protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-                    assert slop == 0;
-                    Query q = super.analyzePhrase(field + FAST_PHRASE_SUFFIX, new FixedShingleFilter(stream, 2), slop);
-                    logger.info("Phrase query: " + q);
-                    return q;
-                }
-            };
         }
     }
 

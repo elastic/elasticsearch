@@ -269,7 +269,7 @@ public class MatchQuery {
 
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
         assert analyzer != null;
-        MatchQueryBuilder builder = newMatchQueryBuilder(analyzer, fieldType);
+        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
         if (hasPositions(fieldType)) {
             builder.setAutoGenerateMultiTermSynonymsPhraseQuery(this.autoGenerateSynonymsPhraseQuery);
@@ -327,18 +327,14 @@ public class MatchQuery {
         }
     }
 
-    protected MatchQueryBuilder newMatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
-        return new MatchQueryBuilder(analyzer, mapper);
-    }
-
-    protected class MatchQueryBuilder extends QueryBuilder {
+    private class MatchQueryBuilder extends QueryBuilder {
 
         private final MappedFieldType mapper;
 
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        protected MatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
+        MatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }
@@ -364,7 +360,7 @@ public class MatchQuery {
                     throw exc;
                 }
             }
-            Query query = super.analyzePhrase(field, stream, slop);
+            Query query = mapper.analyzePhrase(field, stream, slop);
             if (query instanceof PhraseQuery) {
                 // synonyms that expand to multiple terms can return a phrase query.
                 return blendPhraseQuery((PhraseQuery) query, mapper);

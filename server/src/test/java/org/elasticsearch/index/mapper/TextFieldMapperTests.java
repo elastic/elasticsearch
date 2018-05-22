@@ -696,16 +696,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         queryShardContext.getMapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        Query q = mapper.mappers().getMapper("field").fieldType()
-            .matchQuery(queryShardContext, null, 0).parse(MatchQuery.Type.PHRASE, "field", "two words");
+        Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(queryShardContext);
         assertThat(q, is(new PhraseQuery("field._index_phrase", "two word")));
 
-        Query q2 = mapper.mappers().getMapper("field").fieldType()
-            .matchQuery(queryShardContext, null, 0).parse(MatchQuery.Type.PHRASE, "field", "three words here");
+        Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(queryShardContext);
         assertThat(q2, is(new PhraseQuery("field._index_phrase", "three word", "word here")));
 
-        Query q3 = mapper.mappers().getMapper("field").fieldType()
-            .matchQuery(queryShardContext, null, 1).parse(MatchQuery.Type.PHRASE, "field", "two words");
+        Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
         assertThat(q3, is(new PhraseQuery(1, "field", "two", "word")));
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference

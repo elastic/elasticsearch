@@ -173,8 +173,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        MatchQuery matchQuery = fieldType.matchQuery(context, analyzer, slop);
+        MatchQuery matchQuery = new MatchQuery(context);
+        matchQuery.setAnalyzer(analyzer);
+        matchQuery.setPhraseSlop(slop);
         matchQuery.setZeroTermsQuery(zeroTermsQuery);
 
         return matchQuery.parse(MatchQuery.Type.PHRASE, fieldName, value);

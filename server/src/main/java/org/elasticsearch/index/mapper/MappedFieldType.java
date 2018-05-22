@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -361,8 +362,8 @@ public abstract class MappedFieldType extends FieldType {
 
     public abstract Query existsQuery(QueryShardContext context);
 
-    public MatchQuery matchQuery(QueryShardContext context, String analyzer, int slop) {
-        throw new QueryShardException(context, "Can only use match queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    public Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
     /**

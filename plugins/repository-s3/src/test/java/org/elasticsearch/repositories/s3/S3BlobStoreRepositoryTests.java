@@ -21,7 +21,10 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
+
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -29,6 +32,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -38,9 +47,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
@@ -81,7 +95,9 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
                 .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
                 .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
-                .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)));
+                .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)
+                .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")
+                .put(S3Repository.SECRET_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")));
     }
 
     @Override
@@ -106,4 +122,32 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                 }));
         }
     }
+
+    public void testInsecureRepositoryCredentials() throws Exception {
+        final String repositoryName = "testInsecureRepositoryCredentials";
+        createTestRepository(repositoryName);
+        final NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
+        final RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(Settings.EMPTY, mock(RestController.class),
+                internalCluster().getInstance(SettingsFilter.class));
+        final RestRequest getRepoRequest = new FakeRestRequest();
+        getRepoRequest.params().put("repository", repositoryName);
+        final CountDownLatch getRepoLatch = new CountDownLatch(1);
+        final AtomicReference<AssertionError> getRepoError = new AtomicReference<>();
+        getRepoAction.handleRequest(getRepoRequest, new AbstractRestChannel(getRepoRequest, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                try {
+                    assertThat(response.content().utf8ToString(), not(containsString("not_used_but_this_is_a_secret")));
+                } catch (final AssertionError ex) {
+                    getRepoError.set(ex);
+                }
+                getRepoLatch.countDown();
+            }
+        }, nodeClient);
+        getRepoLatch.await();
+        if (getRepoError.get() != null) {
+            throw getRepoError.get();
+        }
+    }
+
 }

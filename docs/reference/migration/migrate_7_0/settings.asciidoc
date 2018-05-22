@@ -25,3 +25,10 @@
   the system property `es.thread_pool.write.use_bulk_as_display_name` was
   available to keep the display output in APIs as `bulk` instead of `write`.
   These fallback settings and this system property have been removed.
+
+[[remove-http-enabled]]
+==== Http enabled setting removed
+
+The setting `http.enabled` previously allowed disabling binding to HTTP, only allowing
+use of the transport client. This setting has been removed, as the transport client
+will be removed in the future, thus requiring HTTP to always be enabled.

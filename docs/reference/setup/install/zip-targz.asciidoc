@@ -5,6 +5,8 @@ Elasticsearch is provided as a `.zip` and as a `.tar.gz` package.  These
 packages can be used to install Elasticsearch on any system and are the
 easiest package format to use when trying out Elasticsearch.
 
+include::license.asciidoc[]
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
@@ -40,6 +42,10 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}.zip: OK`.
 <2> This directory is known as `$ES_HOME`.
 
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
+
 endif::[]
 
 
@@ -67,6 +73,10 @@ cd elasticsearch-{version}/ <2>
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
     `elasticsearch-{version}.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
+
+Alternatively, you can download the following package, which includes only 
+Apache 2.0 licensed code: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.tar.gz
 
 endif::[]
 

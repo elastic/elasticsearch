@@ -79,10 +79,6 @@
 
 ---
 "Body params with string param scroll id override query string":
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
-
   - do:
       indices.create:
           index:  test_scroll

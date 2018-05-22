@@ -28,13 +28,13 @@ import java.util.Map;
 /**
  * Class to encapsulate a set of ValuesSource objects labeled by field name
  */
-public abstract class MultiValuesSource <VS extends ValuesSource> {
+public abstract class ArrayValuesSource<VS extends ValuesSource> {
     protected MultiValueMode multiValueMode;
     protected String[] names;
     protected VS[] values;
 
-    public static class NumericMultiValuesSource extends MultiValuesSource<ValuesSource.Numeric> {
-        public NumericMultiValuesSource(Map<String, ValuesSource.Numeric> valuesSources, MultiValueMode multiValueMode) {
+    public static class NumericArrayValuesSource extends ArrayValuesSource<ValuesSource.Numeric> {
+        public NumericArrayValuesSource(Map<String, ValuesSource.Numeric> valuesSources, MultiValueMode multiValueMode) {
             super(valuesSources, multiValueMode);
             if (valuesSources != null) {
                 this.values = valuesSources.values().toArray(new ValuesSource.Numeric[0]);
@@ -51,8 +51,8 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
         }
     }
 
-    public static class BytesMultiValuesSource extends MultiValuesSource<ValuesSource.Bytes> {
-        public BytesMultiValuesSource(Map<String, ValuesSource.Bytes> valuesSources, MultiValueMode multiValueMode) {
+    public static class BytesArrayValuesSource extends ArrayValuesSource<ValuesSource.Bytes> {
+        public BytesArrayValuesSource(Map<String, ValuesSource.Bytes> valuesSources, MultiValueMode multiValueMode) {
             super(valuesSources, multiValueMode);
             this.values = valuesSources.values().toArray(new ValuesSource.Bytes[0]);
         }
@@ -62,14 +62,14 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
         }
     }
 
-    public static class GeoPointValuesSource extends MultiValuesSource<ValuesSource.GeoPoint> {
+    public static class GeoPointValuesSource extends ArrayValuesSource<ValuesSource.GeoPoint> {
         public GeoPointValuesSource(Map<String, ValuesSource.GeoPoint> valuesSources, MultiValueMode multiValueMode) {
             super(valuesSources, multiValueMode);
             this.values = valuesSources.values().toArray(new ValuesSource.GeoPoint[0]);
         }
     }
 
-    private MultiValuesSource(Map<String, ?> valuesSources, MultiValueMode multiValueMode) {
+    private ArrayValuesSource(Map<String, ?> valuesSources, MultiValueMode multiValueMode) {
         if (valuesSources != null) {
             this.names = valuesSources.keySet().toArray(new String[0]);
         }

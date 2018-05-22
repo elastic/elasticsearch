@@ -565,6 +565,58 @@ public enum MultiValueMode implements Writeable {
         }
     }
 
+    /**
+     * Return a {@link NumericDoubleValues} instance that can be used to sort documents
+     * with this mode and the provided values. When a document has no value,
+     * advanceExact returns false and doubleValue() will return Double.NaN (although the
+     * double value should not be used).
+     *
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
+     */
+    public NumericDoubleValues select(final SortedNumericDoubleValues values) {
+        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+        if (singleton != null) {
+            return new NumericDoubleValues() {
+                private double value;
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    if (singleton.advanceExact(doc)) {
+                        this.value = singleton.doubleValue();
+                        return true;
+                    }
+                    this.value = Double.NaN;
+                    return false;
+                }
+
+                @Override
+                public double doubleValue() throws IOException {
+                    return this.value;
+                }
+            };
+        } else {
+            return new NumericDoubleValues() {
+
+                private double value;
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (values.advanceExact(target)) {
+                        this.value = pick(values);
+                        return true;
+                    }
+                    this.value = Double.NaN;
+                    return false;
+                }
+
+                @Override
+                public double doubleValue() throws IOException {
+                    return this.value;
+                }
+            };
+        }
+    }
+
     protected double pick(SortedNumericDoubleValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }

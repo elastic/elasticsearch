@@ -337,7 +337,7 @@ setup:
   - match:  { suggest.result.0.options.0.text: "foo" }
 
 ---
-"Querying without contexts is deprecated":
+"Indexing and Querying without contexts is deprecated":
   - skip:
       version: " - 6.99.99"
       reason: this feature was deprecated in 7.0
@@ -353,6 +353,21 @@ setup:
             input: "foo"
             contexts:
               color: "red"
+          suggest_multi_contexts:
+            input: "bar"
+            contexts:
+              color: "blue"
+
+  - do:
+      warnings:
+        - "The ability to index a suggestion with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_context:
+            input: "foo"
 
   - do:
       indices.refresh: {}
@@ -367,5 +382,34 @@ setup:
               text: "foo"
               completion:
                 field: suggest_context
+
+  - length: { suggest.result: 1  }
+
+  - do:
+      warnings:
+        - "The ability to query with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context
+                contexts: {}
+
+  - length: { suggest.result: 1  }
+
+  - do:
+      warnings:
+          - "The ability to query with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_multi_contexts
+                contexts:
+                  location: []
 
   - length: { suggest.result: 1  }

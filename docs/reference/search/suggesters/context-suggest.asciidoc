@@ -84,6 +84,10 @@ PUT place_path_category
 NOTE: Adding context mappings increases the index size for completion field. The completion index
 is entirely heap resident, you can monitor the completion field index size using <<indices-stats>>.
 
+NOTE: deprecated[7.0.0, Indexing a suggestion without context on a context enabled completion field is deprecated
+and will be removed in the next major release. If you want to index a suggestion that matches all contexts you should
+add a special context for it.]
+
 [[suggester-context-category]]
 [float]
 ==== Category Context

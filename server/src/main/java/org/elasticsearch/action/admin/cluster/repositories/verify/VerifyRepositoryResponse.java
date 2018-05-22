@@ -32,11 +32,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.node.Node;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -44,16 +41,19 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * verify repository response
+ * Verify repository response
  */
 public class VerifyRepositoryResponse extends ActionResponse implements ToXContentObject {
+
+    static final String NODES = "nodes";
+    static final String NAME = "name";
 
     public static class NodeView implements Writeable, ToXContentObject {
         private static final ObjectParser.NamedObjectParser<NodeView, Void> PARSER;
         static {
-            ObjectParser<NodeView, Void> parser = new ObjectParser<>("nodes");
-            parser.declareString(NodeView::setName, new ParseField(Fields.NAME));
-            PARSER = (p, v, name) -> parser.parse(p, new NodeView(name), null);
+            ObjectParser<NodeView, Void> internalParser = new ObjectParser<>(NODES);
+            internalParser.declareString(NodeView::setName, new ParseField(NAME));
+            PARSER = (p, v, name) -> internalParser.parse(p, new NodeView(name), null);
         }
 
         final String nodeId;
@@ -67,8 +67,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         }
 
         public NodeView(StreamInput in) throws IOException {
-            this(in.readString());
-            this.name = in.readString();
+            this(in.readString(), in.readString());
         }
 
         @Override
@@ -85,7 +84,9 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(nodeId);
-            builder.field(Fields.NAME, name);
+            {
+                builder.field(NAME, name);
+            }
             builder.endObject();
             return builder;
         }
@@ -139,7 +140,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             this.nodes = in.readList(NodeView::new).stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
         } else {
             clusterName = new ClusterName(in);
@@ -150,7 +151,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (Version.CURRENT.onOrAfter(Version.V_6_4_0)) {
+        if (Version.CURRENT.onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeList(getNodes());
         } else {
             clusterName.writeTo(out);
@@ -166,21 +167,22 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         return clusterName;
     }
 
-    static final class Fields {
-        static final String NODES = "nodes";
-        static final String NAME = "name";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(Fields.NODES);
-        for (DiscoveryNode node : nodes) {
-            builder.startObject(node.getId());
-            builder.field(Fields.NAME, node.getName());
+        {
+            builder.startObject(NODES);
+            {
+                for (DiscoveryNode node : nodes) {
+                    builder.startObject(node.getId());
+                    {
+                        builder.field(NAME, node.getName());
+                    }
+                    builder.endObject();
+                }
+            }
             builder.endObject();
         }
-        builder.endObject();
         builder.endObject();
         return builder;
     }

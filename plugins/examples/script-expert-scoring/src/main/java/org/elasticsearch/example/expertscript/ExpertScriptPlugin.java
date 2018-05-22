@@ -54,7 +54,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
         public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-            if (context.equals(SearchScript.CONTEXT) == false) {
+            if (context.equals(SearchScript.SCRIPT_SCORE_CONTEXT) == false) {
                 throw new IllegalArgumentException(getType() + " scripts cannot be used for context [" + context.name + "]");
             }
             // we use the script "source" as the script identifier

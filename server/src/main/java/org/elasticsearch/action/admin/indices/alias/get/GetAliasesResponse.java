@@ -74,6 +74,14 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         return aliases;
     }
 
+    /**
+     * Returns the error message if the request has not been executed successfully or null otherwise.
+     * 
+     * <p>
+     * Used only by the high-level REST client.
+     * 
+     * @return The error message.
+     */
     public String errorMessage() {
         return errorMessage;
     }
@@ -100,7 +108,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         aliases = aliasesBuilder.build();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             // if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            status = RestStatus.fromCode(in.readInt());
+            status = RestStatus.readFrom(in);
             if (in.readBoolean()) {
                 errorMessage = in.readString();
             }
@@ -120,13 +128,8 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             // if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeInt(status.getStatus());
-            if (null != errorMessage) {
-                out.writeBoolean(true);
-                out.writeString(errorMessage);
-            } else {
-                out.writeBoolean(false);
-            }
+            RestStatus.writeTo(out, status);
+            out.writeOptionalString(errorMessage);
         }
     }
 

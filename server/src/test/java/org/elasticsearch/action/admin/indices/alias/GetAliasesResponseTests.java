@@ -116,12 +116,11 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new index
                 || p.endsWith(".aliases") // do not add new alias
-                || p.contains(".aliases."); // do not be testing the AlilasMetaData.fromContent
+                || p.contains(".aliases."); // do not insert random fields in AlilasMetaData.fromContent
     }
 
     private static GetAliasesResponse createTestItem() {
-        RestStatus status = randomFrom(/*RestStatus.OK, */RestStatus.NOT_FOUND);
-        // only if the status is not OK, then there is an error message/exception in the response body
+        RestStatus status = randomFrom(RestStatus.OK, RestStatus.NOT_FOUND);
         String errorMessage = RestStatus.OK == status ? null : randomAlphaOfLengthBetween(5, 10);
         return new GetAliasesResponse(createIndicesAliasesMap(1, 5).build(), status, errorMessage);
     }
@@ -187,14 +186,15 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
                 " }\n" +
                 "}";
         final String index = "index";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, xContent);
-        GetAliasesResponse response = GetAliasesResponse.fromXContent(parser);
-        assertThat(response.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(response.errorMessage(), equalTo("alias [something] missing"));
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get(index).size(), equalTo(1));
-        assertThat(response.getAliases().get(index).get(0), notNullValue());
-        assertThat(response.getAliases().get(index).get(0).alias(), equalTo("alias"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            GetAliasesResponse response = GetAliasesResponse.fromXContent(parser);
+            assertThat(response.status(), equalTo(RestStatus.NOT_FOUND));
+            assertThat(response.errorMessage(), equalTo("alias [something] missing"));
+            assertThat(response.getAliases().size(), equalTo(1));
+            assertThat(response.getAliases().get(index).size(), equalTo(1));
+            assertThat(response.getAliases().get(index).get(0), notNullValue());
+            assertThat(response.getAliases().get(index).get(0).alias(), equalTo("alias"));
+        }
     }
 
     public void testFromXContentWithElasticsearchException() throws IOException {

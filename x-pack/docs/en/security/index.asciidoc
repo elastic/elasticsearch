@@ -105,7 +105,7 @@ include::how-security-works.asciidoc[]
 include::authentication/overview.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/overview.asciidoc
-include::authorization/overview.asciidoc[]
+include::authorization/index.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/auditing.asciidoc
 include::auditing/index.asciidoc[]

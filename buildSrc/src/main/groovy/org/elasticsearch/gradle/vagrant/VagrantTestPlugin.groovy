@@ -265,14 +265,18 @@ class VagrantTestPlugin implements Plugin<Project> {
             contents project.extensions.esvagrant.upgradeFromVersion.toString()
         }
 
-        Task createUpgradeIsOssFile = project.tasks.create('createUpgradeIsOssFile', FileContentsTask) {
+        Task createUpgradeIsOssFile = project.tasks.create('createUpgradeIsOssFile') {
             dependsOn copyPackagingArchives
-            doFirst {
-                project.delete("${archivesDir}/upgrade_is_oss")
+            ext.flagPath = "${archivesDir}/upgrade_is_oss"
+            doLast {
+                if (project.extensions.esvagrant.upgradeFromVersion.onOrAfter('6.3.0')) {
+                    project.file(flagPath).text = ''
+                } else {
+                    logger.info("Not creating $flagPath for ${project.extensions.esvagrant.upgradeFromVersion} ")
+                    // clean up in case file was there from a previous run
+                    project.delete(flagPath)
+                }
             }
-            onlyIf { project.extensions.esvagrant.upgradeFromVersion.onOrAfter('6.3.0') }
-            file "${archivesDir}/upgrade_is_oss"
-            contents ''
         }
 
         File batsDir = new File(packagingDir, BATS)

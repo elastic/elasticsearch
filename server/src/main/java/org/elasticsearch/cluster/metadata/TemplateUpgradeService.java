@@ -151,6 +151,9 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
+                    if (calculateTemplateChanges(clusterService.state().getMetaData().getTemplates()).isPresent()) {
+                        throw new IllegalStateException("Successful template upgrade is not successful");
+                    }
                     if (updatesInProgress.decrementAndGet() == 0) {
                         logger.info("Finished upgrading templates to version {}", Version.CURRENT);
                     }

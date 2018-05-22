@@ -217,8 +217,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // should we expose it, or maybe think about higher level integration of the
         // fake term frequency feature (LUCENE-7854)
         .put("delimitedtermfrequency",    Void.class)
-        // not exposed, only used internally to index shingles and speed up phrase queries
-        .put("fixedshingle", Void.class)
+        // LUCENE-8273: ConditionalTokenFilter allows analysis chains to skip
+        // particular token filters based on the attributes of the current token.
+        .put("termexclusion", Void.class)
 
         .immutableMap();
 

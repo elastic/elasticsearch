@@ -1147,6 +1147,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                 final Collection<String> fileNames;
                 try {
+                    logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
                     metadata = store.getMetadata(snapshotIndexCommit);
                     fileNames = snapshotIndexCommit.getFileNames();
                 } catch (IOException e) {
@@ -1242,9 +1243,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         /**
          * Snapshot individual file
-         * <p>
-         * This is asynchronous method. Upon completion of the operation latch is getting counted down and any failures are
-         * added to the {@code failures} list
          *
          * @param fileInfo file to be snapshotted
          */

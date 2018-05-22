@@ -76,8 +76,8 @@ teardown:
         index: "my_index"
         body:
           current_step:
-            phase: "hot"
-            action: "pre-pre-readonly"
+            phase: "new"
+            action: "after"
             name: "after"
           next_step:
             phase: "warm"
@@ -118,8 +118,8 @@ teardown:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
   - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "pre-pre-readonly" }
-  - match: { my_index.settings.index.lifecycle.phase: "hot" }
+  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 ---
 "Test Invalid Move To Step With Invalid Next Step":
@@ -130,8 +130,8 @@ teardown:
         index: "my_index"
         body:
           current_step:
-            phase: "hot"
-            action: "pre-pre-readonly"
+            phase: "new"
+            action: "after"
             name: "after"
           next_step:
             phase: "invalid"
@@ -146,8 +146,8 @@ teardown:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
   - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "pre-pre-readonly" }
-  - match: { my_index.settings.index.lifecycle.phase: "hot" }
+  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 ---
 "Test Invalid Move To Step With Invalid Policy":

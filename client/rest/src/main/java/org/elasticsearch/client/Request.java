@@ -213,6 +213,9 @@ public final class Request {
         return Objects.hash(method, endpoint, parameters, entity, headers.hashCode(), httpAsyncResponseConsumerFactory);
     }
 
+    /**
+     * Custom implementation of {@link BasicHeader} that overrides equals and hashCode.
+     */
     static final class ReqHeader extends BasicHeader {
 
         ReqHeader(String name, String value) {

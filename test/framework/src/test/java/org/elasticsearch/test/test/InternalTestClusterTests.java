@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -456,7 +457,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED, HttpTransportSettings.SETTING_PIPELINING});
     }
 
     public void testTwoNodeCluster() throws Exception {

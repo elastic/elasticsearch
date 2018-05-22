@@ -19,37 +19,26 @@
 
 package org.elasticsearch.nio;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-
 import java.io.IOException;
 import java.nio.channels.Selector;
+import java.util.function.Consumer;
 
 public abstract class EventHandler {
 
-    protected final Logger logger;
+    protected final Consumer<Exception> exceptionHandler;
 
-    EventHandler(Logger logger) {
-        this.logger = logger;
+    protected EventHandler(Consumer<Exception> exceptionHandler) {
+        this.exceptionHandler = exceptionHandler;
     }
 
     /**
-     * This method handles an IOException that was thrown during a call to {@link Selector#select(long)}.
+     * This method handles an IOException that was thrown during a call to {@link Selector#select(long)} or
+     * {@link Selector#close()}.
      *
      * @param exception the exception
      */
-    protected void selectException(IOException exception) {
-        logger.warn(new ParameterizedMessage("io exception during select [thread={}]", Thread.currentThread().getName()), exception);
-    }
-
-    /**
-     * This method handles an IOException that was thrown during a call to {@link Selector#close()}.
-     *
-     * @param exception the exception
-     */
-    protected void closeSelectorException(IOException exception) {
-        logger.warn(new ParameterizedMessage("io exception while closing selector [thread={}]", Thread.currentThread().getName()),
-            exception);
+    protected void selectorException(IOException exception) {
+        exceptionHandler.accept(exception);
     }
 
     /**
@@ -79,11 +68,11 @@ public abstract class EventHandler {
     /**
      * This method is called when an attempt to close a channel throws an exception.
      *
-     * @param context that was being closed
+     * @param channel that was being closed
      * @param exception that occurred
      */
-    protected void closeException(ChannelContext<?> context, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", context.getChannel()), exception);
+    protected void closeException(ChannelContext<?> channel, Exception exception) {
+        channel.handleException(exception);
     }
 
     /**
@@ -95,6 +84,6 @@ public abstract class EventHandler {
      * @param exception that was thrown
      */
     protected void genericChannelException(ChannelContext<?> channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel.getChannel()), exception);
+        channel.handleException(exception);
     }
 }

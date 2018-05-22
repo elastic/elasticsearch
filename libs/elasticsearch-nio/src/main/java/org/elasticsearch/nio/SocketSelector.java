@@ -143,7 +143,7 @@ public class SocketSelector extends ESSelector {
         try {
             listener.accept(value, null);
         } catch (Exception e) {
-            eventHandler.listenerException(listener, e);
+            eventHandler.listenerException(e);
         }
     }
 
@@ -159,7 +159,7 @@ public class SocketSelector extends ESSelector {
         try {
             listener.accept(null, exception);
         } catch (Exception e) {
-            eventHandler.listenerException(listener, e);
+            eventHandler.listenerException(e);
         }
     }
 

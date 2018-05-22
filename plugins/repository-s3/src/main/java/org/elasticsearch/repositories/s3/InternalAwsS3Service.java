@@ -178,6 +178,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
                 throw new IllegalArgumentException("Unable to find region for endpoint [" + serviceEndpoint + "]");
             }
         }
+        // Service endpoint here can be with or without protocol
         return new EndpointConfiguration(serviceEndpoint, signingRegion);
     }
 

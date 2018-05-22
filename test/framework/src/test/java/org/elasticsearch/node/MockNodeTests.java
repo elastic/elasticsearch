@@ -70,6 +70,6 @@ public class MockNodeTests extends ESTestCase {
                 assertSame(searchService.getClass(), SearchService.class);
             }
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED, HttpTransportSettings.SETTING_PIPELINING});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {NetworkModule.HTTP_ENABLED});
     }
 }

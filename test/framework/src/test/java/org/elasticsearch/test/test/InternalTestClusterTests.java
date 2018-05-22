@@ -251,7 +251,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             IOUtils.close(cluster0, cluster1);
             if (shouldAssertSettingsDeprecationsAndWarnings) {
-                assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
+                assertSettingDeprecationsAndWarnings(new Setting<?>[] {NetworkModule.HTTP_ENABLED});
             }
         }
     }

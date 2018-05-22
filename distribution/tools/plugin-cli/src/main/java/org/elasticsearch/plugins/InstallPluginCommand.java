@@ -285,7 +285,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             final String platform) throws IOException, UserException {
         final String baseUrl;
         if (isSnapshot && stagingHash == null) {
-            throw new UserException(ExitCodes.CONFIG, "attempted to install release build of official plugin on snapshot build");
+            throw new UserException(
+                    ExitCodes.CONFIG, "attempted to install release build of official plugin on snapshot build of Elasticsearch");
         }
         if (stagingHash != null) {
             if (isSnapshot) {

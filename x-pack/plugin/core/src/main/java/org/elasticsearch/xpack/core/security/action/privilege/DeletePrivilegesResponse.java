@@ -14,16 +14,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
  * Response when deleting application privileges.
  * Returns a collection of privileges that were successfully found and deleted.
  */
-public class DeletePrivilegesResponse extends ActionResponse implements ToXContentObject {
+public final class DeletePrivilegesResponse extends ActionResponse implements ToXContentObject {
 
     private Set<String> found;
 
@@ -47,21 +45,13 @@ public class DeletePrivilegesResponse extends ActionResponse implements ToXConte
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        final int size = in.readVInt();
-        final HashSet<String> foundSet = new HashSet<>(size);
-        for (int i = 0; i < size; i++) {
-            foundSet.add(in.readString());
-        }
-        this.found = Collections.unmodifiableSet(foundSet);
+        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(found.size());
-        for (String s : found) {
-            out.writeString(s);
-        }
+        out.writeCollection(found, StreamOutput::writeString);
     }
 
 }

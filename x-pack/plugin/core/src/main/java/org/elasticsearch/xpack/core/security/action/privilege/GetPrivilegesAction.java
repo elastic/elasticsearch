@@ -11,12 +11,12 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action for retrieving one or more application privileges from the security index
  */
-public class GetPrivilegesAction extends Action<GetPrivilegesRequest, GetPrivilegesResponse, GetPrivilegesRequestBuilder> {
+public final class GetPrivilegesAction extends Action<GetPrivilegesRequest, GetPrivilegesResponse, GetPrivilegesRequestBuilder> {
 
     public static final GetPrivilegesAction INSTANCE = new GetPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/privilege/get";
 
-    protected GetPrivilegesAction() {
+    private GetPrivilegesAction() {
         super(NAME);
     }
 

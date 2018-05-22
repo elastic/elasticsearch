@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -35,10 +36,11 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 
 /**
- * An application privilege has a name (e.g. {@code "my-app:admin"}) that starts with a prefix that identifies the app,
- * followed by a suffix that is meaningful to the application.
- * It also has zero or more "action patterns" that start with the same prefix and contain at least 1 '/' character (e.g.
- * {@code "my-app:/admin/user/*", "my-app:/admin/team/*"}.
+ * An application privilege has an application name (e.g. {@code "my-app"}) that identifies an application (that exists
+ * outside of elasticsearch), a privilege name (e.g. {@code "admin}) that is meaningful to that application, and zero or
+ * more "action patterns" (e.g {@code "admin/user/*", "admin/team/*"}).
+ * Action patterns must contain at least one special character from ({@code /}, {@code :}, {@code *}) to distinguish them
+ * from privilege names.
  * The action patterns are entirely optional - many application will find that simple "privilege names" are sufficient, but
  * they allow applications to define high level abstract privileges that map to multiple low level capabilities.
  */
@@ -67,8 +69,9 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         }, Fields.TYPE, ObjectParser.ValueType.STRING);
     }
 
-    public static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
-    public static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
+    private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
+    private static final Pattern VALID_APPLICATION_OR_WILDCARD = Pattern.compile("^[A-Za-z0-9_*-]+");
+    private static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
 
     public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
 
@@ -99,6 +102,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
     /**
      * If this privilege has a single name, returns that name. Otherwise throws {@link IllegalStateException}.
+     *
      * @see #name()
      */
     public String getPrivilegeName() {
@@ -113,15 +117,23 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         return Collections.unmodifiableMap(metadata);
     }
 
+    // Package level for testing
+    String[] getPatterns() {
+        return patterns;
+    }
+
     private void validate(boolean validateNames) {
-        if (Regex.isSimpleMatchPattern(application) == false) {
-            validateApplicationName(application);
+        // Treat wildcards differently so that the error message matches the context
+        if (Regex.isSimpleMatchPattern(application)) {
+            validateApplicationName(application, VALID_APPLICATION_OR_WILDCARD);
+        } else {
+            validateApplicationName(application, VALID_APPLICATION);
         }
 
         for (String name : super.name()) {
             if (validateNames && isValidPrivilegeName(name) == false) {
-                throw new IllegalArgumentException("Application privilege names must match the pattern /" + VALID_NAME.pattern()
-                    + "/ (found '" + name + "')");
+                throw new IllegalArgumentException("Application privilege names must match the pattern " + VALID_NAME.pattern()
+                    + " (found '" + name + "')");
             }
         }
         for (String pattern : patterns) {
@@ -134,19 +146,28 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
     /**
      * Validate that the provided application name is valid, and throws an exception otherwise
+     *
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validateApplicationName(String application) {
-        if (VALID_APPLICATION.matcher(application).matches() == false) {
-            throw new IllegalArgumentException("Application names must match /"
-                + VALID_APPLICATION.pattern() + "/ (but was '" + application + "')");
+        validateApplicationName(application, VALID_APPLICATION);
+    }
+
+    private static void validateApplicationName(String application, Pattern pattern) {
+        if (pattern.matcher(application).matches() == false) {
+            throw new IllegalArgumentException("Application names must match the pattern " + pattern.pattern()
+                + " (but was '" + application + "')");
         }
     }
 
-    public static boolean isValidPrivilegeName(String name) {
+    private static boolean isValidPrivilegeName(String name) {
         return VALID_NAME.matcher(name).matches();
     }
 
+    /**
+     * Finds or creates an application privileges with the provided names.
+     * Each element in {@code name} may be the name of a stored privilege (to be resolved from {@code stored}, or a bespoke action pattern.
+     */
     public static ApplicationPrivilege get(String application, Set<String> name, Collection<ApplicationPrivilege> stored) {
         if (name.isEmpty()) {
             return NONE.apply(application);
@@ -200,15 +221,24 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
     public int hashCode() {
         int result = super.hashCode();
         result = 31 * result + Objects.hashCode(application);
+        result = 31 * result + Arrays.hashCode(patterns);
+        result = 31 * result + Objects.hashCode(metadata);
         return result;
     }
 
     @Override
     public boolean equals(Object o) {
-        return super.equals(o) && Objects.equals(this.application, ((ApplicationPrivilege) o).application);
+        return super.equals(o)
+            && Objects.equals(this.application, ((ApplicationPrivilege) o).application)
+            && Arrays.equals(this.patterns, ((ApplicationPrivilege) o).patterns)
+            && Objects.equals(this.metadata, ((ApplicationPrivilege) o).metadata);
     }
 
-    public XContentBuilder toIndexContent(XContentBuilder builder, Params params) throws IOException {
+    /**
+     * Converts this object to XContent suitable for storing in the security index - this includes the "type" parameter that is needed
+     * for index-persistence, but is not used in the Rest API.
+     */
+    public XContentBuilder toIndexContent(XContentBuilder builder) throws IOException {
         return writeXContent(builder, true);
     }
 
@@ -218,8 +248,6 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
     }
 
     private XContentBuilder writeXContent(XContentBuilder builder, boolean includeType) throws IOException {
-        assert name.size() == 1;
-
         builder.startObject()
             .field(Fields.APPLICATION.getPreferredName(), application)
             .field(Fields.NAME.getPreferredName(), getPrivilegeName())
@@ -232,36 +260,28 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         return builder.endObject();
     }
 
+    /**
+     * Construct a new {@link ApplicationPrivilege} from XContent.
+     * @param allowType If true, accept a "type" field (for which the value must match {@link #DOC_TYPE_VALUE});
+     */
     public static ApplicationPrivilege parse(XContentParser parser, boolean allowType) throws IOException {
         return PARSER.parse(parser, allowType);
     }
 
     public static ApplicationPrivilege readFrom(StreamInput in) throws IOException {
         final String application = in.readString();
-        int nameSize = in.readVInt();
-        Set<String> names = new HashSet<>(nameSize);
-        for (int i = 0; i < nameSize; i++) {
-            names.add(in.readString());
-        }
+        Set<String> names = in.readSet(StreamInput::readString);
         String[] patterns = in.readStringArray();
-        Map<String, Object> metadata = in.readBoolean() ? in.readMap() : emptyMap();
+        Map<String, Object> metadata = (Map<String, Object>) in.readGenericValue();
         return new ApplicationPrivilege(application, names, patterns, metadata, false);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(application);
-        out.writeVInt(name.size());
-        for (String n : name) {
-            out.writeString(n);
-        }
+        out.writeCollection(name, StreamOutput::writeString);
         out.writeStringArray(patterns);
-        if (metadata.isEmpty()) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeMap(metadata);
-        }
+        out.writeGenericValue(metadata);
     }
 
     public interface Fields {

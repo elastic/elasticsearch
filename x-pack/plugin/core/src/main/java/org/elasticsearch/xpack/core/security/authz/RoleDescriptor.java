@@ -808,10 +808,10 @@ public class RoleDescriptor implements ToXContentObject {
             StringBuilder sb = new StringBuilder(getClass().getSimpleName())
                     .append("[application=")
                     .append(application)
-                    .append("resources=")
-                    .append(Strings.arrayToCommaDelimitedString(resources))
                     .append("], privileges=[")
                     .append(Strings.arrayToCommaDelimitedString(privileges))
+                    .append("], resources=")
+                    .append(Strings.arrayToCommaDelimitedString(resources))
                     .append("]]");
             return sb.toString();
         }

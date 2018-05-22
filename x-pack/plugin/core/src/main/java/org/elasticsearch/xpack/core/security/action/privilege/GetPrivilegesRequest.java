@@ -57,14 +57,14 @@ public class GetPrivilegesRequest extends ActionRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        application = in.readString();
+        application = in.readOptionalString();
         privileges = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(application);
+        out.writeOptionalString(application);
         out.writeStringArray(privileges);
     }
 

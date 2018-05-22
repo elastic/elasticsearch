@@ -11,12 +11,13 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action for deleting application privileges.
  */
-public class DeletePrivilegesAction extends Action<DeletePrivilegesRequest, DeletePrivilegesResponse, DeletePrivilegesRequestBuilder> {
+public final class DeletePrivilegesAction
+    extends Action<DeletePrivilegesRequest, DeletePrivilegesResponse, DeletePrivilegesRequestBuilder> {
 
     public static final DeletePrivilegesAction INSTANCE = new DeletePrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/privilege/delete";
 
-    protected DeletePrivilegesAction() {
+    private DeletePrivilegesAction() {
         super(NAME);
     }
 

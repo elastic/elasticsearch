@@ -27,7 +27,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
@@ -39,7 +38,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -223,7 +221,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
                 "application-privilege_" + privilege.getApplication() + ":" + privilege.getPrivilegeName()
             ));
             final XContentBuilder builder
-                = privilege.toIndexContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
+                = privilege.toIndexContent(XContentBuilder.builder(XContentType.JSON.xContent()));
             assertThat(request.source(), equalTo(BytesReference.bytes(builder)));
             final boolean created = privilege.name().contains("user") == false;
             indexListener.onResponse(new IndexResponse(

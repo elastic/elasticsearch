@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -183,7 +182,7 @@ public class NativePrivilegeStore extends AbstractComponent {
         }
         try {
             final String name = privilege.getPrivilegeName();
-            final XContentBuilder xContentBuilder = privilege.toIndexContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+            final XContentBuilder xContentBuilder = privilege.toIndexContent(jsonBuilder());
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                 client.prepareIndex(SECURITY_INDEX_NAME, "doc", toDocId(privilege.getApplication(), name))
                     .setSource(xContentBuilder)

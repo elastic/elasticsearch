@@ -10,7 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
@@ -287,7 +289,7 @@ public class SecurityClient {
 
     /* -- Application Privileges -- */
     public GetPrivilegesRequestBuilder prepareGetPrivileges(String applicationName, String[] privileges) {
-        return new GetPrivilegesRequestBuilder(client).application(applicationName).privileges(privileges);
+        return new GetPrivilegesRequestBuilder(client, GetPrivilegesAction.INSTANCE).application(applicationName).privileges(privileges);
     }
 
     public PutPrivilegesRequestBuilder preparePutPrivilege(String applicationName, String privilegeName,
@@ -300,7 +302,9 @@ public class SecurityClient {
     }
 
     public DeletePrivilegesRequestBuilder prepareDeletePrivileges(String applicationName, String[] privileges) {
-        return new DeletePrivilegesRequestBuilder(client).application(applicationName).privileges(privileges);
+        return new DeletePrivilegesRequestBuilder(client, DeletePrivilegesAction.INSTANCE)
+            .application(applicationName)
+            .privileges(privileges);
     }
 
     public CreateTokenRequestBuilder prepareCreateToken() {

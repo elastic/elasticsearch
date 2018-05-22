@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete an application privilege.
  */
-public class DeletePrivilegesRequest extends ActionRequest implements WriteRequest<DeletePrivilegesRequest> {
+public final class DeletePrivilegesRequest extends ActionRequest implements WriteRequest<DeletePrivilegesRequest> {
 
     private String application;
     private String[] privileges;
@@ -76,6 +76,7 @@ public class DeletePrivilegesRequest extends ActionRequest implements WriteReque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        application = in.readString();
         privileges = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
@@ -83,6 +84,7 @@ public class DeletePrivilegesRequest extends ActionRequest implements WriteReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(application);
         out.writeStringArray(privileges);
         refreshPolicy.writeTo(out);
     }

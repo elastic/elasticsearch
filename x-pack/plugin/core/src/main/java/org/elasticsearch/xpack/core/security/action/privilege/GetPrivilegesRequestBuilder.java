@@ -12,13 +12,9 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Builder for {@link GetPrivilegesRequest}
  */
 public class GetPrivilegesRequestBuilder
-        extends ActionRequestBuilder<GetPrivilegesRequest, GetPrivilegesResponse, GetPrivilegesRequestBuilder> {
+    extends ActionRequestBuilder<GetPrivilegesRequest, GetPrivilegesResponse, GetPrivilegesRequestBuilder> {
 
-    public GetPrivilegesRequestBuilder(ElasticsearchClient client) {
-        this(client, GetPrivilegesAction.INSTANCE);
-    }
-
-    GetPrivilegesRequestBuilder(ElasticsearchClient client, GetPrivilegesAction action) {
+    public GetPrivilegesRequestBuilder(ElasticsearchClient client, GetPrivilegesAction action) {
         super(client, action, new GetPrivilegesRequest());
     }
 

@@ -18,11 +18,7 @@ public class DeletePrivilegesRequestBuilder
         extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse, DeletePrivilegesRequestBuilder>
         implements WriteRequestBuilder<DeletePrivilegesRequestBuilder> {
 
-    public DeletePrivilegesRequestBuilder(ElasticsearchClient client) {
-        this(client, DeletePrivilegesAction.INSTANCE);
-    }
-
-    DeletePrivilegesRequestBuilder(ElasticsearchClient client, DeletePrivilegesAction action) {
+    public DeletePrivilegesRequestBuilder(ElasticsearchClient client, DeletePrivilegesAction action) {
         super(client, action, new DeletePrivilegesRequest());
     }
 

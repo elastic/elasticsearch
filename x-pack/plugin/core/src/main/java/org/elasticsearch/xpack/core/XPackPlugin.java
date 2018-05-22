@@ -157,11 +157,15 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
      * and throws an exception otherwise.
      * This check should be called before installing any x-pack metadata to the cluster state,
      * to ensure that the other nodes that are part of the cluster will be able to deserialize
-     * that metadata.
+     * that metadata. Note that if the cluster state already contains x-pack metadata, this
+     * check assumes that the nodes are already ready to receive additional x-pack metadata.
      * Having this check properly in place everywhere allows to install x-pack into a cluster
      * using a rolling restart.
      */
     public static void checkReadyForXPackCustomMetadata(ClusterState clusterState) {
+        if (alreadyContainsXPackCustomMetadata(clusterState)) {
+            return;
+        }
         List<DiscoveryNode> notReadyNodes = nodesNotReadyForXPackCustomMetadata(clusterState);
         if (notReadyNodes.isEmpty() == false) {
             throw new IllegalStateException("The following nodes are not ready yet for enabling x-pack custom metadata: " + notReadyNodes);
@@ -173,7 +177,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
      * See {@link #checkReadyForXPackCustomMetadata} for more details.
      */
     public static boolean isReadyForXPackCustomMetadata(ClusterState clusterState) {
-        return nodesNotReadyForXPackCustomMetadata(clusterState).isEmpty();
+        return alreadyContainsXPackCustomMetadata(clusterState) || nodesNotReadyForXPackCustomMetadata(clusterState).isEmpty();
     }
 
     /**
@@ -181,17 +185,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
      * See {@link #checkReadyForXPackCustomMetadata} for more details.
      */
     public static List<DiscoveryNode> nodesNotReadyForXPackCustomMetadata(ClusterState clusterState) {
-        // check if there's already x-pack metadata in the cluster state; if so, any further metadata won't hurt
-        final MetaData metaData = clusterState.metaData();
-        if (metaData.custom(LicensesMetaData.TYPE) != null ||
-            metaData.custom(MLMetadataField.TYPE) != null ||
-            metaData.custom(WatcherMetaData.TYPE) != null ||
-            clusterState.custom(TokenMetaData.TYPE) != null) {
-            return Collections.emptyList();
-        }
-
-        // if there's no x-pack metadata yet in the cluster state, check that all nodes would be capable
-        // of deserializing newly added x-pack metadata
+        // check that all nodes would be capable of deserializing newly added x-pack metadata
         final List<DiscoveryNode> notReadyNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false).filter(node -> {
             final String xpackInstalledAttr = node.getAttributes().getOrDefault(XPACK_INSTALLED_NODE_ATTR, "false");
 
@@ -202,6 +196,14 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         }).collect(Collectors.toList());
 
         return notReadyNodes;
+    }
+
+    private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
+        final MetaData metaData = clusterState.metaData();
+        return metaData.custom(LicensesMetaData.TYPE) != null ||
+            metaData.custom(MLMetadataField.TYPE) != null ||
+            metaData.custom(WatcherMetaData.TYPE) != null ||
+            clusterState.custom(TokenMetaData.TYPE) != null;
     }
 
     @Override

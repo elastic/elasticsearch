@@ -19,10 +19,15 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,5 +47,26 @@ public class PutPipelineRequestTests extends ESTestCase {
         serialized.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());
+    }
+
+    public void testToXContent() throws IOException {
+        XContentBuilder pipelineBuilder = JsonXContent.contentBuilder();
+        pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
+        pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
+        //Start first processor
+        pipelineBuilder.startObject();
+        pipelineBuilder.startObject("set");
+        pipelineBuilder.field("field", "foo");
+        pipelineBuilder.field("value", "bar");
+        pipelineBuilder.endObject();
+        pipelineBuilder.endObject();
+        //End first processor
+        pipelineBuilder.endArray();
+        pipelineBuilder.endObject();
+        PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), XContentType.JSON);
+        String actualRequestBody = Strings.toString(request);
+        String expectedResponseBody =
+            "{\"description\":\"some random set of processors\",\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
+        assertEquals(expectedResponseBody, actualRequestBody);
     }
 }

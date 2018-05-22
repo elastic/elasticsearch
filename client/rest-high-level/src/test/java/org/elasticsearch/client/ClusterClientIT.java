@@ -25,12 +25,19 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 
@@ -135,5 +142,38 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
             }
         }
         assertTrue("List tasks were not found", listTasksFound);
+    }
+
+    public void testPutPipeline() throws IOException {
+        String id = "some_pipeline_id";
+        XContentBuilder pipelineBuilder = JsonXContent.contentBuilder();
+        pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
+        pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
+        //Start first processor
+        pipelineBuilder.startObject();
+        pipelineBuilder.startObject("set");
+        pipelineBuilder.field("field", "foo");
+        pipelineBuilder.field("value", "bar");
+        pipelineBuilder.endObject();
+        pipelineBuilder.endObject();
+        //End first processor
+        //Start second processor
+        pipelineBuilder.startObject();
+        pipelineBuilder.startObject("convert");
+        pipelineBuilder.field("field", "rank");
+        pipelineBuilder.field("type", "integer");
+        pipelineBuilder.endObject();
+        pipelineBuilder.endObject();
+        //End second processor
+        pipelineBuilder.endArray();
+        pipelineBuilder.endObject();
+        PutPipelineRequest request = new PutPipelineRequest(
+            id,
+            new BytesArray(Strings.toString(pipelineBuilder)),
+            pipelineBuilder.contentType());
+
+        PutPipelineResponse putPipelineResponse =
+            execute(request, highLevelClient().cluster()::putPipeline, highLevelClient().cluster()::putPipelineAsync);
+        assertTrue(putPipelineResponse.isAcknowledged());
     }
 }

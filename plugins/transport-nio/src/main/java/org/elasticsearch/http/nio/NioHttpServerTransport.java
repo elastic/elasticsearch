@@ -154,9 +154,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         try {
             int acceptorCount = NIO_HTTP_ACCEPTOR_COUNT.get(settings);
             int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
-            nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                workerCount, SocketEventHandler::new);
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+                (s) -> new AcceptorEventHandler(s, this::nonChannelExceptionCaught),
+                daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), workerCount,
+                () -> new SocketEventHandler(this::nonChannelExceptionCaught));
             channelFactory = new HttpChannelFactory();
             this.boundAddress = createBoundHttpAddress();
 
@@ -265,6 +266,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
+    protected void nonChannelExceptionCaught(Exception ex) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()), ex);
+    }
+
     private void closeChannels(List<NioChannel> channels) {
         List<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
 
@@ -312,8 +317,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         @Override
         public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             NioServerSocketChannel nioChannel = new NioServerSocketChannel(channel);
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, NioHttpServerTransport.this::acceptChannel,
-                (e) -> {});
+            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
+                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            Consumer<NioSocketChannel> acceptor = NioHttpServerTransport.this::acceptChannel;
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }

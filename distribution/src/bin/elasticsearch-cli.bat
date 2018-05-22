@@ -7,8 +7,8 @@ if defined ES_ADDITIONAL_SOURCES (
 )
 
 for /f "tokens=1*" %%a in ("%*") do (
- set main_class=%%a
- set arguments=%%b
+  set main_class=%%a
+  set arguments=%%b
 )
 
 %JAVA% ^

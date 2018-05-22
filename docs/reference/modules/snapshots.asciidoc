@@ -563,7 +563,7 @@ GET /_snapshot/my_backup/snapshot_1/_status
 // CONSOLE
 // TEST[continued]
 
-Returns this:
+The output looks similar to the following:
 
 [source,js]
 --------------------------------------------------
@@ -610,11 +610,14 @@ Returns this:
 --------------------------------------------------
 // TESTRESPONSE
 
-Where `stats` provides snapshot details - how many files the snapshot consists of and sizes in bytes.
-`processed` is an optional property that could be visible while snapshot has not been finished yet.
+The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
+snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,
+the `stats` object contains a `total` section for all the files that are referenced by the snapshot, as well as an `incremental` section
+for those files that actually needed to be copied over as part of the incremental snapshotting. In case of a snapshot that's still
+n progress, there's also a `processed` section that contains information about the files that are in the process of being copied.
 
-*Note*: Properties `number_of_files`, `processed_files`, `total_size_in_bytes` and `processed_size_in_bytes` describe
-stats in backward compatible with version `5.x`, `6.x` way - and will be dropped in next major version.
+_Note_: Properties `number_of_files`, `processed_files`, `total_size_in_bytes` and `processed_size_in_bytes` are used for
+backward compatibility reasons with older 5.x and 6.x versions. These fields will be removed in Elasticsearch v7.0.0.
 
 Multiple ids are also supported:
 

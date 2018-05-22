@@ -133,7 +133,7 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         out.writeVLong(processedSize);
 
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeVInt(totalFileCount );
+            out.writeVInt(totalFileCount);
             out.writeVLong(totalSize);
         }
     }
@@ -202,20 +202,21 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
                 .endObject();
         }
         //  total starts
-        return builder.startObject(Fields.TOTAL)
+        builder.startObject(Fields.TOTAL)
             .field(Fields.FILE_COUNT, getTotalFileCount())
             .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()))
-            //  all_files ends
-            .endObject()
-            // timings stats
-            .field(Fields.START_TIME_IN_MILLIS, getStartTime())
-            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()))
-            // BWC part
-            .field(Fields.NUMBER_OF_FILES, getIncrementalFileCount())
+            //  total ends
+            .endObject();
+       // timings stats
+       builder.field(Fields.START_TIME_IN_MILLIS, getStartTime())
+            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
+
+        // BWC part
+        return builder.field(Fields.NUMBER_OF_FILES, getIncrementalFileCount())
             .field(Fields.PROCESSED_FILES, getProcessedFileCount())
             .humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getIncrementalSize()))
             .humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()))
-            // stats ends
+            // BWC part ends
             .endObject();
     }
 

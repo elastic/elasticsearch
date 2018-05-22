@@ -125,7 +125,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     /**
      * Test that the indexed shape routing can be provided if it is required
      */
-    public void testIndexShapeRoutine() throws Exception {
+    public void testIndexShapeRouting() throws Exception {
         String mapping = "{\n" +
             "    \"_routing\": {\n" +
             "      \"required\": true\n" +

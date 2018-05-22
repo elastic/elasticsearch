@@ -271,7 +271,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             doFirst {
                 project.delete("${archivesDir}/upgrade_is_oss")
                 if (project.extensions.esvagrant.upgradeFromVersion.before('6.3.0')) {
-                    throw new StopExecutionException()
+                    throw new StopExecutionException("upgrade version is before 6.3.0")
                 }
             }
             file "${archivesDir}/upgrade_is_oss"

@@ -1512,36 +1512,37 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testSnapshotCurrentHasUnexpectedOperationsForTrimmedOperations() throws Exception {
-        primaryTerm.addAndGet(randomIntBetween(5, 10));
+        int extraDocs = randomIntBetween(10, 15);
 
-        try(Translog anotherTranslog = createTranslog(translog.getConfig())) {
-            long pt = primaryTerm.get();
+        // increment primaryTerm to avoid potential negative numbers
+        primaryTerm.addAndGet(extraDocs);
+        translog.rollGeneration();
 
-            int extraDocs = randomIntBetween(10, 15);
-            for (int op = 0; op < extraDocs; op++) {
-                String ascii = randomAlphaOfLengthBetween(1, 50);
-                Translog.Index operation = new Translog.Index("test", "" + op, op, pt - op, ascii.getBytes("UTF-8"));
-                anotherTranslog.add(operation);
-            }
-            try {
-                anotherTranslog.trimOperations(pt, 0);
-                fail();
-            } catch (AssertionError e) {
-                assertThat(e.getMessage(),
-                    is("current should not have any operations with seq#:primaryTerm [1:" + (pt - 1) + "] > 0:" + pt));
-            }
+        long pt = primaryTerm.get();
 
-            primaryTerm.incrementAndGet();
-            anotherTranslog.rollGeneration();
-
-            // add a single operation to current with seq# > trimmed seq# but higher primary term
-            Translog.Index operation = new Translog.Index("test", "" + 1, 1L, primaryTerm.get(),
-                randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8"));
-            anotherTranslog.add(operation);
-
-            // it is possible to trim after generation rollover
-            anotherTranslog.trimOperations(pt, 0);
+        for (int op = 0; op < extraDocs; op++) {
+            String ascii = randomAlphaOfLengthBetween(1, 50);
+            Translog.Index operation = new Translog.Index("test", "" + op, op, pt - op, ascii.getBytes("UTF-8"));
+            translog.add(operation);
         }
+        try {
+            translog.trimOperations(pt, 0);
+            fail();
+        } catch (AssertionError e) {
+            assertThat(e.getMessage(),
+                is("current should not have any operations with seq#:primaryTerm [1:" + (pt - 1) + "] > 0:" + pt));
+        }
+
+        primaryTerm.incrementAndGet();
+        translog.rollGeneration();
+
+        // add a single operation to current with seq# > trimmed seq# but higher primary term
+        Translog.Index operation = new Translog.Index("test", "" + 1, 1L, primaryTerm.get(),
+            randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8"));
+        translog.add(operation);
+
+        // it is possible to trim after generation rollover
+        translog.trimOperations(pt, 0);
     }
 
     public void testSnapshotTrimmedOperations() throws Exception {

@@ -312,7 +312,7 @@ public class MovAvgIT extends ESIntegTestCase {
         double last;
         for (double value : window) {
             last = value;
-            if (counter == 1) {
+            if (counter == 0) {
                 s = value;
                 b = value - last;
             } else {

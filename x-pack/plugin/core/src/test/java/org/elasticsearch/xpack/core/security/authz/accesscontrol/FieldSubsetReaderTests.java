@@ -716,6 +716,22 @@ public class FieldSubsetReaderTests extends ESTestCase {
         expected.put("foo", subArray);
 
         assertEquals(expected, filtered);
+
+        // json array objects that have no matching fields should be left empty instead of being removed:
+        // (otherwise nested inner hit source filtering fails with AOOB)
+        map = new HashMap<>();
+        map.put("foo", "value");
+        List<Map<?, ?>> values = new ArrayList<>();
+        values.add(Collections.singletonMap("foo", "1"));
+        values.add(Collections.singletonMap("baz", "2"));
+        map.put("bar", values);
+
+        include = new CharacterRunAutomaton(Automatons.patterns("bar.baz"));
+        filtered = FieldSubsetReader.filter(map, include, 0);
+
+        expected = new HashMap<>();
+        expected.put("bar", Arrays.asList(new HashMap<>(), Collections.singletonMap("baz", "2")));
+        assertEquals(expected, filtered);
     }
 
     /**

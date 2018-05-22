@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -132,15 +131,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = state.getMetaData().custom(MLMetadataField.TYPE);
-
-        // Handle case when usage is called but MlMetadata has not been installed yet
-        if (mlMetadata == null) {
-            listener.onResponse(new MachineLearningFeatureSetUsage(available(), enabled,
-                    Collections.emptyMap(), Collections.emptyMap()));
-        } else {
-            new Retriever(client, mlMetadata, available(), enabled()).execute(listener);
-        }
+        new Retriever(client, MlMetadata.getMlMetadata(state), available(), enabled()).execute(listener);
     }
 
     public static class Retriever {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketEventHandler;
 
@@ -27,14 +26,15 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.function.Consumer;
 
 public class TestingSocketEventHandler extends SocketEventHandler {
 
-    public TestingSocketEventHandler(Logger logger) {
-        super(logger);
-    }
-
     private Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
+
+    public TestingSocketEventHandler(Consumer<Exception> exceptionHandler) {
+        super(exceptionHandler);
+    }
 
     public void handleConnect(SocketChannelContext context) throws IOException {
         assert hasConnectedMap.contains(context) == false : "handleConnect should only be called is a channel is not yet connected";

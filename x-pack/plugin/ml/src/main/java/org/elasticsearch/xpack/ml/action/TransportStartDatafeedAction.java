@@ -130,7 +130,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             };
 
             // Verify data extractor factory can be created, then start persistent task
-            MlMetadata mlMetadata = state.metaData().custom(MLMetadataField.TYPE);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
             PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             validate(params.getDatafeedId(), mlMetadata, tasks);
             DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
@@ -221,9 +221,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         @Override
         public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
-            MlMetadata mlMetadata = clusterState.metaData().custom(MLMetadataField.TYPE);
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            TransportStartDatafeedAction.validate(params.getDatafeedId(), mlMetadata, tasks);
+            TransportStartDatafeedAction.validate(params.getDatafeedId(), MlMetadata.getMlMetadata(clusterState), tasks);
             new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId()).checkDatafeedTaskCanBeCreated();
         }
 

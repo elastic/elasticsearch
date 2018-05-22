@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -19,8 +18,7 @@ import java.util.Objects;
  */
 public class MainResponse {
     private String nodeName;
-    // TODO: Add parser for Version
-    private Version version;
+    private String version;
     private String clusterName;
     private String clusterUuid;
     // TODO: Add parser for Build
@@ -29,7 +27,7 @@ public class MainResponse {
     private MainResponse() {
     }
 
-    public MainResponse(String nodeName, Version version, String clusterName, String clusterUuid, Build build) {
+    public MainResponse(String nodeName, String version, String clusterName, String clusterUuid, Build build) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
@@ -41,7 +39,7 @@ public class MainResponse {
         return nodeName;
     }
 
-    public Version getVersion() {
+    public String getVersion() {
         return version;
     }
 
@@ -76,7 +74,7 @@ public class MainResponse {
                     (String) value.get("build_hash"),
                     (String) value.get("build_date"),
                     (boolean) value.get("build_snapshot"));
-            response.version = Version.fromString((String) value.get("number"));
+            response.version = (String) value.get("number");
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 

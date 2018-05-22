@@ -26,6 +26,8 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -109,6 +111,9 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
+            MovingFunctionScript.Factory factory = mockCompiled::createMovingFunctionScript;
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -168,6 +173,10 @@ public class MockScriptEngine implements ScriptEngine {
 
         public SimilarityWeightScript createSimilarityWeightScript() {
             return new MockSimilarityWeightScript(script != null ? script : ctx -> 42d);
+        }
+
+        public MovingFunctionScript createMovingFunctionScript() {
+            return new MockMovingFunctionScript();
         }
     }
 
@@ -325,6 +334,13 @@ public class MockScriptEngine implements ScriptEngine {
 
     public static Script mockInlineScript(final String script) {
         return new Script(ScriptType.INLINE, "mock", script, emptyMap());
+    }
+
+    public class MockMovingFunctionScript extends MovingFunctionScript {
+        @Override
+        public double execute(Map<String, Object> params, double[] values) {
+            return MovingFunctions.unweightedAvg(values);
+        }
     }
 
 }

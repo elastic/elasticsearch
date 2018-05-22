@@ -78,16 +78,12 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
   long getSum()
   double getAvg()
   List getValues()
-  org.joda.time.ReadableDateTime getDate()
-  List getDates()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
   org.joda.time.ReadableDateTime get(int)
   org.joda.time.ReadableDateTime getValue()
   List getValues()
-  org.joda.time.ReadableDateTime getDate()
-  List getDates()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {

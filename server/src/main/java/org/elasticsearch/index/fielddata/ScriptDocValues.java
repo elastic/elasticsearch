@@ -94,38 +94,19 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     }
 
     public static final class Longs extends ScriptDocValues<Long> {
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
-
         private final SortedNumericDocValues in;
-        /**
-         * Callback for deprecated fields. In production this should always point to
-         * {@link #deprecationLogger} but tests will override it so they can test that
-         * we use the required permissions when calling it.
-         */
-        private final Consumer<String> deprecationCallback;
         private long[] values = new long[0];
         private int count;
-        private Dates dates;
-        private int docId = -1;
 
         /**
          * Standard constructor.
          */
         public Longs(SortedNumericDocValues in) {
-            this(in, deprecationLogger::deprecated);
-        }
-
-        /**
-         * Constructor for testing the deprecation callback.
-         */
-        Longs(SortedNumericDocValues in, Consumer<String> deprecationCallback) {
             this.in = in;
-            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
         public boolean setNextDocId(int docId) throws IOException {
-            this.docId = docId;
             boolean docHasValues = in.advanceExact(docId);
             if (docHasValues) {
                 resize(in.docValueCount());
@@ -134,9 +115,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 }
             } else {
                 resize(0);
-            }
-            if (dates != null) {
-                dates.setNextDocId(docId);
             }
             return docHasValues;
         }
@@ -148,10 +126,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         protected void resize(int newSize) {
             count = newSize;
             values = ArrayUtil.grow(values, count);
-        }
-
-        public SortedNumericDocValues getInternalValues() {
-            return this.in;
         }
 
         public long getValue() {
@@ -192,26 +166,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return getSum() * 1.0/count;
         }
 
-        @Deprecated
-        public ReadableDateTime getDate() throws IOException {
-            deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
-            if (dates == null) {
-                dates = new Dates(in);
-                dates.setNextDocId(docId);
-            }
-            return dates.getValue();
-        }
-
-        @Deprecated
-        public List<ReadableDateTime> getDates() throws IOException {
-            deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
-            if (dates == null) {
-                dates = new Dates(in);
-                dates.setNextDocId(docId);
-            }
-            return dates;
-        }
-
         @Override
         public Long get(int index) {
             return values[index];
@@ -221,22 +175,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public int size() {
             return count;
         }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(message);
-                    return null;
-                }
-            });
-        }
     }
 
     public static final class Dates extends ScriptDocValues<ReadableDateTime> {
@@ -245,12 +183,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
 
         private final SortedNumericDocValues in;
-        /**
-         * Callback for deprecated fields. In production this should always point to
-         * {@link #deprecationLogger} but tests will override it so they can test that
-         * we use the required permissions when calling it.
-         */
-        private final Consumer<String> deprecationCallback;
         /**
          * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
          * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
@@ -262,15 +194,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Standard constructor.
          */
         public Dates(SortedNumericDocValues in) {
-            this(in, deprecationLogger::deprecated);
-        }
-
-        /**
-         * Constructor for testing deprecation logging.
-         */
-        Dates(SortedNumericDocValues in, Consumer<String> deprecationCallback) {
             this.in = in;
-            this.deprecationCallback = deprecationCallback;
         }
 
         /**
@@ -282,24 +206,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return EPOCH;
             }
             return get(0);
-        }
-
-        /**
-         * Fetch the first value. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
-         */
-        @Deprecated
-        public ReadableDateTime getDate() {
-            deprecated("getDate is no longer necessary on date fields as the value is now a date.");
-            return getValue();
-        }
-
-        /**
-         * Fetch all the values. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
-         */
-        @Deprecated
-        public List<ReadableDateTime> getDates() {
-            deprecated("getDates is no longer necessary on date fields as the values are now dates.");
-            return this;
         }
 
         @Override
@@ -360,22 +266,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             for (int i = 0; i < count; i++) {
                 dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
             }
-        }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(message);
-                    return null;
-                }
-            });
         }
     }
 

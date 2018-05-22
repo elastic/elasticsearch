@@ -92,7 +92,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
-            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.SCRIPT_SCORE_CONTEXT);
             SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {

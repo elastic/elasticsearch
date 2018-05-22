@@ -620,34 +620,7 @@ public class PluginsServiceTests extends ESTestCase {
             Files.copy(jar, fake.resolve("plugin.jar"));
         }
 
-        final Path fakeMeta = plugins.resolve("fake-meta");
-
-        PluginTestUtil.writeMetaPluginProperties(fakeMeta, "description", "description", "name", "fake-meta");
-
-        final Path fakeMetaCore = fakeMeta.resolve("fake-meta-core");
-        PluginTestUtil.writePluginProperties(
-                fakeMetaCore,
-                "description", "description",
-                "name", "fake-meta-core",
-                "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
-        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
-            Files.copy(jar, fakeMetaCore.resolve("plugin.jar"));
-        }
-
-        assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake, fakeMetaCore));
-    }
-
-    public void testMissingMandatoryPlugin() {
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", createTempDir())
-                        .put("plugin.mandatory", "fake")
-                        .build();
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        assertThat(e, hasToString(containsString("missing mandatory plugins [fake]")));
+        assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake));
     }
 
     public void testExistingMandatoryClasspathPlugin() {
@@ -696,38 +669,4 @@ public class PluginsServiceTests extends ESTestCase {
                         .build();
         newPluginsService(settings);
     }
-
-    public void testExistingMandatoryMetaPlugin() throws IOException {
-        // This test opens a child classloader, reading a jar under the test temp
-        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
-        // occurs the jar is deleted while the classloader is still open. However, on
-        // windows, files cannot be deleted when they are still open by a process.
-        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
-        final Path pathHome = createTempDir();
-        final Path plugins = pathHome.resolve("plugins");
-        final Path fakeMeta = plugins.resolve("fake-meta");
-
-        PluginTestUtil.writeMetaPluginProperties(fakeMeta, "description", "description", "name", "fake-meta");
-
-        final Path fake = fakeMeta.resolve("fake");
-        PluginTestUtil.writePluginProperties(
-                fake,
-                "description", "description",
-                "name", "fake",
-                "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
-        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
-            Files.copy(jar, fake.resolve("plugin.jar"));
-        }
-
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("plugin.mandatory", "fake-meta")
-                        .build();
-        newPluginsService(settings);
-    }
-
 }

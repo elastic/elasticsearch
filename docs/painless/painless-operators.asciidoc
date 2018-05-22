@@ -339,6 +339,7 @@ return d[z];              // Access the 1st element of array d using the
 NOTE: The use of the `def` type in the second example means that the types
 cannot be resolved until runtime.
 
+[[array-length]]
 ===== Array Length
 
 Arrays contain a special member known as 'length' that is a read-only value that contains the size of the array.  This member can be accessed from an array using the dot operator.

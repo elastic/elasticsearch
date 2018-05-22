@@ -2,28 +2,26 @@
 === Types
 
 A type is a classification of data used to define the properties of a value.
-These properties specify what data a value represents such as a number, string,
-These properties specify what data a value represents such as a number, string,
-or something more complex and the rules for when a value is evaluated during
-an <<painless-operators, operation>>. Each type belongs to one of the following
-categories: <<primitive-types, primitive>>, <<reference-types, reference>>,
-or <<dynamic-types, dynamic>>.
+These properties specify what data a value represents and the rules for how a
+value is evaluated during an <<painless-operators, operation>>. Each type
+belongs to one of the following categories: <<primitive-types, primitive>>,
+<<reference-types, reference>>, or <<dynamic-types, dynamic>>.
 
 [[primitive-types]]
 ==== Primitive Types
 
 A primitive type represents basic data build natively into the JVM and is
-allocated to non-heap memory.  A primitive type value is copied when
-<<assignment, assigned>> and when passed into a <<method-access, method>> or
-function as an argument.
+allocated to non-heap memory. Declare a primitive type
+<<painless-variables, variable>>, and assign it a primitive type value for
+evaluation during later operations. The default value for a newly-declared
+primitive type variable is listed as part of the definitions below. A primitive
+type value is copied during an assignment or as an argument for a
+method/function call.
 
-A primitive type has a corresponding <<reference-types, reference type>> (also
-known as a <<boxing-unboxing, boxed type>>). Any member of the corresponding
-reference type can be <<field-access, accessed>> or <<method-access, called>> by
-evaluating the appropriate operation on a primitive type value. Operations
-performed in this manner box the primitive type value to its corresponding
-reference type value at runtime and evaluate the specified field access or
-method call.
+A primitive type has a corresponding reference type (also known as a boxed
+type). Use the <<field-access, field access operator>> or
+<<method-access, method call operator>> on a primitive type value to force
+evaluation as its corresponding reference type value.
 
 The following primitive types are available:
 
@@ -75,8 +73,7 @@ logical quantity with two possible values of `true` and `false`
 
 *Examples*
 
-* Primitive types used in <<declaration, declaration>> and
-<<assignment, assignment>>.
+* Primitive types used in declaration, declaration and assignment.
 +
 [source,Painless]
 ----
@@ -86,11 +83,11 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign  `int 1` to `i`
+    assign `int 1` to `i`
 <2> declare `double d`;
-    assign default  `double 0.0` to `d`
+    assign default `double 0.0` to `d`
 <3> declare `boolean b`;
-    assign  `boolean true` to `b`
+    assign `boolean true` to `b`
 +
 * Method call on a primitive type using the corresponding reference type.
 +
@@ -101,9 +98,9 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign  `int 1` to `i`
-<2> access  `i` -> `int 1`;
-    box  `int 1` -> `Integer 1 reference`;
+    assign `int 1` to `i`
+<2> access `i` -> `int 1`;
+    box `int 1` -> `Integer 1 reference`;
     call `toString` on `Integer 1 reference` -> `String '1'`
 
 [[reference-types]]
@@ -112,63 +109,62 @@ logical quantity with two possible values of `true` and `false`
 A reference type is a named construct (object), potentially representing
 multiple pieces of data (member fields) and logic to manipulate that data
 (member methods), defined as part of the application programming interface
-(API).
+(API) for scripts.
 
 A reference type instance is a single set of data for one reference type
-object allocated to the heap. A reference type instance is allocated using the
-<<constructor-call, *new instance operator*>>. Use a reference type instance to
-store and manipulate complex data.
+object allocated to the heap. Use the
+<<constructor-call, new instance operator>> to allocate a reference type
+instance. Use a reference type instance to read from, write to, and manipulate
+complex data.
 
 A reference type value refers to a reference type instance, and multiple
-reference type values may refer to a single reference type instance. A change to
+reference type values may refer to the same reference type instance. A change to
 a reference type instance will affect all reference type values referring to
-that specific instance. A reference type value is shallow-copied when
-<<assignment, assigned>> and when passed into a <<method-access, method>> or
-function as an argument.
+that specific instance.
 
-The default value for a <<declaration, newly-declared>> reference type
-<<painless-variables, variable>> is `null`. <<assignment, Assign>> a
-<<constructor-call, newly-allocated>> reference type instance or an existing
-reference type value to a reference type <<painless-variables, variable>> for
-evaluation during a later <<painless-operators, operation>>.
-<<assignment, Assign>> `null` to a reference type
-<<painless-variables, variable>> to indicate the reference type value refers to
-no reference type instance. The JVM will garbage collect a reference type
-instance when it is no longer referred to by any reference types values.
+Declare a reference type <<painless-variables, variable>>, and assign it a
+reference type value for evaluation during later operations. The default value
+for a newly-declared reference type variable is `null`. A reference type value
+is shallow-copied during an assignment or as an argument for a method/function
+call. Assign `null` to a reference type variable to indicate the reference type
+value refers to no reference type instance. The JVM will garbage collect a
+reference type instance when it is no longer referred to by any reference type
+values. Pass `null` as an argument to a method/function call to indicate the
+argument refers to no reference type instance.
 
 A reference type object defines zero-to-many of each of the following:
 
 static member field::
 
-A static member field is a named and <<painless-types, typed>> piece of data.
-Each reference type *object* contains one set of data representative of its
-static member fields. Use the <<field-access, *field access operator*>> in
-correspondence with the reference type object name to access a static member
-field for reading and writing to a specific reference type *object*. No
-reference type instance allocation is necessary to use a static member field.
+A static member field is a named and typed piece of data. Each reference type
+*object* contains one set of data representative of its static member fields.
+Use the <<field-access, field access operator>> in correspondence with the
+reference type object name to access a static member field for reading and
+writing to a specific reference type *object*. No reference type instance
+allocation is necessary to use a static member field.
 
 non-static member field::
 
-A non-static member field is a named and <<painless-types, typed>> piece of
-data. Each reference type *instance* contains one set of data representative of
-its reference type object's non-static member fields. Use the
-<<field-access, *field access operator*>> for reading and writing to a
-non-static member field of a specific reference type *instance*. An allocated
-reference type instance is required to use a non-static member field.
+A non-static member field is a named and typed piece of data. Each reference
+type *instance* contains one set of data representative of its reference type
+object's non-static member fields. Use the
+<<field-access, field access operator>> for reading and writing to a non-static
+member field of a specific reference type *instance*. An allocated reference
+type instance is required to use a non-static member field.
 
 static member method::
 
 A static member method is a function called on a reference type *object*. Use
-the <<method-access, *method call operator*>> in correspondence with the
-reference type object name to call a static member method. No reference type
-instance allocation is necessary to use a static member method.
+the <<method-access, method call operator>> in correspondence with the reference
+type object name to call a static member method. No reference type instance
+allocation is necessary to use a static member method.
 
 non-static member method::
 
 A non-static member method is a function called on a reference type *instance*.
 A non-static member method called on a reference type instance can read from and
 write to non-static member fields of that specific reference type instance. Use
-the <<method-access, *method call operator*>> in correspondence with a specific
+the <<method-access, method call operator>> in correspondence with a specific
 reference type instance to call a non-static member method. An allocated
 reference type instance is required to use a non-static member method.
 
@@ -176,7 +172,7 @@ constructor::
 
 A constructor is a special type of function used to allocate a reference type
 *instance* defined by a specific reference type *object*. Use the
-<<constructor-call, *new instance operator*`>> to allocate a reference type
+<<constructor-call, new instance operator>> to allocate a reference type
 instance.
 
 A reference type object follows a basic inheritance model. Consider types A and
@@ -201,18 +197,17 @@ relationships.
 +
 <1> declare `List l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    implicit cast  `ArrayList reference` to  `List reference`
-            -> `List reference`;
-    assign  `List reference` to `l`
-<2> access  `l` -> `List reference`;
-    implicit cast  `int 1` to  `def` -> `def`
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    assign `List reference` to `l`
+<2> access `l` -> `List reference`;
+    implicit cast `int 1` to `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
 <3> declare `int i`;
-    access  `l` -> `List reference`;
+    access `l` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def`;
-    implicit cast  `def` to  `int 1` -> `int 1`;
-    add  `int 1` and  `int 2` -> `int 3`;
-    assign  `int 3` to `i`
+    implicit cast `def` to `int 1` -> `int 1`;
+    add `int 1` and `int 2` -> `int 3`;
+    assign `int 3` to `i`
 +
 * Sharing a reference type instance.
 +
@@ -227,28 +222,27 @@ relationships.
 +
 <1> declare `List l0`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    implicit cast value of `ArrayList reference` to value of `List reference`
-            -> `List reference`;
-    assign value of `List reference` to `l0`
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    assign `List reference` to `l0`
 <2> declare `List l1`;
-    access value of `l0` -> `List reference`;
-    assign value of `List reference` to `l1`
+    access `l0` -> `List reference`;
+    assign `List reference` to `l1`
     (note `l0` and `l1` refer to the same instance known as a shallow-copy)
-<3> access value of `l0` -> `List reference`;
-    implicit cast value of `int 1` to value of `def` -> `def`
+<3> access `l0` -> `List reference`;
+    implicit cast `int 1` to `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
-<4> access value of `l1` -> `List reference`;
-    implicit cast value of `int 2` to value of `def` -> `def`
+<4> access `l1` -> `List reference`;
+    implicit cast `int 2` to `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
 <5> declare `int i`;
-    access value of `l0` -> `List reference`;
+    access `l0` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def @0`;
-    implicit cast value of `def @0` to value of `int 1` -> `int 1`;
-    access value of `l1` -> `List reference`;
+    implicit cast `def @0` to `int 1` -> `int 1`;
+    access `l1` -> `List reference`;
     call `get` on `List reference` with arguments (`int 1`) -> `def @1`;
-    implicit cast value of `def @1` to value of `int 2` -> `int 2`;
-    add value of `int 1` and value of `int 2` -> `int 3`;
-    assign value of `int 3` to `i`;
+    implicit cast `def @1` to `int 2` -> `int 2`;
+    add `int 1` and `int 2` -> `int 3`;
+    assign `int 3` to `i`;
 +
 * Using the static members of a reference type.
 +
@@ -259,35 +253,34 @@ relationships.
 ----
 +
 <1> declare `int i`;
-    access value of `MAX_VALUE` on `Integer` -> `int 2147483647`;
-    assign value of `int 2147483647` to `i`
+    access `MAX_VALUE` on `Integer` -> `int 2147483647`;
+    assign `int 2147483647` to `i`
 <2> declare `long l`;
     call `parseLong` on `Long` with arguments (`long 123`) -> `long 123`;
-    assign value of `long 123` to `l`
+    assign `long 123` to `l`
 
 [[dynamic-types]]
 ==== Dynamic Types
 
-Use dynamic type values to represent the values of any primitive type or
-reference type under a single type name `def`. A `def` type value mimics
-the behavior of whatever value it currently represents and will always
-represent the child-most descendant type value of any value when used in
-<<painless-operators, operations>> and statements.
+A dynamic type value can represent the value of any primitive type or
+reference type using a single type name `def`. A `def` type value mimics
+the behavior of whatever value it represents at run-time and will always
+represent the child-most descendant type value of any type value when evaluated
+during operations.
 
-Internally, if a `def` type value is a primitive type value, the value is
-converted (<<boxing-unboxing, boxed>>) to the corresponding reference type
-instance. However, the `def` type still behaves like the primitive type
-including within the <<painless-casting, casting model>>.
+Declare a `def` type <<painless-variables, variable>>, and assign it
+any type of value for evaluation during later operations. The default value
+for a newly-declared `def` type variable is `null`.  A `def` type variable or
+method/function parameter can change the type it represents during the
+compilation and evaluation of a script.
 
-The default value for a <<declaration, newly-declared>> `def` type
-<<painless-variables, variable>> is `null`. A `def` type
-<<painless-variables, variable>> can have different types
-<<assignment, assigned>> throughout a script.
+Using the `def` type can have a slight impact on performance. Use only primitive
+types and reference types directly when performance is critical.
 
-<<painless-operators, Operations>> using the `def` type will generate
-errors at runtime if an inappropriate type is represented. Using the `def`
-type can have a slight impact on performance. Use only primitive types and
-reference types directly when performance is critical.
+*Errors*
+
+* If a `def` type value represents an inappropriate type for evaluation of an
+  operation at run-time.
 
 *Examples*
 
@@ -301,14 +294,14 @@ reference types directly when performance is critical.
 ----
 +
 <1> declare `def dp`;
-    implicit cast value of `int 1` to value of `def` -> `def`;
-    assign value of `def` to `dp`
+    implicit cast `int 1` to `def` -> `def`;
+    assign `def` to `dp`
 <2> declare `def dr`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    implicit cast value of `ArrayList reference` to value of `def` -> `def`;
-    assign value of `def` to `dr`
-<3> access value of `dp` -> `def`;
-    assign value of `def` to `dr`;
+    implicit cast `ArrayList reference` to `def` -> `def`;
+    assign `def` to `dr`
+<3> access `dp` -> `def`;
+    assign `def` to `dr`;
     (note the switch in the type `dr` represents from `ArrayList` to `int`)
 +
 * A `def` type value representing the child-most descendant of a value.
@@ -322,18 +315,17 @@ reference types directly when performance is critical.
 +
 <1> declare `Object l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    implicit cast value of `ArrayList reference` to value of `Object reference`
+    implicit cast `ArrayList reference` to `Object reference`
             -> `Object reference`;
-    assign value of `Object reference` to `l`
+    assign `Object reference` to `l`
 <2> declare `def d`;
-    access value of `l` -> `Object reference`;
-    implicit cast value of `Object reference` to value of `def` -> `def`;
-    assign value of `def` to `d`;
-<3> access value of `d` -> `def`;
-    implicit cast value of `def` to value of `ArrayList reference`
-            -> `ArrayList reference`;
+    access `l` -> `Object reference`;
+    implicit cast `Object reference` to `def` -> `def`;
+    assign `def` to `d`;
+<3> access `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
     call `ensureCapacity` on `ArrayList reference` with arguments (`int 10`);
-    (note value of `def` was implicit cast to value of `ArrayList reference`
+    (note `def` was implicit cast to `ArrayList reference`
             since ArrayList` is the child-most descendant type value that the
             `def` type value represents)
 
@@ -341,10 +333,10 @@ reference types directly when performance is critical.
 ==== String Type
 
 The `String` type is a specialized reference type that does not require
-explicit allocation. Use <<strings, string literals>> to directly
-<<assignment, assign>> or <<painless-operators, operate>> on `String` values.
-While not required, the <<constructor-call, `new` operator>> can allocate
-`String` values.
+explicit allocation. Use a <<strings, string literal>> to directly evaluate a
+`String` type value. While not required,
+the <<constructor-call, new instance operator>> can allocate `String` type
+instances.
 
 *Examples*
 
@@ -359,21 +351,21 @@ While not required, the <<constructor-call, `new` operator>> can allocate
 ----
 +
 <1> declare `String r`;
-    assign value of `String "some text"` to `r`
+    assign `String "some text"` to `r`
 <2> declare `String s`;
-    assign value of `String 'some text'` to `s`
+    assign `String 'some text'` to `s`
 <3> declare `String t`;
     allocate `String` instance with arguments (`String "some text"`)
             -> `String "some text"`;
-    assign value of `String "some text"` to `t`
+    assign `String "some text"` to `t`
 <4> declare `String u`;
-    assign default value of `null` to `u`
+    assign default `null` to `u`
 
 [[void-type]]
 ==== void Type
 
-The `void` type represents the concept of a lack of type. The `void` type is
-primarily used to indicate a function will return no value.
+The `void` type represents the concept of a lack of type. Use the `void` type to
+indicate a function returns no value.
 
 *Examples*
 
@@ -389,21 +381,28 @@ void addToList(List l, def d) {
 [[array-type]]
 ==== Array Type
 
-The array type is a specialized reference type where an array type instance
-represents a series of values.  All values in an array type instance are of
-the same type.  Each value is assigned an index from within the range
-`[0, length)` where length is the total number of values allocated for the
-array type instance. Specify the type of values and the length during an
-array allocation.
+An array type is a specialized reference type where an array type instance
+represents a series of values allocated to the heap.  All values in an array
+type instance are of the same type.  Each value is assigned an index from within
+the range `[0, length)` where length is the total number of values allocated for
+the array type instance.
 
-Allocate an array type instance using the <<new-array, new operator>> or the
-<<array-initialization, initialization operator>>.  Array type instances are
-allocated to the heap. <<declaration, Declare>> and <<assignment, assign>>
-array type variables for <<painless-operators, use>> within scripts.  The
-default value for newly-declared array instance types is `null`.  Array type
-values are shallow-copied when <<assignment, assigned>> and when passed into a
-<<method-access, method>> or function as arguments. Read and write to individual
-values within the array type instance using the <<array-access, access operator>>.
+Use the <<new-array, new array operator>> or the
+<<array-initialization, array initialization operator>> to allocate an array
+type instance. Declare an array type <<painless-variables, variable>>, and
+assign it an array type value for evaluation during later operations. The
+default value for a newly-declared array type variable is `null`. An array type
+value is shallow-copied during an assignment or as an argument for a
+method/function call. Assign `null` to an array type variable to indicate the
+array type value refers to no array type instance. The JVM will garbage collect
+an array type instance when it is no longer referred to by any array type
+values. Pass `null` as an argument to a method/function call to indicate the
+argument refers to no array type instance.
+
+Use the <<array-length, array length operator>> to retrieve the length of an
+array type value as an int type value. Use the
+<<array-access, array access operator>> to read and write to individual values
+within an array type value.
 
 When an array type instance is allocated with multiple dimensions using the
 range `[2, d]` where `d >= 2`, each dimension in the range `[1, d-1]` is also
@@ -427,25 +426,24 @@ the array type `int[][]`.
 ----
 +
 <1> declare `int[] x`;
-    assign default value of `null` to `x`
+    assign default `null` to `x`
 <2> declare `float[] y`;
     allocate `1-d float array` instance with `length [10]`
             -> `1-d float array reference`;
-    assign value of `1-d float array reference` to `y`
+    assign `1-d float array reference` to `y`
 <3> declare `def z`;
     allocate `1-d float array` instance with `length [5]`
             -> `1-d float array reference`;
-    implicit cast value of `1-d float array reference` to value of `def`
-            -> `def`;
-    assign value of `def` to `z`
-<4> access value of `y` -> `1-d float array reference`;
-    assign value of `float 1.0` to `index [9]` of `1-d float array reference`
-<5> access value of `y` -> `1-d float array reference @0`;
+    implicit cast `1-d float array reference` to `def` -> `def`;
+    assign `def` to `z`
+<4> access `y` -> `1-d float array reference`;
+    assign `float 1.0` to `index [9]` of `1-d float array reference`
+<5> access `y` -> `1-d float array reference @0`;
     access `index [9]` of `1-d float array reference @0` -> `float 1.0`;
-    access value of `z` -> `def`;
-    implicit cast value of `def` to value of `1-d float array reference @1`
+    access `z` -> `def`;
+    implicit cast `def` to `1-d float array reference @1`
             -> `1-d float array reference @1`;
-    assign value of `float 1.0` to `index [0]` of `1-d float array reference @1`
+    assign `float 1.0` to `index [0]` of `1-d float array reference @1`
 +
 * Use of a multi-dimensional array.
 +
@@ -459,10 +457,10 @@ the array type `int[][]`.
 <1> declare `int[][][] ia`;
     allocate `3-d int array` instance with length `[2, 3, 4]`
             -> `3-d int array reference`;
-    assign value of `3-d int array reference` to `ia3`
-<2> access value of `ia3` -> `3-d int array reference`;
-    assign value of `int 99` to `index [1, 2, 3]` of `3-d int array reference`
+    assign `3-d int array reference` to `ia3`
+<2> access `ia3` -> `3-d int array reference`;
+    assign `int 99` to `index [1, 2, 3]` of `3-d int array reference`
 <3> declare `int i`;
-    access value of `ia3` -> `3-d int array reference`;
-    access value of `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
-    assign value of `int 99` to `i`
+    access `ia3` -> `3-d int array reference`;
+    access `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
+    assign `int 99` to `i`

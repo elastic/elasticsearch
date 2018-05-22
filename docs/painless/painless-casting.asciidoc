@@ -1,12 +1,11 @@
 [[painless-casting]]
 === Casting
 
-A cast converts the value of an original <<painless-types, type>> to the
-equivalent value of a target <<painless-types, type>>. An implicit cast infers
-the target type and automatically occurs during certain
-<<painless-operators, operations>>. An explicit cast specifies the target type
-and forcefully occurs as its own operation.  Use the *cast operator* to
-specify an explicit cast.
+A cast converts the value of an original type to the equivalent value of a
+target type. An implicit cast infers the target type and automatically occurs
+during certain <<painless-operators, operations>>. An explicit cast specifies
+the target type and forcefully occurs as its own operation.  Use the *cast
+operator* to specify an explicit cast.
 
 *Errors*
 
@@ -52,8 +51,8 @@ numeric type is larger than the target numeric type can accommodate. A cast
 between an integer type value and a floating point type value can result in
 precision loss.
 
-The allowed casts for values of each numeric type is shown as a row in the table
-below.
+The allowed casts for values of each numeric type are shown as a row in the
+following table:
 
 |====
 |        | byte     | short    | char     | int      | long     | float    | double
@@ -297,8 +296,8 @@ based on the current type value the `def` type value represents.
 [[string-character-casting]]
 ==== String to Character Casting
 
-Use the <<painless-casting, *cast operator*>> to convert a
-<<string-type, String type>> value into a <<primitive-types, char type>> value.
+Use the *cast operator* to convert a <<string-type, String type>> value into a
+<<primitive-types, char type>> value.
 
 *Errors*
 
@@ -306,7 +305,7 @@ Use the <<painless-casting, *cast operator*>> to convert a
 
 *Examples*
 
-* Casting <<strings, string literals>> into char type values.
+* Casting strings, string literals into char type values.
 +
 [source,Painless]
 ----
@@ -337,20 +336,17 @@ Use the <<painless-casting, *cast operator*>> to convert a
 [[boxing-unboxing]]
 ==== Boxing and Unboxing
 
-Boxing is a special type of cast used to convert a
-<<primitive-types, primitive type>> to its corresponding
-<<reference-types, reference type>>. Unboxing is the reverse used to convert a
+Boxing is a special type of cast used to convert a primitive type to its
+corresponding reference type. Unboxing is the reverse used to convert a
 reference type to its corresponding primitive type.
 
-Implicit boxing/unboxing occurs during the following
-<<painless-operators, operations>>:
+Implicit boxing/unboxing occurs during the following operations:
 
-* Conversions between a <<dynamic-types, `def` type>> and
+* Conversions between a `def` type and
   a primitive type will be implicitly boxed/unboxed as
   necessary, though this is referred to as an implicit cast throughout the
   documentation.
-* <<method-access, Method>>/function call arguments will be implicitly
-  boxed/unboxed as necessary.
+* Method/function call arguments will be implicitly boxed/unboxed as necessary.
 * A primitive type value will be implicitly boxed when a reference type method
   call is invoked on it.
 
@@ -419,14 +415,12 @@ value and vice versa.
 [[promotion]]
 ==== Promotion
 
-Promotion is when a single value is implicitly <<painless-casting, cast>> to a
-certain type or multiple values are implicitly <<painless-casting, cast>> to the
-same type as required for evaluation by certain
-<<painless-operators, operations>>. Each operation that requires promotion has a
-promotion table that shows all required implicit casts based on the type(s) of
-value(s). A value can be promoted to a `def` type at compile-time; however, the
-promoted type value is derived from what the `def` type value represents at
-run-time.
+Promotion is when a single value is implicitly cast to a certain type or
+multiple values are implicitly cast to the same type as required for evaluation
+by certain operations. Each operation that requires promotion has a promotion
+table that shows all required implicit casts based on the type(s) of value(s). A
+value can be promoted to a `def` type at compile-time; however, the promoted
+type value is derived from what the `def` type value represents at run-time.
 
 *Errors*
 

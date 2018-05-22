@@ -213,17 +213,22 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return true;
     }
 
-    synchronized boolean assertNoSeqAbove(long belowTerm, long aboveSeqNo) throws IOException {
-        TranslogSnapshot snapshot = newSnapshot();
-        Translog.Operation operation;
-        while ((operation = snapshot.next()) != null){
-            long seqNo = operation.seqNo();
-            long primaryTerm = operation.primaryTerm();
-            if (primaryTerm < belowTerm && seqNo > aboveSeqNo) {
-                throw new AssertionError("current should not have any operations with seq#:primaryTerm ["
-                    + seqNo + ":" + primaryTerm + "] > " + aboveSeqNo + ":" + belowTerm);
-            }
-        }
+    synchronized boolean assertNoSeqAbove(long belowTerm, long aboveSeqNo) {
+        seenSequenceNumbers.entrySet().stream().filter(e -> e.getKey().longValue() > aboveSeqNo)
+            .forEach(e -> {
+                final Translog.Operation op;
+                try {
+                    op = Translog.readOperation(new BufferedChecksumStreamInput(e.getValue().v1().streamInput()));
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+                long seqNo = op.seqNo();
+                long primaryTerm = op.primaryTerm();
+                if (primaryTerm < belowTerm) {
+                    throw new AssertionError("current should not have any operations with seq#:primaryTerm ["
+                        + seqNo + ":" + primaryTerm + "] > " + aboveSeqNo + ":" + belowTerm);
+                }
+            });
         return true;
     }
 

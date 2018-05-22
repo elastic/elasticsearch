@@ -121,11 +121,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.stub;
 
@@ -1531,7 +1531,13 @@ public class TranslogTests extends ESTestCase {
                     is("current should not have any operations with seq#:primaryTerm [1:" + (pt - 1) + "] > 0:" + pt));
             }
 
+            primaryTerm.incrementAndGet();
             anotherTranslog.rollGeneration();
+
+            // add a single operation to current with seq# > trimmed seq# but higher primary term
+            Translog.Index operation = new Translog.Index("test", "" + 1, 1L, primaryTerm.get(),
+                randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8"));
+            anotherTranslog.add(operation);
 
             // it is possible to trim after generation rollover
             anotherTranslog.trimOperations(pt, 0);
@@ -1636,7 +1642,7 @@ public class TranslogTests extends ESTestCase {
         final Translog failableTLog =
             getFailableTranslog(fail, config, randomBoolean(), false, null, createTranslogDeletionPolicy(), fileChannels);
 
-        Throwable expectedException = null;
+        IOException expectedException = null;
         int translogOperations = 0;
         final int maxAttempts = 10;
         for(int attempt = 0; attempt < maxAttempts; attempt++) {
@@ -1670,16 +1676,13 @@ public class TranslogTests extends ESTestCase {
             fail.failRate(attempt < maxAttempts - 1 ? 25 : 100);
             try {
                 failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
-            } catch (TranslogException e) {
-                expectedException = e.getCause();
-                break;
-            } catch (IOException e) {
+            } catch (IOException e){
                 expectedException = e;
                 break;
             }
         }
 
-        assertThat(expectedException, instanceOf(IOException.class));
+        assertThat(expectedException, is(not(nullValue())));
 
         assertThat(fileChannels, is(not(empty())));
         assertThat("all file channels have to be closed",

@@ -312,16 +312,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void close() throws IOException {
-        close(true);
-    }
-
-    private void close(boolean force) throws IOException {
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 try {
-                    if (force || current.isClosed() == false) {
-                        current.sync();
-                    }
+                    current.sync();
                 } finally {
                     closeFilesIfNoPendingRetentionLocks();
                 }
@@ -715,12 +709,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new IllegalArgumentException("Trimming the translog can only be done for terms lower than the current one. " +
                     "Trim requested for term [ " + belowTerm + " ] , current is [ " + current.getPrimaryTerm() + " ]");
             }
+            // assume that there are no any trimmable ops in current
+            assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
-                // assume that there are no any trimmable ops in current
-                assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
-
                 for (TranslogReader reader : readers) {
                     final TranslogReader newReader =
                         reader.getPrimaryTerm() < belowTerm
@@ -728,9 +721,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             : reader;
                     newReaders.add(newReader);
                 }
-            } catch (Exception e){
+            } catch (IOException e) {
                 IOUtils.closeWhileHandlingException(newReaders);
-                close(false);
+                close();
                 throw e;
             }
 

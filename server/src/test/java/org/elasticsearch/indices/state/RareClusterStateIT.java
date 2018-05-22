@@ -181,6 +181,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
         logger.info("--> letting cluster proceed");
         disruption.stopDisrupting();
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
+        // due to publish_timeout of 0, wait for data node to have cluster state fully applied
+        assertBusy(() -> {
+                long masterClusterStateVersion = internalCluster().clusterService(internalCluster().getMasterName()).state().version();
+                long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
+                assertThat(masterClusterStateVersion, equalTo(dataClusterStateVersion));
+            });
         assertHitCount(client().prepareSearch("test").get(), 0);
     }
 

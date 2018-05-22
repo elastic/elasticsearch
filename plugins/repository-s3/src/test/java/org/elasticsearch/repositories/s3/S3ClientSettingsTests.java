@@ -74,32 +74,26 @@ public class S3ClientSettingsTests extends ESTestCase {
     }
 
     public void testRejectionOfLoneAccessKey() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.access_key", "aws_key");
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> {
-                final MockSecureSettings secureSettings = new MockSecureSettings();
-                secureSettings.setString("s3.client.default.access_key", "aws_key");
-                S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
-            });
+            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build()));
         assertThat(e.getMessage(), is("Missing secret key for s3 client [default]"));
     }
 
     public void testRejectionOfLoneSecretKey() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.secret_key", "aws_key");
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> {
-                final MockSecureSettings secureSettings = new MockSecureSettings();
-                secureSettings.setString("s3.client.default.secret_key", "aws_key");
-                S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
-            });
+            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build()));
         assertThat(e.getMessage(), is("Missing access key for s3 client [default]"));
     }
 
     public void testRejectionOfLoneSessionToken() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.session_token", "aws_key");
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> {
-                final MockSecureSettings secureSettings = new MockSecureSettings();
-                secureSettings.setString("s3.client.default.session_token", "aws_key");
-                S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
-            });
+            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build()));
         assertThat(e.getMessage(), is("Missing access key and secret key for s3 client [default]"));
     }
 

@@ -61,11 +61,14 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -959,6 +962,21 @@ public abstract class StreamInput extends InputStream {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
         return values[ordinal];
+    }
+
+    /**
+     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     */
+    public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+             return EnumSet.noneOf(enumClass);
+        }
+        Set<E> enums = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            enums.add(readEnum(enumClass));
+        }
+        return EnumSet.copyOf(enums);
     }
 
     public static StreamInput wrap(byte[] bytes) {

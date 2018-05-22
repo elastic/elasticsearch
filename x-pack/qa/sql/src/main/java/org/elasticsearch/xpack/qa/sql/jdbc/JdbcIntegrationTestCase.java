@@ -9,6 +9,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -85,16 +86,18 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        Request request = new Request("PUT", "/" + index + "/doc/1");
+        request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
-        HttpEntity doc = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/" + index + "/doc/1", singletonMap("refresh", "true"), doc);
+        request.setJsonEntity(Strings.toString(builder));
+        client().performRequest(request);
     }
 
     protected String clusterName() {
         try {
-            String response = EntityUtils.toString(client().performRequest("GET", "/").getEntity());
+            String response = EntityUtils.toString(client().performRequest(new Request("GET", "/")).getEntity());
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false).get("cluster_name").toString();
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -25,7 +25,7 @@ PUT twitter
 }
 --------------------------------------------------
 // CONSOLE
-<1> Default for `number_of_shards` is 5
+<1> Default for `number_of_shards` is 1
 <2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
 
 The above second curl example shows how an index called `twitter` can be

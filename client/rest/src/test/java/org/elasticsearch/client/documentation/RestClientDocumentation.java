@@ -27,9 +27,7 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
@@ -52,8 +50,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
-import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -176,9 +172,8 @@ public class RestClientDocumentation {
             request.setJsonEntity("{\"json\":\"text\"}");
             //end::rest-client-body-shorter
             //tag::rest-client-headers
-            request.setHeaders(
-                    new BasicHeader("Accept", "text/plain"),
-                    new BasicHeader("Cache-Control", "no-cache"));
+            request.addHeader("Accept", "text/plain");
+            request.addHeader("Cache-Control", "no-cache");
             //end::rest-client-headers
             //tag::rest-client-response-consumer
             request.setHttpAsyncResponseConsumerFactory(

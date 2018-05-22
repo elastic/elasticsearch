@@ -21,6 +21,8 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -230,6 +232,66 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             // tag::get-repository-execute-async
             client.snapshot().getRepositoriesAsync(request, listener); // <1>
             // end::get-repository-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSnapshotDeleteRepository() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        createTestRepositories();
+
+        // tag::delete-repository-request
+        DeleteRepositoryRequest request = new DeleteRepositoryRequest(repositoryName);
+        // end::delete-repository-request
+
+        // tag::delete-repository-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::delete-repository-request-masterTimeout
+        // tag::delete-repository-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.timeout("1m"); // <2>
+        // end::delete-repository-request-timeout
+
+        // tag::delete-repository-execute
+        DeleteRepositoryResponse response = client.snapshot().deleteRepository(request);
+        // end::delete-repository-execute
+
+        // tag::delete-repository-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::delete-repository-response
+        assertTrue(acknowledged);
+    }
+
+    public void testSnapshotDeleteRepositoryAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            DeleteRepositoryRequest request = new DeleteRepositoryRequest();
+
+            // tag::delete-repository-execute-listener
+            ActionListener<DeleteRepositoryResponse> listener =
+                new ActionListener<DeleteRepositoryResponse>() {
+                    @Override
+                    public void onResponse(DeleteRepositoryResponse deleteRepositoryResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-repository-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-repository-execute-async
+            client.snapshot().deleteRepositoryAsync(request, listener); // <1>
+            // end::delete-repository-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

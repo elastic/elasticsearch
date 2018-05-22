@@ -443,7 +443,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Should leading wildcards be allowed or not. Defaults to <tt>true</tt>.
+     * Should leading wildcards be allowed or not. Defaults to {@code true}.
      */
     public QueryStringQueryBuilder allowLeadingWildcard(Boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
@@ -455,8 +455,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable position increments in result query. Defaults to
-     * <tt>true</tt>.
+     * Set to {@code true} to enable position increments in result query. Defaults to
+     * {@code true}.
      * <p>
      * When set, result phrase and multi-phrase queries will be aware of position increments.
      * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
@@ -531,7 +531,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable analysis on wildcard and prefix queries.
+     * Set to {@code true} to enable analysis on wildcard and prefix queries.
      */
     public QueryStringQueryBuilder analyzeWildcard(Boolean analyzeWildcard) {
         this.analyzeWildcard = analyzeWildcard;
@@ -602,7 +602,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable escaping of the query string
+     * Set to {@code true} to enable escaping of the query string
      */
     public QueryStringQueryBuilder escape(boolean escape) {
         this.escape = escape;
@@ -636,7 +636,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to <tt>true</tt>.
+     * Defaults to {@code true}.
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return autoGenerateSynonymsPhraseQuery;

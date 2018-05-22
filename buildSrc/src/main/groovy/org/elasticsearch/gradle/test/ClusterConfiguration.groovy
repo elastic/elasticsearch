@@ -64,7 +64,7 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
+     * Configuration of the setting {@code discovery.zen.minimum_master_nodes} on the nodes.
      * In case of more than one node, this defaults to the number of nodes
      */
     @Input
@@ -147,7 +147,7 @@ class ClusterConfiguration {
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
-    LinkedHashMap<String, Project> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
 
     List<Project> modules = new ArrayList<>()
 
@@ -183,6 +183,11 @@ class ClusterConfiguration {
     void plugin(String path) {
         Project pluginProject = project.project(path)
         plugins.put(pluginProject.name, pluginProject)
+    }
+
+    @Input
+    void mavenPlugin(String name, String mavenCoords) {
+        plugins.put(name, mavenCoords)
     }
 
     /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */

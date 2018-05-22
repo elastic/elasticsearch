@@ -38,11 +38,6 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
     void pauseExecution();
 
     /**
-     * Returns the number of active jobs currently in this trigger engine implementation
-     */
-    int getJobCount();
-
-    /**
      * Removes the job associated with the given name from this trigger engine.
      *
      * @param jobId   The name of the job to remove

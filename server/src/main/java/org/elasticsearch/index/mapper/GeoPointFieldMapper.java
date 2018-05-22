@@ -299,13 +299,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 if (token == XContentParser.Token.START_ARRAY) {
                     // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
                     while (token != XContentParser.Token.END_ARRAY) {
-                        try {
-                            parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse));
-                        } catch (ElasticsearchParseException e) {
-                            if (ignoreMalformed.value() == false) {
-                                throw e;
-                            }
-                        }
+                        parseGeoPointIgnoringMalformed(context, sparse);
                         token = context.parser().nextToken();
                     }
                 } else {
@@ -325,39 +319,55 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                     } else {
                         while (token != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
-                                parse(context, sparse.resetFromString(context.parser().text(), ignoreZValue.value()));
+                                parseGeoPointStringIgnoringMalformed(context, sparse);
                             } else {
-                                try {
-                                    parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse));
-                                } catch (ElasticsearchParseException e) {
-                                    if (ignoreMalformed.value() == false) {
-                                        throw e;
-                                    }
-                                }
+                                parseGeoPointIgnoringMalformed(context, sparse);
                             }
                             token = context.parser().nextToken();
                         }
                     }
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                parse(context, sparse.resetFromString(context.parser().text(), ignoreZValue.value()));
+                parseGeoPointStringIgnoringMalformed(context, sparse);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 if (fieldType.nullValue() != null) {
                     parse(context, (GeoPoint) fieldType.nullValue());
                 }
             } else {
-                try {
-                    parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse));
-                } catch (ElasticsearchParseException e) {
-                    if (ignoreMalformed.value() == false) {
-                        throw e;
-                    }
-                }
+                 parseGeoPointIgnoringMalformed(context, sparse);
             }
         }
 
         context.path().remove();
         return null;
+    }
+
+    /**
+     * Parses geopoint represented as an object or an array, ignores malformed geopoints if needed
+     */
+    private void parseGeoPointIgnoringMalformed(ParseContext context, GeoPoint sparse) throws IOException {
+        try {
+            parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse));
+        } catch (ElasticsearchParseException e) {
+            if (ignoreMalformed.value() == false) {
+                throw e;
+            }
+            context.addIgnoredField(fieldType.name());
+        }
+    }
+
+    /**
+     * Parses geopoint represented as a string and ignores malformed geopoints if needed
+     */
+    private void parseGeoPointStringIgnoringMalformed(ParseContext context, GeoPoint sparse) throws IOException {
+        try {
+            parse(context, sparse.resetFromString(context.parser().text(), ignoreZValue.value()));
+        } catch (ElasticsearchParseException e) {
+            if (ignoreMalformed.value() == false) {
+                throw e;
+            }
+            context.addIgnoredField(fieldType.name());
+        }
     }
 
     @Override

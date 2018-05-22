@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.test.NodeInfo
 
 import javax.net.ssl.HttpsURLConnection
@@ -17,7 +18,7 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'runtime')
 }
 
-String outputDir = "generated-resources/${project.name}"
+String outputDir = "${buildDir}/generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties
@@ -103,7 +104,7 @@ task exportNodeCertificate(type: LoggedExec) {
 
 // Import the node certificate in the client's keystore
 task importNodeCertificateInClientKeyStore(type: LoggedExec) {
-  dependsOn exportNodeCertificate
+  dependsOn createClientKeyStore, exportNodeCertificate
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-node',
@@ -135,7 +136,7 @@ task exportClientCertificate(type: LoggedExec) {
 
 // Import the client certificate in the node's keystore
 task importClientCertificateInNodeKeyStore(type: LoggedExec) {
-  dependsOn exportClientCertificate
+  dependsOn createNodeKeyStore, exportClientCertificate
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-client',
@@ -151,18 +152,14 @@ forbiddenPatterns {
 
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(
-        createNodeKeyStore, createClientKeyStore,
-        importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore
-)
+processTestResources.dependsOn(importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore)
 
 integTestCluster.dependsOn(importClientCertificateInNodeKeyStore, importNodeCertificateInClientKeyStore)
 
-
 ext.pluginsCount = 0
-project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
   // need to get a non-decorated project object, so must re-lookup the project by path
-  integTestCluster.plugin(subproj.path)
+  integTestCluster.plugin(pluginProject.path)
   pluginsCount += 1
 }
 
@@ -176,6 +173,7 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
   setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
 
+  setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name

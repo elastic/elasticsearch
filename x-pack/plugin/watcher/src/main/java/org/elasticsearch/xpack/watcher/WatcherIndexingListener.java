@@ -123,10 +123,10 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
                 if (shouldBeTriggered) {
                     if (watch.status().state().isActive()) {
-                        logger.debug("adding watch [{}] to trigger", watch.id());
+                        logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
                     } else {
-                        logger.debug("removing watch [{}] to trigger", watch.id());
+                        logger.debug("removing watch [{}] to trigger service", watch.id());
                         triggerService.remove(watch.id());
                     }
                 } else {

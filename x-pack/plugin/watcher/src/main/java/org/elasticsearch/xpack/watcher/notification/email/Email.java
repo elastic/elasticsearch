@@ -354,7 +354,7 @@ public class Email implements ToXContentObject {
          * after this is called is incorrect.
          */
         public Email build() {
-            assert id != null : "email id should not be null (should be set to the watch id";
+            assert id != null : "email id should not be null";
             Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody,
                     unmodifiableMap(attachments));
             attachments = null;

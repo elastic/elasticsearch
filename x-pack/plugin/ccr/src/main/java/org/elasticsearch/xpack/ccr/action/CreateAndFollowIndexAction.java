@@ -234,6 +234,8 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     }
                 },
                 listener::onFailure);
+            // Can't use create index api here, because then index templates can alter the mappings / settings.
+            // And index templates could introduce settings / mappings that are incompatible with the leader index.
             clusterService.submitStateUpdateTask("follow_index_action", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
 
                 @Override
@@ -249,26 +251,21 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     }
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                    if (request.getFollowRequest().getFollowIndex() != null) {
-                        IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndexMetaData);
-
-                        Settings.Builder settingsBuilder = Settings.builder();
-                        settingsBuilder.put(leaderIndexMetaData.getSettings());
-                        // TODO: do we want leader and follow index to have the same UUID?
-                        // (Overwriting UUID here, because otherwise we can't follow indices in the same cluster)
-                        settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-                        settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowIndex());
-                        settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-
-                        imdBuilder.settings(settingsBuilder);
-                        imdBuilder.index(request.getFollowRequest().getFollowIndex());
-                        for (int shardId = 0 ; shardId < leaderIndexMetaData.getNumberOfShards(); shardId++) {
-                            imdBuilder.putInSyncAllocationIds(shardId, new HashSet<>());
-                        }
-                        mdBuilder.put(imdBuilder.build(), false);
-                    } else {
-                        mdBuilder.put(leaderIndexMetaData, false);
+                    IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndexMetaData);
+    
+                    Settings.Builder settingsBuilder = Settings.builder();
+                    settingsBuilder.put(leaderIndexMetaData.getSettings());
+                    // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
+                    settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+                    settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowIndex());
+                    settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+    
+                    imdBuilder.settings(settingsBuilder);
+                    imdBuilder.index(request.getFollowRequest().getFollowIndex());
+                    for (int shardId = 0 ; shardId < leaderIndexMetaData.getNumberOfShards(); shardId++) {
+                        imdBuilder.putInSyncAllocationIds(shardId, new HashSet<>());
                     }
+                    mdBuilder.put(imdBuilder.build(), false);
 
                     ClusterState.Builder builder = ClusterState.builder(currentState);
                     builder.metaData(mdBuilder.build());

@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -178,7 +177,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
 
-        unFollowIndex("index2");
+        unfollowIndex("index2");
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
@@ -200,7 +199,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
-        unFollowIndex("index2");
+        unfollowIndex("index2");
     }
 
     public void testFollowIndexWithNestedField() throws Exception {
@@ -318,7 +317,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         };
     }
 
-    private void unFollowIndex(String index) throws Exception {
+    private void unfollowIndex(String index) throws Exception {
         final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
         unfollowRequest.setFollowIndex(index);
         client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();

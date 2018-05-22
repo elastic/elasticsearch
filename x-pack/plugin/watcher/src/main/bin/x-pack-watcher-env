@@ -4,7 +4,5 @@
 # or more contributor license agreements. Licensed under the Elastic License;
 # you may not use this file except in compliance with the Elastic License.
 
-source "`dirname "$0"`"/x-pack-env
-
 # include x-pack-security jars in classpath
 ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/modules/x-pack-watcher/*"

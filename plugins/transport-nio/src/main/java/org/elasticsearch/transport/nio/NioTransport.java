@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -105,9 +106,10 @@ public class NioTransport extends TcpTransport {
             if (useNetworkServer) {
                 acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
             }
-            nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                NioTransport.NIO_WORKER_COUNT.get(settings), SocketEventHandler::new);
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+                (s) -> new AcceptorEventHandler(s, this::onNonChannelException),
+                daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), NioTransport.NIO_WORKER_COUNT.get(settings),
+                () -> new SocketEventHandler(this::onNonChannelException));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = channelFactory(clientProfileSettings, true);
@@ -193,8 +195,10 @@ public class NioTransport extends TcpTransport {
         @Override
         public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, NioTransport.this::acceptChannel,
-                (e) -> {});
+            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
+                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            Consumer<NioSocketChannel> acceptor = NioTransport.this::acceptChannel;
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }

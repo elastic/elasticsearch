@@ -536,8 +536,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 listener.onSuccess(source);
             } catch (Exception e) {
                 logger.error(new ParameterizedMessage(
-                    "exception thrown by listener while notifying of cluster state processed from [{}]",
-                    source), e);
+                    "exception thrown by listener while notifying of cluster state processed from [{}]", source), e);
             }
         }
     }

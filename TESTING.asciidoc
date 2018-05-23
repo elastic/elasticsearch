@@ -25,6 +25,46 @@ run it using Gradle:
 ./gradlew run
 -------------------------------------
 
+==== Launching and debugging from an IDE
+
+If you want to run Elasticsearch from your IDE, the `./gradlew run` task
+supports a remote debugging option:
+
+---------------------------------------------------------------------------
+./gradlew run --debug-jvm
+---------------------------------------------------------------------------
+
+==== Distribution
+
+By default a node is started with the zip distribution.
+In order to start with a different distribution use the `-Drun.distribution` argument.
+
+To for example start the open source distribution:
+
+-------------------------------------
+./gradlew run -Drun.distribution=oss-zip
+-------------------------------------
+
+==== License type
+
+By default a node is started with the `basic` license type.
+In order to start with a different license type use the `-Drun.license_type` argument.
+
+In order to start a node with a trial license execute the following command:
+
+-------------------------------------
+./gradlew run -Drun.license_type=trial
+-------------------------------------
+
+This enables security and other paid features and adds a superuser with the username: `elastic-admin` and
+password: `elastic-password`.
+
+==== Other useful arguments
+
+In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
+In order to disable annotations add: `-Dtests.asserts=false`
+In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
+
 === Test case filtering.
 
 - `tests.class` is a class-filtering shell-like glob pattern,
@@ -339,7 +379,7 @@ You can choose which boxes to test by setting the `-Pvagrant.boxes` project prop
 the valid options for this property are:
 
 * `sample` - The default, only chooses ubuntu-1404 and centos-7
-* List of box names, comma separated (e.g. `oel-7,fedora-26`) - Chooses exactly the boxes listed.
+* List of box names, comma separated (e.g. `oel-7,fedora-28`) - Chooses exactly the boxes listed.
 * `linux-all` - All linux boxes.
 * `windows-all` - All Windows boxes. If there are any Windows boxes which do not
 have images available when this value is provided, the build will fail.
@@ -366,8 +406,8 @@ These are the linux flavors supported, all of which we provide images for
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-26
 * fedora-27
+* fedora-28
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
@@ -591,15 +631,6 @@ Test coverage reporting used to be possible with JaCoCo when Elasticsearch was u
 as its build system. Since the switch to Gradle though, this is no longer possible, seeing as
 the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
 For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
-
-== Launching and debugging from an IDE
-
-If you want to run Elasticsearch from your IDE, the `./gradlew run` task
-supports a remote debugging option:
-
----------------------------------------------------------------------------
-./gradlew run --debug-jvm
----------------------------------------------------------------------------
 
 == Debugging remotely from an IDE
 

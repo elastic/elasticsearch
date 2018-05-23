@@ -97,15 +97,15 @@ Vagrant.configure(2) do |config|
       rpm_common config, box
     end
   end
-  'fedora-26'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-26-x86_64'
-      dnf_common config, box
-    end
-  end
   'fedora-27'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-27-x86_64'
+      dnf_common config, box
+    end
+  end
+  'fedora-28'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
     end
   end

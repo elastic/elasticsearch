@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -71,6 +72,8 @@ import static org.hamcrest.Matchers.not;
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class InternalTestClusterTests extends ESTestCase {
+
+    private static final Setting<?>[] DEPRECATED_SETTINGS = {NetworkModule.HTTP_ENABLED, HttpTransportSettings.SETTING_PIPELINING};
 
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
@@ -233,7 +236,7 @@ public class InternalTestClusterTests extends ESTestCase {
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             if (cluster0.getNodeNames().length > 0) {
                 shouldAssertSettingsDeprecationsAndWarnings = true;
-                assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
+                assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
             }
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
             for (Client client : cluster0.getClients()) {
@@ -248,7 +251,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             IOUtils.close(cluster0, cluster1);
             if (shouldAssertSettingsDeprecationsAndWarnings) {
-                assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
+                assertSettingDeprecationsAndWarnings(new Setting<?>[] {NetworkModule.HTTP_ENABLED});
             }
         }
     }
@@ -355,7 +358,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
+        assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
     }
 
     private Path[] getNodePaths(InternalTestCluster cluster, String name) {
@@ -456,7 +459,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
+        assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
     }
 
     public void testTwoNodeCluster() throws Exception {
@@ -518,7 +521,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
+        assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
     }
 
     /**

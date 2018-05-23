@@ -214,7 +214,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             mockPlugins.add(getTestTransportPlugin());
         }
         remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, true, numNodes, numNodes, cluster2Name,
-                cluster2SettingsSource, 0, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
+                cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
                 useSecurity ? getClientWrapper() : Function.identity());
         remoteCluster.beforeTest(random(), 0.5);
 

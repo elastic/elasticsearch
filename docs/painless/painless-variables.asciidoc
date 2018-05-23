@@ -12,10 +12,10 @@ followed by <<painless-identifiers, identifier>>. Declare an
 <<array-type, array type>> variable using an opening `[` token and a closing `]`
 token for each dimension directly after the identifier. Specify a
 comma-separated list of identifiers following the type to declare multiple
-variables in a single statement. Use an <<assignment, assignment operator>>
-combined with a declaration to immediately assign a value to a variable.
-A variable not immediately assigned a value will have a default value assigned
-implicitly based on the type.
+variables in a single statement. Use an
+<<variable-assignment, assignment operator>> combined with a declaration to
+immediately assign a value to a variable. A variable not immediately assigned a
+value will have a default value assigned implicitly based on the type.
 
 *Errors*
 
@@ -63,7 +63,7 @@ assignment: '=' expression;
 <7> declare `Map[][] m`;
     assign default `null` to `m`
 
-[[assignment]]
+[[variable-assignment]]
 ==== Assignment
 
 Use the *assignment operator* to store a value in a variable. Any operation

@@ -1,4 +1,516 @@
 [[painless-operators-boolean]]
 === Operators: Boolean
 
-test
+[[boolean-not]]
+==== Boolean Not
+
+Boolean not will flip a boolean value from true to false or false to true using the bang operator.  The format is a bang operator followed by an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+boolean_not: '!' expression;
+----
+
+Note that def types will be assumed to be of the boolean type.  Any def type evaluated at run-time that does not represent a boolean will result in an error.  Non-boolean expressions will result in an error.
+
+*Examples:*
+[source,Java]
+----
+boolean x = !false; // declares the boolean variable x and sets it to the opposite of the false value
+boolean y = !x;     // declares the boolean variable y and sets it to the opposite of the boolean variable x
+def z = !y;         // declares the def variable z and sets it to the opposite of the boolean variable y
+----
+
+[[greater-than]]
+==== Greater Than
+
+Greater than compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a larger value than the right-side expression otherwise false.  The format is an expression, followed by the right angle operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+greater_than: expression '>' expression;
+----
+
+A numeric promotion may occur during a greater than operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean x = 5 > 4; // declares the int variable x and sets it to the result of 5 greater than 4
+double y = 7.0;    // declares the double variable y and sets it to the double constant 7.0
+def z = y > 6.5;   // declares the def variable z and sets it to the result of y greater than 6.5
+def a = y > x;     // declares the def variable a and sets it to the result of y greater than z (x is promoted to double at compile-time)
+----
+
+[[greater-than-or-equal]]
+==== Greater Than Or Equal
+
+Greater than or equal compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a larger value than or equal to the right-side expression otherwise false.  The format is an expression, followed by the right angle and equals operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+greater_than_or_equal: expression '>=' expression;
+----
+
+A numeric promotion may occur during a greater than or equal operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean x = 5 >= 4; // declares the int variable x and sets it to the result of 5 greater than or equal to 4
+double y = 7.0;     // declares the double variable y and sets it to the double constant 7.0
+def z = y >= 6.5;   // declares the def variable z and sets it to the result of y greater than or equal to 6.5
+def a = y >= x;     // declares the def variable a and sets it to the result of y greater than or equal to z (x is promoted to double at compile-time)
+----
+
+[[less-than]]
+==== Less Than
+
+Less than compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a smaller value than the right-side expression otherwise false.  The format is an expression, followed by the left angle operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+less_than: expression '<' expression;
+----
+
+A numeric promotion may occur during a less than operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean x = 5 < 4; // declares the int variable x and sets it to the result of 5 less than 4
+double y = 7.0;    // declares the double variable y and sets it to the double constant 7.0
+def z = y < 6.5;   // declares the def variable z and sets it to the result of y less than 6.5
+def a = y < x;     // declares the def variable a and sets it to the result of y less than z (x is promoted to double at compile-time)
+----
+
+[[less-than-or-equal]]
+==== Less Than Or Equal
+
+Less than or equal compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a larger value than or equal to the right-side expression otherwise false.  The format is an expression, followed by the left angle and equals operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+less_than_or_equal: expression '<=' expression;
+----
+
+A numeric promotion may occur during a less than or equal operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean x = 5 <= 4; // declares the int variable x and sets it to the result of 5 less than or equal to 4
+double y = 7.0;     // declares the double variable y and sets it to the double constant 7.0
+def z = y <= 6.5;   // declares the def variable z and sets it to the result of y less than or equal to 6.5
+def a = y <= x;     // declares the def variable a and sets it to the result of y less than or equal to z (x is promoted to double at compile-time)
+----
+
+[[instance-of]]
+==== Instance Of
+
+The instanceof operator can be used to compare a variable's type to a specified reference type where a resultant boolean value is true if the variable type is the same as or a descendant of the specified reference type and false otherwise.  The format is an id, followed by the instanceof operator, and finished with a type.
+
+*Grammar:*
+[source,ANTLR4]
+----
+instance_of: ID 'instanceof' TYPE;
+----
+
+*Examples:*
+[source,Java]
+----
+Map x = new HashMap();            // declares the Map variable x and sets it to a newly allocated HashMap
+List y = new ArrayList();         // declares the List variable y and sets it to a newly allocated ArrayList
+def z = y;                        // declares the def variable z and sets it to y
+boolean a = x instanceof HashMap; // declares the boolean variable a and sets it to true since x's type is the same type as HashMap
+boolean b = y instanceof Map;     // declares the boolean variable b and sets it to false since y's type is not the same type as Map or a descendant of Map
+boolean c = z instanceof List;    // declares the boolean variable c and sets it to true since z's type is a descendant of the type List
+----
+
+[[equality-equals]]
+==== Equality Equals
+
+Equality equals compares two expressions where a resultant boolean value is true if the two expressions are equal and false otherwise.  When reference types are compared using this operator the equivalent of the equals member method will be called against the first expression, where the second expression is the argument.  Though the equals member method is used for reference types, this operation will always be null-safe.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the equals-equals operator, and finished with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+equality_equals: expression '==' expression;
+----
+
+A numeric type promotion may occur during a primitive numeric comparison.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean b0 = true;              // declares the boolean variable b0 and sets it the constant boolean true
+boolean b1 = false;             // declares the boolean variable b1 and sets it the constant boolean false
+int i = 2;                      // declares the int variable i and sets it the constant int 2
+float f = 2.0f;                 // declares the float variable f and sets it the constant float 2.0
+List l0 = new ArrayList();      // declares the List variable l0 and sets it to a newly allocated ArrayList
+ArrayList l1 = new ArrayList(); // declares the ArrayList variable l1 and sets it to a newly allocated ArrayList
+def di0 = 2;                    // declares the def variable di0 and sets it the constant int 2
+def di1 = 3;                    // declares the def variable di1 and sets it the constant int 3
+def dl = new ArrayList();       // declares the def variable dl and sets it to a newly allocated ArrayList
+boolean result;                 // declares the boolean variable result
+
+result = b0 == b1;              // compares b0 to b1 and has a boolean result of false
+result = i == f;                // compares i to f where i is promoted to float and has a boolean result of true
+result = b0 == i;               // ERROR: a comparison between a boolean and a primitive numeric type is illegal
+result = i == l0;               // ERROR: a comparison between a primitive numeric type and a reference type is illegal
+
+l0.add(1);                      // adds a constant int 1 to the List l0
+l1.add(1);                      // adds a constant int 1 to the ArrayList l1
+result = l0 == l1;              // compares l0 to l1 using l0.equals(l1) and has a boolean result of true
+l0.add(1);                      // adds a constant int 1 to the List l0
+result = l0 == l1;              // compares l0 to l1 using l0.equals(l1) and has a boolean result of false
+
+result = di0 == di1;            // compares di0 to di1 and has a boolean result of false
+result = di0 == i;              // compares di0 to i where i is promoted to def and has a boolean result of true
+
+dl.add(1);                      // adds a constant int 1 to the def ArrayList dl
+result = dl == l0;              // compares dl to l0 using dl.equals(l0) with a boolean result of true
+
+result = null == dl;            // compares null to dl with a boolean result of false
+result = l1 == null;            // compares l1 to null with a boolean result of false
+----
+
+[[equality-not-equals]]
+==== Equality Not Equals
+
+Equality not equals compares two expressions where a resultant boolean value is true if the two expressions are not equal and false otherwise.  When reference types are compared using this operator the equivalent of the equals member method will be called against the first expression, where the second expression is the argument, with the resultant boolean being reversed.  Though the equals member method is used for reference types, this operation will always be null-safe.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the bang-equals operator, and finished with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+equality_not_equals: expression '!=' expression;
+----
+
+A numeric type promotion may occur during a primitive numeric comparison.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean b0 = true;              // declares the boolean variable b0 and sets it the constant boolean true
+boolean b1 = false;             // declares the boolean variable b1 and sets it the constant boolean false
+int i = 2;                      // declares the int variable i and sets it the constant int 2
+float f = 2.0f;                 // declares the float variable f and sets it the constant float 2.0
+List l0 = new ArrayList();      // declares the List variable l0 and sets it to a newly allocated ArrayList
+ArrayList l1 = new ArrayList(); // declares the ArrayList variable l1 and sets it to a newly allocated ArrayList
+def di0 = 2;                    // declares the def variable di0 and sets it the constant int 2
+def di1 = 3;                    // declares the def variable di1 and sets it the constant int 3
+def dl = new ArrayList();       // declares the def variable dl and sets it to a newly allocated ArrayList
+boolean result;                 // declares the boolean variable result
+
+result = b0 != b1;              // compares b0 to b1 and has a boolean result of true
+result = i != f;                // compares i to f where i is promoted to float and has a boolean result of false
+result = b0 != i;               // ERROR: a comparison between a boolean and a primitive numeric type is illegal
+result = i != l0;               // ERROR: a comparison between a primitive numeric type and a reference type is illegal
+
+l0.add(1);                      // adds a constant int 1 to the List l0
+l1.add(1);                      // adds a constant int 1 to the ArrayList l1
+result = l0 != l1;              // compares l0 to l1 using l0.equals(l1) and has a boolean result of false
+l0.add(1);                      // adds a constant int 1 to the List l0
+result = l0 != l1;              // compares l0 to l1 using l0.equals(l1) and has a boolean result of true
+
+result = di0 != di1;            // compares di0 to di1 and has a boolean result of true
+result = di0 != i;              // compares di0 to i where i is promoted to def and has a boolean result of false
+
+dl.add(1);                      // adds a constant int 1 to the def ArrayList dl
+result = dl != l0;              // compares dl to l0 using dl.equals(l0) with a boolean result of false
+
+result = null != dl;            // compares null to dl with a boolean result of true
+result = l1 != null;            // compares null to l1 with a boolean result of true
+----
+
+[[identity-equals]]
+==== Identity Equals
+
+Identity equals compares two expressions where a resultant boolean value is true if the two expressions are equal and false otherwise.  Two primitive types are considered to be equal if they have the same value.  Two reference types are considered to be equal if they refer to the exact same instance in memory or are both null.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the equals-equals-equals operator, and finished with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+identity_equals: expression '===' expression;
+----
+
+A numeric type promotion may occur during a primitive numeric comparison.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean b0 = true;              // declares the boolean variable b0 and sets it the constant boolean true
+boolean b1 = false;             // declares the boolean variable b1 and sets it the constant boolean false
+int i = 2;                      // declares the int variable i and sets it the constant int 2
+float f = 2.0f;                 // declares the float variable f and sets it the constant float 2.0
+List l0 = new ArrayList();      // declares the List variable l0 and sets it to a newly allocated ArrayList
+ArrayList l1 = new ArrayList(); // declares the ArrayList variable l1 and sets it to a newly allocated ArrayList
+List l2 = l1;                   // declares the List variable l2 and sets it to l1
+def di0 = 2;                    // declares the def variable di0 and sets it the constant int 2
+def di1 = 3;                    // declares the def variable di1 and sets it the constant int 3
+def dl = l0;                    // declares the def variable dl and sets it to l0
+boolean result;                 // declares the boolean variable result
+
+result = b0 === b1;             // compares b0 to b1 and has a boolean result of false
+result = i === f;               // compares i to f where i is promoted to float and has a boolean result of true
+result = b0 === i;              // ERROR: a comparison between a boolean and a primitive numeric type is illegal
+result = i === l0;              // ERROR: a comparison between a primitive numeric type and a reference type is illegal
+
+l0.add(1);                      // adds a constant int 1 to the List l0
+l1.add(1);                      // adds a constant int 1 to the ArrayList l1
+result = l0 === l1;             // compares l0 to l1 and has a boolean result of false
+l0.add(1);                      // adds a constant int 1 to the List l0
+result = l0 === l1;             // compares l0 to l1 and has a boolean result of false
+result = l1 === l2;             // compares l1 to l2 and has a boolean result of true
+
+result = di0 === di1;           // compares di0 to di1 and has a boolean result of false
+result = di0 === i;             // compares di0 to i where i is promoted to def and has a boolean result of true
+
+result = dl === l0;             // compares dl to l0 with a boolean result of true
+
+result = null === dl;           // compares null to dl with a boolean result of false
+result = l1 === null;           // compares null to l1 with a boolean result of false
+----
+
+[[identity-not-equals]]
+==== Identity Not Equals
+
+Identity not equals compares two expressions where a resultant boolean value is true if the two expressions are not equal and false otherwise.  Two primitive types are considered to be not equal if they have different values.  Two reference types are considered to be not equal if they refer to the different instances in memory or one is null and the other is not.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the bang-equals-equals operator, and finished with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+identity_not_equals: expression '!==' expression;
+----
+
+A numeric type promotion may occur during a primitive numeric comparison.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean b0 = true;              // declares the boolean variable b0 and sets it the constant boolean true
+boolean b1 = false;             // declares the boolean variable b1 and sets it the constant boolean false
+int i = 2;                      // declares the int variable i and sets it the constant int 2
+float f = 2.0f;                 // declares the float variable f and sets it the constant float 2.0
+List l0 = new ArrayList();      // declares the List variable l0 and sets it to a newly allocated ArrayList
+ArrayList l1 = new ArrayList(); // declares the ArrayList variable l1 and sets it to a newly allocated ArrayList
+List l2 = l1;                   // declares the List variable l2 and sets it to l1
+def di0 = 2;                    // declares the def variable di0 and sets it the constant int 2
+def di1 = 3;                    // declares the def variable di1 and sets it the constant int 3
+def dl = l0;                    // declares the def variable dl and sets it to l0
+boolean result;                 // declares the boolean variable result
+
+result = b0 !== b1;             // compares b0 to b1 and has a boolean result of true
+result = i !== f;               // compares i to f where i is promoted to float and has a boolean result of false
+result = b0 !== i;              // ERROR: a comparison between a boolean and a primitive numeric type is illegal
+result = i !== l0;              // ERROR: a comparison between a primitive numeric type and a reference type is illegal
+
+l0.add(1);                      // adds a constant int 1 to the List l0
+l1.add(1);                      // adds a constant int 1 to the ArrayList l1
+result = l0 !== l1;             // compares l0 to l1 and has a boolean result of true
+l0.add(1);                      // adds a constant int 1 to the List l0
+result = l0 !== l1;             // compares l0 to l1 and has a boolean result of true
+result = l1 !== l2;             // compares l1 to l2 and has a boolean result of false
+
+result = di0 !== di1;           // compares di0 to di1 and has a boolean result of true
+result = di0 !== i;             // compares di0 to i where i is promoted to def and has a boolean result of false
+
+result = dl !== l0;             // compares dl to l0 with a boolean result of false
+
+result = null !== dl;           // compares null to dl with a boolean result of true
+result = l1 !== null;           // compares null to l1 with a boolean result of true
+----
+
+[[boolean-xor]]
+==== Boolean Xor
+
+Boolean xor will xor together two boolean expressions.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
+
+|====
+||true|false
+|true|false|true
+|false|true|false
+|====
+
+The format starts with an expression, follows with the carrot operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+boolean_xor: expression '^' expression;
+----
+
+Note that def types will be assumed to be of the boolean type.  Any def type evaluated at run-time that does not represent a boolean will result in an error.  Non-boolean expressions will result in an error.
+
+*Examples:*
+[source,Java]
+----
+boolean x = false;    // declares the boolean variable x and sets the constant boolean false
+boolean y = x ^ true; // declares the boolean variable y and sets it the result of x xor true
+def z = y ^ x;        // declares the def variable z and sets it to the result of y xor x
+----
+
+[[boolean-and]]
+==== Boolean And
+
+Boolean and will and together two boolean expressions.  If the first expression is found to be false then it is known that the result will also be false, so evaluation of the second expression will be skipped.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
+
+||true|false
+|true|true|false
+|false|false|false
+
+The format starts with an expression, follows with the ampersand-ampersand operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+boolean_and: expression '&&' expression;
+----
+
+Note that def types will be assumed to be of the boolean type.  Any def type evaluated at run-time that does not represent a boolean will result in an error.  Non-boolean expressions will result in an error.
+
+*Examples:*
+[source,Java]
+----
+boolean x = false;     // declares the boolean variable x and sets the constant boolean false
+boolean y = x && true; // declares the boolean variable y and sets it the result of x and true
+def z = y && x;        // declares the def variable z and sets it to the result of y and x
+----
+
+[[boolean-or]]
+==== Boolean Or
+
+Boolean or will or together two boolean expressions.  If the first expression is found to be true then it is known that the result will also be true, so evaluation of the second expression will be skipped.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
+
+|====
+||true|false
+|true|true|true
+|false|true|false
+|====
+
+The format starts with an expression, follows with the pipe-pipe operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+boolean_and: expression '||' expression;
+----
+
+Note that def types will be assumed to be of the boolean type.  Any def type evaluated at run-time that does not represent a boolean will result in an error.  Non-boolean expressions will result in an error.
+
+*Examples:*
+[source,Java]
+----
+boolean x = false;     // declares the boolean variable x and sets the constant boolean false
+boolean y = x || true; // declares the boolean variable y and sets it the result of x or true
+def z = y || x;        // declares the def variable z and sets it to the result of y or x
+----

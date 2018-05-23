@@ -3,7 +3,7 @@
 
 Use an identifier as a named token to specify a
 <<painless-variables, variable>>, <<painless-types, type>>,
-<<dot-operator, field>>, <<dot-operator, method>>, or function.
+<<field-access, field>>, <<method-call, method>>, or function.
 <<painless-keywords, Keywords>> cannot be used as identifiers.
 
 *Grammar*

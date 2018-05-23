@@ -1,4 +1,321 @@
 [[painless-operators-reference]]
-=== Operators: Reference Type
+=== Operators: Reference
 
-test
+[[method-call]]
+==== Method Call
+
+You call reference type methods using the dot operator and the method id:
+`.method_id(arg1,...,argn)`. The parentheses are required even if there are no
+arguments.
+
+If the reference type is not type `def`, the argument types for the method
+can be resolved at compile time. An error occurs if appropriate type
+conversions (casting) cannot be performed. If the reference type is type `def`, the argument types for the method are all considered to be the type `def`. The
+appropriate type conversions are performed at run-time.
+
+Automatic <<boxing-unboxing,boxing and unboxing>> is performed when you pass in
+arguments to a method.
+
+Method calls can be overloaded based on arity in Painless. The same method
+name can be re-used for different methods as long as the number of arguments
+differs. This differs from Java method overloading, where only the types must
+differ. This has an effect on some of the provided reference type methods in
+the <<painless-api-reference,Painless API>>. Where there are overloaded methods with
+the same arity for a reference type in Java, Painless chooses a single method
+to be provided.
+
+*Grammar:*
+[source,ANTLR4]
+----
+method_call: ID '.' ID '(' (expression (',' expression)*)? ')';
+----
+
+*Examples:*
+[source,Java]
+----
+Map m = new HashMap();         // Declare Map variable m and set it a newly
+                               //   allocated HashMap
+x.put(1, 2);                   // Call the put method on variable x to add key 1
+                               //   with the value 2 to the Map
+int z = x.get(1);              // Declare int variable z, call the get method to
+                               //   retrieve the value of key 1, and assign the
+                               //   return value of the method call to variable z
+def d = new ArrayList();       // Declare def variable m and set it a newly
+                               //   allocated ArrayList
+d.add(1);                      // Call the add method on variable d and add the
+                               //   literal int 1 to the ArrayList. Note that
+                               //   the argument type is considered to be of
+                               //   type def since the reference type is also def
+int i = Integer.parseInt('2'); // Declare int variable i and set it to the
+                               //   value returned by the static method parseInt
+----
+
+**************************
+Painless describes the Map method arguments using the `def` type:
+
+[source,Java]
+----
+put(def, def)
+get(def)
+----
+
+When you call `x.put(1, 2)`, the key and value are implicitly converted from
+the int type to the def type.
+
+Assume for a minute that the Map method arguments were described as Integers:
+
+[source,Java]
+----
+put(Integer, Integer)
+get(Integer)
+----
+
+In this case, the key and value would implicitly be _boxed_ from the primitive
+int type to the Integer reference type. For more information about how Painless
+casts between primitive types and reference types, see <<boxing-unboxing, Boxing
+and Unboxing>>.
+**************************
+
+[[field-access]]
+==== Field Access
+You access primitive and reference type members in a reference type using the
+dot operator '.' followed by the id of the member. The accessed member behaves
+the same way as the type it represents with one exception: if the reference
+type is of type `def`, the member is also considered to be of type `def` and
+resolved at runtime.
+
+*Grammar:*
+[source,ANTLR4]
+----
+field_access: ID '.' ID;
+----
+
+*Examples:*
+[source,Java]
+----
+FeatureTest ft = new FeatureTest(); // Declare FeatureTest variable ft and
+                                    //   set it to a newly allocated FeatureTest
+ft.x = 5;                           // Access int member x from ft and assign
+                                    //   it the literal int value 5
+ft.y = ft.x;                        // Access int member y from ft and assign
+                                    //   it the value of ft member x
+int value = ft.x + ft.y;            // Declare variable value as an int,
+                                    //   add ft members x and y together,
+                                    //   assign the sum to the variable value
+----
+
+[[null-safe]]
+==== Null Safe
+
+The null safe operator `?.` can be used in place of the dot operator
+to check if a reference type instance is `null` before attempting to access
+a field or make a method call against it. When using the null safe operator,
+if the instance is `null`, the returned value is `null`. If the reference
+type instance is non-null, it returns the value of the field or result of
+the method call normally.
+
+// REVIEWER NOTE: The following paragraph doesn't make sense to me. Do you
+All resultant types must be a reference type or be able to be implicitly cast
+to a reference type or an error will occur.
+
+*Grammar:*
+[source,ANTLR4]
+----
+null_safe: null_safe_field_access
+         | null_safe_method_call;
+null_safe_field_access: ID '?.' ID;
+null_safe_method_call: ID '?.' ID '(' (expression (',' expression)*)? ')';
+----
+
+*Examples:*
+[source,Java]
+----
+Map x = new HashMap(); // Declare the Map variable x and set it to a newly
+                       //   allocated HashMap
+Map y = null;          // Declare the Map variable y and set it to null
+def z = new HashMap(); // Declares the def variable z and set it to a newly
+                       // allocated HashMap
+
+x.put(1, 2);           // Put the key-value pair 1 and 2 into x
+z.put(5, 6);           // Put the key-value pair 5 and 6 into z
+
+def value = x?.get(1); // Declare the def variable value and set it to the
+                       //   result of .get(1) since x is not null
+value = y?.get(3);     // Sets value to null since y is null
+value = z?.get(5);     // Sets value to the result of .get(5) since z is not null
+----
+
+[[list-initialization]]
+==== List Initialization
+
+You create and initialize lists using the brackets `[]` operator. The values
+you want to initialize the list with are specified as a comma-separated list
+of expressions enclosed in brackets. For example, `List l = [1, 2, 3]` creates
+a new three item list. Each expression used to initialize the list is converted
+a `def` type when the value is inserted into the list. The order of the
+expressions is maintained.
+
+*Grammar:*
+[source,ANTLR4]
+----
+list_initialization: '[' expression (',' expression)* ']'
+                   | '[' ']';
+----
+
+*Examples:*
+[source,Java]
+----
+List empty = [];          // declares the List variable empty and sets it to a newly initialized empty List
+List l0 = [1, 2, 3];      // declares the List variable l0 and sets it to a newly initialized List with the values 1, 2, and 3
+
+int i = 1;
+long l = 2L;
+float f = 3.0F;
+double d = 4.0;
+String s = "5";
+List l1 = [i, l, f*d, s]; // declares the List variable l1 and sets it to a newly initialized List with the values of i, l, and f*d and s
+----
+
+[[list-access]]
+==== List Access
+
+Elements in a List are stored or accessed using the brackets operator.  The format begins with an opening bracket, followed by an expression, and finishes with a closing bracket.  Storing elements in a List is equivalent to invoking a List's set method.  Accessing elements in a List is equivalent to invoking a List's get method.  Using this operator is strictly a shortcut for the previously mentioned methods.  The range of elements within a List that can be accessed is [0, size) where size is the number of elements currently in the List.  Elements may also be accessed from the last element in a List using a negative numeric value from [-size, -1].  The expression used to determine which element is accessed must be able to be implicitly cast to an int.  An error will occur if the expression is outside of the legal range or is not of type int.
+
+*Grammar:*
+[source,ANTLR4]
+----
+list_access: '[' expression ']'
+----
+
+*Examples:*
+[source,Java]
+----
+List x = new ArrayList(); // declares a List variable x and sets it to a newly allocated ArrayList
+x.add(1);                 // invokes the add method on the variable x and adds the constant int 1 to the List
+x.add(2);                 // invokes the add method on the variable x and adds the constant int 2 to the List
+x.add(3);                 // invokes the add method on the variable x and adds the constant int 3 to the List
+x[0] = 2;                 // sets the 0th element of the variable x to the constant int 2
+x[1] = 5;                 // sets the 1st element of the variable x to the constant int 2
+int y = x[0] + x[1];      // declares the int variable y and sets it to the sum of the first two elements of the variable x
+int z = 1;                // declares the int variable z and sets it to the constant int 1
+return x[z];              // accesses the 1st element of the variable x using the variable z as an expression and returns the value
+
+def d = new ArrayList(); // declares a def variable d and sets it to a newly allocated ArrayList
+d.add(1);                // invokes the add method on the variable d and adds the constant int 1 to the List
+d.add(2);                // invokes the add method on the variable d and adds the constant int 2 to the List
+d.add(3);                // invokes the add method on the variable d and adds the constant int 3 to the List
+d[0] = 2;                // sets the 0th element of the variable d to the constant int 2
+d[1] = 5;                // sets the 1st element of the variable d to the constant int 2
+def y = d[0] + d[1];     // declares the def variable y and sets it to the sum of the first two elements of the variable d
+def z = 1;               // declares the def variable z and sets it to the constant int 1
+return d[z];             // accesses the 1st element of the variable d using the variable z as an expression and returns the value
+----
+
+Note in the first example above all types can be resolved at compile-time, while in the second example all types must wait to be resolved until run-time.
+
+[[map-initialization]]
+==== Map Initialization
+
+A Map can be created and initialized using the brackets operator.  The format begins with a bracket, followed by an arbitrary number of key-value pairs delimited with commas (except the last), and ends with a closing bracket.  Each key-value pair is a set of two expressions separate by a colon.  If there is only a single colon with no expressions, a new empty Map is created.
+
+*Grammar:*
+[source,ANTLR4]
+----
+map_initialization: '[' key_pair (',' key_pair)* ']'
+                  | '[' ':' ']';
+key_pair: expression ':' expression
+----
+
+Each expression used as part of the initialization is converted to a `def` type
+for insertion into the map.
+
+*Examples:*
+[source,Java]
+----
+Map empty = [:];            // declares the Map variable empty and sets it to a newly initialized empty Map
+Map m0 = [1:2, 3:4, 5:6];   // declares the Map variable m0 and sets it to a newly initialized Map with the keys 1, 3, 5 and values 2, 4, 6, respectively
+
+byte b = 0;
+int i = 1;
+long l = 2L;
+float f = 3.0F;
+double d = 4.0;
+String s = "5";
+Map m1 = [b:i, l:f*d, d:s]; // declares the Map variable m1 and sets it to a newly initialized Map with the keys b, l, d and values i, f*d, s, respectively
+----
+
+[[map-access]]
+==== Map Access
+
+Elements in a Map can be stored or accessed using the brackets operator.  The format begins with an opening bracket, followed by an expression, and finishes with a closing bracket.  Storing values in a Map is equivalent to invoking a Map's put method.  Accessing values in a Map is equivalent to invoking a Map's get method.  Using this operator is strictly a shortcut for the previously mentioned methods.  Any element from a Map can be stored/accessed where the expression is the key.  If a key has no corresponding value when accessing a Map then the value will be null.
+
+*Grammar:*
+[source,ANTLR4]
+----
+map_access: '[' expression ']'
+----
+
+*Examples:*
+[source,Java]
+----
+Map x = new HashMap();             // declares a Map variable x and sets it to a newly allocated HashMap
+x['value2'] = 2;                   // puts the value of the key constant String value2 of the variable x to the constant int 2
+x['value5'] = 5;                   // puts the value of the key constant String value5 of the variable x to the constant int 5
+int y = x['value2'] + x['value5']; // declares the int variable y and sets it to the sum of the two values of the variable x
+String z = 'value5';               // declares the String variable z and sets it to the constant String value5
+return x[z];                       // accesses the value for the key value5 of the variable x using the variable z as an expression and returns the value
+
+def d = new HashMap();             // declares a def variable d and sets it to a newly allocated HashMap
+d['value2'] = 2;                   // puts the value of the key constant String value2 of the variable d to the constant int 2
+d['value5'] = 5;                   // puts the value of the key constant String value5 of the variable d to the constant int 5
+int y = d['value2'] + d['value5']; // declares the int variable y and sets it to the sum of the two values of the variable d
+String z = 'value5';               // declares the String variable z and sets it to the constant String value5
+return d[z];                       // accesses the value for the key value5 of the variable x using the variable z as an expression and returns the value
+----
+
+Note in the first example above all types can be resolved at compile-time, while in the second example all types must wait to be resolved until run-time.
+
+[[new-instance]]
+==== New Instance
+
+A constructor call is a special type of method call [MARK] used to allocate a reference type instance using the new operator.  The format is the new operator followed by a type, an opening parenthesis, arguments if any, and a closing parenthesis.  Arguments are a series of zero-to-many expressions delimited by commas.  Auto-boxing and auto-unboxing will be applied automatically for arguments passed into a constructor call.  See boxing and unboxing [MARK] for more information on this topic.  Constructor argument types can always be resolved at run-time; if appropriate type conversions (casting) cannot be applied an error will occur.  Once a reference type instance has been allocated, its members may be used as part of other expressions.
+
+Constructor calls may be overloaded based on arity in Painless.  This means the same reference type may have multiple constructors as long as the number of arguments differs for each one.  This does have an effect on some of the provided reference type constructors in the Painless API [MARK].  When there are overloaded constructors with the same arity for a reference type in Java a single constructor must be chosen to be provided in Painless.
+
+*Grammar:*
+[source,ANTLR4]
+----
+constructor_call: 'new' TYPE '(' (expression (',' expression)*)? ')';
+----
+
+*Examples:*
+[source,Java]
+----
+Map m = new HashMap();   // declares the Map variable m and sets it to a newly allocated HashMap using an empty constructor
+m.put(3, 3);             // invokes the method call member put and adds the key-value pair of 3 to Map variable m
+def d = new ArrayList(); // declares the def variable d and sets it to a newly allocated ArrayList using an empty constructor
+def e;                   // declares the def variable e
+e = new HashMap(m);      // sets e to a newly allocated HashMap using the constructor with a single argument m
+----
+
+[[string-concatenation]]
+==== String Concatenation
+
+Concatenates two expressions together as a single String where at least of one of the expressions is a String to begin with.  The format is an expression, followed by a plus operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+concatenate: expression '+' expression;
+----
+
+*Examples:*
+[source,Java]
+----
+String x = "con";          // declares the String variable x and sets it to the String constant "con"
+String y = x + "cat";      // declares the String variable y and sets it to the concatenation of the String variable x and the String constant "cat"
+String z = 4 + x;          // declares the String variable z and sets it to the concatenation of the int constant 4 and the String variable x (4 is implicitly cast to a String)
+def d = 2;                 // declares the def variable d and sets it to the int constant 2
+z = z + d;                 // sets the String variable z to the concatenation of the String variable z
+d = "con" + x + y + "cat"; // sets the def variable d to the concatenation of String constant "con", x, y, and the String constant "cat"
+----

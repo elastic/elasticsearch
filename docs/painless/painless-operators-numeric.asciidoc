@@ -1,4 +1,663 @@
 [[painless-operators-numeric]]
 === Operators: Numeric
 
-test
+[[post-increment]]
+==== Post Increment
+
+A variable/field representing a numerical value can be possibly evaluated as part of an expression, and then increased by 1 for its respective type.  The format starts with a variable name followed by a plus and ends with a plus.
+
+*Grammar:*
+[source,ANTLR4]
+----
+post_increment: ( variable | member ) '++'
+----
+
+A numeric promotion may occur during a post-increment followed by a downcast if necessary.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  A downcast may be required after the type promotion to assign the appropriate value back into the variable/field.  Non-numeric variables/members will result in an error.
+
+Promotion Table:
+
+|====
+|from|to|downcast
+|byte|int|byte
+|short|int|short
+|char|int|char
+|int|int|
+|long|long|
+|float|float|
+|double|double|
+|def|def|
+|====
+
+Examples(s):
+[source,Java]
+----
+int i = 0;    // declares the int variable i and sets it to the constant 0
+i++;          // increments the int variable i by 1 to a value of 1
+long l = 1;   // declares the long variable l and set it the constant 1
+long k;       // declares the long variable k
+k = l++;      // sets the long variable k to the value of l (1), and then increments the long variable l by 1 to a value of 2
+----
+
+[[post-decrement]]
+==== Post Decrement
+
+A variable/field representing a numerical value can be possibly evaluated as part of an expression, and then increased by 1 for its respective type.  The format starts with a variable name followed by a minus and ends with a minus.
+
+*Grammar:*
+[source,ANTLR4]
+----
+post_increment: ( variable | member ) '--'
+----
+
+A numeric promotion may occur during a post-decrement followed by a downcast if necessary.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  A downcast may be required after the type promotion to assign the appropriate value back into the variable/field.  Non-numeric variables/members will result in an error.
+
+Promotion Table:
+
+|====
+|from|to|downcast
+|byte|int|byte
+|short|int|short
+|char|int|char
+|int|int|
+|long|long|
+|float|float|
+|double|double|
+|def|def|
+|====
+
+Examples(s):
+[source,Java]
+----
+short i = 0;    // declares the short variable i and sets it to the constant short 0
+i--;            // decrements the short variable i by 1 to a value of -1 (promoted to int and downcast to short)
+float l = 1.0f; // declares the float variable l and sets it the constant float 1.0f
+float k;        // declares the float variable k
+k = l--;        // sets the float variable k to the value of l (1.0f), and then decrements the float variable l by 1.0 to a value of 0.0
+----
+
+[[pre-increment]]
+==== Pre Increment
+
+A variable/field representing a numerical value can be increased by 1 for its respective type, and then possibly evaluated as part of an expression.  The format starts with a plus followed by a plus and ends with a variable name.
+
+*Grammar:*
+[source,ANTLR4]
+----
+pre_increment: '++' ( variable | member )
+----
+
+A numeric promotion may occur during a pre-increment followed by a downcast if necessary.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  A downcast may be required after the type promotion to assign the appropriate value back into the variable/field.  Non-numeric variables/members will result in an error.
+
+Promotion Table:
+
+|====
+|from|to|downcast
+|byte|int|byte
+|short|int|short
+|char|int|char
+|int|int|
+|long|long|
+|float|float|
+|double|double|
+|def|def|
+|====
+
+Examples(s):
+[source,Java]
+----
+int i = 0;    // declares the int variable i and sets it to the constant int 0
+++i;          // increments the int variable i by 1 to a value of 1
+long l = 1;   // declares the long variable l and sets it to the constant long 1
+long k;       // declares the long variable k
+k = ++l;      // increments the long variable l by 1 to a value of 2, and then sets the long variable k to the value of l (2)
+----
+
+[[pre-decrement]]
+==== Pre Decrement
+
+A variable/field representing a numerical value can be decreased by 1 for its respective type, and then possibly evaluated as part of an expression.  The format starts with a minus followed by a minus and ends with a variable name.
+
+*Grammar:*
+[source,ANTLR4]
+----
+pre_decrement: '--' ( variable | member )
+----
+
+A numeric promotion may occur during a pre-decrement followed by a downcast if necessary.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  A downcast may be required after the type promotion to assign the appropriate value back into the variable/field.  Non-numeric variables/members will result in an error.
+
+Promotion Table:
+|====
+|from|to|downcast
+|byte|int|byte
+|short|int|short
+|char|int|char
+|int|int|
+|long|long|
+|float|float|
+|double|double|
+|def|def|
+|====
+
+Examples(s):
+[source,Java]
+----
+byte i = 1;      // declares the byte variable i and sets it to the constant int 1
+--i;             // decrements the byte variable i by 1 to a value of 0 (promoted to int and downcast to byte)
+double l = 1.0;  // declares the double variable l and sets it to the constant double 1.0
+double k;        // declares the double variable k
+k = --l;         // decrements the double variable l by 1.0 to a value of 0.0, and then sets the double variable k to the value of l (0.0)
+----
+
+[[unary-positive]]
+==== Unary Positive
+
+Unary positive gives the identity of a numerical value using the plus operator.  In practice this is usually a no-op, but will cause some numeric types to be promoted.  Format starts with a plus operator followed by a numerical expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+unary_positive: '+' expression
+----
+
+A numeric promotion may occur during a unary positive operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+|from|to
+|byte|int
+|short|int
+|char|int
+|int|int
+|long|long
+|float|float
+|double|double
+|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+int x = +1;  // declares the int variable x and sets it to positive 1
+long y = +x; // declares the long variable y and sets it to positive x (promoted to long from int)
+def z = +y;  // declares the def variable z and sets it to positive y
+byte z = +2; //ERROR: cannot implicitly downcast an int to a byte
+----
+
+[[unary-negative]]
+==== Unary Negative
+
+Unary negative negates a numeric value using the minus operator.  Format starts with a minus followed by a numerical expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+unary_negative: '-' expression
+----
+
+A numeric promotion may occur during a unary negative operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+|from|to
+|byte|int
+|short|int
+|char|int
+|int|int
+|long|long
+|float|float
+|double|double
+|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+int x = -1;  // declares the int variable x and sets it to negative 1
+long y = -x; // declares the long variable y and sets it to negative x (promoted to long from int)
+def z = -y;  // declares the def variable z and sets it to negative y
+byte z = -2; //ERROR: cannot implicitly downcast an int to a byte
+----
+
+[[bitwise-not]]
+==== Bitwise Not
+
+Bitwise not will flip each bit of an integer type expression.  The format is the tilde operator followed by an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+bitwise_not: '~' expression;
+----
+
+A numeric promotion may occur during unary positive operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  Non-integer expressions will result in an error.
+
+Promotion Table:
+|====
+|from|to
+|byte|int
+|short|int
+|char|int
+|int|int
+|long|long
+|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+byte x = 1;  // declares the byte variable x and sets it to a constant int 1
+int y = ~x;  // declares the int variable y and sets it to the negation of x
+long z = ~y; // declares the long variable z and sets it the negation of y
+def d = ~z;  // declares the def variable d and sets it the negation of z
+def e;       // declares the def variable e
+e = ~d;      // sets e the negation of d
+----
+
+[[multiplication]]
+==== Multiplication
+
+Multiplies two numerical expressions.  Rules for resultant overflow and NaN values follow the Java specification.  The format is an expression, followed by the star operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+multiplication: expression '*' expression;
+----
+
+A numeric promotion may occur during a multiplication operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric numbers will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+int x = 5*4;      // declares the int variable x and sets it to the result of 5 multiplied by 4
+double y = x*7.0; // declares the double variable y and sets it to the result of x multiplied by 7.0 (x is promoted to a double)
+def z = x*y;      // declares the def variable z and sets it to the result of x multiplied by y (x is promoted to a double)
+def a = z*x;      // declares the def variable a and sets it to the result of z multiplied by x (x is promoted to def at compile-time and double at run-time)
+----
+
+[[division]]
+==== Division
+
+Divides two numerical expressions.  Rules for NaN values and division by zero follow the Java specification.  Integer division will drop the remainder of the resultant value.  The format is an expression, followed by the slash operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+division: expression '/' expression;
+----
+
+A numeric promotion may occur during a division operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+int x = 5/4;      // declares the int variable x and sets it to the result of 5 divided by 4
+double y = x/7.0; // declares the double variable y and sets it to the result of x divided by 7.0 (x is promoted to a double)
+def z = x/y;      // declares the def variable z and sets it to the result of x divided by y (x is promoted to a double)
+def a = z/x;      // declares the def variable a and sets it to the result of z divided by x (x is promoted to def at compile-time and double at run-time)
+----
+
+[[remainder]]
+==== Remainder
+
+Calculates the remainder for division between two numerical expressions.  Rules for NaN values and division by zero follow the Java specification.  The format is an expression, followed by the percent operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+remainder: expression '%' expression;
+----
+
+A numeric promotion may occur during a remainder operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+int x = 5%4;      // declares the int variable x and sets it to the remainder of 5 divided by 4
+double y = x%7.0; // declares the double variable y and sets it to the remainder of x divided by 7.0 (x is promoted to a double)
+def z = x%y;      // declares the def variable z and sets it to the remainder of x divided by y (x is promoted to a double)
+def a = z%x;      // declares the def variable a and sets it to the remainder of z divided by x (x is promoted to def at compile-time and double at run-time)
+----
+
+[[addition]]
+==== Addition
+
+Adds two numerical expressions.  Rules for resultant overflow and NaN values follow the Java specification.  The format is an expression, followed by the plus operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+addition: expression '+' expression;
+----
+
+A numeric promotion may occur during a addition operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error, except in the case of String which then implies the operation is string concatenation [MARK] rather than addition.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+int x = 5 + 4;      // declares the int variable x and sets it to the result of 5 added to 4
+double y = x + 7.0; // declares the double variable y and sets it to the result of x added to 7.0 (x is promoted to a double)
+def z = x + y;      // declares the def variable z and sets it to the result of x added to y (x is promoted to a double)
+def a = z + x;      // declares the def variable a and sets it to the result of z added to x (x is promoted to def at compile-time and double at run-time)
+----
+
+[[subtraction]]
+==== Subtraction
+
+Subtracts two numerical expressions.  Rules for resultant overflow and NaN values follow the Java specification.  The format is an expression, followed by the minus operator, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+subtraction: expression '-' expression;
+----
+
+A numeric promotion may occur during a subtraction operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+int x = 5-4;      // declares the int variable x and sets it to the result of 4 subtracted from 5
+double y = x-7.0; // declares the double variable y and sets it to the result of 7.0 subtracted from x (x is promoted to a double)
+def z = x-y;      // declares the def variable z and sets it to the result of y subtracted from x (x is promoted to a double)
+def a = z-x;      // declares the def variable a and sets it to the result of x subtracted from z (x is promoted to def at compile-time and double at run-time)
+----
+
+[[left-shift]]
+==== Left Shift
+
+Shifts lower order bits to higher order bits in the left-side expression by the distance specified in the right-side expression.  The format is an expression followed by two left-carrots, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+left_shift: expression '<<' expression;
+----
+
+A numeric promotion may occur during a left shift operation to the left-side expression.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric and floating point expressions will result in an error.
+
+Promotion Table:
+|====
+|from|to
+|byte|int
+|short|int
+|char|int
+|int|int
+|long|long
+|def|def
+|====
+
+The right-side expression will be explicitly cast to an int value and truncated based on the promoted type of the left-side expression.  If the left-side expression is of type int then the lowest order 5-bits will be taken as the distance to shift from the right-side expression (0-31).  If the left-side expression is of type long then the lowest order 6-bits will be taken as the distance to shift from the right-side expression (0-63). Non-numeric and floating point expressions will result in an error.
+
+*Examples:*
+[source,Java]
+----
+int x = 5 << 4;  // declares the int variable x and sets it to the result of 5 left shifted by 4
+long y = x << 7; // declares the long variable y and sets it to the result of x left shifted by 7 (x is promoted to a long)
+def z = x << y;  // declares the def variable z and sets it to the result of x left shifted by y
+def a = z << x;  // declares the def variable a and sets it to the result of z left shifted by x
+----
+
+[[right-shift]]
+==== Right Shift
+
+Shifts higher order bits to lower order bits in the left-side expression by the distance specified in the right-side expression.  Right shift will preserve the signed bit (highest order bit) as part of the result.  The format is an expression followed by two right-carrots, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+right_shift: expression '>>' expression;
+----
+
+A numeric promotion may occur during a right shift operation to the left-side expression.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric and floating point expressions will result in an error.
+
+Promotion Table:
+|====
+|from|to
+|byte|int
+|short|int
+|char|int
+|int|int
+|long|long
+|def|def
+|====
+
+The right-side expression will be explicitly cast to an int value and truncated based on the promoted type of the left-side expression.  If the left-side expression is of type int then the lowest order 5-bits will be taken as the distance to shift from the right-side expression (0-31).  If the left-side expression is of type long then the lowest order 6-bits will be taken as the distance to shift from the right-side expression (0-63). Non-numeric and floating point expressions will result in an error.
+
+*Examples:*
+[source,Java]
+----
+int x = 5 >> 4;  // declares the int variable x and sets it to the result of 5 right shifted by 4
+long y = x >> 7; // declares the long variable y and sets it to the result of x right shifted by 7 (x is promoted to a long)
+def z = x >> y;  // declares the def variable z and sets it to the result of x right shifted by y
+def a = z >> x;  // declares the def variable a and sets it to the result of z right shifted by x
+----
+
+[[unsigned-right-shift]]
+==== Unsigned Right Shift
+
+Shifts higher order bits to lower order bits in the left-side expression by the distance specified in the right-side expression.  Unsigned right shift will not preserve the signed bit (highest order bit) as part of the result.  The format is an expression followed by three right-carrots, and a closing expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+unsigned_right_shift: expression '>>>' expression;
+----
+
+A numeric promotion may occur during an unsigned right shift operation to the left-side expression.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents. Non-numeric and floating point expressions will result in an error.
+
+Promotion Table:
+|====
+|from|to
+|byte|int
+|short|int
+|char|int
+|int|int
+|long|long
+|def|def
+|====
+
+The right-side expression will be explicitly cast to an int value and truncated based on the promoted type of the left-side expression.  If the left-side expression is of type int then the lowest order 5-bits will be taken as the distance to shift from the right-side expression (0-31).  If the left-side expression is of type long then the lowest order 6-bits will be taken as the distance to shift from the right-side expression (0-63). Non-numeric and floating point expressions will result in an error.
+
+*Examples:*
+[source,Java]
+----
+int x = 5 >> 4;  // declares the int variable x and sets it to the result of 5 unsigned right shifted by 4
+long y = x >> 7; // declares the long variable y and sets it to the result of x unsigned right shifted by 7 (x is promoted to a long)
+def z = x >> y;  // declares the def variable z and sets it to the result of x unsigned right shifted by y
+def a = z >> x;  // declares the def variable a and sets it to the result of z unsigned right shifted by x
+----
+
+[[bitwise-and]]
+==== Bitwise And
+
+Bitwise and will and together two integer type expressions.  The table below shows what each resultant bit will in the resultant integer type value be based on the corresponding bit in each integer type expression.
+
+|====
+||1|0
+|1|1|0
+|0|0|0
+|====
+
+The format starts with an expression, follows with the ampersand operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+bitwise_and: expression '&' expression;
+----
+
+A numeric promotion may occur during a bitwise and operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  Non-integer expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|def
+|byte|int|int|int|int|long|def
+|short|int|int|int|int|long|def
+|char|int|int|int|int|long|def
+|int|int|int|int|int|long|def
+|long|long|long|long|long|long|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+byte x = 16;    // declares the byte variable x and sets it to a constant int 1
+int y = x & 4;  // declares the int variable y and sets it to the result of x and 4
+long z = y & x; // declares the long variable z and sets it the result of y and x
+def d = z & 2;  // declares the def variable d and sets it the result of z and 2
+def e;          // declares the def variable e
+e = d & z;      // sets e to the result of d and z
+----
+
+[[bitwise-xor]]
+==== Bitwise Xor
+
+Bitwise xor will xor together two integer type expressions.  The table below shows what each resultant bit will in the resultant integer type value be based on the corresponding bit in each integer type expression.
+
+|====
+||1|0
+|1|0|1
+|0|1|0
+|====
+
+The format starts with an expression, follows with the carrot operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+bitwise_xor: expression '^' expression;
+----
+
+A numeric promotion may occur during a bitwise xor operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  Non-integer expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|def
+|byte|int|int|int|int|long|def
+|short|int|int|int|int|long|def
+|char|int|int|int|int|long|def
+|int|int|int|int|int|long|def
+|long|long|long|long|long|long|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+byte x = 16;    // declares the byte variable x and sets it to a constant int 1
+int y = x ^ 4;  // declares the int variable y and sets it to the result of x xor 4
+long z = y ^ x; // declares the long variable z and sets it the result of y xor x
+def d = z ^ 2;  // declares the def variable d and sets it the result of z xor 2
+def e;          // declares the def variable e
+e = d ^ z;      // sets e to the result of d xor z
+----
+
+[[bitwise-or]]
+==== Bitwise Or
+
+Bitwise or will or together two integer type expressions.  The table below shows what each resultant bit will in the resultant integer type value be based on the corresponding bit in each integer type expression.
+
+|====
+||1|0
+|1|1|1
+|0|1|0
+|====
+
+The format starts with an expression, follows with the pipe operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+bitwise_or: expression '|' expression;
+----
+
+A numeric promotion may occur during a bitwise xor operation.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.  Non-integer expressions will result in an error.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|def
+|byte|int|int|int|int|long|def
+|short|int|int|int|int|long|def
+|char|int|int|int|int|long|def
+|int|int|int|int|int|long|def
+|long|long|long|long|long|long|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+byte x = 16;    // declares the byte variable x and sets it to a constant int 1
+int y = x | 4;  // declares the int variable y and sets it to the result of x or 4
+long z = y | x; // declares the long variable z and sets it the result of y or x
+def d = z | 2;  // declares the def variable d and sets it the result of z or 2
+def e;          // declares the def variable e
+e = d | z;      // sets e to the result of d or z
+----

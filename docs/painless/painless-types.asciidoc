@@ -12,15 +12,15 @@ belongs to one of the following categories: <<primitive-types, primitive>>,
 
 A primitive type represents basic data built natively into the JVM and is
 allocated to non-heap memory. Declare a primitive type
-<<painless-variables, variable>>, and assign it a primitive type value for
-evaluation during later operations. The default value for a newly-declared
-primitive type variable is listed as part of the definitions below. A primitive
-type value is copied during an assignment or as an argument for a
-method/function call.
+<<painless-variables, variable>> or access a primitive type member field (from
+a reference type instance), and assign it a primitive type value for evaluation
+during later operations. The default value for a newly-declared primitive type
+variable is listed as part of the definitions below. A primitive type value is
+copied during an assignment or as an argument for a method/function call.
 
 A primitive type has a corresponding reference type (also known as a boxed
 type). Use the <<field-access, field access operator>> or
-<<method-access, method call operator>> on a primitive type value to force
+<<method-call, method call operator>> on a primitive type value to force
 evaluation as its corresponding reference type value.
 
 The following primitive types are available:
@@ -113,19 +113,20 @@ multiple pieces of data (member fields) and logic to manipulate that data
 
 A reference type instance is a single set of data for one reference type
 object allocated to the heap. Use the
-<<constructor-call, new instance operator>> to allocate a reference type
-instance. Use a reference type instance to load from, store to, and manipulate
-complex data.
+<<new-instance, new instance operator>> to allocate a reference type instance.
+Use a reference type instance to load from, store to, and manipulate complex
+data.
 
 A reference type value refers to a reference type instance, and multiple
 reference type values may refer to the same reference type instance. A change to
 a reference type instance will affect all reference type values referring to
 that specific instance.
 
-Declare a reference type <<painless-variables, variable>>, and assign it a
-reference type value for evaluation during later operations. The default value
-for a newly-declared reference type variable is `null`. A reference type value
-is shallow-copied during an assignment or as an argument for a method/function
+Declare a reference type <<painless-variables, variable>> or access a reference
+type member field (from a reference type instance), and assign it a reference
+type value for evaluation during later operations. The default value for a
+newly-declared reference type variable is `null`. A reference type value is
+shallow-copied during an assignment or as an argument for a method/function
 call. Assign `null` to a reference type variable to indicate the reference type
 value refers to no reference type instance. The JVM will garbage collect a
 reference type instance when it is no longer referred to by any reference type
@@ -155,7 +156,7 @@ type instance is required to use a non-static member field.
 static member method::
 
 A static member method is a function called on a reference type *object*. Use
-the <<method-access, method call operator>> in correspondence with the reference
+the <<method-call, method call operator>> in correspondence with the reference
 type object name to call a static member method. No reference type instance
 allocation is necessary to use a static member method.
 
@@ -164,7 +165,7 @@ non-static member method::
 A non-static member method is a function called on a reference type *instance*.
 A non-static member method called on a reference type instance can load from and
 store to non-static member fields of that specific reference type instance. Use
-the <<method-access, method call operator>> in correspondence with a specific
+the <<method-call, method call operator>> in correspondence with a specific
 reference type instance to call a non-static member method. An allocated
 reference type instance is required to use a non-static member method.
 
@@ -172,8 +173,7 @@ constructor::
 
 A constructor is a special type of function used to allocate a reference type
 *instance* defined by a specific reference type *object*. Use the
-<<constructor-call, new instance operator>> to allocate a reference type
-instance.
+<<new-instance, new instance operator>> to allocate a reference type instance.
 
 A reference type object follows a basic inheritance model. Consider types A and
 B. Type A is considered to be a parent of B, and B a child of A, if B inherits
@@ -268,11 +268,12 @@ the behavior of whatever value it represents at run-time and will always
 represent the child-most descendant type value of any type value when evaluated
 during operations.
 
-Declare a `def` type <<painless-variables, variable>>, and assign it
-any type of value for evaluation during later operations. The default value
-for a newly-declared `def` type variable is `null`.  A `def` type variable or
-method/function parameter can change the type it represents during the
-compilation and evaluation of a script.
+Declare a `def` type <<painless-variables, variable>> or access a `def` type
+member field (from a reference type instance), and assign it any type of value
+for evaluation during later operations. The default value for a newly-declared
+`def` type variable is `null`.  A `def` type variable or method/function
+parameter can change the type it represents during the compilation and
+evaluation of a script.
 
 Using the `def` type can have a slight impact on performance. Use only primitive
 types and reference types directly when performance is critical.
@@ -335,8 +336,7 @@ types and reference types directly when performance is critical.
 The `String` type is a specialized reference type that does not require
 explicit allocation. Use a <<strings, string literal>> to directly evaluate a
 `String` type value. While not required, the
-<<constructor-call, new instance operator>> can allocate `String` type
-instances.
+<<new-instance, new instance operator>> can allocate `String` type instances.
 
 *Examples*
 
@@ -389,15 +389,16 @@ the array type instance.
 
 Use the <<new-array, new array operator>> or the
 <<array-initialization, array initialization operator>> to allocate an array
-type instance. Declare an array type <<painless-variables, variable>>, and
-assign it an array type value for evaluation during later operations. The
-default value for a newly-declared array type variable is `null`. An array type
-value is shallow-copied during an assignment or as an argument for a
-method/function call. Assign `null` to an array type variable to indicate the
-array type value refers to no array type instance. The JVM will garbage collect
-an array type instance when it is no longer referred to by any array type
-values. Pass `null` as an argument to a method/function call to indicate the
-argument refers to no array type instance.
+type instance. Declare an array type <<painless-variables, variable>> or access
+an array type member field (from a reference type instance), and assign it an
+array type value for evaluation during later operations. The default value for a
+newly-declared array type variable is `null`. An array type value is
+shallow-copied during an assignment or as an argument for a method/function
+call. Assign `null` to an array type variable to indicate the array type value
+refers to no array type instance. The JVM will garbage collect an array type
+instance when it is no longer referred to by any array type values. Pass `null`
+as an argument to a method/function call to indicate the argument refers to no
+array type instance.
 
 Use the <<array-length, array length operator>> to retrieve the length of an
 array type value as an int type value. Use the

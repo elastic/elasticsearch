@@ -1,4 +1,168 @@
 [[painless-operators-general]]
 === Operators: General
 
-test
+[[precedence]]
+==== Precedence
+
+You group expressions using the precedence operator to guarantee
+the order of evaluation and override existing precedence relationships between operators. The format is an opening parenthesis, one or more expressions, and
+a closing parenthesis. For example, `(20+1)*2`.
+
+*Grammar:*
+[source,ANTLR4]
+----
+precedence: '(' expression ')';
+----
+
+*Examples:*
+[source,Java]
+----
+int x = (5+4)*6; // declares the variable int x and sets it to (5+4)*6
+                 // where 5+4 is evaluated first due to the precedence operator
+int y = 2*(x-4); // declares the variable int y and sets it to 2*(x-4)
+                 // where x-4 is evaluated first due to the precedence operator
+----
+
+[[function-call]]
+==== Function Call
+
+User-defined function calls can be made in Painless using the parenthesis
+operator.  See Function Calls [MARK] for more information.
+
+[[cast]]
+==== Cast
+
+The cast operator can be used to explicitly convert one type to another.  See casting [MARK] for more information.
+
+[[conditional]]
+==== Conditional
+
+A conditional operation consists of three expressions.  The first expression is evaluated with an expected boolean result type.  If the first expression evaluates to true then the second expression will be evaluated.  If the first expression evaluates to false then the third expression will be evaluated.  This can be used as a shortcut many different operations without requiring a full if/else branch.  Errors will occur if the first expression does not evaluate to a boolean type or if one of the second or third expression cannot be converted to a type appropriate for the expected result.  The format is an expression followed by a question-mark operator, another expression, a colon operator, and finishes with a final expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+conditional: expression '?' expression ':' expression;
+----
+
+A numeric type promotion may occur during the evaluation of a conditional with the second and third expressions if the expected result is a numeric type.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.
+
+Promotion Table:
+|====
+||byte|short|char|int|long|float|double|def
+|byte|int|int|int|int|long|float|double|def
+|short|int|int|int|int|long|float|double|def
+|char|int|int|int|int|long|float|double|def
+|int|int|int|int|int|long|float|double|def
+|long|long|long|long|long|long|float|double|def
+|float|float|float|float|float|float|float|double|def
+|double|double|double|double|double|double|double|double|def
+|def|def|def|def|def|def|def|def|def
+|====
+
+*Examples:*
+[source,Java]
+----
+boolean b = true;                        // declares the boolean variable b and sets it the constant boolean true
+
+int x = b ? 1 : 2;                       // declares the int variable x and sets it to the int constant 1
+                                         // since the first expression of the conditional evaluates to true
+                                         // so the second expression is evaluated for a result
+
+List y = x > 1 ? new ArrayList() : null; // declares the List variable y and sets it to null
+                                         // since the first expression of the conditional evaluates to false
+                                         // so the third expression is evaluated for a result
+
+def z = x < 2 ? true : false;            // declares the def variable z and sets it to the boolean constant true
+                                         // since the first expression of the conditional evaluates to true
+                                         // so the second expression is evaluated for a result
+----
+
+[[elvis]]
+==== Elvis
+
+The elvis operator consists of two expressions.  If the first expression is a non-null value then the resultant value will be the evaluated first expression otherwise the resultant value will be the evaluated second expression.  This is typically used as a shortcut for a null check in a conditional.  An error will occur if the expected result is a primitive type.  The format is an expression, followed by the question-mark-colon operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+elvis: expression '?:' expression;
+----
+
+*Examples:*
+[source,Java]
+----
+List l = new ArrayList();      // declares the List variable l and sets it to a newly allocated ArrayList
+List y = l ?: new ArrayList(); // declares the List variable y and sets it to l since l is not null
+y = null;                      // sets y to null
+def z = y ?: new HashMap();    // declares the def variable z and sets it to a newly allocated HashMap since y is null
+----
+
+[[assignment]]
+==== Assignment
+
+Assignment can be used to assign a value to a variable.  See Variable Assignment [MARK] for more information.
+
+[[compound-assignment]]
+==== Compound Assignment
+
+Compound assignment can be used as a shortcut for an assignment where a binary operation would occur between the variable/field as the left-side expression and a separate right-side expression.  The variable/field and right-side expression must be of appropriate types for the specific operation or an error will occur.  A downcast may be necessary for certain operations to be able to assign the result back into the variable/field and will happen implicitly.  The format is a variable/field, followed by one of the compound assignment operators, finished with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+compund_assignment: ID (. ID)? '$=' expression; // $ is a placeholder for the operation symbol
+----
+
+A compound assignment is equivalent to the expression below where V is the variable/field and T is the type of variable/member.
+
+[source,Java]
+----
+V = (T)(V op expression);
+----
+
+The table below shows all available operators for compound assignment.  All operators follow any casting/promotion rules according to their regular definition.
+
+|====
+|Operator|Compound Symbol
+|Multiplication|*=
+|Division|/=
+|Remainder|%=
+|String Concatenation|+=
+|Addition|+=
+|Subtraction|-=
+|Left Shift|<<=
+|Right Shift|>>=
+|Unsigned Right Shift|>>>=
+|Bitwise And|&=
+|Boolean And|&=
+|Bitwise Xor|^=
+|Boolean Xor|^=
+|Bitwise Or|\|=
+|Boolean Or|\|=
+|====
+
+*Examples:*
+[source,Java]
+----
+int i = 10;         // declares the variable i and sets it to constant int 10
+i *= 2;             // multiplies i by 2 -- i = (int)(i * 2)
+i /= 5;             // divides i by 5 -- i = (int)(i / 5)
+i %= 3;             // gives the remainder for i/3 -- i = (int)(i % 3)
+i += 5;             // adds 5 to i -- i = (int)(i + 5)
+i -= 5;             // subtracts 5 from i -- i = (int)(i - 5)
+i <<= 2;            // left shifts i by 2 -- i = (int)(i << 2)
+i >>= 1;            // right shifts i by 1 -- i = (int)(i >> 1)
+i >>>= 1;           // unsigned right shifts i by 1 -- i = (int)(i >>> 1)
+i &= 15;            // ands i with 15 -- i = (int)(i & 15)
+i ^= 12;            // xors i with 12 -- i = (int)(i ^ 2)
+i |= 4;             // ors i with 4 -- i = (int)(i | 4)
+
+boolean b = true;   // declares the boolean variable b and sets it to the constant boolean true
+b &= false;         // ands b with false -- b = (boolean)(b & false)
+b ^= false;         // xors b with false -- b = (boolean)(b & false)
+b |= true;          // ors be with true -- b = (boolean)(b & false)
+
+def x = 'compound'; // declares the def variable x and sets it to the constant String 'compound'
+x += ' assignment'; // string concatenates ' assignment' to x -- x = (String)(x + ' assignment')
+----

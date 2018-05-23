@@ -19,7 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -29,7 +28,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -56,16 +54,16 @@ public class NioGroup implements AutoCloseable {
 
     private final AtomicBoolean isOpen = new AtomicBoolean(true);
 
-    public NioGroup(Logger logger, ThreadFactory acceptorThreadFactory, int acceptorCount,
-                    BiFunction<Logger, Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction,
+    public NioGroup(ThreadFactory acceptorThreadFactory, int acceptorCount,
+                    Function<Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction,
                     ThreadFactory socketSelectorThreadFactory, int socketSelectorCount,
-                    Function<Logger, SocketEventHandler> socketEventHandlerFunction) throws IOException {
+                    Supplier<SocketEventHandler> socketEventHandlerFunction) throws IOException {
         acceptors = new ArrayList<>(acceptorCount);
         socketSelectors = new ArrayList<>(socketSelectorCount);
 
         try {
             for (int i = 0; i < socketSelectorCount; ++i) {
-                SocketSelector selector = new SocketSelector(socketEventHandlerFunction.apply(logger));
+                SocketSelector selector = new SocketSelector(socketEventHandlerFunction.get());
                 socketSelectors.add(selector);
             }
             startSelectors(socketSelectors, socketSelectorThreadFactory);
@@ -73,7 +71,7 @@ public class NioGroup implements AutoCloseable {
             for (int i = 0; i < acceptorCount; ++i) {
                 SocketSelector[] childSelectors = this.socketSelectors.toArray(new SocketSelector[this.socketSelectors.size()]);
                 Supplier<SocketSelector> selectorSupplier = new RoundRobinSupplier<>(childSelectors);
-                AcceptingSelector acceptor = new AcceptingSelector(acceptorEventHandlerFunction.apply(logger, selectorSupplier));
+                AcceptingSelector acceptor = new AcceptingSelector(acceptorEventHandlerFunction.apply(selectorSupplier));
                 acceptors.add(acceptor);
             }
             startSelectors(acceptors, acceptorThreadFactory);

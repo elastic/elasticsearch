@@ -83,7 +83,7 @@ public abstract class ESSelector implements Closeable {
                     try {
                         selector.close();
                     } catch (IOException e) {
-                        eventHandler.closeSelectorException(e);
+                        eventHandler.selectorException(e);
                     } finally {
                         runLock.unlock();
                         exitedLoop.countDown();
@@ -123,7 +123,7 @@ public abstract class ESSelector implements Closeable {
                 throw e;
             }
         } catch (IOException e) {
-            eventHandler.selectException(e);
+            eventHandler.selectorException(e);
         } catch (Exception e) {
             eventHandler.uncaughtException(e);
         }

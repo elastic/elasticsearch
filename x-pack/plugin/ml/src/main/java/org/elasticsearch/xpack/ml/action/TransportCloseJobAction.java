@@ -27,7 +27,6 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
@@ -92,8 +91,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     static void resolveAndValidateJobId(CloseJobAction.Request request, ClusterState state, List<String> openJobIds,
                                         List<String> closingJobIds) {
         PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        MlMetadata maybeNull = state.metaData().custom(MLMetadataField.TYPE);
-        final MlMetadata mlMetadata = (maybeNull == null) ? MlMetadata.EMPTY_METADATA : maybeNull;
+        final MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
 
         List<String> failedJobs = new ArrayList<>();
 
@@ -107,7 +105,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         };
 
         Set<String> expandedJobIds = mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs());
-        expandedJobIds.stream().forEach(jobIdProcessor::accept);
+        expandedJobIds.forEach(jobIdProcessor::accept);
         if (request.isForce() == false && failedJobs.size() > 0) {
             if (expandedJobIds.size() == 1) {
                 throw ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close",

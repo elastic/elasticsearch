@@ -49,7 +49,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -163,7 +162,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
-            MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
             Job job = mlMetadata.getJobs().get(jobId);
             Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
             if (compatibleJobTypes.contains(job.getJobType()) == false) {
@@ -474,8 +473,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             // Step 3. Update established model memory for pre-6.1 jobs that haven't had it set
             ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
                     response -> {
-                        MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MLMetadataField.TYPE);
-                        Job job = mlMetadata.getJobs().get(jobParams.getJobId());
+                        Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(jobParams.getJobId());
                         if (job != null) {
                             Version jobVersion = job.getJobVersion();
                             Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
@@ -650,8 +648,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         public void validate(OpenJobAction.JobParams params, ClusterState clusterState) {
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
-            MlMetadata mlMetadata = clusterState.metaData().custom(MLMetadataField.TYPE);
-            TransportOpenJobAction.validate(params.getJobId(), mlMetadata);
+            TransportOpenJobAction.validate(params.getJobId(), MlMetadata.getMlMetadata(clusterState));
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState,
                     maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
             if (assignment.getExecutorNode() == null) {

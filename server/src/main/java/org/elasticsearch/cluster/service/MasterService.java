@@ -563,7 +563,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private final AckedClusterStateTaskListener ackedTaskListener;
         private final CountDown countDown;
-        private final DiscoveryNodes nodes;
+        private final DiscoveryNode masterNode;
         private final long clusterStateVersion;
         private final Future<?> ackTimeoutCallback;
         private Exception lastFailure;
@@ -572,15 +572,14 @@ public class MasterService extends AbstractLifecycleComponent {
                              ThreadPool threadPool) {
             this.ackedTaskListener = ackedTaskListener;
             this.clusterStateVersion = clusterStateVersion;
-            this.nodes = nodes;
+            this.masterNode = nodes.getMasterNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
-                if (ackedTaskListener.mustAck(node)) {
+                //we always wait for at least the master node
+                if (node.equals(masterNode) || ackedTaskListener.mustAck(node)) {
                     countDown++;
                 }
             }
-            //we always wait for at least 1 node (the master)
-            countDown = Math.max(1, countDown);
             logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, clusterStateVersion);
             this.countDown = new CountDown(countDown);
             this.ackTimeoutCallback = threadPool.schedule(ackedTaskListener.ackTimeout(), ThreadPool.Names.GENERIC, () -> onTimeout());
@@ -588,11 +587,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            if (!ackedTaskListener.mustAck(node)) {
-                //we always wait for the master ack anyway
-                if (!node.equals(nodes.getMasterNode())) {
-                    return;
-                }
+            if (node.equals(masterNode) == false && ackedTaskListener.mustAck(node) == false) {
+                return;
             }
             if (e == null) {
                 logger.trace("ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion);

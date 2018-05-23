@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -137,8 +138,10 @@ public class SecurityNioTransport extends NioTransport {
         @Override
         public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, SecurityNioTransport.this::acceptChannel,
-                    (e) -> {});
+            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
+                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            Consumer<NioSocketChannel> acceptor = SecurityNioTransport.this::acceptChannel;
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }

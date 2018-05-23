@@ -11,7 +11,7 @@ The Painless execute API allows an arbitrary script to be executed and a result 
 |======
 | Name             | Required  | Default                | Description
 | `script`         | yes       | -                      | The script to execute
-| `context`        | no        | `execute_api_script`   | The context the script should be executed in.
+| `context`        | no        | `painless_test`        | The context the script should be executed in.
 |======
 
 ==== Contexts

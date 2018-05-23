@@ -139,8 +139,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     protected static void assertHeaders(Map<String, String> headers, Map<String, String> expected) {
         assertNotNull(headers);
-        assertEquals(expected.size()+1, headers.size());
-        assertEquals("true", headers.get("transport_client"));
+        headers = new HashMap<>(headers);
+        headers.remove("transport_client"); // default header on TPC
+        assertEquals(expected.size(), headers.size());
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             assertEquals(headers.get(expectedEntry.getKey()), expectedEntry.getValue());
         }

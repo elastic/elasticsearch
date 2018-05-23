@@ -7,58 +7,58 @@ order in which an operator will be evaluated relative to another operator.
 Associativity is the direction within an expression in which a specific operator
 is evaluated.  The following table lists all available operators:
 
-[options="header",cols="6,3,2,4"]
+[cols="<6,<3,^3,^2,^4"]
 |====
-| Operator              | Symbol(s)  | Precedence | Associativity
-| <<precedence, Precedence>>            | ()         | 0          | left
-| <<method-call, Method Call>>           | . ()       | 1          | left
-| <<field-access, Field Access>>          | .          | 1          | left
-| <<null-safe, Null Safe>>             | ?.         | 1          | left
-| <<function-call, Function Call>>         | ()         | 1          | left
-| <<array-initialization, Array Initialization>>  | [] {}      | 1          | left
-| <<array-access, Array Access>>          | []         | 1          | left
-| <<array-length, Array Length>>         | .          | 1          | left
-| <<list-initialization, List Initialization>>   | []         | 1          | left
-| <<list-access, List Access>>           | []         | 1          | left
-| <<map-initialization, Map Initialization>>    | [:]        | 1          | left
-| <<map-access, Map Access>>            | []         | 1          | left
-| <<post-increment, Post Increment>>        | ++         | 1          | left
-| <<post-decrement, Post Decrement>>        | --         | 1          | left
-| <<pre-increment, Pre Increment>>         | ++         | 2          | right
-| <<pre-decrement, Pre Decrement>>         | --         | 2          | right
-| <<unary-positive, Unary Positive>>        | +          | 2          | right
-| <<unary-negative, Unary Negative>>        | -          | 2          | right
-| <<boolean-not, Boolean Not>>           | !          | 2          | right
-| <<bitwise-not, Bitwise Not>>           | ~          | 2          | right
-| <<cast, Cast>>                  | ()         | 3          | right
-| <<new-instance, New Instance>>          | new ()     | 3          | right
-| <<new-array, New Array>>             | new        | 3          | right
-| <<multiplication, Multiplication>>        | *          | 4          | left
-| <<division, Division>>              | /          | 4          | left
-| <<remainder, Remainder>>             | %          | 4          | left
-| <<string-concatenation, String Concatenation>>  | +          | 5          | left
-| <<addition, Addition>>              | +          | 5          | left
-| <<subtraction, Subtraction>>           | -          | 5          | left
-| <<left-shift, Left Shift>>            | <<         | 6          | left
-| <<right-shift, Right Shift>>           | >>         | 6          | left
-| <<unsigned-right-shift, Unsigned Right Shift>>  | >>>        | 6          | left
-| <<greater-than, Greater Than>>          | >          | 7          | left
-| <<greater-than-or-equal, Greater Than Or Equal>> | >=         | 7          | left
-| <<less-than, Less Than>>             | <          | 7          | left
-| <<less-than-or-equal, Less Than Or Equal>>    | <=         | 7          | left
-| <<instance-of, Instance Of>>           | instanceof | 8          | left
-| <<equality-equals, Equality Equals>>       | ==         | 9          | left
-| <<equality-not-equals, Equality Not Equals>>   | !=         | 9          | left
-| <<identity-equals, Identity Equals>>       | ===        | 9          | left
-| <<identity-not-equals, Identity Not Equals>>   | !==        | 9          | left
-| <<bitwise-and, Bitwise And>>           | &          | 10         | left
-| <<boolean-xor, Boolean Xor>>           | ^          | 11         | left
-| <<bitwise-xor, Bitwise Xor>>           | ^          | 11         | left
-| <<bitwise-or, Bitwise Or>>            | \|         | 12         | left
-| <<boolean-and, Boolean And>>           | &&         | 13         | left
-| <<boolean-or, Boolean Or>>            | \|\|       | 14         | left
-| <<conditional, Conditional>>           | ? :        | 15         | right
-| <<elvis, Elvis>>                 | ?:         | 16         | right
-| <<assignment, Assignment>>            | =          | 17         | right
-| <<compound-assignment, Compound Assignment>>   | $=         | 17         | right
+| *Operator*                                       | *Category*                                  | *Symbol(s)* | *Precedence* | *Associativity*
+| <<precedence, Precedence>>                       | <<painless-operators-general, General>>     | ()          | 0            | left -> right
+| <<method-call, Method Call>>                     | <<painless-operators-reference, Reference>> | . ()        | 1            | left -> right
+| <<field-access, Field Access>>                   | <<painless-operators-reference, Reference>> | .           | 1            | left -> right
+| <<null-safe, Null Safe>>                         | <<painless-operators-reference, Reference>> | ?.          | 1            | left -> right
+| <<function-call, Function Call>>                 | <<painless-operators-general, General>>     | ()          | 1            | left -> right
+| <<array-initialization, Array Initialization>>   | <<painless-operators-array, Array>>         | [] {}       | 1            | left -> right
+| <<array-access, Array Access>>                   | <<painless-operators-array, Array>>         | []          | 1            | left -> right
+| <<array-length, Array Length>>                   | <<painless-operators-array, Array>>         | .           | 1            | left -> right
+| <<list-initialization, List Initialization>>     | <<painless-operators-reference, Reference>> | []          | 1            | left -> right
+| <<list-access, List Access>>                     | <<painless-operators-reference, Reference>> | []          | 1            | left -> right
+| <<map-initialization, Map Initialization>>       | <<painless-operators-reference, Reference>> | [:]         | 1            | left -> right
+| <<map-access, Map Access>>                       | <<painless-operators-reference, Reference>> | []          | 1            | left -> right
+| <<post-increment, Post Increment>>               | <<painless-operators-numeric, Numeric>>     | ++          | 1            | left -> right
+| <<post-decrement, Post Decrement>>               | <<painless-operators-numeric, Numeric>>     | --          | 1            | left -> right
+| <<pre-increment, Pre Increment>>                 | <<painless-operators-numeric, Numeric>>     | ++          | 2            | right -> left
+| <<pre-decrement, Pre Decrement>>                 | <<painless-operators-numeric, Numeric>>     | --          | 2            | right -> left
+| <<unary-positive, Unary Positive>>               | <<painless-operators-numeric, Numeric>>     | +           | 2            | right -> left
+| <<unary-negative, Unary Negative>>               | <<painless-operators-numeric, Numeric>>     | -           | 2            | right -> left
+| <<boolean-not, Boolean Not>>                     | <<painless-operators-boolean, Boolean>>     | !           | 2            | right -> left
+| <<bitwise-not, Bitwise Not>>                     | <<painless-operators-numeric, Numeric>>     | ~           | 2            | right -> left
+| <<cast, Cast>>                                   | <<painless-operators-general, General>>     | ()          | 3            | right -> left
+| <<new-instance, New Instance>>                   | <<painless-operators-reference, Reference>> | new ()      | 3            | right -> left
+| <<new-array, New Array>>                         | <<painless-operators-array, Array>>         | new         | 3            | right -> left
+| <<multiplication, Multiplication>>               | <<painless-operators-numeric, Numeric>>     | *           | 4            | left -> right
+| <<division, Division>>                           | <<painless-operators-numeric, Numeric>>     | /           | 4            | left -> right
+| <<remainder, Remainder>>                         | <<painless-operators-numeric, Numeric>>     | %           | 4            | left -> right
+| <<string-concatenation, String Concatenation>>   | <<painless-operators-reference, Reference>> | +           | 5            | left -> right
+| <<addition, Addition>>                           | <<painless-operators-numeric, Numeric>>     | +           | 5            | left -> right
+| <<subtraction, Subtraction>>                     | <<painless-operators-numeric, Numeric>>     | -           | 5            | left -> right
+| <<left-shift, Left Shift>>                       | <<painless-operators-numeric, Numeric>>     | <<          | 6            | left -> right
+| <<right-shift, Right Shift>>                     | <<painless-operators-numeric, Numeric>>     | >>          | 6            | left -> right
+| <<unsigned-right-shift, Unsigned Right Shift>>   | <<painless-operators-numeric, Numeric>>     | >>>         | 6            | left -> right
+| <<greater-than, Greater Than>>                   | <<painless-operators-boolean, Boolean>>     | >           | 7            | left -> right
+| <<greater-than-or-equal, Greater Than Or Equal>> | <<painless-operators-boolean, Boolean>>     | >=          | 7            | left -> right
+| <<less-than, Less Than>>                         | <<painless-operators-boolean, Boolean>>     | <           | 7            | left -> right
+| <<less-than-or-equal, Less Than Or Equal>>       | <<painless-operators-boolean, Boolean>>     | <=          | 7            | left -> right
+| <<instance-of, Instance Of>>                     | <<painless-operators-boolean, Boolean>>     | instanceof  | 8            | left -> right
+| <<equality-equals, Equality Equals>>             | <<painless-operators-boolean, Boolean>>     | ==          | 9            | left -> right
+| <<equality-not-equals, Equality Not Equals>>     | <<painless-operators-boolean, Boolean>>     | !=          | 9            | left -> right
+| <<identity-equals, Identity Equals>>             | <<painless-operators-boolean, Boolean>>     | ===         | 9            | left -> right
+| <<identity-not-equals, Identity Not Equals>>     | <<painless-operators-boolean, Boolean>>     | !==         | 9            | left -> right
+| <<bitwise-and, Bitwise And>>                     | <<painless-operators-numeric, Numeric>>     | &           | 10           | left -> right
+| <<boolean-xor, Boolean Xor>>                     | <<painless-operators-boolean, Boolean>>     | ^           | 11           | left -> right
+| <<bitwise-xor, Bitwise Xor>>                     | <<painless-operators-numeric, Numeric>>     | ^           | 11           | left -> right
+| <<bitwise-or, Bitwise Or>>                       | <<painless-operators-numeric, Numeric>>     | \|          | 12           | left -> right
+| <<boolean-and, Boolean And>>                     | <<painless-operators-boolean, Boolean>>     | &&          | 13           | left -> right
+| <<boolean-or, Boolean Or>>                       | <<painless-operators-boolean, Boolean>>     | \|\|        | 14           | left -> right
+| <<conditional, Conditional>>                     | <<painless-operators-general, General>>     | ? :         | 15           | right -> left
+| <<elvis, Elvis>>                                 | <<painless-operators-general, General>>     | ?:          | 16           | right -> left
+| <<assignment, Assignment>>                       | <<painless-operators-general, General>>     | =           | 17           | right -> left
+| <<compound-assignment, Compound Assignment>>     | <<painless-operators-general, General>>     | $=          | 17           | right -> left
 |====

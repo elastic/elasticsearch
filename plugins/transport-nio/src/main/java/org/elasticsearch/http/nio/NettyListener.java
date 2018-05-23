@@ -23,7 +23,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.ExecutionException;
@@ -40,7 +40,7 @@ public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromis
 
     private final ChannelPromise promise;
 
-    NettyListener(ChannelPromise promise) {
+    private NettyListener(ChannelPromise promise) {
         this.promise = promise;
     }
 
@@ -210,5 +210,31 @@ public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromis
     @Override
     public ChannelPromise unvoid() {
         return promise.unvoid();
+    }
+
+    public static NettyListener fromBiConsumer(BiConsumer<Void, Throwable> biConsumer, Channel channel) {
+        if (biConsumer instanceof NettyListener) {
+            return (NettyListener) biConsumer;
+        } else {
+            ChannelPromise channelPromise = channel.newPromise();
+            channelPromise.addListener(f -> {
+                if (f.cause() == null) {
+                    biConsumer.accept(null, null);
+                } else {
+                    ExceptionsHelper.dieOnError(f.cause());
+                    biConsumer.accept(null, f.cause());
+                }
+            });
+
+            return new NettyListener(channelPromise);
+        }
+    }
+
+    public static NettyListener fromChannelPromise(ChannelPromise channelPromise) {
+        if (channelPromise instanceof NettyListener) {
+            return (NettyListener) channelPromise;
+        } else {
+            return new NettyListener(channelPromise);
+        }
     }
 }

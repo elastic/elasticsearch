@@ -73,7 +73,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();
-        assertThat(verifyResponse.getNodes().length, equalTo(cluster().numDataAndMasterNodes()));
+        assertThat(verifyResponse.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
 
         logger.info("--> create a snapshot");
         CreateSnapshotResponse snapshotResponse = client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)

@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -65,6 +68,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -108,6 +112,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -1342,6 +1347,8 @@ public final class TokenService extends AbstractComponent {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
+            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+
             if (tokenMetaData.equals(currentState.custom(TokenMetaData.TYPE))) {
                 return currentState;
             }
@@ -1362,6 +1369,15 @@ public final class TokenService extends AbstractComponent {
                 return;
             }
 
+            if (state.nodes().isLocalNodeElectedMaster()) {
+                if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
+                    installTokenMetadata(state.metaData());
+                } else {
+                    logger.debug("cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
+                        () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state));
+                }
+            }
+
             TokenMetaData custom = event.state().custom(TokenMetaData.TYPE);
             if (custom != null && custom.equals(getTokenMetaData()) == false) {
                 logger.info("refresh keys");
@@ -1373,6 +1389,39 @@ public final class TokenService extends AbstractComponent {
                 logger.info("refreshed keys");
             }
         });
+    }
+
+    // to prevent too many cluster state update tasks to be queued for doing the same update
+    private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
+
+    private void installTokenMetadata(MetaData metaData) {
+        if (metaData.custom(TokenMetaData.TYPE) == null) {
+            if (installTokenMetadataInProgress.compareAndSet(false, true)) {
+                clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+
+                        if (currentState.custom(TokenMetaData.TYPE) == null) {
+                            return ClusterState.builder(currentState).putCustom(TokenMetaData.TYPE, getTokenMetaData()).build();
+                        } else {
+                            return currentState;
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        installTokenMetadataInProgress.set(false);
+                        logger.error("unable to install token metadata", e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        installTokenMetadataInProgress.set(false);
+                    }
+                });
+            }
+        }
     }
 
     /**
@@ -1452,7 +1501,7 @@ public final class TokenService extends AbstractComponent {
         final Map<BytesKey, KeyAndCache> cache;
         final BytesKey currentTokenKeyHash;
         final KeyAndCache activeKeyCache;
-        
+
         private TokenKeys(Map<BytesKey, KeyAndCache> cache, BytesKey currentTokenKeyHash) {
             this.cache = cache;
             this.currentTokenKeyHash = currentTokenKeyHash;

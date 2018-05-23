@@ -33,7 +33,6 @@ public class MachineLearningTests extends ESTestCase {
         assertNotNull(machineLearning.additionalSettings());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30804")
     public void testNoAttributes_givenSameAndMlEnabled() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {

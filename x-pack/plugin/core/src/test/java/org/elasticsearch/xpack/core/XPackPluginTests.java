@@ -25,23 +25,16 @@ import static org.hamcrest.Matchers.containsString;
 
 public class XPackPluginTests extends ESTestCase {
 
-    public void testXPackInstalledAttrClashOnTransport() throws Exception {
+    public void testXPackInstalledAttrClash() throws Exception {
         Settings.Builder builder = Settings.builder();
-        builder.put("node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true");
-        builder.put(Client.CLIENT_TYPE_SETTING_S.getKey(), "transport");
+        builder.put("node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR, randomBoolean());
+        if (randomBoolean()) {
+            builder.put(Client.CLIENT_TYPE_SETTING_S.getKey(), "transport");
+        }
         XPackPlugin xpackPlugin = createXPackPlugin(builder.put("path.home", createTempDir()).build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, xpackPlugin::additionalSettings);
         assertThat(e.getMessage(),
             containsString("Directly setting [node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR + "] is not permitted"));
-    }
-
-    public void testXPackInstalledAttrClashOnNode() throws Exception {
-        Settings.Builder builder = Settings.builder();
-        builder.put("node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "false");
-        XPackPlugin xpackPlugin = createXPackPlugin(builder.put("path.home", createTempDir()).build());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, xpackPlugin::additionalSettings);
-        assertThat(e.getMessage(),
-            containsString("Conflicting setting [node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR + "]"));
     }
 
     public void testXPackInstalledAttrExists() throws Exception {

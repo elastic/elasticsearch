@@ -210,22 +210,13 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     public Settings additionalSettings() {
         final String xpackInstalledNodeAttrSetting = "node.attr." + XPACK_INSTALLED_NODE_ATTR;
 
-        if (transportClientMode) {
-            if (settings.get(xpackInstalledNodeAttrSetting) != null) {
-                throw new IllegalArgumentException("Directly setting [" + xpackInstalledNodeAttrSetting + "] is not permitted");
-            }
+        if (settings.get(xpackInstalledNodeAttrSetting) != null) {
+            throw new IllegalArgumentException("Directly setting [" + xpackInstalledNodeAttrSetting + "] is not permitted");
+        }
 
+        if (transportClientMode) {
             return super.additionalSettings();
         } else {
-            // Unfortunately we cannot simply disallow any value for xpackInstalledNodeAttrSetting, because the
-            // internal cluster integration test framework will restart nodes with settings copied from the node
-            // immediately before it was stopped.  The best we can do is reject inconsistencies.
-            // TODO: fix the test framework not to copy derived node settings upon restart.
-            if (settings.get(xpackInstalledNodeAttrSetting) != null &&
-                settings.get(xpackInstalledNodeAttrSetting).equals("true") == false) {
-                throw new IllegalArgumentException("Conflicting setting [" + xpackInstalledNodeAttrSetting + "]");
-            }
-
             return Settings.builder().put(super.additionalSettings()).put(xpackInstalledNodeAttrSetting, "true").build();
         }
     }

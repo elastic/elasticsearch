@@ -36,6 +36,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.nio.cors.NioCorsConfig;
+import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -49,6 +51,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 
 public class HttpReadWriteHandler implements ReadWriteHandler {
 
@@ -77,6 +81,9 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         handlers.add(new HttpObjectAggregator(settings.getMaxContentLength()));
         if (settings.isCompression()) {
             handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
+        }
+        if (settings.isCorsEnabled()) {
+            handlers.add(new NioCorsHandler(null));
         }
         handlers.add(new NioHttpPipeliningHandler(transport.getLogger(), settings.getPipeliningMaxEvents()));
 

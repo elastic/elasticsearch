@@ -30,6 +30,7 @@ public class HttpHandlingSettings {
     private final int compressionLevel;
     private final boolean detailedErrorsEnabled;
     private final int pipeliningMaxEvents;
+    private boolean corsEnabled;
 
     public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
                                 boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled,
@@ -79,5 +80,9 @@ public class HttpHandlingSettings {
 
     public int getPipeliningMaxEvents() {
         return pipeliningMaxEvents;
+    }
+
+    public boolean isCorsEnabled() {
+        return corsEnabled;
     }
 }

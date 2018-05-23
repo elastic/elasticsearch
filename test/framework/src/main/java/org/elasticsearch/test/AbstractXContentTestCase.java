@@ -25,10 +25,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -52,20 +54,21 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         for (int runs = 0; runs < numberOfTestRuns; runs++) {
             T testInstance = instanceSupplier.get();
             XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false, createParserFunction,
-                    shuffleFieldsExceptions);
+            BytesReference xContent = XContentHelper.toXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false);
             BytesReference withRandomFields;
             if (supportsUnknownFields) {
                 // we add a few random fields to check that parser is lenient on new fields
-                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, shuffled, randomFieldsExcludeFilter, random());
+                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, xContent, randomFieldsExcludeFilter, random());
             } else {
-                withRandomFields = shuffled;
+                withRandomFields = xContent;
             }
-            XContentParser parser = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
+            XContentParser parserWithRandonFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
+            BytesReference shuffledContent = BytesReference.bytes(shuffleXContent(parserWithRandonFields, false, shuffleFieldsExceptions));
+            XContentParser parser = createParserFunction.apply(XContentFactory.xContent(xContentType), shuffledContent);
             T parsed = parseFunction.apply(parser);
             assertEqualsConsumer.accept(testInstance, parsed);
             if (assertToXContentEquivalence) {
-                assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
+                assertToXContentEquivalent(xContent, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
             }
         }
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -789,9 +790,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         clusterApplier.onNewClusterState("apply cluster state (from master [" + reason + "])",
             this::clusterState,
-            new ClusterStateTaskListener() {
+            new ClusterApplyListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void onSuccess(String source) {
                     try {
                         pendingStatesQueue.markAsProcessed(newClusterState);
                     } catch (Exception e) {
@@ -997,7 +998,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 .build();
 
             committedState.set(clusterState);
-            clusterApplier.onNewClusterState(reason, this::clusterState, (source, e) -> {}); // don't wait for state to be applied
+
+            clusterApplier.onNewClusterState(reason, this::clusterState, new ClusterApplyListener() {
+                @Override
+                public void onSuccess(String source) {
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                }
+            }); // don't wait for state to be applied
         }
     }
 

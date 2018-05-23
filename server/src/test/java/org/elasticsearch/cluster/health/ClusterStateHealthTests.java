@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -134,7 +135,15 @@ public class ClusterStateHealthTests extends ESTestCase {
         clusterService.getClusterApplierService().onNewClusterState("restore master",
             () -> ClusterState.builder(currentState)
                 .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId())).build(),
-            (source, e) -> {});
+            new ClusterApplyListener() {
+                @Override
+                public void onSuccess(String source) {
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                }
+            });
 
         logger.info("--> waiting for listener to be called and cluster state being blocked");
         listenerCalled.await();

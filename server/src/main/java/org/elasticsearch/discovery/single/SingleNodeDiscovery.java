@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.single;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -65,9 +67,9 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
         clusterState = event.state();
         CountDownLatch latch = new CountDownLatch(1);
 
-        ClusterStateTaskListener listener = new ClusterStateTaskListener() {
+        ClusterApplyListener listener = new ClusterApplyListener() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void onSuccess(String source) {
                 latch.countDown();
                 ackListener.onNodeAck(transportService.getLocalNode(), null);
             }
@@ -101,7 +103,15 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
         // apply a fresh cluster state just so that state recovery gets triggered by GatewayService
         // TODO: give discovery module control over GatewayService
         clusterState = ClusterState.builder(clusterState).build();
-        clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, (source, e) -> {});
+        clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, new ClusterApplyListener() {
+            @Override
+            public void onSuccess(String source) {
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+            }
+        });
     }
 
     @Override

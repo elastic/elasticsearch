@@ -19,6 +19,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
@@ -116,8 +117,16 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                 } catch (InterruptedException e) {
                     ExceptionsHelper.reThrowIfNotNull(e);
                 }
-            }, (source, e) -> countDownLatch.countDown(),
-            Priority.IMMEDIATE);
+            }, new ClusterApplyListener() {
+                @Override
+                public void onSuccess(String source) {
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    countDownLatch.countDown();
+                }
+            }, Priority.IMMEDIATE);
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {

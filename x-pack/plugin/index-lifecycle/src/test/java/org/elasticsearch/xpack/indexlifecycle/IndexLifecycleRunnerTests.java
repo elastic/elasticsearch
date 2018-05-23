@@ -688,6 +688,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertClusterStateStepInfo(clusterState, index, currentStep, newClusterState, stepInfo);
     }
 
+    @SuppressWarnings("unchecked")
     public void testSkipped() {
         String policy = randomAlphaOfLength(5);
         String index = randomAlphaOfLength(10);

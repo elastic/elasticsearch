@@ -233,7 +233,7 @@ class IndicesAndAliasesResolver {
         if (aliasOrIndex == null) {
             resolvedAliasOrIndex = concreteIndexName;
         } else if (aliasOrIndex.isAlias()) {
-            throw new IllegalStateException("concrete index should never be an alias!");
+            throw new IllegalStateException("concrete index [" + concreteIndexName + "] is an alias but should not be");
         } else if (authorizedIndicesList.contains(concreteIndexName)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;

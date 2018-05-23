@@ -190,7 +190,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
-        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterService.getClusterName());
+        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, this::clusterState, clusterService.getClusterName());
         this.nodesFD.addListener(new NodeFaultDetectionListener());
 
         this.publishClusterState =

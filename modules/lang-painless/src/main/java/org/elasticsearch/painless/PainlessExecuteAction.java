@@ -31,20 +31,21 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -52,7 +53,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -70,6 +70,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -118,7 +119,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends SingleShardRequest<Request> implements ToXContent {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
@@ -289,6 +290,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
             this.script = Objects.requireNonNull(script);
             if (context != null) {
                 this.executeScriptContext = context;
+                index(executeScriptContext.index);
             }
         }
 
@@ -313,6 +315,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
 
         public void setIndex(String index) {
             this.executeScriptContext.index = index;
+            index(executeScriptContext.index);
         }
 
         public BytesReference getDocument() {
@@ -501,80 +504,96 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
 
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends TransportSingleShardAction<Request, Response> {
 
         private final ScriptService scriptService;
-        private final ClusterService clusterService;
         private final IndicesService indicesServices;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
-            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+            super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                // Forking a thread here, because only light weight operations should happen on network thread and
+                // Creating a in-memory index is not light weight
+                // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
+                Request::new, ThreadPool.Names.MANAGEMENT);
             this.scriptService = scriptService;
-            this.clusterService = clusterService;
             this.indicesServices = indicesServices;
         }
+
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
-            // Forking a thread here, because only light weight operations should happen on network thread and
-            // Creating a in-memory index is not light weight
-            // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
-            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    final ScriptContext<?> scriptContext = request.executeScriptContext.scriptContext;
-                    if (scriptContext == PainlessTestScript.CONTEXT) {
-                        PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
-                        PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
-                        String result = Objects.toString(painlessTestScript.execute());
-                        listener.onResponse(new Response(result));
-                    } else if (scriptContext == FilterScript.CONTEXT) {
-                        indexAndOpenIndexReader(request, (context, leafReaderContext) -> {
-                            FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
-                            FilterScript.LeafFactory leafFactory =
-                                factory.newFactory(request.getScript().getParams(), context.lookup());
-                            FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
-                            boolean result = filterScript.execute();
-                            listener.onResponse(new Response(result));
-                        });
-                    } else if (scriptContext == SearchScript.SCRIPT_SCORE_CONTEXT) {
-                        indexAndOpenIndexReader(request, (context, leafReaderContext) -> {
-                            SearchScript.Factory factory = scriptService.compile(request.script, SearchScript.CONTEXT);
-                            SearchScript.LeafFactory leafFactory =
-                                factory.newFactory(request.getScript().getParams(), context.lookup());
-                            SearchScript searchScript = leafFactory.newInstance(leafReaderContext);
-
-                            if (request.executeScriptContext.query != null) {
-                                Query luceneQuery = request.executeScriptContext.query.rewrite(context).toQuery(context);
-                                IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
-                                luceneQuery = indexSearcher.rewrite(luceneQuery);
-                                Weight weight = indexSearcher.createWeight(luceneQuery, true, 1f);
-                                Scorer scorer = weight.scorer(indexSearcher.getIndexReader().leaves().get(0));
-                                // Consume the first (and only) match.
-                                int docID = scorer.iterator().nextDoc();
-                                assert docID == scorer.docID();
-                                searchScript.setScorer(scorer);
-                            }
-
-                            double result = searchScript.runAsDouble();
-                            listener.onResponse(new Response(result));
-                        });
-                    } else {
-                        throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
-                    }
-                }
-            });
+        protected Response newResponse() {
+            return new Response();
         }
 
-        private void indexAndOpenIndexReader(Request request, CheckedBiConsumer<QueryShardContext,
-            LeafReaderContext, IOException> handler) throws IOException {
+        @Override
+        protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+            if (request.concreteIndex() != null) {
+                return super.checkRequestBlock(state, request);
+            }
+            return null;
+        }
+
+        @Override
+        protected boolean resolveIndex(Request request) {
+            return request.getIndex() != null;
+        }
+
+        @Override
+        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+            if (request.concreteIndex() == null) {
+                return null;
+            }
+            return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
+        }
+
+        @Override
+        protected Response shardOperation(Request request, ShardId shardId) throws IOException {
+            final ScriptContext<?> scriptContext = request.executeScriptContext.scriptContext;
+            if (scriptContext == PainlessTestScript.CONTEXT) {
+                PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
+                PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
+                String result = Objects.toString(painlessTestScript.execute());
+                return new Response(result);
+            } else if (scriptContext == FilterScript.CONTEXT) {
+                return indexAndOpenIndexReader(request, (context, leafReaderContext) -> {
+                    FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
+                    FilterScript.LeafFactory leafFactory =
+                        factory.newFactory(request.getScript().getParams(), context.lookup());
+                    FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
+                    boolean result = filterScript.execute();
+                    return new Response(result);
+                });
+            } else if (scriptContext == SearchScript.SCRIPT_SCORE_CONTEXT) {
+                return indexAndOpenIndexReader(request, (context, leafReaderContext) -> {
+                    SearchScript.Factory factory = scriptService.compile(request.script, SearchScript.CONTEXT);
+                    SearchScript.LeafFactory leafFactory =
+                        factory.newFactory(request.getScript().getParams(), context.lookup());
+                    SearchScript searchScript = leafFactory.newInstance(leafReaderContext);
+
+                    if (request.executeScriptContext.query != null) {
+                        Query luceneQuery = request.executeScriptContext.query.rewrite(context).toQuery(context);
+                        IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
+                        luceneQuery = indexSearcher.rewrite(luceneQuery);
+                        Weight weight = indexSearcher.createWeight(luceneQuery, true, 1f);
+                        Scorer scorer = weight.scorer(indexSearcher.getIndexReader().leaves().get(0));
+                        // Consume the first (and only) match.
+                        int docID = scorer.iterator().nextDoc();
+                        assert docID == scorer.docID();
+                        searchScript.setScorer(scorer);
+                    }
+
+                    double result = searchScript.runAsDouble();
+                    return new Response(result);
+                });
+            } else {
+                throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
+            }
+        }
+
+        private Response indexAndOpenIndexReader(Request request, CheckedBiFunction<QueryShardContext,
+                    LeafReaderContext, Response, IOException> handler) throws IOException {
 
             ClusterState clusterState = clusterService.state();
             IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
@@ -601,7 +620,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
                             indexService.newQueryShardContext(0, indexReader, () -> absoluteStartMillis, null);
-                        handler.accept(context, indexReader.leaves().get(0));
+                        return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }
             }

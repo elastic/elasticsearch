@@ -326,6 +326,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
                     if ("filter".equals(currentFieldName)) {
                         Map<String, Object> filter = parser.mapOrdered();
                         builder.filter(filter);
+                    } else {
+                        parser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                     if ("filter".equals(currentFieldName)) {

@@ -116,13 +116,13 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new index
                 || p.endsWith(".aliases") // do not add new alias
-                || p.contains(".aliases."); // do not insert random fields in AlilasMetaData.fromContent
+                || p.contains(".filter"); // do not insert random data into AliasMetaData#filter
     }
 
     private static GetAliasesResponse createTestItem() {
         RestStatus status = randomFrom(RestStatus.OK, RestStatus.NOT_FOUND);
         String errorMessage = RestStatus.OK == status ? null : randomAlphaOfLengthBetween(5, 10);
-        return new GetAliasesResponse(createIndicesAliasesMap(1, 5).build(), status, errorMessage);
+        return new GetAliasesResponse(createIndicesAliasesMap(0, 5).build(), status, errorMessage);
     }
 
     private static ImmutableOpenMap.Builder<String, List<AliasMetaData>> createIndicesAliasesMap(int min, int max) {

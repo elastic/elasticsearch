@@ -79,7 +79,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
 
         String message = null;
-        RestStatus status = RestStatus.OK;
+        RestStatus status = null;
         if (false == Strings.isAllOrWildcard(request.aliases())) {
             String[] aliasesNames = Strings.EMPTY_ARRAY;
 

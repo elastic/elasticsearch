@@ -320,12 +320,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     private void addMlNodeAttribute(Settings.Builder additionalSettings, String attrName, String value) {
-        // Unfortunately we cannot simply disallow any value, because the internal cluster integration
-        // test framework will restart nodes with settings copied from the node immediately before it
-        // was stopped.  The best we can do is reject inconsistencies, and report this in a way that
-        // makes clear that setting the node attribute directly is not allowed.
         String oldValue = settings.get(attrName);
-        if (oldValue == null || oldValue.equals(value)) {
+        if (oldValue == null) {
             additionalSettings.put(attrName, value);
         } else {
             reportClashingNodeAttribute(attrName);
@@ -488,7 +484,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestStartDatafeedAction(settings, restController),
             new RestStopDatafeedAction(settings, restController),
             new RestDeleteModelSnapshotAction(settings, restController),
-            new RestDeleteExpiredDataAction(settings, restController), 
+            new RestDeleteExpiredDataAction(settings, restController),
             new RestForecastJobAction(settings, restController),
             new RestGetCalendarsAction(settings, restController),
             new RestPutCalendarAction(settings, restController),

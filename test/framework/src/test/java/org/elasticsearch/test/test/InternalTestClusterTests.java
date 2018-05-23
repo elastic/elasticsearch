@@ -484,9 +484,11 @@ public class InternalTestClusterTests extends ESTestCase {
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class));
+        plugins.add(NodeAttrCheckPlugin.class);
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, true, 2, 2,
             "test", nodeConfigurationSource, 0, enableHttpPipelining, nodePrefix,
-            Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class), Function.identity());
+            plugins, Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
             assertMMNinNodeSetting(cluster, 2);
@@ -517,5 +519,27 @@ public class InternalTestClusterTests extends ESTestCase {
             cluster.close();
         }
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
+    }
+
+    /**
+     * Plugin that adds a simple node attribute as setting and checks if that node attribute is not already defined.
+     * Allows to check that the full-cluster restart logic does not copy over plugin-derived settings.
+     */
+    public static class NodeAttrCheckPlugin extends Plugin {
+
+        private final Settings settings;
+
+        public NodeAttrCheckPlugin(Settings settings) {
+            this.settings = settings;
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.get("node.attr.dummy") != null) {
+                fail("dummy setting already exists");
+            }
+            return Settings.builder().put("node.attr.dummy", true).build();
+        }
+
     }
 }

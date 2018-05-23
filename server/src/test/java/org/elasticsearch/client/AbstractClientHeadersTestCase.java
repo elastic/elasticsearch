@@ -139,14 +139,14 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     protected static void assertHeaders(Map<String, String> headers, Map<String, String> expected) {
         assertNotNull(headers);
-        assertEquals(expected.size(), headers.size());
+        assertEquals(expected.size()+1, headers.size());
+        assertEquals("true", headers.get("transport_client"));
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             assertEquals(headers.get(expectedEntry.getKey()), expectedEntry.getValue());
         }
     }
 
     protected static void assertHeaders(ThreadPool pool) {
-        Map<String, String> headers = new HashMap<>();
         Settings asSettings = HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX);
         assertHeaders(pool.getThreadContext().getHeaders(),
             asSettings.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> asSettings.get(k))));

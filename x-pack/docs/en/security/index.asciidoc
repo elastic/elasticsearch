@@ -26,8 +26,8 @@ Security protects Elasticsearch clusters by:
 To prevent unauthorized access to your Elasticsearch cluster, you must have a
 way to _authenticate_ users. This simply means that you need a way to validate
 that a user is who they claim to be. For example, you have to make sure only
-the person named _Kelsey Andorra_ can sign in as the user `kandorra`. X-Pack
-Security provides a standalone authentication mechanism that enables you to
+the person named _Kelsey Andorra_ can sign in as the user `kandorra`. {security} 
+provides a standalone authentication mechanism that enables you to
 quickly password-protect your cluster. If you're already using <<ldap-realm, LDAP>>,
 <<active-directory-realm, Active Directory>>, or <<pki-realm, PKI>> to manage
 users in your organization, {security} is able to integrate with those
@@ -81,7 +81,7 @@ issues.
 
 * <<ccs-clients-integrations>>
   shows you how to interact with an Elasticsearch cluster protected by
-  X-Pack Security.
+  {security}.
 
 * <<security-reference, Reference>>
   provides detailed information about the access privileges you can grant to
@@ -95,20 +95,29 @@ Head over to our {security-forum}[Security Discussion Forum]
 to share your experience, questions, and suggestions.
 --
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/getting-started.asciidoc
 include::getting-started.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/how-security-works.asciidoc
 include::how-security-works.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authentication/overview.asciidoc
 include::authentication/overview.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/overview.asciidoc
 include::authorization/overview.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/auditing.asciidoc
 include::auditing.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/securing-communications.asciidoc
 include::securing-communications.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/using-ip-filtering.asciidoc
 include::using-ip-filtering.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations.asciidoc
 include::ccs-clients-integrations.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/reference.asciidoc
 include::reference.asciidoc[]

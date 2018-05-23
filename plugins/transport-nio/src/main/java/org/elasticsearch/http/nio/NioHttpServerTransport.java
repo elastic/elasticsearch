@@ -20,6 +20,7 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.timeout.ReadTimeoutException;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -84,6 +85,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_D
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
@@ -124,6 +126,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         ByteSizeValue maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         ByteSizeValue maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         ByteSizeValue maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
+        int pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
         this.httpHandlingSettings = new HttpHandlingSettings(Math.toIntExact(maxContentLength.getBytes()),
             Math.toIntExact(maxChunkSize.getBytes()),
             Math.toIntExact(maxHeaderSize.getBytes()),
@@ -131,7 +134,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             SETTING_HTTP_RESET_COOKIES.get(settings),
             SETTING_HTTP_COMPRESSION.get(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
-            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings));
+            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
+            pipeliningMaxEvents);
 
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
@@ -140,12 +144,17 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         this.tcpReceiveBufferSize = Math.toIntExact(SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
 
 
-        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}]",
-            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength);
+        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}]," +
+                " pipelining_max_events[{}]",
+            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, pipeliningMaxEvents);
     }
 
     BigArrays getBigArrays() {
         return bigArrays;
+    }
+
+    public Logger getLogger() {
+        return logger;
     }
 
     @Override
@@ -154,9 +163,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         try {
             int acceptorCount = NIO_HTTP_ACCEPTOR_COUNT.get(settings);
             int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
-            nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                workerCount, SocketEventHandler::new);
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+                (s) -> new AcceptorEventHandler(s, this::nonChannelExceptionCaught),
+                daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), workerCount,
+                () -> new SocketEventHandler(this::nonChannelExceptionCaught));
             channelFactory = new HttpChannelFactory();
             this.boundAddress = createBoundHttpAddress();
 
@@ -265,6 +275,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
+    protected void nonChannelExceptionCaught(Exception ex) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()), ex);
+    }
+
     private void closeChannels(List<NioChannel> channels) {
         List<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
 
@@ -312,8 +326,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         @Override
         public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             NioServerSocketChannel nioChannel = new NioServerSocketChannel(channel);
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, NioHttpServerTransport.this::acceptChannel,
-                (e) -> {});
+            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
+                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            Consumer<NioSocketChannel> acceptor = NioHttpServerTransport.this::acceptChannel;
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }

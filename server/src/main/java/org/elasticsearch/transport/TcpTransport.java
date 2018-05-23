@@ -983,7 +983,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected void onException(TcpChannel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
-            TcpChannel.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel);
             return;
         }
 
@@ -991,20 +991,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             logger.trace(() -> new ParameterizedMessage(
                     "close connection exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
-            TcpChannel.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel);
         } else if (isConnectException(e)) {
             logger.trace(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            TcpChannel.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel);
         } else if (e instanceof BindException) {
             logger.trace(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            TcpChannel.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel);
         } else if (e instanceof CancelledKeyException) {
             logger.trace(() -> new ParameterizedMessage(
                     "cancelled key exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            TcpChannel.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel);
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
@@ -1012,13 +1012,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 final SendMetricListener closeChannel = new SendMetricListener(message.length()) {
                     @Override
                     protected void innerInnerOnResponse(Void v) {
-                        TcpChannel.closeChannel(channel, false);
+                        TcpChannel.closeChannel(channel);
                     }
 
                     @Override
                     protected void innerOnFailure(Exception e) {
                         logger.debug("failed to send message to httpOnTransport channel", e);
-                        TcpChannel.closeChannel(channel, false);
+                        TcpChannel.closeChannel(channel);
                     }
                 };
                 internalSendMessage(channel, message, closeChannel);
@@ -1026,8 +1026,18 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
-            TcpChannel.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel);
         }
+    }
+
+    /**
+     * Exception handler for exceptions that are not associated with a specific channel.
+     *
+     * @param exception the exception
+     */
+    protected void onNonChannelException(Exception exception) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+            exception);
     }
 
     protected void serverAcceptedChannel(TcpChannel channel) {

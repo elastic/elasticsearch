@@ -89,24 +89,14 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         if (syncNeeded) {
             assertTrue("Sync action was not called", syncActionCalled.get());
         }
-
-        if (syncNeeded == false) {
-            assertEquals(0, fut.get().getTotalOperations());
-            assertEquals(0, fut.get().getSkippedOperations());
-            assertEquals(0, fut.get().getResyncedOperations());
-        } else if (shard.indexSettings.isUseSoftDeletesInPeerRecovery()) {
-            // We can read only required operations from Lucene history
-            long totalOps = (numDocs - 1) - globalCheckPoint;
-            assertEquals(totalOps, fut.get().getTotalOperations());
-            assertEquals(0, fut.get().getSkippedOperations());
-            assertEquals(totalOps, fut.get().getResyncedOperations());
-        } else {
-            // We read the whole translog files then skip operations until the global checkpoint
-            long totalOps = globalCheckPoint == numDocs - 1 ? 0 : numDocs;
-            long skippedOps = globalCheckPoint + 1;
-            assertEquals(totalOps, fut.get().getTotalOperations());
+        assertEquals(globalCheckPoint == numDocs - 1 ? 0 : numDocs, fut.get().getTotalOperations());
+        if (syncNeeded) {
+            long skippedOps = globalCheckPoint + 1; // everything up to global checkpoint included
             assertEquals(skippedOps, fut.get().getSkippedOperations());
             assertEquals(numDocs - skippedOps, fut.get().getResyncedOperations());
+        } else {
+            assertEquals(0, fut.get().getSkippedOperations());
+            assertEquals(0, fut.get().getResyncedOperations());
         }
 
         closeShards(shard);

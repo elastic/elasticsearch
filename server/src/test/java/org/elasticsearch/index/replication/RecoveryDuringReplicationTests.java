@@ -94,7 +94,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testRecoveryOfDisconnectedReplica() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
@@ -216,7 +216,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.indices.recovery:TRACE")
     public void testRecoveryAfterPrimaryPromotion() throws Exception {
-        try (ReplicationGroup shards = createGroup(2)) {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        try (ReplicationGroup shards = createGroup(2, settings)) {
             shards.startAll();
             int totalDocs = shards.indexDocs(randomInt(10));
             int committedDocs = 0;
@@ -228,7 +229,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
-            boolean useSoftDeletesInPeerRecovery = replica.indexSettings().isUseSoftDeletesInPeerRecovery();
+            boolean softDeleteEnabled = replica.indexSettings().isSoftDeleteEnabled();
             if (randomBoolean()) {
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);
@@ -265,7 +266,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             int uncommittedOpsOnPrimary = 0;
             if (expectSeqNoRecovery == false) {
                 // To prevent sequence-based recovery with soft-deletes, we need to make a segment that will be claimed by merges.
-                if (moreDocs > 0 && useSoftDeletesInPeerRecovery) {
+                if (moreDocs > 0 && softDeleteEnabled) {
                     for (int i = 0; i < moreDocs; i++) {
                         shards.delete(new DeleteRequest(index.getName(), "type", "extra_" + i));
                     }
@@ -308,7 +309,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs - committedDocs));
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-                int expectOps = useSoftDeletesInPeerRecovery ? totalDocs : uncommittedOpsOnPrimary;
+                int expectOps = softDeleteEnabled ? totalDocs : uncommittedOpsOnPrimary;
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(expectOps));
             }
 

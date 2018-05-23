@@ -127,6 +127,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
@@ -169,6 +170,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -4779,6 +4781,83 @@ public class InternalEngineTests extends EngineTestCase {
             List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService);
             assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
+        }
+    }
+
+    public void testKeepOperationsNotSeenByMergePolicy() throws IOException {
+        IOUtils.close(engine, store);
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final List<Engine.Operation> operations = generateSingleDocHistory(true,
+            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "2");
+        Randomness.shuffle(operations);
+        Set<Long> existingSeqNos = new HashSet<>();
+        store = createStore();
+        engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get));
+        long lastSeqNoSeenByMP = SequenceNumbers.NO_OPS_PERFORMED;
+        for (Engine.Operation op : operations) {
+            final Engine.Result result;
+            if (op instanceof Engine.Index) {
+                result = engine.index((Engine.Index) op);
+            } else {
+                result = engine.delete((Engine.Delete) op);
+            }
+            existingSeqNos.add(result.getSeqNo());
+            if (randomBoolean()) {
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
+            }
+            if (randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+                indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+                engine.onSettingsChanged();
+            }
+            if (rarely()) {
+                engine.refresh("test");
+            }
+            if (rarely()) {
+                engine.flush();
+                assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)),
+                    equalTo(engine.getLastSeqNoSeenByMergePolicy()));
+            }
+            if (rarely()) {
+                engine.forceMerge(randomBoolean());
+            }
+            try (Closeable ignored = engine.acquireRetentionLockForPeerRecovery()) {
+                long minRetainSeqNos = engine.getLastSeqNoSeenByMergePolicy();
+                assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get()));
+                Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
+                Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService("test")).stream()
+                    .map(Translog.Operation::seqNo).collect(Collectors.toSet());
+                assertThat(actualOps, containsInAnyOrder(expectedOps));
+            }
+            try (Engine.IndexCommitRef commitRef = engine.acquireSafeIndexCommit()) {
+                IndexCommit safeCommit = commitRef.getIndexCommit();
+                if (safeCommit.getUserData().containsKey(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)) {
+                    lastSeqNoSeenByMP = Long.parseLong(safeCommit.getUserData().get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO));
+                }
+            }
+        }
+        if (randomBoolean()) {
+            engine.close();
+        } else {
+            engine.flushAndClose();
+        }
+        trimUnsafeCommits(engine.config());
+        try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
+            assertThat(recoveringEngine.getLastSeqNoSeenByMergePolicy(), equalTo(lastSeqNoSeenByMP));
+            recoveringEngine.recoverFromTranslog();
+            try (Closeable ignored = recoveringEngine.acquireRetentionLockForPeerRecovery()) {
+                long minRetainSeqNos = recoveringEngine.getLastSeqNoSeenByMergePolicy();
+                Set<Long> actualOps = readAllOperationsInLucene(recoveringEngine, createMapperService("test")).stream()
+                    .map(Translog.Operation::seqNo).collect(Collectors.toSet());
+                Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
+                assertThat(actualOps, containsInAnyOrder(expectedOps));
+            }
         }
     }
 

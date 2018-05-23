@@ -221,7 +221,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             // file based recovery should be made
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            assertThat(newReplica.estimateTranslogOperationsFromMinSeq(0), equalTo(numDocs));
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(numDocs));
 
             // history uuid was restored
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));

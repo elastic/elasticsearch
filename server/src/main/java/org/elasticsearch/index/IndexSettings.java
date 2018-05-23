@@ -252,12 +252,6 @@ public final class IndexSettings {
         Setting.longSetting("index.soft_deletes.retention.operations", 0, 0, Property.IndexScope, Property.Dynamic);
 
     /**
-     * Specifies if this index should use Lucene index instead of translog in peer-recovery
-     **/
-    public static final Setting<Boolean> INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING =
-        Setting.boolSetting("index.soft_deletes.use_in_peer_recovery", true, Property.IndexScope, Property.Dynamic);
-
-    /**
      * The maximum number of refresh listeners allows on this shard.
      */
     public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
@@ -303,7 +297,6 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
-    private volatile boolean useSoftDeletesInPeerRecovery;
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -416,7 +409,6 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(Version.V_6_4_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
-        useSoftDeletesInPeerRecovery = softDeleteEnabled && scopedSettings.get(INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -475,7 +467,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING, this::setUseSoftDeletesInPeerRecovery);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -868,16 +859,5 @@ public final class IndexSettings {
      */
     public long getSoftDeleteRetentionOperations() {
         return this.softDeleteRetentionOperations;
-    }
-
-    private void setUseSoftDeletesInPeerRecovery(boolean enabled) {
-        this.useSoftDeletesInPeerRecovery = softDeleteEnabled && enabled;
-    }
-
-    /**
-     * Returns whether this index should use Lucene index for peer-recovery purpose
-     */
-    public boolean isUseSoftDeletesInPeerRecovery() {
-        return useSoftDeletesInPeerRecovery;
     }
 }

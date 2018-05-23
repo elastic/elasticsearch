@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -38,7 +37,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -197,8 +195,7 @@ public class InternalEngine extends Engine {
                 this.translog = translog;
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
-                this.softDeletesPolicy = new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint,
-                    engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
+                this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy =
                     new CombinedDeletionPolicy(logger, translogDeletionPolicy, softDeletesPolicy, translog::getLastSyncedGlobalCheckpoint);
                 writer = createWriter();
@@ -255,6 +252,18 @@ public class InternalEngine extends Engine {
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+    }
+
+    private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
+        final Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().userData;
+        final long lastSeqNoSeenByMergePolicy;
+        if (commitUserData.containsKey(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)) {
+            lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO));
+        } else {
+            lastSeqNoSeenByMergePolicy = SequenceNumbers.NO_OPS_PERFORMED;
+        }
+        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastSeqNoSeenByMergePolicy,
+            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
     }
 
     /**
@@ -2017,7 +2026,7 @@ public class InternalEngine extends Engine {
         MergePolicy mergePolicy = config().getMergePolicy();
         if (softDeleteEnabled) {
             iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
-            mergePolicy = new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, softDeletesPolicy::retentionQuery, mergePolicy);
+            mergePolicy = new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, softDeletesPolicy::getRetentionQuery, mergePolicy);
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -2216,6 +2225,7 @@ public class InternalEngine extends Engine {
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
+                commitData.put(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getLastSeqNoSeenByMergePolicy()));
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
@@ -2356,6 +2366,30 @@ public class InternalEngine extends Engine {
         } finally {
             IOUtils.close(searcher);
         }
+    }
+
+    @Override
+    public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long minSeqNo) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            return getLastSeqNoSeenByMergePolicy() <= minSeqNo;
+        } else {
+            final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
+            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(minSeqNo, minSeqNo - 1);
+            try (Translog.Snapshot snapshot = getTranslog().getSnapshotBetween(minSeqNo, Long.MAX_VALUE)) {
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        tracker.markSeqNoAsCompleted(operation.seqNo());
+                    }
+                }
+            }
+            return tracker.getCheckpoint() >= currentLocalCheckpoint;
+        }
+    }
+
+    // pkg-level for testing
+    final long getLastSeqNoSeenByMergePolicy() {
+        return softDeletesPolicy.getLastSeqNoSeenByMergePolicy();
     }
 
     @Override

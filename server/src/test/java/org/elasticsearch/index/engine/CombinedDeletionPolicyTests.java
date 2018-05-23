@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
@@ -53,7 +52,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testKeepCommitsAfterGlobalCheckpoint() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();
         final int extraRetainedOps = between(0, 100);
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, extraRetainedOps);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, extraRetainedOps);
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get);
 
@@ -90,14 +89,14 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(translogGenList.get(keptIndex)));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
-        assertThat(softDeletesPolicy.getMinSeqNoToRetain(),
+        assertThat(getLastSeqNoSeenByMergePolicy(softDeletesPolicy),
             equalTo(Math.min(getLocalCheckpoint(commitList.get(keptIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
     }
 
     public void testAcquireIndexCommit() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();
         final int extraRetainedOps = between(0, 100);
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, extraRetainedOps);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, extraRetainedOps);
         final UUID translogUUID = UUID.randomUUID();
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get);
@@ -126,7 +125,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             commitList.forEach(this::resetDeletion);
             indexPolicy.onCommit(commitList);
             IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
-            assertThat(softDeletesPolicy.getMinSeqNoToRetain(),
+            assertThat(getLastSeqNoSeenByMergePolicy(softDeletesPolicy),
                 equalTo(Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
             // Captures and releases some commits
             int captures = between(0, 5);
@@ -157,7 +156,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 equalTo(Long.parseLong(commitList.get(safeIndex).getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
             assertThat(translogPolicy.getTranslogGenerationOfLastCommit(),
                 equalTo(Long.parseLong(commitList.get(commitList.size() - 1).getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
-            assertThat(softDeletesPolicy.getMinSeqNoToRetain(),
+            assertThat(getLastSeqNoSeenByMergePolicy(softDeletesPolicy),
                 equalTo(Math.min(getLocalCheckpoint(commitList.get(safeIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
         }
         snapshottingCommits.forEach(indexPolicy::releaseCommit);
@@ -171,13 +170,13 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
         IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
-        assertThat(softDeletesPolicy.getMinSeqNoToRetain(),
+        assertThat(getLastSeqNoSeenByMergePolicy(softDeletesPolicy),
             equalTo(Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
     }
 
     public void testLegacyIndex() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, 0);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0);
         final UUID translogUUID = UUID.randomUUID();
 
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
@@ -207,12 +206,12 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         verify(freshCommit, times(0)).delete();
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(safeTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(safeTranslogGen));
-        assertThat(softDeletesPolicy.getMinSeqNoToRetain(), equalTo(getLocalCheckpoint(freshCommit) + 1));
+        assertThat(getLastSeqNoSeenByMergePolicy(softDeletesPolicy), equalTo(getLocalCheckpoint(freshCommit) + 1));
     }
 
     public void testDeleteInvalidCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, 0);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0);
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get);
 
@@ -240,13 +239,13 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         for (int i = 0; i < invalidCommits - 1; i++) {
             verify(commitList.get(i), times(1)).delete();
         }
-        assertThat(softDeletesPolicy.getMinSeqNoToRetain(),
+        assertThat(getLastSeqNoSeenByMergePolicy(softDeletesPolicy),
             equalTo(getLocalCheckpoint(CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get())) + 1));
     }
 
     public void testCheckUnreferencedCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, 0);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0);
         final UUID translogUUID = UUID.randomUUID();
         final TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get);
@@ -286,41 +285,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
     }
 
-    public void testSoftDeletesRetentionLock() {
-        long retainedOps = between(0, 10000);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, retainedOps);
-        long safeCommitCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-        long lastUsedCheckpoint = safeCommitCheckpoint;
-        List<Releasable> locks = new ArrayList<>();
-        int iters = scaledRandomIntBetween(10, 1000);
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                locks.add(policy.acquireRetentionLock());
-            }
-            // Advances the global checkpoint and the local checkpoint of a safe commit
-            globalCheckpoint.addAndGet(between(0, 1000));
-            safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
-            policy.setCheckpointOfSafeCommit(safeCommitCheckpoint);
-            if (rarely()) {
-                retainedOps = between(0, 10000);
-                policy.setRetentionOperations(retainedOps);
-            }
-            // Release some locks
-            List<Releasable> releasingLocks = randomSubsetOf(locks);
-            locks.removeAll(releasingLocks);
-            releasingLocks.forEach(Releasable::close);
-            // If all locks are released, then the policy should use the checkpoint of the latest safe commit;
-            // otherwise it should not advance.
-            if (locks.isEmpty()) {
-                lastUsedCheckpoint = safeCommitCheckpoint;
-            }
-            assertThat(policy.getMinSeqNoToRetain(), equalTo(Math.min(globalCheckpoint.get() + 1 - retainedOps, lastUsedCheckpoint + 1)));
-        }
-        locks.forEach(Releasable::close);
-        assertThat(policy.getMinSeqNoToRetain(), equalTo(Math.min(globalCheckpoint.get() + 1 - retainedOps, safeCommitCheckpoint + 1)));
-    }
-
     IndexCommit mockIndexCommit(long localCheckpoint, long maxSeqNo, UUID translogUUID, long translogGen) throws IOException {
         final Map<String, String> userData = new HashMap<>();
         userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
@@ -348,6 +312,11 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         return Long.parseLong(commit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
     }
 
+    private long getLastSeqNoSeenByMergePolicy(SoftDeletesPolicy softDeletesPolicy) {
+        softDeletesPolicy.getRetentionQuery(); // advance the soft-deletes policy if possible
+        return softDeletesPolicy.getLastSeqNoSeenByMergePolicy();
+    }
+
     IndexCommit mockLegacyIndexCommit(UUID translogUUID, long translogGen) throws IOException {
         final Map<String, String> userData = new HashMap<>();
         userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID.toString());
@@ -357,4 +326,5 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         resetDeletion(commit);
         return commit;
     }
+
 }

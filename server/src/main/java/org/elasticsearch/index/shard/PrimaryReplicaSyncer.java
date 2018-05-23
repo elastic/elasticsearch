@@ -83,7 +83,8 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         ActionListener<ResyncTask> resyncListener = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
-            Translog.Snapshot snapshot = indexShard.newTranslogSnapshot("primary-replica-resync", startingSeqNo, Long.MAX_VALUE);
+            // TODO: A follow-up to make resync using soft-deletes
+            Translog.Snapshot snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
             resyncListener = new ActionListener<ResyncTask>() {
                 @Override
                 public void onResponse(final ResyncTask resyncTask) {

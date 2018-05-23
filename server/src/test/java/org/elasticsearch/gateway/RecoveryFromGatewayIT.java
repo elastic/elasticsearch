@@ -420,15 +420,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         logger.info("--> restart replica node");
-        boolean useSoftDeletesInPeerRecovery = internalCluster().getInstance(IndicesService.class, primaryNode)
-            .indexServiceSafe(resolveIndex("test")).getShard(0).indexSettings().isUseSoftDeletesInPeerRecovery();
+        boolean softDeleteEnabled = internalCluster().getInstance(IndicesService.class, primaryNode)
+            .indexServiceSafe(resolveIndex("test")).getShard(0).indexSettings().isSoftDeleteEnabled();
 
         int moreDocs = randomIntBetween(1, 1024);
         internalCluster().restartNode(replicaNode, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // Create a fully deleted segment so that its operations can be claimed by merges to force file-based recovery
-                if (useSoftDeletesInPeerRecovery) {
+                if (softDeleteEnabled) {
                     int deleteDocs = randomIntBetween(1, 5);
                     for (int i = 0; i < deleteDocs; i++) {
                         client(primaryNode).prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").get();
@@ -488,7 +488,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(), equalTo(filesReused));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
-                int expectedTranslogOps = useSoftDeletesInPeerRecovery ? numDocs + moreDocs : 0;
+                int expectedTranslogOps = softDeleteEnabled ? numDocs + moreDocs : 0;
                 assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(expectedTranslogOps));
             }
         }

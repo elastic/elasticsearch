@@ -145,31 +145,12 @@ public class RecoverySourceHandler {
             }
             assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
         }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ", shard, cancellableThreads, logger);
-        /*
-         * DISCUSS:
-         * There is a major difference between translog and Lucene retention lock.
-         * Once translog retention lock is acquired, no translog operations will be trimmed.
-         * However, this is not true for Lucene retention lock if there are already pending or scheduled merges before the lock is acquired.
-         * The actual problem is the method `isTranslogReadyForSequenceNumberBasedRecovery` can return true but then the snapshot in phase2,
-         * which will be acquired later, might not have required operations as we expected.
-         * This causes the peer-recovery aborted. In the extremely bad case, this might happen 5 times
-         * then that replica requires a manual reroute.
-         *
-         * I see two options for this:
-         *
-         * 1. We keep the snapshot which is used in `isTranslogReadyForSequenceNumberBasedRecovery`, then concat it with a new snapshot
-         * in phase2. The combined snapshot is guaranteed to have all required operations.
-         * This requires a new method "reset" in Translog#Snapshot. However, I feel this not a clean solution.
-         *
-         * 2. Just accept this limitation for now until we have a clean approach.
-         */
+
         try (Closeable ignored = shard.acquireRetentionLockForPeerRecovery()) {
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;
-            // DISCUSS: Most of the cases, we will do sequence-based recovery even though the file-based recovery will be better
-            // as we have to replay a large number of operations. Should we add a limit here when making this decision?
             final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
-                isTargetSameHistory() && isTranslogReadyForSequenceNumberBasedRecovery();
+                isTargetSameHistory() && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo());
             if (isSequenceNumberBasedRecovery) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
@@ -183,16 +164,13 @@ public class RecoverySourceHandler {
                 }
                 // we set this to 0 to create a translog roughly according to the retention policy
                 // on the target. Note that it will still filter out legacy operations with no sequence numbers
-
-                // DISCUSS: startingSeqNo = 0;
-                // Operations in translog is limited by 12h or 512MB, but there are no limit on non-deleted documents in Lucene history
-                // `startingSeqNo = 0` might replay a large number of operations.
-                startingSeqNo = 0;
+                startingSeqNo = 0; //TODO: A follow-up to send only ops above the local checkpoint if soft-deletes enabled.
                 // but we must have everything above the local checkpoint in the commit
                 requiredSeqNoRangeStart =
                     Long.parseLong(phase1Snapshot.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
                 try {
-                    phase1(phase1Snapshot.getIndexCommit(), () -> shard.estimateTranslogOperationsFromMinSeq(startingSeqNo));
+                    final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
+                    phase1(phase1Snapshot.getIndexCommit(), () -> estimateNumOps);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
@@ -209,7 +187,8 @@ public class RecoverySourceHandler {
 
             try {
                 // For a sequence based recovery, the target can keep its local translog
-                prepareTargetForTranslog(isSequenceNumberBasedRecovery == false, shard.estimateTranslogOperationsFromMinSeq(startingSeqNo));
+                prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
+                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
             } catch (final Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
             }
@@ -230,11 +209,13 @@ public class RecoverySourceHandler {
              */
             cancellableThreads.execute(() -> shard.waitForOpsToComplete(endingSeqNo));
 
-            logger.trace("all operations up to [{}] completed, which will be used as an ending sequence number", endingSeqNo);
-
-            logger.trace("snapshot translog for recovery; current size is [{}]", shard.estimateTranslogOperationsFromMinSeq(startingSeqNo));
+            if (logger.isTraceEnabled()) {
+                logger.trace("all operations up to [{}] completed, which will be used as an ending sequence number", endingSeqNo);
+                logger.trace("snapshot translog for recovery; current size is [{}]",
+                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
+            }
             final long targetLocalCheckpoint;
-            try (Translog.Snapshot snapshot = shard.newTranslogSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE)) {
+            try (Translog.Snapshot snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo)) {
                 targetLocalCheckpoint = phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
@@ -289,36 +270,6 @@ public class RecoverySourceHandler {
                 });
             }
         });
-    }
-
-    /**
-     * Determines if the source translog is ready for a sequence-number-based peer recovery. The main condition here is that the source
-     * translog contains all operations above the local checkpoint on the target. We already know the that translog contains or will contain
-     * all ops above the source local checkpoint, so we can stop check there.
-     *
-     * @return {@code true} if the source is ready for a sequence-number-based recovery
-     * @throws IOException if an I/O exception occurred reading the translog snapshot
-     */
-    boolean isTranslogReadyForSequenceNumberBasedRecovery() throws IOException {
-        final long startingSeqNo = request.startingSeqNo();
-        assert startingSeqNo >= 0;
-        final long localCheckpoint = shard.getLocalCheckpoint();
-        logger.trace("testing sequence numbers in range: [{}, {}]", startingSeqNo, localCheckpoint);
-        // the start recovery request is initialized with the starting sequence number set to the target shard's local checkpoint plus one
-        if (startingSeqNo - 1 <= localCheckpoint) {
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
-            try (Translog.Snapshot snapshot = shard.newTranslogSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE)) {
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        tracker.markSeqNoAsCompleted(operation.seqNo());
-                    }
-                }
-            }
-            return tracker.getCheckpoint() >= localCheckpoint;
-        } else {
-            return false;
-        }
     }
 
     /**

@@ -98,6 +98,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String SOFT_DELETES_MIN_RETAINED_SEQNO = "soft_deletes_min_retained_seq_no";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -586,10 +587,11 @@ public abstract class Engine implements Closeable {
     public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     * Creates a new translog snapshot from this engine for reading translog operations whose seq# in the provided range.
+     * The caller has to close the returned snapshot after finishing the reading.
      */
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
-        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
+    public Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
+        return getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo);
     }
 
     public TranslogStats getTranslogStats() {
@@ -610,22 +612,32 @@ public abstract class Engine implements Closeable {
                                                                long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
-     * Creates a new translog snapshot for reading operations whose seq# is in the provided range.
-     * The returned snapshot can be retrieved from either Lucene index or translog files depending on
-     * {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_USE_IN_PEER_RECOVERY_SETTING}
+     * Creates a new history snapshot for reading operations since the provided seqno.
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Translog.Snapshot newTranslogSnapshot(String source, MapperService mapperService,
-                                                 long minSeqNo, long maxSeqNo) throws IOException {
-        if (useLuceneIndexForPeerRecovery()) {
-            return newLuceneChangesSnapshot(source, mapperService, minSeqNo, maxSeqNo, false);
+    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long minSeqNo) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            return newLuceneChangesSnapshot(source, mapperService, Math.max(0, minSeqNo), Long.MAX_VALUE, false);
         } else {
-            return getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo);
+            return getTranslog().getSnapshotBetween(minSeqNo, Long.MAX_VALUE);
         }
     }
 
-    private boolean useLuceneIndexForPeerRecovery() {
-        return engineConfig.getIndexSettings().isUseSoftDeletesInPeerRecovery();
+    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long minSeqNo) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            try (Translog.Snapshot snapshot =
+                     newLuceneChangesSnapshot(source, mapperService, Math.max(0, minSeqNo), Long.MAX_VALUE, false)) {
+                return snapshot.totalOperations();
+            } catch (IOException ex) {
+                maybeFailEngine(source, ex);
+                throw ex;
+            }
+        } else {
+            return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
+        }
     }
+
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long minSeqNo) throws IOException;
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

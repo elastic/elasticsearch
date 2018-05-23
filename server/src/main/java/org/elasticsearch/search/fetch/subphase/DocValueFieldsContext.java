@@ -80,7 +80,7 @@ public class DocValueFieldsContext {
         /** Serialization constructor. */
         public FieldAndFormat(StreamInput in) throws IOException {
             this.field = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
                 format = in.readOptionalString();
             } else {
                 format = null;
@@ -90,7 +90,7 @@ public class DocValueFieldsContext {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(field);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 out.writeOptionalString(format);
             }
         }

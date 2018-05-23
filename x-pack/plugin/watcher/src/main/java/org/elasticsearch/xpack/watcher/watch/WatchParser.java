@@ -175,12 +175,13 @@ public class WatchParser extends AbstractComponent {
                 throw new ElasticsearchParseException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
             }
         }
-        /* Make sure we are at the end of the available input data -- certain types of JSON errors will not manifest
-             until we try to consume additional tokens.
-        */
+
+        // Make sure we are at the end of the available input data -- certain types of JSON errors will not manifest
+        // until we try to consume additional tokens.
+
         if (parser.nextToken() != null) {
-            throw new ElasticsearchParseException("could not parse watch [{}].  unexpected data beyond [line: {}, column: {}]",
-                id, parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
+            throw new ElasticsearchParseException("could not parse watch [{}].  expected end of payload, but received additional " +
+                "data at [line: {}, column: {}]", id, parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
         }
         if (trigger == null) {
             throw new ElasticsearchParseException("could not parse watch [{}]. missing required field [{}]", id,

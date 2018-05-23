@@ -305,27 +305,43 @@ public class WatchTests extends ESTestCase {
 
     public void testParserConsumesEntireDefinition() throws Exception {
         WatchParser wp = createWatchparser();
-        XContentBuilder jsonBuilder = jsonBuilder()
-            .startObject()
-              .startObject("trigger")
-                .startObject("schedule")
-                  .field("interval", "10s")
-                .endObject()
-              .endObject()
-              .startObject("input")
-                .startObject("simple")
-                .endObject()
-              .endObject()
-              .startObject("condition")
-                .startObject("script")
-                  .field("source", "return false")
-                .endObject()
-              .endObject()
-            .endObject();
-            jsonBuilder.generator().writeBinary(",".getBytes(StandardCharsets.UTF_8));
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
-                wp.parseWithSecrets("failure", false, BytesReference.bytes(jsonBuilder), new DateTime(), XContentType.JSON, true));
-            assertThat(e.getMessage(), containsString("unexpected data beyond"));
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("trigger");
+                {
+                    builder.startObject("schedule");
+                    {
+                        builder.field("interval", "10s");
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject("input");
+                {
+                    builder.startObject("simple");
+                    {
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject("condition");
+                {
+                    builder.startObject("script");
+                    {
+                        builder.field("source", "return false");
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            builder.generator().writeBinary(",".getBytes(StandardCharsets.UTF_8));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> wp.parseWithSecrets("failure", false, BytesReference.bytes(builder), new DateTime(), XContentType.JSON, true));
+            assertThat(e.getMessage(), containsString("expected end of payload"));
+        }
     }
 
     public void testParserDefaults() throws Exception {

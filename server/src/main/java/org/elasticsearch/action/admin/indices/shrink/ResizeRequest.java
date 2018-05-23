@@ -56,7 +56,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
-    private Boolean copySettings;
+    private Boolean copySettings = true;
 
     ResizeRequest() {}
 

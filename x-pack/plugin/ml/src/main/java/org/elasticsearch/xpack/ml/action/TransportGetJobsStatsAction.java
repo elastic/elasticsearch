@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
@@ -69,8 +68,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> listener) {
-        MlMetadata clusterMlMetadata = clusterService.state().metaData().custom(MLMetadataField.TYPE);
-        MlMetadata mlMetadata = (clusterMlMetadata == null) ? MlMetadata.EMPTY_METADATA : clusterMlMetadata;
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
         request.setExpandedJobsIds(new ArrayList<>(mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs())));
         ActionListener<GetJobsStatsAction.Response> finalListener = listener;
         listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(mlMetadata,

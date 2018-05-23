@@ -124,8 +124,8 @@ the shared file system repository it is necessary to mount the same shared files
 master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
 setting on all master and data nodes.
 
-Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
-`elasticsearch.yml` file:
+Assuming that the shared filesystem is mounted to `/mount/backups/my_fs_backup_location`, the following setting should
+be added to `elasticsearch.yml` file:
 
 [source,yaml]
 --------------
@@ -141,7 +141,7 @@ path.repo: ["\\\\MY_SERVER\\Snapshots"]
 --------------
 
 After all nodes are restarted, the following command can be used to register the shared file system repository with
-the name `my_backup`:
+the name `my_fs_backup`:
 
 [source,js]
 -----------------------------------
@@ -419,7 +419,7 @@ A repository can be unregistered using the following command:
 
 [source,sh]
 -----------------------------------
-DELETE /_snapshot/my_fs_backup
+DELETE /_snapshot/my_backup
 -----------------------------------
 // CONSOLE
 // TEST[continued]

@@ -38,9 +38,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -52,11 +52,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
@@ -80,8 +85,9 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
     }
 
-    public void testThatHttpPipeliningWorks() throws Exception {
+    public void testThatHttpPipeliningWorksWhenEnabled() throws Exception {
         final Settings settings = Settings.builder()
+            .put("http.pipelining", true)
             .put("http.port", "0")
             .build();
         try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
@@ -102,6 +108,48 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
                 Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
                 assertThat(responseBodies, contains(requests.toArray()));
+            }
+        }
+    }
+
+    public void testThatHttpPipeliningCanBeDisabled() throws Exception {
+        final Settings settings = Settings.builder()
+            .put("http.pipelining", false)
+            .put("http.port", "0")
+            .build();
+        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
+            httpServerTransport.start();
+            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
+
+            final int numberOfRequests = randomIntBetween(4, 16);
+            final Set<Integer> slowIds = new HashSet<>();
+            final List<String> requests = new ArrayList<>(numberOfRequests);
+            for (int i = 0; i < numberOfRequests; i++) {
+                if (rarely()) {
+                    requests.add("/slow/" + i);
+                    slowIds.add(i);
+                } else {
+                    requests.add("/" + i);
+                }
+            }
+
+            try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+                Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
+                List<String> responseBodies = new ArrayList<>(Netty4HttpClient.returnHttpResponseBodies(responses));
+                // we can not be sure about the order of the responses, but the slow ones should come last
+                assertThat(responseBodies, hasSize(numberOfRequests));
+                for (int i = 0; i < numberOfRequests - slowIds.size(); i++) {
+                    assertThat(responseBodies.get(i), matches("/\\d+"));
+                }
+
+                final Set<Integer> ids = new HashSet<>();
+                for (int i = 0; i < slowIds.size(); i++) {
+                    final String response = responseBodies.get(numberOfRequests - slowIds.size() + i);
+                    assertThat(response, matches("/slow/\\d+" ));
+                    assertTrue(ids.add(Integer.parseInt(response.split("/")[2])));
+                }
+
+                assertThat(slowIds, equalTo(ids));
             }
         }
     }
@@ -148,7 +196,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     }
 
-    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
+    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<Object> {
 
         private final ExecutorService executorService;
 
@@ -157,7 +205,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
             executorService.submit(new PossiblySlowRunnable(ctx, msg));
         }
 
@@ -172,18 +220,26 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
     class PossiblySlowRunnable implements Runnable {
 
         private ChannelHandlerContext ctx;
-        private HttpPipelinedRequest<FullHttpRequest> pipelinedRequest;
+        private HttpPipelinedRequest pipelinedRequest;
         private FullHttpRequest fullHttpRequest;
 
-        PossiblySlowRunnable(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) {
+        PossiblySlowRunnable(ChannelHandlerContext ctx, Object msg) {
             this.ctx = ctx;
-            this.pipelinedRequest = msg;
-            this.fullHttpRequest = pipelinedRequest.getRequest();
+            if (msg instanceof HttpPipelinedRequest) {
+                this.pipelinedRequest = (HttpPipelinedRequest) msg;
+            } else if (msg instanceof FullHttpRequest) {
+                this.fullHttpRequest = (FullHttpRequest) msg;
+            }
         }
 
         @Override
         public void run() {
-            final String uri = fullHttpRequest.uri();
+            final String uri;
+            if (pipelinedRequest != null && pipelinedRequest.last() instanceof FullHttpRequest) {
+                uri = ((FullHttpRequest) pipelinedRequest.last()).uri();
+            } else {
+                uri = fullHttpRequest.uri();
+            }
 
             final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
@@ -202,7 +258,13 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             }
 
             final ChannelPromise promise = ctx.newPromise();
-            ctx.writeAndFlush(new Netty4HttpResponse(pipelinedRequest.getSequence(), httpResponse), promise);
+            final Object msg;
+            if (pipelinedRequest != null) {
+                msg = pipelinedRequest.createHttpResponse(httpResponse, promise);
+            } else {
+                msg = httpResponse;
+            }
+            ctx.writeAndFlush(msg, promise);
         }
 
     }

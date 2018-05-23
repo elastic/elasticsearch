@@ -29,11 +29,9 @@ public class HttpHandlingSettings {
     private final boolean compression;
     private final int compressionLevel;
     private final boolean detailedErrorsEnabled;
-    private final int pipeliningMaxEvents;
 
     public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
-                                boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled,
-                                int pipeliningMaxEvents) {
+                                boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled) {
         this.maxContentLength = maxContentLength;
         this.maxChunkSize = maxChunkSize;
         this.maxHeaderSize = maxHeaderSize;
@@ -42,7 +40,6 @@ public class HttpHandlingSettings {
         this.compression = compression;
         this.compressionLevel = compressionLevel;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
-        this.pipeliningMaxEvents = pipeliningMaxEvents;
     }
 
     public int getMaxContentLength() {
@@ -75,9 +72,5 @@ public class HttpHandlingSettings {
 
     public boolean getDetailedErrorsEnabled() {
         return detailedErrorsEnabled;
-    }
-
-    public int getPipeliningMaxEvents() {
-        return pipeliningMaxEvents;
     }
 }

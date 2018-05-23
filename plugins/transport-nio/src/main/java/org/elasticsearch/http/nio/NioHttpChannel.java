@@ -52,23 +52,20 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 public class NioHttpChannel extends AbstractRestChannel {
 
     private final BigArrays bigArrays;
-    private final int sequence;
     private final ThreadContext threadContext;
     private final FullHttpRequest nettyRequest;
     private final NioSocketChannel nioChannel;
     private final boolean resetCookies;
 
-    NioHttpChannel(NioSocketChannel nioChannel, BigArrays bigArrays, NioHttpRequest request, int sequence,
+    NioHttpChannel(NioSocketChannel nioChannel, BigArrays bigArrays, NioHttpRequest request,
                    HttpHandlingSettings settings, ThreadContext threadContext) {
         super(request, settings.getDetailedErrorsEnabled());
         this.nioChannel = nioChannel;
         this.bigArrays = bigArrays;
-        this.sequence = sequence;
         this.threadContext = threadContext;
         this.nettyRequest = request.getRequest();
         this.resetCookies = settings.isResetCookies();
@@ -120,8 +117,9 @@ public class NioHttpChannel extends AbstractRestChannel {
                 toClose.add(nioChannel::close);
             }
 
-            BiConsumer<Void, Throwable> listener = (aVoid, throwable) -> Releasables.close(toClose);
-            nioChannel.getContext().sendMessage(new NioHttpResponse(sequence, resp), listener);
+            nioChannel.getContext().sendMessage(resp, (aVoid, throwable) -> {
+                Releasables.close(toClose);
+            });
             success = true;
         } finally {
             if (success == false) {

@@ -71,13 +71,14 @@ public class ScriptScoreFunction extends ScoreFunction {
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
         final ScoreScript leafScript = script.newInstance(ctx);
         final CannedScorer scorer = new CannedScorer();
+        leafScript.setScorer(scorer);
         return new LeafScoreFunction() {
             @Override
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
-                double result = leafScript.execute(scorer.score);
+                double result = leafScript.execute();
                 return result;
             }
 

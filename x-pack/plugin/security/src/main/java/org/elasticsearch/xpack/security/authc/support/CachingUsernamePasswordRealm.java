@@ -232,7 +232,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         UserWithHash(User user, SecureString password, Hasher hasher) {
             this.user = Objects.requireNonNull(user);
             this.hash = password == null ? null : hasher.hash(password);
-            this.hasher = Objects.requireNonNull(hasher);
+            this.hasher = hasher;
         }
 
         boolean verify(SecureString password) {

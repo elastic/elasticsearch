@@ -45,7 +45,7 @@ setup:
 "Nested doc version and seqIDs":
 
     - skip:
-        version: " - 6.99.99" # TODO change to 6.3.99 on backport
+        version: " - 6.3.99"
         reason:  "object notation for docvalue_fields was introduced in 6.4"
 
     - do:

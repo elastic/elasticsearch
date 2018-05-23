@@ -240,6 +240,7 @@ operator.  See Function Calls [MARK] for more information.
 The brackets operator `[]` is used to create and access arrays, lists, and maps.
 The braces operator `{}` is used to intialize arrays.
 
+[[array-initialization]]
 ===== Creating and Initializing Arrays
 
 You create and initialize arrays using the brackets `[]` and braces `{}`
@@ -248,9 +249,49 @@ initialize each dimension with are specified as a comma-separated list enclosed
 in braces. For example, `new int[] {1, 2, 3}` creates a one dimensional `int`
 array with a size of 3 and the values 1, 2, and 3.
 
-For more information about allocating and initializing arrays, see <<array-type,
-Array Type>>.
+To allocate an array, you use the `new` keyword followed by the type and a
+set of brackets for each dimension. You can explicitly define the size of each dimension by specifying an expression within the brackets, or initialize each
+dimension with the desired number of values. The allocated size of each
+dimension is its permanent size.
 
+To initialize an array, specify the values you want to initialize
+each dimension with as a comma-separated list of expressions enclosed in braces.
+For example, `new int[] {1, 2, 3}` creates a one-dimensional `int` array with a
+size of 3 and the values 1, 2, and 3.
+
+When you initialize an array, the order of the expressions is maintained. Each expression used as part of the initialization is converted to the
+array's type. An error occurs if the types do not match.
+
+*Grammar:*
+[source,ANTLR4]
+----
+declare_array: TYPE ('[' ']')+;
+
+array_initialization: 'new' TYPE '[' ']' '{' expression (',' expression) '}'
+                    | 'new' TYPE '[' ']' '{' '}';
+----
+
+*Examples:*
+[source,Java]
+----
+int[] x = new int[5];          // Declare int array x and assign it a newly
+                               //   allocated int array with a size of 5
+def[][] y = new def[5][5];     // Declare the 2-dimensional def array y and
+                               //   assign it a newly allocated 2-dimensional
+                               //   array where both dimensions have a size of 5
+int[] x = new int[] {1, 2, 3}; // Declare int array x and set it to an int
+                               //   array with values 1, 2, 3 and a size of 3
+int i = 1;
+long l = 2L;
+float f = 3.0F;
+double d = 4.0;
+String s = "5";
+def[] da = new def[] {i, l, f*d, s}; // Declare def array da and set it to
+                                     // a def array with a size of 4 and the
+                                     // values i, l, f*d, and s
+----
+
+[[array-access]]
 ===== Accessing Array Elements
 
 Elements in an array are stored and accessed using the brackets `[]` operator.
@@ -298,6 +339,7 @@ return d[z];              // Access the 1st element of array d using the
 NOTE: The use of the `def` type in the second example means that the types
 cannot be resolved until runtime.
 
+[[array-length]]
 ===== Array Length
 
 Arrays contain a special member known as 'length' that is a read-only value that contains the size of the array.  This member can be accessed from an array using the dot operator.
@@ -727,6 +769,7 @@ def e;                   // declares the def variable e
 e = new HashMap(m);      // sets e to a newly allocated HashMap using the constructor with a single argument m
 ----
 
+[[new-array]]
 ==== New Array
 
 An array type instance can be allocated using the new operator. The format starts with the new operator followed by the type followed by a series of opening and closing braces each containing an expression for the size of the dimension.

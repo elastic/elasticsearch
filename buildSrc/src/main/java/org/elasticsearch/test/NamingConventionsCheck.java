@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.nio.file.FileVisitResult;
@@ -31,7 +30,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * Checks that all tests in a directory are named according to our naming conventions. This is important because tests that do not follow
@@ -49,7 +47,7 @@ public class NamingConventionsCheck {
     public static void main(String[] args) throws IOException {
         Class<?> testClass = null;
         Class<?> integTestClass = null;
-        String rootPathList = null;
+        Path rootPath = null;
         boolean skipIntegTestsInDisguise = false;
         boolean selfTest = false;
         boolean checkMainClasses = false;
@@ -72,7 +70,7 @@ public class NamingConventionsCheck {
                     checkMainClasses = true;
                     break;
                 case "--":
-                    rootPathList = args[++i];
+                    rootPath = Paths.get(args[++i]);
                     break;
                 default:
                     fail("unsupported argument '" + arg + "'");
@@ -80,13 +78,10 @@ public class NamingConventionsCheck {
         }
 
         NamingConventionsCheck check = new NamingConventionsCheck(testClass, integTestClass);
-        for (String rootDir : rootPathList.split(Pattern.quote(File.pathSeparator))) {
-            Path rootPath = Paths.get(rootDir);
-            if (checkMainClasses) {
-                check.checkMain(rootPath);
-            } else {
-                check.checkTests(rootPath, skipIntegTestsInDisguise);
-            }
+        if (checkMainClasses) {
+            check.checkMain(rootPath);
+        } else {
+            check.checkTests(rootPath, skipIntegTestsInDisguise);
         }
 
         if (selfTest) {

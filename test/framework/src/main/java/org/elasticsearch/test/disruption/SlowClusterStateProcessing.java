@@ -117,16 +117,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                 } catch (InterruptedException e) {
                     ExceptionsHelper.reThrowIfNotNull(e);
                 }
-            }, new ClusterApplyListener() {
-                @Override
-                public void onSuccess(String source) {
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    countDownLatch.countDown();
-                }
-            }, Priority.IMMEDIATE);
+            }, (source, e) -> countDownLatch.countDown(), Priority.IMMEDIATE);
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {

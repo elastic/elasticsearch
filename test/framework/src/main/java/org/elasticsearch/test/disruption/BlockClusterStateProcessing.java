@@ -69,16 +69,7 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
                         Throwables.rethrow(e);
                     }
                 }
-            }, new ClusterApplyListener() {
-                @Override
-                public void onSuccess(String source) {
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error("unexpected error during disruption", e);
-                }
-            }, Priority.IMMEDIATE);
+            }, (source, e) -> logger.error("unexpected error during disruption", e), Priority.IMMEDIATE);
         try {
             started.await();
         } catch (InterruptedException e) {

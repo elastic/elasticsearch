@@ -291,17 +291,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         logger.debug(() -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
                 },
-                new ClusterApplyListener() {
-                    @Override
-                    public void onSuccess(String source) {
-                        logger.trace("{} successfully deleted unallocated shard", shardId);
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e);
-                    }
-                });
+                (source, e) -> logger.error(() -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e));
         }
 
     }

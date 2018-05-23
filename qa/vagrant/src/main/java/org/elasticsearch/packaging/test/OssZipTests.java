@@ -16,18 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
 
-public class HttpPipelinedRequest<R> extends HttpPipelinedMessage {
+package org.elasticsearch.packaging.test;
 
-    private final R request;
+import org.elasticsearch.packaging.util.Distribution;
 
-    HttpPipelinedRequest(int sequence, R request) {
-        super(sequence);
-        this.request = request;
-    }
+public class OssZipTests extends ArchiveTestCase {
 
-    public R getRequest() {
-        return request;
+    @Override
+    protected Distribution distribution() {
+        return Distribution.OSS_ZIP;
     }
 }

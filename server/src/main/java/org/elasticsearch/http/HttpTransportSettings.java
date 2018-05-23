@@ -49,6 +49,8 @@ public final class HttpTransportSettings {
         new Setting<>("http.cors.allow-headers", "X-Requested-With,Content-Type,Content-Length", (value) -> value, Property.NodeScope);
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
+    public static final Setting<Boolean> SETTING_PIPELINING =
+        Setting.boolSetting("http.pipelining", true, Property.NodeScope);
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
         Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =

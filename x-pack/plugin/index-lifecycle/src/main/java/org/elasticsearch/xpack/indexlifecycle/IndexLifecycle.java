@@ -102,6 +102,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_STEP_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING,
             LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING,
+            LifecycleSettings.LIFECYCLE_SKIP_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
     }
 

@@ -376,7 +376,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 protected void doRun() throws Exception {
                     indexVersionChecker.accept(response.getIndexMetadataVersion(), e -> {
                         if (e != null) {
-                            if (retryCounter.incrementAndGet() <= PROCESSOR_RETRY_LIMIT) {
+                            if (shouldRetry(e) && retryCounter.incrementAndGet() <= PROCESSOR_RETRY_LIMIT) {
                                 handleResponse(to, response);
                             } else {
                                 handler.accept(new ElasticsearchException("retrying failed [" + retryCounter.get() +

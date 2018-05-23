@@ -19,7 +19,9 @@ setup:
                           "type" : "category"
 
   - do:
-     bulk:
+      warnings:
+        - "The ability to index a suggestion with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      bulk:
         refresh: true
         index: test
         type: test

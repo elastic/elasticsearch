@@ -69,13 +69,14 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
-    private volatile long lastMergeMillis = -1;
+    private volatile long lastMergeMillis;
 
     ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, LongSupplier timeSupplier) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.timeSupplier = timeSupplier;
+        lastMergeMillis = timeSupplier.getAsLong();
         this.logger = Loggers.getLogger(getClass(), this.indexSettings, shardId);
         refreshConfig();
     }

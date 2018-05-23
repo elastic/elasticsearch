@@ -45,9 +45,8 @@ setup:
 "Nested doc version and seqIDs":
 
     - skip:
-        # fixed in 6.0.1
-        version: " - 6.0.0"
-        reason:  "version and seq IDs where not accurate in previous versions"
+        version: " - 6.99.99" # TODO change to 6.3.99 on backport
+        reason:  "object notation for docvalue_fields was introduced in 6.4"
 
     - do:
         index:
@@ -61,7 +60,7 @@ setup:
 
     - do:
         search:
-          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": ["_seq_no"]} }}, "version": true, "docvalue_fields" : ["_seq_no"] }
+          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ { "field": "_seq_no", "format": "use_field_mapping" } ]} }}, "version": true, "docvalue_fields" : [ { "field": "_seq_no", "format": "use_field_mapping" } ] }
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }
@@ -84,7 +83,7 @@ setup:
 
     - do:
         search:
-          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": ["_seq_no"]} }}, "version": true, "docvalue_fields" : ["_seq_no"] }
+          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ { "field": "_seq_no", "format": "use_field_mapping" } ]} }}, "version": true, "docvalue_fields" : [ { "field": "_seq_no", "format": "use_field_mapping" } ] }
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }

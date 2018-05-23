@@ -282,7 +282,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::put-pipeline-request
             String source =
-                "{\"description\":\"some random set of processors\"," +
+                "{\"description\":\"my set of processors\"," +
                     "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
             PutPipelineRequest request = new PutPipelineRequest(
                 "my-pipeline-id", // <1>
@@ -317,7 +317,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             String source =
-                "{\"description\":\"some random set of processors\"," +
+                "{\"description\":\"my set of processors\"," +
                     "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
             PutPipelineRequest request = new PutPipelineRequest(
                 "my-pipeline-id",

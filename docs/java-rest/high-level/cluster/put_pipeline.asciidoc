@@ -39,6 +39,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-pipeline-reque
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-pipeline-execute]
 --------------------------------------------------
+<1> Execute the request and get back the response in a GetPipelineResponse object.
 
 [[java-rest-high-cluster-put-pipeline-async]]
 ==== Asynchronous Execution

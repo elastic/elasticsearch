@@ -41,10 +41,16 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     private volatile boolean done = false;
     private final List<Tuple<ActionListener<V>, ExecutorService>> listeners = new ArrayList<>();
 
+    /**
+     * Adds a listener to this future. If the future has not yet completed, the listener will be
+     * notified of a response or exception in a runnable submitted to the ExecutorService provided.
+     * If the future has completed, the listener will be notified immediately without forking to
+     * a different thread.
+     */
     public void addListener(ActionListener<V> listener, ExecutorService executor) {
         if (done) {
             // run the callback directly, we don't hold the lock and don't need to fork!
-            notifyListener(new Tuple<>(listener, EsExecutors.newDirectExecutorService()));
+            notifyListener(listener, EsExecutors.newDirectExecutorService());
         } else {
             final boolean run;
             // check done under lock since it could have been modified and protect modifications
@@ -60,7 +66,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
             if (run) {
                 // run the callback directly, we don't hold the lock and don't need to fork!
-                notifyListener(new Tuple<>(listener, EsExecutors.newDirectExecutorService()));
+                notifyListener(listener, EsExecutors.newDirectExecutorService());
             }
         }
     }
@@ -68,15 +74,13 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     @Override
     protected synchronized void done() {
         done = true;
-        listeners.forEach(this::notifyListener);
+        listeners.forEach(t -> notifyListener(t.v1(), t.v2()));
         // release references to any listeners as we no longer need them and will live
         // much longer than the listeners in most cases
         listeners.clear();
     }
 
-    private void notifyListener(Tuple<ActionListener<V>, ExecutorService> tuple) {
-        final ActionListener<V> listener = tuple.v1();
-        final ExecutorService executorService = tuple.v2();
+    private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
             executorService.submit(() -> {
                 try {

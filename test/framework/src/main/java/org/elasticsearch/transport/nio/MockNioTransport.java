@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -52,6 +53,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -96,9 +98,10 @@ public class MockNioTransport extends TcpTransport {
             if (useNetworkServer) {
                 acceptorCount = 1;
             }
-            nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                2, TestingSocketEventHandler::new);
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+                (s) -> new AcceptorEventHandler(s, this::onNonChannelException),
+                daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
+                () -> new TestingSocketEventHandler(this::onNonChannelException));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new MockTcpChannelFactory(clientProfileSettings, "client");
@@ -172,8 +175,10 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockServerChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel, this, selector);
+            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
+                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
             ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
-                (e) -> {});
+                exceptionHandler);
             nioServerChannel.setContext(context);
             return nioServerChannel;
         }

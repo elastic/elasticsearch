@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -47,6 +48,8 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
+        // copy_settings should be removed in Elasticsearch 8.0.0; cf. https://github.com/elastic/elasticsearch/issues/28347
+        assert Version.CURRENT.major < 8;
         final String rawCopySettings = request.param("copy_settings");
         final Boolean copySettings;
         if (rawCopySettings == null) {

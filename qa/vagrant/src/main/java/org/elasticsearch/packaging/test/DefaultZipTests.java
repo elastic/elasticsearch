@@ -17,22 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging;
+package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.test.OssTarTests;
-import org.elasticsearch.packaging.test.OssZipTests;
-import org.elasticsearch.packaging.test.DefaultTarTests;
-import org.elasticsearch.packaging.test.DefaultZipTests;
+import org.elasticsearch.packaging.util.Distribution;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-import org.junit.runners.Suite.SuiteClasses;
+public class DefaultZipTests extends ArchiveTestCase {
 
-@RunWith(Suite.class)
-@SuiteClasses({
-    DefaultTarTests.class,
-    DefaultZipTests.class,
-    OssTarTests.class,
-    OssZipTests.class
-})
-public class PackagingTests {}
+    @Override
+    protected Distribution distribution() {
+        return Distribution.DEFAULT_ZIP;
+    }
+}

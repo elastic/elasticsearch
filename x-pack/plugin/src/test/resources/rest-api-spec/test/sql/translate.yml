@@ -1,7 +1,7 @@
 ---
 "Translate SQL":
   - skip:
-      version: " - 6.99.99" # TODO: change version on backport
+      version: " - 6.3.99"
       reason: format option was added in 6.4
       features: warnings
 

@@ -199,7 +199,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+        if (in.getVersion().before(Version.V_6_4_0)) {
             List<String> dvFields = (List<String>) in.readGenericValue();
             if (dvFields == null) {
                 docValueFields = null;
@@ -263,7 +263,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+        if (out.getVersion().before(Version.V_6_4_0)) {
             out.writeGenericValue(docValueFields == null
                     ? null
                     : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));

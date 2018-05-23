@@ -134,7 +134,7 @@ setup:
 ---
 "docvalue_fields":
   - skip:
-      version: " - 6.99.99" # TODO: change version on backport
+      version: " - 6.3.99"
       reason: format option was added in 6.4
       features: warnings
   - do:
@@ -148,7 +148,7 @@ setup:
 ---
 "docvalue_fields as url param":
   - skip:
-      version: " - 6.99.99" # TODO: change version on backport
+      version: " - 6.3.99"
       reason: format option was added in 6.4
       features: warnings
   - do:
@@ -161,7 +161,7 @@ setup:
 ---
 "docvalue_fields with default format":
   - skip:
-      version: " - 6.99.99" # TODO: change version on backport
+      version: " - 6.3.99"
       reason: format option was added in 6.4
   - do:
       search:
@@ -174,7 +174,7 @@ setup:
 ---
 "docvalue_fields with explicit format":
   - skip:
-      version: " - 6.99.99" # TODO: change version on backport
+      version: " - 6.3.99"
       reason: format option was added in 6.4
   - do:
       search:

@@ -148,11 +148,8 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         doAuthenticate(token, wrapped);
     }
 
-    @Override
-    public Map<String, Object> usageStats() {
-        Map<String, Object> stats = super.usageStats();
-        stats.put("size", cache.count());
-        return stats;
+    protected int getCacheSize() {
+        return cache.count();
     }
 
     protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener);

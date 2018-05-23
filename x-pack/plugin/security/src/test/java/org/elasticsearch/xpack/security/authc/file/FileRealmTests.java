@@ -234,7 +234,9 @@ public class FileRealmTests extends ESTestCase {
         RealmConfig config = new RealmConfig("file-realm", settings.build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
 
-        Map<String, Object> usage = realm.usageStats();
+        PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        realm.usageStats(future);
+        Map<String, Object> usage = future.get();
         assertThat(usage, is(notNullValue()));
         assertThat(usage, hasEntry("name", "file-realm"));
         assertThat(usage, hasEntry("order", order));

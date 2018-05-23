@@ -614,7 +614,7 @@ The output is composed of different sections. The `stats` sub-object provides de
 snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,
 the `stats` object contains a `total` section for all the files that are referenced by the snapshot, as well as an `incremental` section
 for those files that actually needed to be copied over as part of the incremental snapshotting. In case of a snapshot that's still
-n progress, there's also a `processed` section that contains information about the files that are in the process of being copied.
+in progress, there's also a `processed` section that contains information about the files that are in the process of being copied.
 
 _Note_: Properties `number_of_files`, `processed_files`, `total_size_in_bytes` and `processed_size_in_bytes` are used for
 backward compatibility reasons with older 5.x and 6.x versions. These fields will be removed in Elasticsearch v7.0.0.

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -84,6 +86,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         try {
+            final SetOnce<User> authenticatedUser = new SetOnce<>();
             final AtomicBoolean createdAndStartedFuture = new AtomicBoolean(false);
             final ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> future = cache.computeIfAbsent(token.principal(), k -> {
                 final ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> created = new ListenableFuture<>();
@@ -97,6 +100,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 doAuthenticate(token, ActionListener.wrap(result -> {
                     if (result.isAuthenticated()) {
                         final User user = result.getUser();
+                        authenticatedUser.set(user);
                         final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), hasher);
                         future.onResponse(new Tuple<>(result, userWithHash));
                     } else {
@@ -107,7 +111,10 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
             future.addListener(ActionListener.wrap(tuple -> {
                 if (tuple != null) {
-                    handleResult(future, createdAndStartedFuture.get(), token, tuple, listener);
+                    final UserWithHash userWithHash = tuple.v2();
+                    final boolean performedAuthentication = createdAndStartedFuture.get() && userWithHash != null &&
+                        tuple.v2().user == authenticatedUser.get();
+                    handleResult(future, createdAndStartedFuture.get(), performedAuthentication, token, tuple, listener);
                 } else {
                     handleFailure(future, createdAndStartedFuture.get(), token, new IllegalStateException("unknown error authenticating"),
                         listener);
@@ -120,15 +127,15 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     private void handleResult(ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> future, boolean createdAndStartedFuture,
-                              UsernamePasswordToken token, Tuple<AuthenticationResult, UserWithHash> result,
-                              ActionListener<AuthenticationResult> listener) {
+                              boolean performedAuthentication, UsernamePasswordToken token,
+                              Tuple<AuthenticationResult, UserWithHash> result, ActionListener<AuthenticationResult> listener) {
         final AuthenticationResult authResult = result.v1();
         if (authResult == null) {
             // this was from a lookup; clear and redo
             cache.invalidate(token.principal(), future);
             authenticateWithCache(token, listener);
         } else if (authResult.isAuthenticated()) {
-            if (createdAndStartedFuture) {
+            if (performedAuthentication) {
                 listener.onResponse(authResult);
             } else {
                 UserWithHash userWithHash = result.v2();
@@ -218,14 +225,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     protected abstract void doLookupUser(String username, ActionListener<User> listener);
 
     private static class UserWithHash {
-        User user;
-        char[] hash;
-        Hasher hasher;
+        final User user;
+        final char[] hash;
+        final Hasher hasher;
 
         UserWithHash(User user, SecureString password, Hasher hasher) {
-            this.user = user;
+            this.user = Objects.requireNonNull(user);
             this.hash = password == null ? null : hasher.hash(password);
-            this.hasher = hasher;
+            this.hasher = Objects.requireNonNull(hasher);
         }
 
         boolean verify(SecureString password) {

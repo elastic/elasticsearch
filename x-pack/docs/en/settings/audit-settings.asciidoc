@@ -130,7 +130,11 @@ Specifies the name of the remote cluster.
 
 `xpack.security.audit.index.client.xpack.security.user`::
 Specifies the `username:password` pair that is used to authenticate with the
-remote cluster.
+remote cluster. This user must have authority to create the `.security-audit` 
+index on the remote cluster. 
+
+If the remote {es} cluster has Transport Layer Security (TLS/SSL) enabled, you 
+must specify extra settings. See <<auditing-tls-ssl-settings>>. 
 
 You can pass additional settings to the remote client by specifying them in the
 `xpack.security.audit.index.client` namespace. For example, to allow the remote

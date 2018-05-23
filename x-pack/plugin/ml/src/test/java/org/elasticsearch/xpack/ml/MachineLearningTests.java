@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.ESTestCase;
@@ -34,6 +33,7 @@ public class MachineLearningTests extends ESTestCase {
         assertNotNull(machineLearning.additionalSettings());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30804")
     public void testNoAttributes_givenSameAndMlEnabled() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {

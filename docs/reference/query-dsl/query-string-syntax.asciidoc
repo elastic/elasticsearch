@@ -235,9 +235,8 @@ states that:
 
 The familiar boolean operators `AND`, `OR` and `NOT` (also written `&&`, `||`
 and `!`) are also supported but beware that they do not honor the usual
-precedence rules, so parentheses should be used whenever using multiple
-operators are used together. For instance the previous query could be rewritten
-as:
+precedence rules, so parentheses should be used whenever multiple operators are
+used together. For instance the previous query could be rewritten as:
 
 `((quick AND fox) OR (brown AND fox) OR fox) AND NOT news`::
 

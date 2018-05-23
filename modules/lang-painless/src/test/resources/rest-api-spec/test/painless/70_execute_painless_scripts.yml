@@ -1,3 +1,18 @@
+setup:
+  - do:
+      indices.create:
+        index: my-index
+        body:
+          mappings:
+            doc:
+              properties:
+                rank:
+                  type: long
+                field:
+                  type: keyword
+                text:
+                  type: text
+
 ---
 "Execute with defaults":
   - do:
@@ -11,7 +26,7 @@
   - match: { result: "0.1" }
 
 ---
-"Execute with execute_api_script context":
+"Execute with painless_test context":
   - do:
       scripts_painless_execute:
         body:
@@ -23,3 +38,53 @@
           context:
             painless_test: {}
   - match: { result: "-90" }
+
+---
+"Execute with filter context":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['field'].value.length() <= params.max_length"
+            params:
+              max_length: 4
+          context:
+            filter:
+              document:
+                field: "four"
+              index: "my-index"
+  - match: { result: true }
+
+---
+"Execute with score context":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['rank'].value / params.max_rank"
+            params:
+              max_rank: 5.0
+          context:
+            score:
+              document:
+                rank: 4
+              index: "my-index"
+  - match: { result: 0.8 }
+
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0"
+            params:
+              max_rank: 5.0
+          context:
+            score:
+              document:
+                rank: 4
+                text: quick brown fox
+              index: "my-index"
+              query:
+                match:
+                  text: fox
+  - match: { result: 1.09 }

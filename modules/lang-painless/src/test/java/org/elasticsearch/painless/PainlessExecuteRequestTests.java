@@ -18,9 +18,17 @@
  */
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
@@ -29,11 +37,33 @@ import java.util.Collections;
 public class PainlessExecuteRequestTests extends AbstractStreamableXContentTestCase<PainlessExecuteAction.Request> {
 
     @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+    }
+
+    @Override
     protected PainlessExecuteAction.Request createTestInstance() {
         Script script = new Script(randomAlphaOfLength(10));
-        PainlessExecuteAction.Request.SupportedContext context = randomBoolean() ?
-            PainlessExecuteAction.Request.SupportedContext.PAINLESS_TEST : null;
-        return new PainlessExecuteAction.Request(script, context);
+        ScriptContext<?> context = randomBoolean() ? randomFrom(PainlessExecuteAction.Request.SUPPORTED_CONTEXTS.values()) : null;
+        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, context != null ? context.name : null);
+        if (randomBoolean()) {
+            request.setIndex(randomAlphaOfLength(4));
+        }
+        if (randomBoolean()) {
+            // TODO: Pass down XContentType here.
+            // Otherwise the document's xcontent type is incompatible with the that of the XContentParser xcontent type
+//            request.setDocument(new BytesArray("{}"));
+//            request.setXContentType(XContentType.JSON);
+        }
+        if (randomBoolean()) {
+            request.setQuery(new MatchAllQueryBuilder());
+        }
+        return request;
     }
 
     @Override
@@ -53,7 +83,7 @@ public class PainlessExecuteRequestTests extends AbstractStreamableXContentTestC
 
     public void testValidate() {
         Script script = new Script(ScriptType.STORED, null, randomAlphaOfLength(10), Collections.emptyMap());
-        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, null);
+        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, (String) null);
         Exception e = request.validate();
         assertNotNull(e);
         assertEquals("Validation Failed: 1: only inline scripts are supported;", e.getMessage());

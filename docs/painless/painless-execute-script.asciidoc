@@ -25,7 +25,7 @@ The only variable that is available is `params`, which can be used to access use
 The result of the script is always converted to a string.
 If no context is specified then this context is used by default.
 
-==== Example
+====== Example
 
 Request:
 
@@ -50,6 +50,94 @@ Response:
 --------------------------------------------------
 {
   "result": "0.1"
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+===== Filter script context
+
+The `filter` context executes scripts as if they were executed inside a `script` query.
+For testing purposes a document must be provided that will be indexed temporarily in-memory and
+is accessible to the script being tested. Because of this the _source, stored fields and doc values
+are available in the script being tested.
+
+The following parameters are required inside a filter context:
+
+document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
+index:: The name of an index containing a mapping that is compatable with the document being indexed.
+
+====== Example
+
+[source,js]
+----------------------------------------------------------------
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "doc['field'].value.length() <= params.max_length",
+    "params": {
+      "max_length": 4
+    }
+    "context": {
+      "index": "my-index",
+      "document": {
+        "field": "four"
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "result": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+===== Score script context
+
+The `score` context executes scripts as if they were executed inside a `script_score` function in
+`function_score` query.
+
+Available parameters inside a score context:
+
+document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
+index:: The name of an index containing a mapping that is compatable with the document being indexed.
+query:: If `_score` is used in the script then a query can specified that will be used the compute a score.
+
+====== Example
+
+[source,js]
+----------------------------------------------------------------
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "doc['rank'].value / params.max_rank",
+    "params": {
+      "max_rank": 4
+    }
+    "context": {
+      "index": "my-index",
+      "document": {
+        "rank": 4
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "result": 0.8
 }
 --------------------------------------------------
 // TESTRESPONSE

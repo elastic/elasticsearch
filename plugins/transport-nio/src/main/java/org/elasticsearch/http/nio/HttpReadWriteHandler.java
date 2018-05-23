@@ -61,14 +61,16 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     private final NioHttpServerTransport transport;
     private final HttpHandlingSettings settings;
     private final NamedXContentRegistry xContentRegistry;
+    private final NioCorsConfig corsConfig;
     private final ThreadContext threadContext;
 
     HttpReadWriteHandler(NioSocketChannel nioChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                         NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
+                         NamedXContentRegistry xContentRegistry, NioCorsConfig corsConfig, ThreadContext threadContext) {
         this.nioChannel = nioChannel;
         this.transport = transport;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        this.corsConfig = corsConfig;
         this.threadContext = threadContext;
 
         List<ChannelHandler> handlers = new ArrayList<>(5);
@@ -83,7 +85,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
             handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
         }
         if (settings.isCorsEnabled()) {
-            handlers.add(new NioCorsHandler(null));
+            handlers.add(new NioCorsHandler(corsConfig));
         }
         handlers.add(new NioHttpPipeliningHandler(transport.getLogger(), settings.getPipeliningMaxEvents()));
 
@@ -185,7 +187,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
                 int sequence = pipelinedRequest.getSequence();
                 BigArrays bigArrays = transport.getBigArrays();
                 try {
-                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, httpRequest, sequence, settings, threadContext);
+                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, httpRequest, sequence, settings, corsConfig, threadContext);
                 } catch (final IllegalArgumentException e) {
                     if (badRequestCause == null) {
                         badRequestCause = e;
@@ -198,7 +200,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
                             Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
                             copiedRequest.uri(),
                             copiedRequest);
-                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, innerRequest, sequence, settings, threadContext);
+                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, innerRequest, sequence, settings, corsConfig, threadContext);
                 }
                 channel = innerChannel;
             }

@@ -41,6 +41,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.nio.cors.NioCorsConfig;
+import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -58,17 +60,19 @@ public class NioHttpChannel extends AbstractRestChannel {
 
     private final BigArrays bigArrays;
     private final int sequence;
+    private final NioCorsConfig corsConfig;
     private final ThreadContext threadContext;
     private final FullHttpRequest nettyRequest;
     private final NioSocketChannel nioChannel;
     private final boolean resetCookies;
 
     NioHttpChannel(NioSocketChannel nioChannel, BigArrays bigArrays, NioHttpRequest request, int sequence,
-                   HttpHandlingSettings settings, ThreadContext threadContext) {
+                   HttpHandlingSettings settings, NioCorsConfig corsConfig, ThreadContext threadContext) {
         super(request, settings.getDetailedErrorsEnabled());
         this.nioChannel = nioChannel;
         this.bigArrays = bigArrays;
         this.sequence = sequence;
+        this.corsConfig = corsConfig;
         this.threadContext = threadContext;
         this.nettyRequest = request.getRequest();
         this.resetCookies = settings.isResetCookies();
@@ -86,6 +90,8 @@ public class NioHttpChannel extends AbstractRestChannel {
             resp = newResponse(buffer);
         }
         resp.setStatus(getStatus(response.status()));
+
+        NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 
         String opaque = nettyRequest.headers().get("X-Opaque-Id");
         if (opaque != null) {

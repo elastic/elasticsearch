@@ -230,6 +230,7 @@ public class Node implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
+    private final Settings originalSettings;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
@@ -260,6 +261,7 @@ public class Node implements Closeable {
             logger.info("initializing ...");
         }
         try {
+            originalSettings = environment.settings();
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
@@ -563,7 +565,14 @@ public class Node implements Closeable {
     }
 
     /**
-     * The settings that were used to create the node.
+     * The original settings that were used to create the node
+     */
+    public Settings originalSettings() {
+        return originalSettings;
+    }
+
+    /**
+     * The settings that are used by this node. Contains original settings as well as additional settings provided by plugins.
      */
     public Settings settings() {
         return this.settings;

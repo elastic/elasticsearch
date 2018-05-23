@@ -19,21 +19,21 @@
 
 package org.elasticsearch.client;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
-import static org.junit.Assert.assertArrayEquals;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
@@ -127,31 +127,33 @@ public class RequestTests extends RestClientTestCase {
         assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));
     }
 
-    public void testSetHeaders() {
+    public void testAddHeader() {
         final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         Request request = new Request(method, endpoint);
 
         try {
-            request.setHeaders((Header[]) null);
+            request.addHeader(null, randomAsciiLettersOfLengthBetween(3, 10));
             fail("expected failure");
         } catch (NullPointerException e) {
-            assertEquals("headers cannot be null", e.getMessage());
+            assertEquals("header name cannot be null", e.getMessage());
         }
 
         try {
-            request.setHeaders(new Header [] {null});
+            request.addHeader(randomAsciiLettersOfLengthBetween(3, 10), null);
             fail("expected failure");
         } catch (NullPointerException e) {
-            assertEquals("header cannot be null", e.getMessage());
+            assertEquals("header value cannot be null", e.getMessage());
         }
 
-        Header[] headers = new Header[between(0, 5)];
-        for (int i = 0; i < headers.length; i++) {
-            headers[i] = new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+        int numHeaders = between(0, 5);
+        List<Header> headers = new ArrayList<>();
+        for (int i = 0; i < numHeaders; i++) {
+            Header header = new Request.ReqHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
+            headers.add(header);
+            request.addHeader(header.getName(), header.getValue());
         }
-        request.setHeaders(headers);
-        assertArrayEquals(headers, request.getHeaders());
+        assertEquals(headers, new ArrayList<>(request.getHeaders()));
     }
 
     public void testEqualsAndHashCode() {
@@ -168,7 +170,7 @@ public class RequestTests extends RestClientTestCase {
         assertNotEquals(mutant, request);
     }
 
-    private Request randomRequest() {
+    private static Request randomRequest() {
         Request request = new Request(
             randomFrom(new String[] {"GET", "PUT", "DELETE", "POST", "HEAD", "OPTIONS"}),
             randomAsciiAlphanumOfLength(5));
@@ -192,11 +194,9 @@ public class RequestTests extends RestClientTestCase {
 
         if (randomBoolean()) {
             int headerCount = between(1, 5);
-            Header[] headers = new Header[headerCount];
             for (int i = 0; i < headerCount; i++) {
-                headers[i] = new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+                request.addHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
             }
-            request.setHeaders(headers);
         }
 
         if (randomBoolean()) {
@@ -206,13 +206,13 @@ public class RequestTests extends RestClientTestCase {
         return request;
     }
 
-    private Request copy(Request request) {
+    private static Request copy(Request request) {
         Request copy = new Request(request.getMethod(), request.getEndpoint());
         copyMutables(request, copy);
         return copy;
     }
 
-    private Request mutate(Request request) {
+    private static Request mutate(Request request) {
         if (randomBoolean()) {
             // Mutate request or method but keep everything else constant
             Request mutant = randomBoolean()
@@ -231,11 +231,7 @@ public class RequestTests extends RestClientTestCase {
             mutant.setJsonEntity("mutant"); // randomRequest can't produce this value
             return mutant;
         case 2:
-            if (mutant.getHeaders().length > 0) {
-                mutant.setHeaders(new Header[0]);
-            } else {
-                mutant.setHeaders(new BasicHeader("extra", "m"));
-            }
+            mutant.addHeader("extra", "m");
             return mutant;
         case 3:
             mutant.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(5));
@@ -245,12 +241,14 @@ public class RequestTests extends RestClientTestCase {
         }
     }
 
-    private void copyMutables(Request from, Request to) {
+    private static void copyMutables(Request from, Request to) {
         for (Map.Entry<String, String> param : from.getParameters().entrySet()) {
             to.addParameter(param.getKey(), param.getValue());
         }
         to.setEntity(from.getEntity());
-        to.setHeaders(from.getHeaders());
+        for (Header header : from.getHeaders()) {
+            to.addHeader(header.getName(), header.getValue());
+        }
         to.setHttpAsyncResponseConsumerFactory(from.getHttpAsyncResponseConsumerFactory());
     }
 }

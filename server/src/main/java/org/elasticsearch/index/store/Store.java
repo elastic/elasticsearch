@@ -50,7 +50,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -63,11 +62,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -138,15 +133,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final int VERSION_START = 0;
     static final int VERSION = VERSION_WRITE_THROWABLE;
     static final String CORRUPTED = "corrupted_";
-    public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
-    private final SingleObjectCache<StoreStats> statsCache;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -167,9 +159,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", settings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
-        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
-        this.statsCache = new StoreStatsCache(refreshInterval, directory);
-        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 
         assert onClose != null;
         assert shardLock != null;
@@ -375,9 +364,25 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public StoreStats stats() throws IOException {
+    /**
+     * Return the size of the store in bytes.
+     * NOTE: Prefer {@link IndexShard#storeStats()} if you need to call this
+     * repeatedly, which performs caching in order to avoid hammering the local
+     * node with metadata reads on the index files.
+     */
+    public long sizeInBytes() throws IOException {
         ensureOpen();
-        return statsCache.getOrRefresh();
+        long estimatedSize = 0;
+        String[] files = directory.listAll();
+        for (String file : files) {
+            try {
+                estimatedSize += directory.fileLength(file);
+            } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
+                // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
+                // calling Files.size, you can also sometimes hit AccessDeniedException
+            }
+        }
+        return estimatedSize;
     }
 
     /**
@@ -1426,38 +1431,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             public void accept(ShardLock Lock) {
             }
         };
-    }
-
-    private static class StoreStatsCache extends SingleObjectCache<StoreStats> {
-        private final Directory directory;
-
-        StoreStatsCache(TimeValue refreshInterval, Directory directory) throws IOException {
-            super(refreshInterval, new StoreStats(estimateSize(directory)));
-            this.directory = directory;
-        }
-
-        @Override
-        protected StoreStats refresh() {
-            try {
-                return new StoreStats(estimateSize(directory));
-            } catch (IOException ex) {
-                throw new ElasticsearchException("failed to refresh store stats", ex);
-            }
-        }
-
-        private static long estimateSize(Directory directory) throws IOException {
-            long estimatedSize = 0;
-            String[] files = directory.listAll();
-            for (String file : files) {
-                try {
-                    estimatedSize += directory.fileLength(file);
-                } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
-                    // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
-                    // calling Files.size, you can also sometimes hit AccessDeniedException
-                }
-            }
-            return estimatedSize;
-        }
     }
 
     /**

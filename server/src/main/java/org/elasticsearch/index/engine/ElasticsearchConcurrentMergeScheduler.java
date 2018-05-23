@@ -43,6 +43,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 /**
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
@@ -53,11 +55,12 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     protected final Logger logger;
     private final Settings indexSettings;
     private final ShardId shardId;
+    private final LongSupplier timeSupplier;
 
     private final MeanMetric totalMerges = new MeanMetric();
     private final CounterMetric totalMergesNumDocs = new CounterMetric();
     private final CounterMetric totalMergesSizeInBytes = new CounterMetric();
-    private final CounterMetric currentMerges = new CounterMetric();
+    private final AtomicLong currentMerges = new AtomicLong();
     private final CounterMetric currentMergesNumDocs = new CounterMetric();
     private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
     private final CounterMetric totalMergeStoppedTime = new CounterMetric();
@@ -66,11 +69,13 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
+    private volatile long lastMergeMillis = -1;
 
-    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, LongSupplier timeSupplier) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
+        this.timeSupplier = timeSupplier;
         this.logger = Loggers.getLogger(getClass(), this.indexSettings, shardId);
         refreshConfig();
     }
@@ -79,12 +84,22 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         return readOnlyOnGoingMerges;
     }
 
+    /**
+     * @see Engine#getLastMergeMillis(long)
+     */
+    public long lastMergeMillis(long now) {
+        if (currentMerges.get() == 0) {
+            return lastMergeMillis;
+        }
+        return now;
+    }
+
     @Override
     protected void doMerge(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
         long timeNS = System.nanoTime();
-        currentMerges.inc();
+        currentMerges.incrementAndGet();
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
 
@@ -103,7 +118,10 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             onGoingMerges.remove(onGoingMerge);
             afterMerge(onGoingMerge);
 
-            currentMerges.dec();
+            // Set the time of the last merge before decrementing since #lastMergeMillis
+            // reads currentMerges BEFORE lastMergeMillis.
+            lastMergeMillis = timeSupplier.getAsLong();
+            currentMerges.decrementAndGet();
             currentMergesNumDocs.dec(totalNumDocs);
             currentMergesSizeInBytes.dec(totalSizeInBytes);
 
@@ -174,7 +192,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     MergeStats stats() {
         final MergeStats mergeStats = new MergeStats();
         mergeStats.add(totalMerges.count(), totalMerges.sum(), totalMergesNumDocs.count(), totalMergesSizeInBytes.count(),
-                currentMerges.count(), currentMergesNumDocs.count(), currentMergesSizeInBytes.count(),
+                currentMerges.get(), currentMergesNumDocs.count(), currentMergesSizeInBytes.count(),
                 totalMergeStoppedTime.count(),
                 totalMergeThrottledTime.count(),
                 config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY);

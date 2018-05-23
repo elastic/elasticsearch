@@ -469,7 +469,7 @@ public class StoreTests extends ESTestCase {
     public void assertDeleteContent(Store store, DirectoryService service) throws IOException {
         deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
-        assertThat(store.stats().sizeInBytes(), equalTo(0L));
+        assertThat(store.sizeInBytes(), equalTo(0L));
         assertThat(service.newDirectory().listAll().length, equalTo(0));
     }
 
@@ -761,8 +761,7 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0)).build();
+                .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
         Store store = new Store(shardId, IndexSettingsModule.newIndexSettings("index", settings), directoryService,
             new DummyShardLock(shardId));
         long initialStoreSize = 0;
@@ -770,8 +769,7 @@ public class StoreTests extends ESTestCase {
             assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
-        StoreStats stats = store.stats();
-        assertEquals(stats.getSize().getBytes(), initialStoreSize);
+        assertEquals(store.sizeInBytes(), initialStoreSize);
 
         Directory dir = store.directory();
         final long length;
@@ -785,8 +783,7 @@ public class StoreTests extends ESTestCase {
         }
 
         assertTrue(numNonExtraFiles(store) > 0);
-        stats = store.stats();
-        assertEquals(stats.getSizeInBytes(), length + initialStoreSize);
+        assertEquals(store.sizeInBytes(), length + initialStoreSize);
 
         deleteContent(store.directory());
         IOUtils.close(store);

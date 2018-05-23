@@ -17,12 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -35,27 +33,19 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class Netty4PipeliningEnabledIT extends ESNetty4IntegTestCase {
+public class NioPipeliningIT extends NioIntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put("http.pipelining", true)
-            .build();
-    }
-
-    public void testThatNettyHttpServerSupportsPipelining() throws Exception {
+    public void testThatNioHttpServerSupportsPipelining() throws Exception {
         String[] requests = new String[]{"/", "/_nodes/stats", "/", "/_cluster/state", "/"};
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
-        TransportAddress transportAddress = (TransportAddress) randomFrom(boundAddresses);
+        TransportAddress transportAddress = randomFrom(boundAddresses);
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);

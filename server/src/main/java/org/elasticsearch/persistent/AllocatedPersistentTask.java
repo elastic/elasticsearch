@@ -78,7 +78,7 @@ public class AllocatedPersistentTask extends CancellableTask {
      * This doesn't affect the status of this allocated task.
      */
     public void updatePersistentStatus(Task.Status status, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
-        persistentTasksService.updateStatus(persistentTaskId, allocationId, status, listener);
+        persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, status, listener);
     }
 
     public String getPersistentTaskId() {
@@ -103,12 +103,16 @@ public class AllocatedPersistentTask extends CancellableTask {
     }
 
     /**
-     * Waits for this persistent task to have the desired state.
+     * Waits for a given persistent task to comply with a given predicate, then call back the listener accordingly.
+     *
+     * @param predicate the persistent task predicate to evaluate
+     * @param timeout a timeout for waiting
+     * @param listener the callback listener
      */
-    public void waitForPersistentTaskStatus(Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> predicate,
-                                            @Nullable TimeValue timeout,
-                                            PersistentTasksService.WaitForPersistentTaskStatusListener<?> listener) {
-        persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, predicate, timeout, listener);
+    public void waitForPersistentTask(final Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> predicate,
+                                      final @Nullable TimeValue timeout,
+                                      final PersistentTasksService.WaitForPersistentTaskListener<?> listener) {
+        persistentTasksService.waitForPersistentTask(persistentTaskId, predicate, timeout, listener);
     }
 
     final boolean isCompleted() {
@@ -143,7 +147,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                 this.failure = failure;
                 if (prevState == State.STARTED) {
                     logger.trace("sending notification for completed task [{}] with id [{}]", getAction(), getPersistentTaskId());
-                    persistentTasksService.sendCompletionNotification(getPersistentTaskId(), getAllocationId(), failure, new
+                    persistentTasksService.sendCompletionRequest(getPersistentTaskId(), getAllocationId(), failure, new
                             ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                                 @Override
                                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {

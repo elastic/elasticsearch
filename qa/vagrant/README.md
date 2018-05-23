@@ -25,7 +25,8 @@ When gradle runs the packaging tests on a VM, it runs the full suite by
 default. To add a test class to the suite, add its `class` to the
 `@SuiteClasses` annotation in [PackagingTests.java](src/main/java/org/elasticsearch/packaging/PackagingTests.java).
 If a test class is added to the project but not to this annotation, it will not
-run in CI jobs.
+run in CI jobs. The test classes are run in the order they are listed in the
+annotation.
 
 ## Choosing which distributions to test
 

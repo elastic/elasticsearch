@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4.pipelining;
+package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -37,6 +37,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -62,7 +63,8 @@ import static org.hamcrest.core.Is.is;
 
 public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
-    private final ExecutorService executorService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
+    private final ExecutorService handlerService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
+    private final ExecutorService eventLoopService = Executors.newFixedThreadPool(1);
     private final Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();
     private final Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
 
@@ -79,15 +81,19 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private void shutdownExecutorService() throws InterruptedException {
-        if (!executorService.isShutdown()) {
-            executorService.shutdown();
-            executorService.awaitTermination(10, TimeUnit.SECONDS);
+        if (!handlerService.isShutdown()) {
+            handlerService.shutdown();
+            handlerService.awaitTermination(10, TimeUnit.SECONDS);
+        }
+        if (!eventLoopService.isShutdown()) {
+            eventLoopService.shutdown();
+            eventLoopService.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
     public void testThatPipeliningWorksWithFastSerializedRequests() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -114,7 +120,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -147,7 +153,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final EmbeddedChannel embeddedChannel =
             new EmbeddedChannel(
                 new AggregateUrisAndHeadersHandler(),
-                new HttpPipeliningHandler(logger, numberOfRequests),
+                new Netty4HttpPipeliningHandler(logger, numberOfRequests),
                 new WorkEmulatorHandler());
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -176,7 +182,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests),
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler());
 
         for (int i = 0; i < 1 + numberOfRequests + 1; i++) {
@@ -184,7 +190,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         }
 
         final List<CountDownLatch> latches = new ArrayList<>();
-        final List<Integer> requests = IntStream.range(1, numberOfRequests + 1).mapToObj(r -> r).collect(Collectors.toList());
+        final List<Integer> requests = IntStream.range(1, numberOfRequests + 1).boxed().collect(Collectors.toList());
         Randomness.shuffle(requests);
 
         for (final Integer request : requests) {
@@ -205,25 +211,26 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testPipeliningRequestsAreReleased() throws InterruptedException {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(new HttpPipeliningHandler(logger, numberOfRequests + 1));
+            new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
         }
 
-        HttpPipelinedRequest inbound;
-        ArrayList<HttpPipelinedRequest> requests = new ArrayList<>();
+        HttpPipelinedRequest<FullHttpRequest> inbound;
+        ArrayList<HttpPipelinedRequest<FullHttpRequest>> requests = new ArrayList<>();
         while ((inbound = embeddedChannel.readInbound()) != null) {
             requests.add(inbound);
         }
 
         ArrayList<ChannelPromise> promises = new ArrayList<>();
         for (int i = 1; i < requests.size(); ++i) {
-            final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK);
+            final FullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK);
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
-            HttpPipelinedResponse response = requests.get(i).createHttpResponse(httpResponse, promise);
-            embeddedChannel.writeAndFlush(response, promise);
+            int sequence = requests.get(i).getSequence();
+            Netty4HttpResponse resp = new Netty4HttpResponse(sequence, httpResponse);
+            embeddedChannel.writeAndFlush(resp, promise);
         }
 
         for (ChannelPromise promise : promises) {
@@ -260,14 +267,14 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     }
 
-    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
+    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<LastHttpContent>> {
 
         @Override
-        protected void channelRead0(final ChannelHandlerContext ctx, final HttpPipelinedRequest pipelinedRequest) throws Exception {
+        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest<LastHttpContent> pipelinedRequest) {
+            LastHttpContent request = pipelinedRequest.getRequest();
             final QueryStringDecoder decoder;
-            if (pipelinedRequest.last() instanceof FullHttpRequest) {
-                final FullHttpRequest fullHttpRequest = (FullHttpRequest) pipelinedRequest.last();
-                decoder = new QueryStringDecoder(fullHttpRequest.uri());
+            if (request instanceof FullHttpRequest) {
+                decoder = new QueryStringDecoder(((FullHttpRequest)request).uri());
             } else {
                 decoder = new QueryStringDecoder(AggregateUrisAndHeadersHandler.QUEUE_URI.poll());
             }
@@ -282,12 +289,14 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             final CountDownLatch finishingLatch = new CountDownLatch(1);
             finishingRequests.put(uri, finishingLatch);
 
-            executorService.submit(() -> {
+            handlerService.submit(() -> {
                 try {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
                     final ChannelPromise promise = ctx.newPromise();
-                    ctx.write(pipelinedRequest.createHttpResponse(httpResponse, promise), promise);
-                    finishingLatch.countDown();
+                    eventLoopService.submit(() -> {
+                        ctx.write(new Netty4HttpResponse(pipelinedRequest.getSequence(), httpResponse), promise);
+                        finishingLatch.countDown();
+                    });
                 } catch (InterruptedException e) {
                     fail(e.toString());
                 }

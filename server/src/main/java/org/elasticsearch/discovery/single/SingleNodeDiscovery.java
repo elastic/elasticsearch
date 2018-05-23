@@ -99,7 +99,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
         // apply a fresh cluster state just so that state recovery gets triggered by GatewayService
         // TODO: give discovery module control over GatewayService
         clusterState = ClusterState.builder(clusterState).build();
-        clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, (source, e) -> { });
+        clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, (source, e) -> {});
     }
 
     @Override

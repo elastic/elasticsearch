@@ -134,7 +134,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         clusterService.getClusterApplierService().onNewClusterState("restore master",
             () -> ClusterState.builder(currentState)
                 .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId())).build(),
-            (source, e) -> { });
+            (source, e) -> {});
 
         logger.info("--> waiting for listener to be called and cluster state being blocked");
         listenerCalled.await();

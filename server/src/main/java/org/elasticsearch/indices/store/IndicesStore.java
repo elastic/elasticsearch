@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -291,7 +290,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         logger.debug(() -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
                 },
-                (source, e) -> logger.error(() -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e));
+                (source, e) -> logger.error(() -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e)
+            );
         }
 
     }

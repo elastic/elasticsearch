@@ -94,7 +94,7 @@ public final class ClusterClient {
      * Add a pipeline or update an existing pipeline in the cluster
      * <p>
      * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      */
     public PutPipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline,
@@ -105,21 +105,10 @@ public final class ClusterClient {
      * Asynchronously add a pipeline or update an existing pipeline in the cluster
      * <p>
      * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      */
     public void putPipelineAsync(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
             PutPipelineResponse::fromXContent, listener, emptySet(), headers);
-    }
-
-    /**
-     * Asynchronously get current tasks using the Task Management API
-     * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
-     */
-    public void putPipelineAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-            listener, emptySet(), headers);
     }
 }

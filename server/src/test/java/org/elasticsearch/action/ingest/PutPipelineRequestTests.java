@@ -19,14 +19,13 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,7 +49,8 @@ public class PutPipelineRequestTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        XContentBuilder pipelineBuilder = JsonXContent.contentBuilder();
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
         pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
         pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
         //Start first processor
@@ -63,10 +63,9 @@ public class PutPipelineRequestTests extends ESTestCase {
         //End first processor
         pipelineBuilder.endArray();
         pipelineBuilder.endObject();
-        PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), XContentType.JSON);
-        String actualRequestBody = Strings.toString(request);
-        String expectedResponseBody =
-            "{\"description\":\"some random set of processors\",\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
-        assertEquals(expectedResponseBody, actualRequestBody);
+        PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), xContentType);
+        XContentBuilder requestBuilder = XContentBuilder.builder(xContentType.xContent());
+        BytesReference actualRequestBody = BytesReference.bytes(request.toXContent(requestBuilder, ToXContent.EMPTY_PARAMS));
+        assertEquals(BytesReference.bytes(pipelineBuilder), actualRequestBody);
     }
 }

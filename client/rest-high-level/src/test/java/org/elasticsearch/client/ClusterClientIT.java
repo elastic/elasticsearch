@@ -28,13 +28,11 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.Pipeline;
@@ -146,7 +144,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
 
     public void testPutPipeline() throws IOException {
         String id = "some_pipeline_id";
-        XContentBuilder pipelineBuilder = JsonXContent.contentBuilder();
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
         pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
         pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
         //Start first processor
@@ -169,7 +168,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         pipelineBuilder.endObject();
         PutPipelineRequest request = new PutPipelineRequest(
             id,
-            new BytesArray(Strings.toString(pipelineBuilder)),
+            BytesReference.bytes(pipelineBuilder),
             pipelineBuilder.contentType());
 
         PutPipelineResponse putPipelineResponse =

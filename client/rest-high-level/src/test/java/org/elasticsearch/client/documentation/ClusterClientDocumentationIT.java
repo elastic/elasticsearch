@@ -289,13 +289,17 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)), // <2>
                 XContentType.JSON // <3>
             );
+            // end::put-pipeline-request
 
             // tag::put-pipeline-request-timeout
             request.timeout(TimeValue.timeValueMinutes(2)); // <1>
             request.timeout("2m"); // <2>
             // end::put-pipeline-request-timeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+
             // tag::put-pipeline-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::put-pipeline-request-masterTimeout
 
             // tag::put-pipeline-execute
             PutPipelineResponse response = client.cluster().putPipeline(request); // <1>

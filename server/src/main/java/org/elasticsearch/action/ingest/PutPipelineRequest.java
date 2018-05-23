@@ -102,7 +102,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(source.streamInput(), XContentType.JSON);
+            builder.rawValue(source.streamInput(), xContentType);
         } else {
             builder.startObject().endObject();
         }

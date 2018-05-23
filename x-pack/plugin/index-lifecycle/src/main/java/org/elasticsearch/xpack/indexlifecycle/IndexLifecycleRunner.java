@@ -48,6 +48,11 @@ public class IndexLifecycleRunner {
     public void runPolicy(String policy, IndexMetaData indexMetaData, ClusterState currentState,
             boolean fromClusterStateChange) {
         Settings indexSettings = indexMetaData.getSettings();
+        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
+            logger.info("skipping policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "]."
+                + LifecycleSettings.LIFECYCLE_SKIP + "== true");
+            return;
+        }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         logger.debug("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {

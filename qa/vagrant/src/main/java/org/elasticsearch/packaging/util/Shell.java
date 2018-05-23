@@ -19,6 +19,8 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,7 +70,7 @@ public class Shell {
         builder.command(command);
 
         if (workingDirectory != null) {
-            builder.directory(workingDirectory.toFile());
+            setWorkingDirectory(builder, workingDirectory);
         }
 
         if (env != null && env.isEmpty() == false) {
@@ -100,6 +102,11 @@ public class Shell {
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @SuppressForbidden(reason = "ProcessBuilder expects java.io.File")
+    private static void setWorkingDirectory(ProcessBuilder builder, Path path) {
+        builder.directory(path.toFile());
     }
 
     public String toString() {
@@ -165,7 +172,7 @@ public class Shell {
         public void run() {
             try {
 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+                BufferedReader reader = new BufferedReader(reader(input));
                 String line;
 
                 while ((line = reader.readLine()) != null) {
@@ -176,6 +183,11 @@ public class Shell {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        @SuppressForbidden(reason = "the system's default character set is a best guess of what subprocesses will use")
+        private static InputStreamReader reader(InputStream inputStream) {
+            return new InputStreamReader(inputStream);
         }
     }
 }

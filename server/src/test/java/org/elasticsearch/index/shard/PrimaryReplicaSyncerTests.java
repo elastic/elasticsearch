@@ -80,7 +80,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         }
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;
-        boolean syncNeeded = numDocs > 0 && globalCheckPoint < numDocs - 1;
+        boolean syncNeeded = numDocs > 0;
 
         String allocationId = shard.routingEntry().allocationId().getId();
         shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
@@ -92,29 +92,29 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
         syncer.resync(shard, fut);
-        fut.get();
+        PrimaryReplicaSyncer.ResyncTask resyncTask = fut.get();
 
-        if (numDocs > 0) {
+        if (syncNeeded) {
             assertTrue("Sync action was not called", syncActionCalled.get());
             ResyncReplicationRequest resyncRequest = resyncRequests.remove(0);
-            assertThat(resyncRequest.getTrimAboveSeqNo(), equalTo(numDocs - 1L));
+            assertThat(resyncRequest.getTrimAboveOrEqSeqNo(), equalTo(Long.valueOf(numDocs)));
 
-            assertThat("trimAboveSeqNo has to be specified in request #0 only", resyncRequests.stream()
-                    .mapToLong(ResyncReplicationRequest::getTrimAboveSeqNo)
+            assertThat("trimAboveOrEqSeqNo has to be specified in request #0 only", resyncRequests.stream()
+                    .mapToLong(ResyncReplicationRequest::getTrimAboveOrEqSeqNo)
                     .filter(seqNo -> seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO)
                     .findFirst()
                     .isPresent(),
                 is(false));
         }
 
-        assertEquals(globalCheckPoint == numDocs - 1 ? 0 : numDocs, fut.get().getTotalOperations());
-        if (syncNeeded) {
+        assertEquals(globalCheckPoint == numDocs - 1 ? 0 : numDocs, resyncTask.getTotalOperations());
+        if (syncNeeded && globalCheckPoint < numDocs - 1) {
             long skippedOps = globalCheckPoint + 1; // everything up to global checkpoint included
-            assertEquals(skippedOps, fut.get().getSkippedOperations());
-            assertEquals(numDocs - skippedOps, fut.get().getResyncedOperations());
+            assertEquals(skippedOps, resyncTask.getSkippedOperations());
+            assertEquals(numDocs - skippedOps, resyncTask.getResyncedOperations());
         } else {
-            assertEquals(0, fut.get().getSkippedOperations());
-            assertEquals(0, fut.get().getResyncedOperations());
+            assertEquals(0, resyncTask.getSkippedOperations());
+            assertEquals(0, resyncTask.getResyncedOperations());
         }
 
         closeShards(shard);

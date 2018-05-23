@@ -697,11 +697,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Trims translog for terms of files below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>.
-     * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveSeqNo} therefore {@link TranslogSnapshot} skips those operations.
+     * Trims translog for terms of files below <code>belowTerm</code> and seq# above or equals to <code>aboveOrEqSeqNo</code>.
+     * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveOrEqSeqNo} therefore {@link TranslogSnapshot} skips those operations.
      */
-    public void trimOperations(long belowTerm, long aboveSeqNo) throws IOException {
-        assert aboveSeqNo >= 0 : "aboveSeqNo has to be non-negative number";
+    public void trimOperations(long belowTerm, long aboveOrEqSeqNo) throws IOException {
+        assert aboveOrEqSeqNo >= 0 : "aboveOrEqSeqNo has to be non-negative number";
 
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
@@ -709,15 +709,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new IllegalArgumentException("Trimming the translog can only be done for terms lower than the current one. " +
                     "Trim requested for term [ " + belowTerm + " ] , current is [ " + current.getPrimaryTerm() + " ]");
             }
-            // assume that there are no any trimmable ops in current
-            assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
+            // we assume that the current translog generation doesn't have trimmable ops. Verify that.
+            assert current.assertNoSeqAbove(belowTerm, aboveOrEqSeqNo);
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
                 for (TranslogReader reader : readers) {
                     final TranslogReader newReader =
                         reader.getPrimaryTerm() < belowTerm
-                            ? reader.closeIntoTrimmedReader(aboveSeqNo, getChannelFactory())
+                            ? reader.closeIntoTrimmedReader(aboveOrEqSeqNo, getChannelFactory())
                             : reader;
                     newReaders.add(newReader);
                 }

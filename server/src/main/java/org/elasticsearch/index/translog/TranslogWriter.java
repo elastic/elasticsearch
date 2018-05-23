@@ -91,7 +91,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.minSeqNo = initialCheckpoint.minSeqNo;
         assert initialCheckpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
-        assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
+        assert initialCheckpoint.trimmedAboveOrEqSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveOrEqSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
     }
@@ -213,8 +213,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return true;
     }
 
-    synchronized boolean assertNoSeqAbove(long belowTerm, long aboveSeqNo) {
-        seenSequenceNumbers.entrySet().stream().filter(e -> e.getKey().longValue() > aboveSeqNo)
+    synchronized boolean assertNoSeqAbove(long belowTerm, long aboveOrEqSeqNo) {
+        seenSequenceNumbers.entrySet().stream().filter(e -> e.getKey().longValue() > aboveOrEqSeqNo)
             .forEach(e -> {
                 final Translog.Operation op;
                 try {
@@ -226,7 +226,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 long primaryTerm = op.primaryTerm();
                 if (primaryTerm < belowTerm) {
                     throw new AssertionError("current should not have any operations with seq#:primaryTerm ["
-                        + seqNo + ":" + primaryTerm + "] > " + aboveSeqNo + ":" + belowTerm);
+                        + seqNo + ":" + primaryTerm + "] > " + aboveOrEqSeqNo + ":" + belowTerm);
                 }
             });
         return true;

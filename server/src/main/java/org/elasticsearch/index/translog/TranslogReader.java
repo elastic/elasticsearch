@@ -78,17 +78,17 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     /**
      * Closes current reader and creates new one with new checkoint and same file channel
      */
-    TranslogReader closeIntoTrimmedReader(long aboveSeqNo, ChannelFactory channelFactory) throws IOException {
+    TranslogReader closeIntoTrimmedReader(long aboveOrEqSeqNo, ChannelFactory channelFactory) throws IOException {
         if (closed.compareAndSet(false, true)) {
             Closeable toCloseOnFailure = channel;
             final TranslogReader newReader;
             try {
-                if (aboveSeqNo < checkpoint.trimmedAboveSeqNo
-                    || aboveSeqNo < checkpoint.maxSeqNo && checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                if (aboveOrEqSeqNo < checkpoint.trimmedAboveOrEqSeqNo
+                    || aboveOrEqSeqNo <= checkpoint.maxSeqNo && checkpoint.trimmedAboveOrEqSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
                     final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
                         checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
-                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
+                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveOrEqSeqNo);
                     Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
 
                     IOUtils.fsync(checkpointFile, false);

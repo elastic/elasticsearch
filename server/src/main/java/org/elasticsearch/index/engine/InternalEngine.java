@@ -1570,10 +1570,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+    public void trimOperationsFromTranslog(long belowTerm, long aboveOrEqSeqNo) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            translog.trimOperations(belowTerm, aboveSeqNo);
+            translog.trimOperations(belowTerm, aboveOrEqSeqNo);
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
             throw e;

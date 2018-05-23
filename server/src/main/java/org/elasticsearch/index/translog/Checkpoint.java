@@ -45,7 +45,7 @@ final class Checkpoint {
     final long maxSeqNo;
     final long globalCheckpoint;
     final long minTranslogGeneration;
-    final long trimmedAboveSeqNo;
+    final long trimmedAboveOrEqSeqNo;
 
     private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
     private static final int VERSION_6_0_0 = 2; // introduction of global checkpoints
@@ -87,20 +87,21 @@ final class Checkpoint {
     /**
      * Create a new translog checkpoint.
      *
-     * @param offset                the current offset in the translog
-     * @param numOps                the current number of operations in the translog
-     * @param generation            the current translog generation
-     * @param minSeqNo              the current minimum sequence number of all operations in the translog
-     * @param maxSeqNo              the current maximum sequence number of all operations in the translog
-     * @param globalCheckpoint      the last-known global checkpoint
-     * @param minTranslogGeneration the minimum generation referenced by the translog at this moment.
-     * @param trimmedAboveSeqNo     all operations with seq# above trimmedAboveSeqNo should be ignored and not read from the
-     *                              corresponding translog file. {@link SequenceNumbers#UNASSIGNED_SEQ_NO} is used to disable trimming.
+     * @param offset                 the current offset in the translog
+     * @param numOps                 the current number of operations in the translog
+     * @param generation             the current translog generation
+     * @param minSeqNo               the current minimum sequence number of all operations in the translog
+     * @param maxSeqNo               the current maximum sequence number of all operations in the translog
+     * @param globalCheckpoint       the last-known global checkpoint
+     * @param minTranslogGeneration  the minimum generation referenced by the translog at this moment.
+     * @param trimmedAboveOrEqSeqNo  all operations with seq# above or equal to trimmedAboveOrEqSeqNo should be ignored and not read from
+     *                               the corresponding translog file. {@link SequenceNumbers#UNASSIGNED_SEQ_NO} is used to disable trimming.
      */
     Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint,
-               long minTranslogGeneration, long trimmedAboveSeqNo) {
+               long minTranslogGeneration, long trimmedAboveOrEqSeqNo) {
         assert minSeqNo <= maxSeqNo : "minSeqNo [" + minSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
-        assert trimmedAboveSeqNo <= maxSeqNo : "trimmedAboveSeqNo [" + trimmedAboveSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
+        assert trimmedAboveOrEqSeqNo <= maxSeqNo :
+            "trimmedAboveOrEqSeqNo [" + trimmedAboveOrEqSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
         assert minTranslogGeneration <= generation :
             "minTranslogGen [" + minTranslogGeneration + "] is higher than generation [" + generation + "]";
         this.offset = offset;
@@ -110,7 +111,7 @@ final class Checkpoint {
         this.maxSeqNo = maxSeqNo;
         this.globalCheckpoint = globalCheckpoint;
         this.minTranslogGeneration = minTranslogGeneration;
-        this.trimmedAboveSeqNo = trimmedAboveSeqNo;
+        this.trimmedAboveOrEqSeqNo = trimmedAboveOrEqSeqNo;
     }
 
     private void write(DataOutput out) throws IOException {
@@ -121,15 +122,16 @@ final class Checkpoint {
         out.writeLong(maxSeqNo);
         out.writeLong(globalCheckpoint);
         out.writeLong(minTranslogGeneration);
-        out.writeLong(trimmedAboveSeqNo);
+        out.writeLong(trimmedAboveOrEqSeqNo);
     }
 
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
                                               long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
+        final long trimmedAboveOrEqSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration,
+            trimmedAboveOrEqSeqNo);
     }
 
     static Checkpoint readCheckpointV6_4_0(final DataInput in) throws IOException {
@@ -140,8 +142,9 @@ final class Checkpoint {
         final long maxSeqNo = in.readLong();
         final long globalCheckpoint = in.readLong();
         final long minTranslogGeneration = in.readLong();
-        final long trimmedAboveSeqNo = in.readLong();
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
+        final long trimmedAboveOrEqSeqNo = in.readLong();
+        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration,
+            trimmedAboveOrEqSeqNo);
     }
 
     static Checkpoint readCheckpointV6_0_0(final DataInput in) throws IOException {
@@ -152,8 +155,9 @@ final class Checkpoint {
         final long maxSeqNo = in.readLong();
         final long globalCheckpoint = in.readLong();
         final long minTranslogGeneration = in.readLong();
-        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
+        final long trimmedAboveOrEqSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration,
+            trimmedAboveOrEqSeqNo);
     }
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
@@ -165,8 +169,9 @@ final class Checkpoint {
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         final long minTranslogGeneration = -1;
-        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
+        final long trimmedAboveOrEqSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration,
+            trimmedAboveOrEqSeqNo);
     }
 
     @Override
@@ -179,7 +184,7 @@ final class Checkpoint {
             ", maxSeqNo=" + maxSeqNo +
             ", globalCheckpoint=" + globalCheckpoint +
             ", minTranslogGeneration=" + minTranslogGeneration +
-            ", trimmedAboveSeqNo=" + trimmedAboveSeqNo +
+            ", trimmedAboveOrEqSeqNo=" + trimmedAboveOrEqSeqNo +
             '}';
     }
 
@@ -247,7 +252,7 @@ final class Checkpoint {
         if (minSeqNo != that.minSeqNo) return false;
         if (maxSeqNo != that.maxSeqNo) return false;
         if (globalCheckpoint != that.globalCheckpoint) return false;
-        return trimmedAboveSeqNo == that.trimmedAboveSeqNo;
+        return trimmedAboveOrEqSeqNo == that.trimmedAboveOrEqSeqNo;
     }
 
     @Override
@@ -258,7 +263,7 @@ final class Checkpoint {
         result = 31 * result + Long.hashCode(minSeqNo);
         result = 31 * result + Long.hashCode(maxSeqNo);
         result = 31 * result + Long.hashCode(globalCheckpoint);
-        result = 31 * result + Long.hashCode(trimmedAboveSeqNo);
+        result = 31 * result + Long.hashCode(trimmedAboveOrEqSeqNo);
         return result;
     }
 

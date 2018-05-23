@@ -1478,8 +1478,8 @@ public class TranslogTests extends ESTestCase {
             fail("corrupted");
         } catch (IllegalStateException ex) {
             assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3080, " +
-                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} but got: Checkpoint{offset=0, numOps=0, " +
-                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveSeqNo=-2}", ex.getMessage());
+                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveOrEqSeqNo=-2} but got: Checkpoint{offset=0, numOps=0, " +
+                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveOrEqSeqNo=-2}", ex.getMessage());
         }
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
@@ -1518,20 +1518,16 @@ public class TranslogTests extends ESTestCase {
         primaryTerm.addAndGet(extraDocs);
         translog.rollGeneration();
 
-        long pt = primaryTerm.get();
-
         for (int op = 0; op < extraDocs; op++) {
             String ascii = randomAlphaOfLengthBetween(1, 50);
-            Translog.Index operation = new Translog.Index("test", "" + op, op, pt - op, ascii.getBytes("UTF-8"));
+            Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get() - op,
+                ascii.getBytes("UTF-8"));
             translog.add(operation);
         }
-        try {
-            translog.trimOperations(pt, 0);
-            fail();
-        } catch (AssertionError e) {
-            assertThat(e.getMessage(),
-                is("current should not have any operations with seq#:primaryTerm [1:" + (pt - 1) + "] > 0:" + pt));
-        }
+
+        AssertionError error = expectThrows(AssertionError.class, () -> translog.trimOperations(primaryTerm.get(), 0));
+        assertThat(error.getMessage(), is("current should not have any operations with seq#:primaryTerm "
+            + "[1:" + (primaryTerm.get() - 1) + "] > 0:" + primaryTerm.get()));
 
         primaryTerm.incrementAndGet();
         translog.rollGeneration();
@@ -1542,7 +1538,7 @@ public class TranslogTests extends ESTestCase {
         translog.add(operation);
 
         // it is possible to trim after generation rollover
-        translog.trimOperations(pt, 0);
+        translog.trimOperations(primaryTerm.get(), 0);
     }
 
     public void testSnapshotTrimmedOperations() throws Exception {
@@ -1562,14 +1558,10 @@ public class TranslogTests extends ESTestCase {
             Randomness.shuffle(ops);
 
             for (final long op : ops) {
-                // use ongoing primaryTerms - or the same as it was
-                final long pt = this.primaryTerm.get();
-
                 String source = randomAlphaOfLengthBetween(1, 50);
 
-                // if there was no roll generation - have to use exactly the same source
-                // for same seq# regardless primaryTerm
-                if (!wasRollover.get()) {
+                // have to use exactly the same source for same seq# if primaryTerm is not changed
+                if (primaryTerm.get() == translog.getCurrent().getPrimaryTerm()) {
                     for (Translog.Index allOp : allOperations) {
                         if (allOp.seqNo() == op) {
                             // use the latest source of op with the same seq# - therefore no break
@@ -1578,7 +1570,9 @@ public class TranslogTests extends ESTestCase {
                     }
                 }
 
-                Translog.Index operation = new Translog.Index("test", "" + op, op, pt, source.getBytes("UTF-8"));
+                // use ongoing primaryTerms - or the same as it was
+                Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(),
+                    source.getBytes("UTF-8"));
                 translog.add(operation);
 
                 allOperations.add(operation);
@@ -1592,7 +1586,7 @@ public class TranslogTests extends ESTestCase {
             }
 
             int trimmedDocs = randomIntBetween(4, 8);
-            long maxTrimmedSeqNo = wasRollover.get() ? translogOperations + extraDocs - trimmedDocs : translogOperations + extraDocs + 1;
+            long maxTrimmedSeqNo = translogOperations + extraDocs - trimmedDocs + 1;
 
             translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
             translog.sync();
@@ -1609,8 +1603,13 @@ public class TranslogTests extends ESTestCase {
                 actualSkippedOperations = snapshot.skippedOperations();
             }
 
+            final long effectiveMaxTrimSeqNo =
+                wasRollover.get() ? maxTrimmedSeqNo
+                // if there was no rollover - we have not trimmed ops for this primary term - all of them have to be in snapshot
+                    : translogOperations + extraDocs + 1;
+
             newOperations.stream()
-                .filter(op -> op.primaryTerm() <= primaryTerm.get() && op.seqNo() <= maxTrimmedSeqNo)
+                .filter(op -> op.primaryTerm() <= primaryTerm.get() && op.seqNo() < effectiveMaxTrimSeqNo)
                 .forEach(effectiveOperations::add);
 
             Set<Long> seqNoSet = new HashSet<>();
@@ -1665,7 +1664,8 @@ public class TranslogTests extends ESTestCase {
             translogOperations += extraTranslogOperations;
 
             // at least one roll + inc of primary term has to be there - otherwise trim would not take place at all
-            boolean rollover = attempt == 0 || randomBoolean();
+            // last attempt we have to make roll as well - otherwise could skip trimming as it has been trimmed already
+            boolean rollover = attempt == 0 || attempt == maxAttempts - 1 || randomBoolean();
             if (rollover) {
                 primaryTerm.incrementAndGet();
                 failableTLog.rollGeneration();
@@ -1725,8 +1725,8 @@ public class TranslogTests extends ESTestCase {
         primaryTerm.incrementAndGet();
         translog.rollGeneration();
 
-        int aboveSeqNo = randomIntBetween(2, extraDocs - 2);
-        translog.trimOperations(primaryTerm.get(), aboveSeqNo);
+        int aboveOrEqSeqNo = randomIntBetween(2, extraDocs - 2);
+        translog.trimOperations(primaryTerm.get(), aboveOrEqSeqNo);
         translog.sync();
 
 
@@ -1745,18 +1745,18 @@ public class TranslogTests extends ESTestCase {
         Collections.sort(allOperations, Comparator.comparing(Translog.Operation::seqNo));
         Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
 
-        List<Translog.Index> trimmedOperations = aboveSeqNo + 1 < allOperations.size()
-            ? allOperations.subList(0, aboveSeqNo + 1) : allOperations;
+        List<Translog.Index> trimmedOperations = aboveOrEqSeqNo < allOperations.size()
+            ? allOperations.subList(0, aboveOrEqSeqNo) : allOperations;
         assertThat(actualTotalOperations, is(allOperations.size()));
         assertThat(actualOperations, is(trimmedOperations));
         assertThat(actualSkippedOperations, is(allOperations.size() - trimmedOperations.size()));
 
-        // trim trimmed translog => when aboveSeqNo is higher than original aboveSeqNo
+        // trim trimmed translog => when aboveOrEqSeqNo is higher than original aboveOrEqSeqNo
         // no any ops are shrunk
 
-        int aboveSeqNo2 = randomIntBetween(aboveSeqNo + 1, extraDocs);
+        int aboveOrEqSeqNo2 = randomIntBetween(aboveOrEqSeqNo + 1, extraDocs);
 
-        translog.trimOperations(primaryTerm.get(), aboveSeqNo2);
+        translog.trimOperations(primaryTerm.get(), aboveOrEqSeqNo2);
         translog.sync();
 
         List<Translog.Operation> actualOperations2 = new ArrayList<>();
@@ -1777,12 +1777,12 @@ public class TranslogTests extends ESTestCase {
         assertThat(actualOperations2, is(trimmedOperations));
         assertThat(actualSkippedOperations2, is(allOperations.size() - trimmedOperations.size()));
 
-        // trim trimmed translog => when aboveSeqNo is lower than original aboveSeqNo
+        // trim trimmed translog => when aboveOrEqSeqNo is lower than original aboveOrEqSeqNo
         // several ops have to be shrunk
 
-        int aboveSeqNo3 = randomInt(aboveSeqNo - 1);
+        int aboveOrEqSeqNo3 = randomInt(aboveOrEqSeqNo - 1);
 
-        translog.trimOperations(primaryTerm.get(), aboveSeqNo3);
+        translog.trimOperations(primaryTerm.get(), aboveOrEqSeqNo3);
         translog.sync();
 
         List<Translog.Operation> actualOperations3 = new ArrayList<>();
@@ -1799,8 +1799,8 @@ public class TranslogTests extends ESTestCase {
 
         Collections.sort(actualOperations3, Comparator.comparing(Translog.Operation::seqNo));
 
-        trimmedOperations = aboveSeqNo3 + 1 < allOperations.size()
-            ? allOperations.subList(0, aboveSeqNo3 + 1) : allOperations;
+        trimmedOperations = aboveOrEqSeqNo3 < allOperations.size()
+            ? allOperations.subList(0, aboveOrEqSeqNo3) : allOperations;
 
         assertThat(actualTotalOperations3, is(allOperations.size()));
         assertThat(actualOperations3, is(trimmedOperations));

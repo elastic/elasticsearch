@@ -33,14 +33,3 @@ dependencyLicenses {
     mapping from: /jackson-.*/, to: 'jackson'
     ignoreSha 'elasticsearch-core'
 }
-
-//thirdPartyAudit.excludes = [
-//        'com.fasterxml.jackson.dataformat.yaml.YAMLFactory',
-//        'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
-//
-//        // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-//        'com.fasterxml.jackson.databind.ObjectMapper',
-//        'org.fusesource.jansi.Ansi',
-//        'org.fusesource.jansi.AnsiRenderer$Code',
-//
-//]

@@ -27,25 +27,23 @@ public final class ProtoUtils {
      */
     public static Object parseFieldsValue(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        Object value = null;
         if (token == XContentParser.Token.VALUE_STRING) {
             //binary values will be parsed back and returned as base64 strings when reading from json and yaml
-            value = parser.text();
+            return parser.text();
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            value = parser.numberValue();
+            return parser.numberValue();
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            value = parser.booleanValue();
+            return parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            value = null;
+            return null;
         } else if (token == XContentParser.Token.START_OBJECT) {
-            value = parser.mapOrdered();
+            return parser.mapOrdered();
         } else if (token == XContentParser.Token.START_ARRAY) {
-            value = parser.listOrderedMap();
+            return parser.listOrderedMap();
         } else {
             String message = "Failed to parse object: unexpected token [%s] found";
             throw new IllegalStateException(String.format(Locale.ROOT, message, token));
         }
-        return value;
     }
 
     /**

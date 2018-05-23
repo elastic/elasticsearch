@@ -800,7 +800,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         skipJarHellCommand.execute(terminal, pluginZip, isBatch, env.v2());
     }
 
-    void assertInstallPluginFromUrl(String pluginId, String name, String url, String stagingHash,
+    void assertInstallPluginFromUrl(String pluginId, String name, String url, String stagingHash, boolean isSnapshot,
                                                    String shaExtension, Function<byte[], String> shaCalculator) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
@@ -834,6 +834,12 @@ public class InstallPluginCommandTests extends ESTestCase {
             String getStagingHash() {
                 return stagingHash;
             }
+
+            @Override
+            boolean isSnapshot() {
+                return isSnapshot;
+            }
+
             @Override
             void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) throws Exception {
                 // no jarhell check
@@ -843,48 +849,82 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertPlugin(name, pluginDir, env.v2());
     }
 
-    public void assertInstallPluginFromUrl(String pluginId, String name, String url, String stagingHash) throws Exception {
+    public void assertInstallPluginFromUrl(
+            final String pluginId, final String name, final String url, final String stagingHash, boolean isSnapshot) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
-        assertInstallPluginFromUrl(pluginId, name, url, stagingHash, ".sha512", checksumAndFilename(digest, url));
+        assertInstallPluginFromUrl(pluginId, name, url, stagingHash, isSnapshot, ".sha512", checksumAndFilename(digest, url));
     }
 
     public void testOfficalPlugin() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null);
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
+    }
+
+    public void testOfficialPluginSnapshot() throws Exception {
+        String url = String.format(
+                Locale.ROOT,
+                "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
+                Version.CURRENT,
+                Version.displayVersion(Version.CURRENT, true));
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
+    }
+
+    public void testInstallReleaseBuildOfPluginOnSnapshotBuild() {
+        String url = String.format(
+                Locale.ROOT,
+                "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
+                Version.CURRENT,
+                Version.displayVersion(Version.CURRENT, true));
+        // attemping to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
+        final UserException e =
+                expectThrows(UserException.class, () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, true));
+        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
+        assertThat(
+                e, hasToString(containsString("attempted to install release build of official plugin on snapshot build of Elasticsearch")));
     }
 
     public void testOfficalPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/" + Version.CURRENT + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123");
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
     }
 
     public void testOfficalPlatformPlugin() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Platforms.PLATFORM_NAME +
             "-" + Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null);
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
+    }
+
+    public void testOfficialPlatformPluginSnapshot() throws Exception {
+        String url = String.format(
+                Locale.ROOT,
+                "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s-%s.zip",
+                Version.CURRENT,
+                Platforms.PLATFORM_NAME,
+                Version.displayVersion(Version.CURRENT, true));
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
     }
 
     public void testOfficalPlatformPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/" + Version.CURRENT + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME + "-"+ Version.CURRENT + ".zip";
-        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123");
+        assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
     }
 
     public void testMavenPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null);
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
     }
 
     public void testMavenPlatformPlugin() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-" + Platforms.PLATFORM_NAME + "-1.0.0.zip";
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null);
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false);
     }
 
     public void testMavenSha1Backcompat() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".sha1", checksum(digest));
+        assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha1", checksum(digest));
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("sha512 not found, falling back to sha1"));
     }
 
@@ -892,7 +932,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha1", checksum(digest)));
+            assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false, ".sha1", checksum(digest)));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha512", e.getMessage());
     }
@@ -900,7 +940,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testMavenShaMissing() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".dne", bytes -> null));
+            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".dne", bytes -> null));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertEquals("Plugin checksum missing: " + url + ".sha1", e.getMessage());
     }
@@ -909,7 +949,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(UserException.class, () ->
-                assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha512", checksum(digest)));
+                assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false, ".sha512", checksum(digest)));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
     }
@@ -923,6 +963,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                         "analysis-icu",
                         url,
                         null,
+                        false,
                         ".sha512",
                         checksumAndString(digest, "  repository-s3-" + Version.CURRENT + ".zip")));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
@@ -938,6 +979,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     "analysis-icu",
                     url,
                     null,
+                    false,
                     ".sha512",
                     checksumAndString(digest, "  analysis-icu-" + Version.CURRENT + ".zip\nfoobar")));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
@@ -952,6 +994,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     "analysis-icu",
                     url,
                     null,
+                    false,
                     ".sha512",
                     bytes -> "foobar  analysis-icu-" + Version.CURRENT + ".zip"));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
@@ -961,7 +1004,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testSha1Mismatch() throws Exception {
         String url = "https://repo1.maven.org/maven2/mygroup/myplugin/1.0.0/myplugin-1.0.0.zip";
         UserException e = expectThrows(UserException.class, () ->
-            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".sha1", bytes -> "foobar"));
+            assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, false, ".sha1", bytes -> "foobar"));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-1 mismatch, expected foobar"));
     }

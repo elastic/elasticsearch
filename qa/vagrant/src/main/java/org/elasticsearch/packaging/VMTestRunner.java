@@ -16,22 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
 
-public class HttpPipelinedMessage implements Comparable<HttpPipelinedMessage> {
+package org.elasticsearch.packaging;
 
-    private final int sequence;
+import org.junit.runner.JUnitCore;
 
-    public HttpPipelinedMessage(int sequence) {
-        this.sequence = sequence;
-    }
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
-    public int getSequence() {
-        return sequence;
-    }
-
-    @Override
-    public int compareTo(HttpPipelinedMessage o) {
-        return Integer.compare(sequence, o.sequence);
+/**
+ * Ensures that the current JVM is running on a virtual machine before delegating to {@link JUnitCore}. We just check for the existence
+ * of a special file that we create during VM provisioning.
+ */
+public class VMTestRunner {
+    public static void main(String[] args) {
+        if (Files.exists(Paths.get("/is_vagrant_vm"))) {
+            JUnitCore.main(args);
+        } else {
+            throw new RuntimeException("This filesystem does not have an expected marker file indicating it's a virtual machine. These " +
+                "tests should only run in a virtual machine because they're destructive.");
+        }
     }
 }

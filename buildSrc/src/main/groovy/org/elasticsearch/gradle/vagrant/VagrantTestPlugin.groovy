@@ -52,6 +52,8 @@ class VagrantTestPlugin implements Plugin<Project> {
     static final List<String> DISTRIBUTIONS = unmodifiableList([
             'archives:tar',
             'archives:oss-tar',
+            'archives:zip',
+            'archives:oss-zip',
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
@@ -242,13 +244,27 @@ class VagrantTestPlugin implements Plugin<Project> {
         Task createLinuxRunnerScript = project.tasks.create('createLinuxRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
             file "${testsDir}/run-tests.sh"
-            contents "java -cp \"\$PACKAGING_TESTS/*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
+            contents """\
+                     if [ "\$#" -eq 0 ]; then
+                       test_args=( "${-> project.extensions.esvagrant.testClass}" )
+                     else
+                       test_args=( "\$@" )
+                     fi
+                     java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
+                     """
         }
         Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
             file "${testsDir}/run-tests.ps1"
+            // the use of $args rather than param() here is deliberate because the syntax for array (multivalued) parameters is likely
+            // a little trappy for those unfamiliar with powershell
             contents """\
-                     java -cp "\$Env:PACKAGING_TESTS/*" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}
+                     if (\$args.Count -eq 0) {
+                       \$testArgs = @("${-> project.extensions.esvagrant.testClass}")
+                     } else {
+                       \$testArgs = \$args
+                     }
+                     java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
         }
@@ -525,9 +541,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
             if (LINUX_BOXES.contains(box)) {
                 javaPackagingTest.command = 'ssh'
-                javaPackagingTest.args = ['--command', 'bash "$PACKAGING_TESTS/run-tests.sh"']
+                javaPackagingTest.args = ['--command', 'sudo bash "$PACKAGING_TESTS/run-tests.sh"']
             } else {
                 javaPackagingTest.command = 'winrm'
+                // winrm commands run as administrator
                 javaPackagingTest.args = ['--command', 'powershell -File "$Env:PACKAGING_TESTS/run-tests.ps1"']
             }
 

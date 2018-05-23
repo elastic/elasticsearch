@@ -32,14 +32,20 @@ or at least communicate with the cluster in a secured way:
 * {kibana-ref}/secure-reporting.html[Reporting]
 * {winlogbeat-ref}/securing-beats.html[Winlogbeat]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/cross-cluster.asciidoc
 include::ccs-clients-integrations/cross-cluster.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/java.asciidoc
 include::ccs-clients-integrations/java.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/http.asciidoc
 include::ccs-clients-integrations/http.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/hadoop.asciidoc
 include::ccs-clients-integrations/hadoop.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/beats.asciidoc
 include::ccs-clients-integrations/beats.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/monitoring.asciidoc
 include::ccs-clients-integrations/monitoring.asciidoc[]

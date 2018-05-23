@@ -30,30 +30,41 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collections;
 
 @ChannelHandler.Sharable
-class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
+class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     private final Netty4HttpServerTransport serverTransport;
     private final HttpHandlingSettings handlingSettings;
+    private final boolean httpPipeliningEnabled;
     private final ThreadContext threadContext;
 
     Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport, HttpHandlingSettings handlingSettings,
                              ThreadContext threadContext) {
         this.serverTransport = serverTransport;
+        this.httpPipeliningEnabled = serverTransport.pipelining;
         this.handlingSettings = handlingSettings;
         this.threadContext = threadContext;
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
-        final FullHttpRequest request = msg.getRequest();
+    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+        final FullHttpRequest request;
+        final HttpPipelinedRequest pipelinedRequest;
+        if (this.httpPipeliningEnabled && msg instanceof HttpPipelinedRequest) {
+            pipelinedRequest = (HttpPipelinedRequest) msg;
+            request = (FullHttpRequest) pipelinedRequest.last();
+        } else {
+            pipelinedRequest = null;
+            request = (FullHttpRequest) msg;
+        }
 
+        boolean success = false;
         try {
 
             final FullHttpRequest copy =
@@ -100,7 +111,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
                 Netty4HttpChannel innerChannel;
                 try {
                     innerChannel =
-                        new Netty4HttpChannel(serverTransport, httpRequest, msg.getSequence(), handlingSettings, threadContext);
+                        new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, handlingSettings, threadContext);
                 } catch (final IllegalArgumentException e) {
                     if (badRequestCause == null) {
                         badRequestCause = e;
@@ -115,7 +126,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
                                     copy,
                                     ctx.channel());
                     innerChannel =
-                        new Netty4HttpChannel(serverTransport, innerRequest, msg.getSequence(), handlingSettings, threadContext);
+                        new Netty4HttpChannel(serverTransport, innerRequest, pipelinedRequest, handlingSettings, threadContext);
                 }
                 channel = innerChannel;
             }
@@ -127,9 +138,12 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
             } else {
                 serverTransport.dispatchRequest(httpRequest, channel);
             }
+            success = true;
         } finally {
-            // As we have copied the buffer, we can release the request
-            request.release();
+            // the request is otherwise released in case of dispatch
+            if (success == false && pipelinedRequest != null) {
+                pipelinedRequest.release();
+            }
         }
     }
 

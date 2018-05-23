@@ -17,21 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.packaging.test;
 
-import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.http.HttpPipelinedMessage;
+import org.elasticsearch.packaging.util.Distribution;
 
-public class Netty4HttpResponse extends HttpPipelinedMessage {
+public class DefaultTarTests extends ArchiveTestCase {
 
-    private final FullHttpResponse response;
-
-    public Netty4HttpResponse(int sequence, FullHttpResponse response) {
-        super(sequence);
-        this.response = response;
-    }
-
-    public FullHttpResponse getResponse() {
-        return response;
+    @Override
+    protected Distribution distribution() {
+        return Distribution.DEFAULT_TAR;
     }
 }

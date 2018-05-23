@@ -904,15 +904,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     @Override
-    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-        if (enabled) {
-            return Collections.singletonMap(TokenMetaData.TYPE, () -> tokenService.get().getTokenMetaData());
-        } else {
-            return Collections.emptyMap();
-        }
-    }
-
-    @Override
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {

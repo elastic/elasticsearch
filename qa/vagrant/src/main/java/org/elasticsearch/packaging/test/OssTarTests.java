@@ -17,21 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.packaging.test;
 
-import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.http.HttpPipelinedMessage;
+import org.elasticsearch.packaging.util.Distribution;
 
-public class NioHttpResponse extends HttpPipelinedMessage {
+public class OssTarTests extends ArchiveTestCase {
 
-    private final FullHttpResponse response;
-
-    public NioHttpResponse(int sequence, FullHttpResponse response) {
-        super(sequence);
-        this.response = response;
-    }
-
-    public FullHttpResponse getResponse() {
-        return response;
+    @Override
+    protected Distribution distribution() {
+        return Distribution.OSS_TAR;
     }
 }

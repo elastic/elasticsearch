@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,8 +34,16 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.PublishClusterStateAction;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -42,6 +51,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = TEST, minNumDataNodes = 2)
 public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(MockTransportService.TestPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -155,5 +169,33 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
         ensureGreen("test"); // make sure that recovery from disk has completed, so that check index doesn't fail.
+    }
+
+    public void testAckingFailsIfNotPublishedToAllNodes() {
+        String masterNode = internalCluster().getMasterName();
+        String nonMasterNode = Stream.of(internalCluster().getNodeNames())
+            .filter(node -> node.equals(masterNode) == false).findFirst().get();
+
+        MockTransportService masterTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
+        MockTransportService nonMasterTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, nonMasterNode);
+
+        logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
+        if (randomBoolean() && internalCluster().numMasterNodes() != 2) {
+            masterTransportService.addFailToSendNoConnectRule(nonMasterTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
+        } else {
+            masterTransportService.addFailToSendNoConnectRule(nonMasterTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME);
+        }
+
+        CreateIndexResponse response = client().admin().indices().prepareCreate("test").get();
+        assertFalse(response.isAcknowledged());
+
+        logger.info("waiting for cluster to reform");
+        masterTransportService.clearRule(nonMasterTransportService);
+
+        ensureStableCluster(internalCluster().size());
+
+        assertAcked(client().admin().indices().prepareDelete("test"));
     }
 }

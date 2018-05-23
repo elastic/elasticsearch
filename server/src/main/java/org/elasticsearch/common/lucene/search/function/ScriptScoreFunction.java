@@ -24,8 +24,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -58,10 +58,10 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     private final Script sScript;
 
-    private final SearchScript.LeafFactory script;
+    private final ScoreScript.LeafFactory script;
 
 
-    public ScriptScoreFunction(Script sScript, SearchScript.LeafFactory script) {
+    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.script = script;
@@ -69,16 +69,15 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
-        final SearchScript leafScript = script.newInstance(ctx);
+        final ScoreScript leafScript = script.newInstance(ctx);
         final CannedScorer scorer = new CannedScorer();
-        leafScript.setScorer(scorer);
         return new LeafScoreFunction() {
             @Override
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
-                double result = leafScript.runAsDouble();
+                double result = leafScript.execute(scorer.score);
                 return result;
             }
 

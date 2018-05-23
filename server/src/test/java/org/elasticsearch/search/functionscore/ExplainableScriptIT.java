@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -76,7 +77,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 @Override
                 public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
-                    assert context == SearchScript.SCRIPT_SCORE_CONTEXT;
+                    assert context == ScoreScript.CONTEXT;
                     SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                         @Override
                         public SearchScript newInstance(LeafReaderContext context) throws IOException {

@@ -30,6 +30,7 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
@@ -54,7 +55,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
         public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-            if (context.equals(SearchScript.SCRIPT_SCORE_CONTEXT) == false) {
+            if (context.equals(ScoreScript.CONTEXT) == false) {
                 throw new IllegalArgumentException(getType() + " scripts cannot be used for context [" + context.name + "]");
             }
             // we use the script "source" as the script identifier

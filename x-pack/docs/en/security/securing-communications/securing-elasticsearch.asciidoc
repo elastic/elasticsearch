@@ -29,8 +29,17 @@ information, see <<security-settings>>.
 For more information about encrypting communications across the Elastic Stack,
 see {xpack-ref}/encrypting-communications.html[Encrypting Communications].
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/securing-communications/node-certificates.asciidoc
 include::node-certificates.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/securing-communications/tls-transport.asciidoc
 include::tls-transport.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/securing-communications/tls-http.asciidoc
 include::tls-http.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/securing-communications/tls-ad.asciidoc
 include::tls-ad.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/securing-communications/tls-ldap.asciidoc
 include::tls-ldap.asciidoc[]

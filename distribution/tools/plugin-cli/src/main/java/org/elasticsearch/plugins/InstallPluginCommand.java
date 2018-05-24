@@ -30,7 +30,6 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -240,7 +239,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Downloads the plugin and returns the file it was downloaded to. */
     private Path download(Terminal terminal, String pluginId, Path tmpDir) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, pluginId, Platforms.PLATFORM_NAME);
+            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadZipAndChecksum(terminal, url, tmpDir, false);
         }
@@ -272,22 +271,43 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return System.getProperty(PROPERTY_STAGING_ID);
     }
 
+    boolean isSnapshot() {
+        return Build.CURRENT.isSnapshot();
+    }
+
     /** Returns the url for an official elasticsearch plugin. */
-    private String getElasticUrl(Terminal terminal, String stagingHash, Version version,
-                                        String pluginId, String platform) throws IOException {
+    private String getElasticUrl(
+            final Terminal terminal,
+            final String stagingHash,
+            final Version version,
+            final boolean isSnapshot,
+            final String pluginId,
+            final String platform) throws IOException, UserException {
         final String baseUrl;
-        if (stagingHash != null) {
-            baseUrl = String.format(Locale.ROOT,
-                "https://staging.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", version, stagingHash, pluginId);
-        } else {
-            baseUrl = String.format(Locale.ROOT,
-                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+        if (isSnapshot && stagingHash == null) {
+            throw new UserException(
+                    ExitCodes.CONFIG, "attempted to install release build of official plugin on snapshot build of Elasticsearch");
         }
-        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, version);
+        if (stagingHash != null) {
+            if (isSnapshot) {
+                baseUrl = nonReleaseUrl("snapshots", version, stagingHash, pluginId);
+            } else {
+                baseUrl = nonReleaseUrl("staging", version, stagingHash, pluginId);
+            }
+        } else {
+            baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+        }
+        final String platformUrl =
+                String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, Version.displayVersion(version, isSnapshot));
         if (urlExists(terminal, platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, version);
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Version.displayVersion(version, isSnapshot));
+    }
+
+    private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
+        return String.format(
+                Locale.ROOT, "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", hostname, version, stagingHash, pluginId);
     }
 
     /** Returns the url for an elasticsearch plugin in maven. */

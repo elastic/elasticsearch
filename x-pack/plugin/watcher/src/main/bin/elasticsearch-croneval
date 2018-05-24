@@ -4,16 +4,7 @@
 # or more contributor license agreements. Licensed under the Elastic License;
 # you may not use this file except in compliance with the Elastic License.
 
-source "`dirname "$0"`"/elasticsearch-env
-
-source "`dirname "$0"`"/x-pack-watcher-env
-
-exec \
-  "$JAVA" \
-  $ES_JAVA_OPTS \
-  -Des.path.home="$ES_HOME" \
-  -Des.path.conf="$ES_PATH_CONF" \
-  -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
-  -cp "$ES_CLASSPATH" \
+ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-watcher-env" \
+  "`dirname "$0"`"/elasticsearch-cli \
   org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool \
   "$@"

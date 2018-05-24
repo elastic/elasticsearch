@@ -200,10 +200,9 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     void markJobAsDeleting(String jobId, ActionListener<Boolean> listener, boolean force) {
         clusterService.submitStateUpdateTask("mark-job-as-deleted", new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MlMetadata currentMlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
+            public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetaData tasks = currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
+                MlMetadata.Builder builder = new MlMetadata.Builder(MlMetadata.getMlMetadata(currentState));
                 builder.markJobAsDeleted(jobId, tasks, force);
                 return buildNewClusterState(currentState, builder);
             }
@@ -248,11 +247,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     }
 
     static boolean jobIsDeletedFromState(String jobId, ClusterState clusterState) {
-        MlMetadata metadata = clusterState.metaData().custom(MLMetadataField.TYPE);
-        if (metadata == null) {
-            return true;
-        }
-        return !metadata.getJobs().containsKey(jobId);
+        return !MlMetadata.getMlMetadata(clusterState).getJobs().containsKey(jobId);
     }
 
     private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {

@@ -60,7 +60,7 @@ setup:
 
     - do:
         search:
-          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ { "field": "_seq_no", "format": "use_field_mapping" } ]} }}, "version": true, "docvalue_fields" : [ { "field": "_seq_no", "format": "use_field_mapping" } ] }
+          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ "_seq_no" ] } } }, "version": true, "docvalue_fields" : [ "_seq_no" ] }
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }
@@ -83,7 +83,7 @@ setup:
 
     - do:
         search:
-          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ { "field": "_seq_no", "format": "use_field_mapping" } ]} }}, "version": true, "docvalue_fields" : [ { "field": "_seq_no", "format": "use_field_mapping" } ] }
+          body: { "query" : { "nested" : { "path" : "nested_field", "query" : { "match_all" : {} }, "inner_hits" : { version: true, "docvalue_fields": [ "_seq_no" ] } } }, "version": true, "docvalue_fields" : [ "_seq_no" ] }
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._index: "test" }

@@ -69,8 +69,7 @@ public class SqlSourceBuilder {
         if (!sourceFields.isEmpty()) {
             sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
         }
-        docFields.forEach(field -> sourceBuilder.docValueField(field.field,
-                field.format == null ? DocValueFieldsContext.USE_DEFAULT_FORMAT : field.format));
+        docFields.forEach(field -> sourceBuilder.docValueField(field.field, field.format));
         scriptFields.forEach(sourceBuilder::scriptField);
     }
 }

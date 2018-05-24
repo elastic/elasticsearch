@@ -38,8 +38,6 @@ import java.util.Objects;
  */
 public class DocValueFieldsContext {
 
-    public static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-
     /**
      * Wrapper around a field name and the format that should be used to
      * display values of this field.

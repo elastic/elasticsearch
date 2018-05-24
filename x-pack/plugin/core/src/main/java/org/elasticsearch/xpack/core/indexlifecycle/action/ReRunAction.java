@@ -141,7 +141,7 @@ public class ReRunAction extends Action<ReRunAction.Request, ReRunAction.Respons
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices);
+            return Arrays.hashCode(indices);
         }
 
         @Override

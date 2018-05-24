@@ -196,29 +196,35 @@ public class NativeRolesStore extends AbstractComponent {
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>(3);
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+        if (securityIndex.indexExists() == false) {
+            usageStats.put("size", 0L);
+            usageStats.put("fls", false);
+            usageStats.put("dls", false);
+            listener.onResponse(usageStats);
+        } else {
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareMultiSearch()
-                            .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                                    .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                    .setSize(0))
-                            .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                                    .setQuery(QueryBuilders.boolQuery()
-                                            .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                            .must(QueryBuilders.boolQuery()
-                                                    .should(existsQuery("indices.field_security.grant"))
-                                                    .should(existsQuery("indices.field_security.except"))
-                                                    // for backwardscompat with 2.x
-                                                    .should(existsQuery("indices.fields"))))
-                                    .setSize(0)
-                                    .setTerminateAfter(1))
-                            .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                                    .setQuery(QueryBuilders.boolQuery()
-                                            .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                            .filter(existsQuery("indices.query")))
-                                    .setSize(0)
-                                    .setTerminateAfter(1))
-                            .request(),
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                            .setSize(0))
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .must(QueryBuilders.boolQuery()
+                                    .should(existsQuery("indices.field_security.grant"))
+                                    .should(existsQuery("indices.field_security.except"))
+                                    // for backwardscompat with 2.x
+                                    .should(existsQuery("indices.fields"))))
+                            .setSize(0)
+                            .setTerminateAfter(1))
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .filter(existsQuery("indices.query")))
+                            .setSize(0)
+                            .setTerminateAfter(1))
+                        .request(),
                     new ActionListener<MultiSearchResponse>() {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
@@ -248,6 +254,7 @@ public class NativeRolesStore extends AbstractComponent {
                             listener.onFailure(e);
                         }
                     }, client::multiSearch));
+        }
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleDescriptor> roleActionListener) {

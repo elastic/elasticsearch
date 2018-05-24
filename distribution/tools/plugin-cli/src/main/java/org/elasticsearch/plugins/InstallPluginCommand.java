@@ -526,10 +526,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return zip;
     }
 
-    static {
-        Security.addProvider(new BouncyCastleProvider());
-    }
-
     /**
      * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
      * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
@@ -561,7 +557,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             // compute the signature of the downloaded plugin zip
             final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(pin, new JcaKeyFingerprintCalculator());
             final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
+            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleProvider()), key);
             final byte[] buffer = new byte[1024];
             int read;
             while ((read = fin.read(buffer)) != -1) {

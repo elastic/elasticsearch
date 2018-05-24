@@ -26,6 +26,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPEncryptedData;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPKeyPair;
@@ -1143,7 +1144,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     public PGPSecretKey newSecretKey() throws NoSuchAlgorithmException, NoSuchProviderException, PGPException {
-        final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "BC");
+        final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
         kpg.initialize(2048);
         final KeyPair pair = kpg.generateKeyPair();
         final PGPDigestCalculator sha1Calc = new JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1);
@@ -1156,7 +1157,9 @@ public class InstallPluginCommandTests extends ESTestCase {
                 null,
                 null,
                 new JcaPGPContentSignerBuilder(pkp.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA1),
-                new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.CAST5, sha1Calc).setProvider("BC").build("passphrase".toCharArray()));
+                new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.CAST5, sha1Calc)
+                        .setProvider(new BouncyCastleProvider())
+                        .build("passphrase".toCharArray()));
     }
 
     private Function<byte[], String> checksum(final MessageDigest digest) {

@@ -4829,7 +4829,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             try (Closeable ignored = engine.acquireRetentionLockForPeerRecovery()) {
                 long minRetainSeqNos = engine.getLastSeqNoSeenByMergePolicy();
-                assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get()));
+                assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
                 Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService("test")).stream()
                     .map(Translog.Operation::seqNo).collect(Collectors.toSet());

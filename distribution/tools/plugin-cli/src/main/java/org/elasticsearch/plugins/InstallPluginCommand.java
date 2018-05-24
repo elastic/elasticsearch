@@ -711,7 +711,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     static {
         LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR =
-                String.format(Locale.ROOT, ".+%1$slib%1$stools%1$splugin-cli%1$s[^%1$s]+\\.jar", "/|\\\\");
+                String.format(Locale.ROOT, ".+%1$slib%1$stools%1$splugin-cli%1$s[^%1$s]+\\.jar", "(/|\\\\)");
     }
 
     /** check a candidate plugin for jar hell before installing it */

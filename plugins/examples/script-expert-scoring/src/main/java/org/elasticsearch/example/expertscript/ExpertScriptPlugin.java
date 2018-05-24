@@ -33,7 +33,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -60,7 +59,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             }
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
-                SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
+                ScoreScript.Factory factory = (p, lookup) -> new ScoreScript.LeafFactory() {
                     final String field;
                     final String term;
                     {
@@ -75,18 +74,18 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                     }
 
                     @Override
-                    public SearchScript newInstance(LeafReaderContext context) throws IOException {
+                    public ScoreScript newInstance(LeafReaderContext context) throws IOException {
                         PostingsEnum postings = context.reader().postings(new Term(field, term));
                         if (postings == null) {
                             // the field and/or term don't exist in this segment, so always return 0
-                            return new SearchScript(p, lookup, context) {
+                            return new ScoreScript(p, lookup, context) {
                                 @Override
-                                public double runAsDouble() {
+                                public double execute() {
                                     return 0.0d;
                                 }
                             };
                         }
-                        return new SearchScript(p, lookup, context) {
+                        return new ScoreScript(p, lookup, context) {
                             int currentDocid = -1;
                             @Override
                             public void setDocument(int docid) {
@@ -101,7 +100,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                                 currentDocid = docid;
                             }
                             @Override
-                            public double runAsDouble() {
+                            public double execute() {
                                 if (postings.docID() != currentDocid) {
                                     // advance moved past the current doc, so this doc has no occurrences of the term
                                     return 0.0d;

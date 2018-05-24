@@ -1,9 +1,7 @@
 [role="xpack"]
 [[setup-xpack]]
-= Set up {xpack}
+== Set up {xpack}
 
-[partintro]
---
 {xpack} is an Elastic Stack extension that provides security, alerting,
 monitoring, reporting, machine learning, and many other capabilities. By default, 
 when you install {es}, {xpack} is installed. 
@@ -20,10 +18,3 @@ https://www.elastic.co/subscriptions.
 * <<settings-xpack>>
 * <<bootstrap-checks-xpack>>
 
---
-
-include::{xes-repo-dir}/monitoring/configuring-monitoring.asciidoc[]
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-include::setup-xclient.asciidoc[]
-include::{xes-repo-dir}/settings/configuring-xes.asciidoc[]
-include::bootstrap-checks-xes.asciidoc[]

@@ -215,7 +215,7 @@ public class RestClient implements Closeable {
     @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
-        request.setHeaders(headers);
+        addHeaders(request, headers);
         return performRequest(request);
     }
 
@@ -237,7 +237,7 @@ public class RestClient implements Closeable {
     public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
         addParameters(request, params);
-        request.setHeaders(headers);
+        addHeaders(request, headers);
         return performRequest(request);
     }
 
@@ -264,7 +264,7 @@ public class RestClient implements Closeable {
         Request request = new Request(method, endpoint);
         addParameters(request, params);
         request.setEntity(entity);
-        request.setHeaders(headers);
+        addHeaders(request, headers);
         return performRequest(request);
     }
 
@@ -305,7 +305,7 @@ public class RestClient implements Closeable {
         addParameters(request, params);
         request.setEntity(entity);
         request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
-        request.setHeaders(headers);
+        addHeaders(request, headers);
         return performRequest(request);
     }
 
@@ -325,7 +325,7 @@ public class RestClient implements Closeable {
         Request request;
         try {
             request = new Request(method, endpoint);
-            request.setHeaders(headers);
+            addHeaders(request, headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -352,7 +352,7 @@ public class RestClient implements Closeable {
         try {
             request = new Request(method, endpoint);
             addParameters(request, params);
-            request.setHeaders(headers);
+            addHeaders(request, headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -383,7 +383,7 @@ public class RestClient implements Closeable {
             request = new Request(method, endpoint);
             addParameters(request, params);
             request.setEntity(entity);
-            request.setHeaders(headers);
+            addHeaders(request, headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -420,7 +420,7 @@ public class RestClient implements Closeable {
             addParameters(request, params);
             request.setEntity(entity);
             request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
-            request.setHeaders(headers);
+            addHeaders(request, headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
             return;
@@ -539,9 +539,9 @@ public class RestClient implements Closeable {
         });
     }
 
-    private void setHeaders(HttpRequest httpRequest, Header[] requestHeaders) {
+    private void setHeaders(HttpRequest httpRequest, Collection<Header> requestHeaders) {
         // request headers override default headers, so we don't add default headers if they exist as request headers
-        final Set<String> requestNames = new HashSet<>(requestHeaders.length);
+        final Set<String> requestNames = new HashSet<>(requestHeaders.size());
         for (Header requestHeader : requestHeaders) {
             httpRequest.addHeader(requestHeader);
             requestNames.add(requestHeader.getName());
@@ -878,9 +878,23 @@ public class RestClient implements Closeable {
     }
 
     /**
+     * Add all headers from the provided varargs argument to a {@link Request}. This only exists
+     * to support methods that exist for backwards compatibility.
+     */
+    @Deprecated
+    private static void addHeaders(Request request, Header... headers) {
+        Objects.requireNonNull(headers, "headers cannot be null");
+        for (Header header : headers) {
+            Objects.requireNonNull(header, "header cannot be null");
+            request.addHeader(header.getName(), header.getValue());
+        }
+    }
+
+    /**
      * Add all parameters from a map to a {@link Request}. This only exists
      * to support methods that exist for backwards compatibility.
      */
+    @Deprecated
     private static void addParameters(Request request, Map<String, String> parameters) {
         Objects.requireNonNull(parameters, "parameters cannot be null");
         for (Map.Entry<String, String> entry : parameters.entrySet()) {

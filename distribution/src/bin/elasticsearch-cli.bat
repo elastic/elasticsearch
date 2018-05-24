@@ -13,7 +13,7 @@ for /f "tokens=1*" %%a in ("%*") do (
 
 if defined ES_ADDITIONAL_CLASSPATH_DIRECTORIES (
   for %%a in ("%ES_ADDITIONAL_CLASSPATH_DIRECTORIES:;=","%") do (
-    ES_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!/%%a/*
+    set ES_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!/%%a/*
   )
 )
 

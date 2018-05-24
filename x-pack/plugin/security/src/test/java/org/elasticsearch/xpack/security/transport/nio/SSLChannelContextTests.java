@@ -41,7 +41,7 @@ public class SSLChannelContextTests extends ESTestCase {
     private SSLChannelContext context;
     private InboundChannelBuffer channelBuffer;
     private SocketSelector selector;
-    private BiConsumer<Void, Throwable> listener;
+    private BiConsumer<Void, Exception> listener;
     private Consumer exceptionHandler;
     private SSLDriver sslDriver;
     private ByteBuffer readBuffer = ByteBuffer.allocate(1 << 14);
@@ -266,7 +266,7 @@ public class SSLChannelContextTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMultipleWritesPartialFlushes() throws IOException {
-        BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
+        BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
         ByteBuffer[] buffers1 = {ByteBuffer.allocate(10)};
         ByteBuffer[] buffers2 = {ByteBuffer.allocate(5)};
         FlushReadyWrite flushOperation1 = mock(FlushReadyWrite.class);

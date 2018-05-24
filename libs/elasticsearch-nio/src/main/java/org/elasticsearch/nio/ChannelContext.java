@@ -19,7 +19,7 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.nio.utils.CompletableContext;
+import org.elasticsearch.common.concurrent.CompletableContext;
 
 import java.io.IOException;
 import java.nio.channels.NetworkChannel;
@@ -82,7 +82,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
      *
      * @param listener to be called
      */
-    public void addCloseListener(BiConsumer<Void, Throwable> listener) {
+    public void addCloseListener(BiConsumer<Void, Exception> listener) {
         closeContext.addListener(listener);
     }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.nio.utils.CompletableContext;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return channel;
     }
 
-    public void addConnectListener(BiConsumer<Void, Throwable> listener) {
+    public void addConnectListener(BiConsumer<Void, Exception> listener) {
         connectContext.addListener(listener);
     }
 
@@ -121,7 +121,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return isConnected;
     }
 
-    public void sendMessage(Object message, BiConsumer<Void, Throwable> listener) {
+    public void sendMessage(Object message, BiConsumer<Void, Exception> listener) {
         if (isClosing.get()) {
             listener.accept(null, new ClosedChannelException());
             return;

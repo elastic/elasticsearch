@@ -25,13 +25,13 @@ import java.util.function.BiConsumer;
 
 public class FlushOperation {
 
-    private final BiConsumer<Void, Throwable> listener;
+    private final BiConsumer<Void, Exception> listener;
     private final ByteBuffer[] buffers;
     private final int[] offsets;
     private final int length;
     private int internalIndex;
 
-    public FlushOperation(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
+    public FlushOperation(ByteBuffer[] buffers, BiConsumer<Void, Exception> listener) {
         this.listener = listener;
         this.buffers = buffers;
         this.offsets = new int[buffers.length];
@@ -44,7 +44,7 @@ public class FlushOperation {
         length = offset;
     }
 
-    public BiConsumer<Void, Throwable> getListener() {
+    public BiConsumer<Void, Exception> getListener() {
         return listener;
     }
 

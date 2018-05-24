@@ -550,6 +550,25 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
 
         @Override
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
+            IndexService indexService;
+            if (request.getIndex() != null) {
+                ClusterState clusterState = clusterService.state();
+                IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+                String indexExpression = request.executeScriptContext.index;
+                Index[] concreteIndices =
+                    indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
+                if (concreteIndices.length != 1) {
+                    throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
+                }
+                Index concreteIndex = concreteIndices[0];
+                indexService = indicesServices.indexServiceSafe(concreteIndex);
+            } else {
+                indexService = null;
+            }
+            return innerShardOperation(request, scriptService, indexService);
+        }
+
+        static Response innerShardOperation(Request request, ScriptService scriptService, IndexService indexService) throws IOException {
             final ScriptContext<?> scriptContext = request.executeScriptContext.scriptContext;
             if (scriptContext == PainlessTestScript.CONTEXT) {
                 PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
@@ -557,20 +576,22 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
                 String result = Objects.toString(painlessTestScript.execute());
                 return new Response(result);
             } else if (scriptContext == FilterScript.CONTEXT) {
-                return indexAndOpenIndexReader(request, (context, leafReaderContext) -> {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
                     FilterScript.LeafFactory leafFactory =
                         factory.newFactory(request.getScript().getParams(), context.lookup());
                     FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
+                    filterScript.setDocument(0);
                     boolean result = filterScript.execute();
                     return new Response(result);
-                });
+                }, indexService);
             } else if (scriptContext == SearchScript.SCRIPT_SCORE_CONTEXT) {
-                return indexAndOpenIndexReader(request, (context, leafReaderContext) -> {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
                     SearchScript.Factory factory = scriptService.compile(request.script, SearchScript.CONTEXT);
                     SearchScript.LeafFactory leafFactory =
                         factory.newFactory(request.getScript().getParams(), context.lookup());
                     SearchScript searchScript = leafFactory.newInstance(leafReaderContext);
+                    searchScript.setDocument(0);
 
                     if (request.executeScriptContext.query != null) {
                         Query luceneQuery = request.executeScriptContext.query.rewrite(context).toQuery(context);
@@ -586,30 +607,21 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
 
                     double result = searchScript.runAsDouble();
                     return new Response(result);
-                });
+                }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
             }
         }
 
-        private Response indexAndOpenIndexReader(Request request, CheckedBiFunction<QueryShardContext,
-                    LeafReaderContext, Response, IOException> handler) throws IOException {
+        private static Response prepareRamIndex(Request request,
+                                                CheckedBiFunction<QueryShardContext, LeafReaderContext, Response, IOException> handler,
+                                                IndexService indexService) throws IOException {
 
-            ClusterState clusterState = clusterService.state();
-            IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-            String indexExpression = request.executeScriptContext.index;
-            Index[] concreteIndices =
-                indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
-            if (concreteIndices.length != 1) {
-                throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
-            }
-            Index concreteIndex = concreteIndices[0];
-            IndexService indexService = indicesServices.indexServiceSafe(concreteIndex);
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
 
             try (RAMDirectory ramDirectory = new RAMDirectory()) {
                 try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
-                    String index = concreteIndex.getName();
+                    String index = indexService.index().getName();
                     String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.executeScriptContext.document;
                     XContentType xContentType = request.executeScriptContext.xContentType;

@@ -70,21 +70,3 @@ setup:
                 rank: 4
               index: "my-index"
   - match: { result: 0.8 }
-
-  - do:
-      scripts_painless_execute:
-        body:
-          script:
-            source: "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0"
-            params:
-              max_rank: 5.0
-          execute_context:
-            score:
-              document:
-                rank: 4
-                text: quick brown fox
-              index: "my-index"
-              query:
-                match:
-                  text: fox
-  - match: { result: 1.09 }

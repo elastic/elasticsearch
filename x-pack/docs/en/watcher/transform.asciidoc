@@ -55,8 +55,11 @@ part of the definition of the `my_webhook` action.
 <1> A watch level `transform`
 <2> An action level `transform`
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/transform/search.asciidoc
 include::transform/search.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/transform/script.asciidoc
 include::transform/script.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/transform/chain.asciidoc
 include::transform/chain.asciidoc[]

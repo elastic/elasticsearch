@@ -44,20 +44,16 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         protected final transient boolean keyed;
         protected final transient DocValueFormat format;
-        protected double from;
-        protected double to;
-        private long docCount;
-        InternalAggregations aggregations;
-        private String key;
-
-        public Bucket(boolean keyed, DocValueFormat formatter) {
-            this.keyed = keyed;
-            this.format = formatter;
-        }
+        protected final double from;
+        protected final double to;
+        private final long docCount;
+        final InternalAggregations aggregations;
+        private final String key;
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
                 DocValueFormat formatter) {
-            this(keyed, formatter);
+            this.keyed = keyed;
+            this.format = formatter;
             this.key = key != null ? key : generateKey(from, to, formatter);
             this.from = from;
             this.to = to;
@@ -230,9 +226,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
     }
 
-    private List<B> ranges;
-    protected DocValueFormat format;
-    protected boolean keyed;
+    private final List<B> ranges;
+    protected final DocValueFormat format;
+    protected final boolean keyed;
 
     public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed,
             List<PipelineAggregator> pipelineAggregators,

@@ -9,20 +9,21 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Objects;
 
 public class ReRunAction extends Action<ReRunAction.Request, ReRunAction.Response, ReRunAction.RequestBuilder> {
@@ -94,18 +95,31 @@ public class ReRunAction extends Action<ReRunAction.Request, ReRunAction.Respons
 
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
-        private String index;
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+        private String[] indices;
 
-        public Request(String index) {
-            this.index = index;
+        public Request(String... indices) {
+            this.indices = indices;
         }
 
         public Request() {
         }
 
-        public String getIndex() {
-            return index;
+        @Override
+        public Request indices(String... indices) {
+            this.indices = indices;
+            return this;
+        }
+
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            // Re-run should only resolve to open concrete indices (not aliases)
+            return new IndicesOptions(EnumSet.of(Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
         }
 
         @Override
@@ -116,18 +130,18 @@ public class ReRunAction extends Action<ReRunAction.Request, ReRunAction.Respons
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.index = in.readString();
+            this.indices = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(index);
+            out.writeStringArray(indices);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(index);
+            return Objects.hash(indices);
         }
 
         @Override
@@ -139,7 +153,8 @@ public class ReRunAction extends Action<ReRunAction.Request, ReRunAction.Respons
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(index, other.index);
+            return Arrays.equals(indices, other.indices);
         }
+
     }
 }

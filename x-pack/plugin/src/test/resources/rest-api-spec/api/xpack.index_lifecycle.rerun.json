@@ -8,7 +8,7 @@
       "parts": {
         "index": {
           "type" : "string",
-          "description" : "The name of the index whose failed lifecycle step is to be re-run"
+          "description" : "The name of the indices (comma-separated) whose failed lifecycle step is to be re-run"
         }
       },
       "params": {

@@ -697,7 +697,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
     }
 
-    private void assertClusterStateOnNextStep(ClusterState oldClusterState, Index index, StepKey currentStep, StepKey nextStep,
+    public static void assertClusterStateOnNextStep(ClusterState oldClusterState, Index index, StepKey currentStep, StepKey nextStep,
             ClusterState newClusterState, long now) {
         assertNotSame(oldClusterState, newClusterState);
         MetaData newMetadata = newClusterState.metaData();
@@ -722,7 +722,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             assertEquals(now, (long) LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
         }
         assertEquals(now, (long) LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
-        assertFalse(LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.exists(newIndexSettings));
+        assertEquals("", LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(newIndexSettings));
         assertEquals("", LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
     }
 

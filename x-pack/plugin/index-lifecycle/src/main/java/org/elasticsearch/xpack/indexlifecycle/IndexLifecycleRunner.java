@@ -200,7 +200,8 @@ public class IndexLifecycleRunner {
         Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
                 .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
                 .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis)
-                // clear any step info from the current step
+                // clear any step info or error-related settings from the current step
+                .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, (String) null)
                 .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);

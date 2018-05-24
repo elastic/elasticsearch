@@ -52,29 +52,34 @@ public class TransportReRunAction extends TransportMasterNodeAction<Request, Res
         return new Response();
     }
 
+    ClusterState innerExecute(ClusterState currentState, String[] indices) {
+        ClusterState newState = currentState;
+        for (String index : indices) {
+            IndexMetaData indexMetaData = currentState.metaData().index(index);
+            if (indexMetaData == null) {
+                throw new IllegalArgumentException("index [" + index + "] does not exist");
+            }
+            StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(indexMetaData.getSettings());
+            String failedStep = LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(indexMetaData.getSettings());
+            if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
+                && Strings.isNullOrEmpty(failedStep) == false) {
+                StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
+                newState = indexLifecycleService.moveClusterStateToStep(currentState, index, currentStepKey, nextStepKey);
+            } else {
+                throw new IllegalArgumentException("cannot re-run an action for an index ["
+                    + index + "] that has not encountered an error when running a Lifecycle Policy");
+            }
+        }
+        return newState;
+    }
+
     @Override
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
-        IndexMetaData indexMetaData = state.metaData().index(request.getIndex());
-        if (indexMetaData == null) {
-            listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
-            return;
-        }
-        clusterService.submitStateUpdateTask("index[" + request.getIndex() + "]-move-to-step",
+        clusterService.submitStateUpdateTask("ilm-re-run",
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(request.getIndex());
-                    StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(indexMetaData.getSettings());
-                    String failedStep = LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(indexMetaData.getSettings());
-                    if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
-                            && Strings.isNullOrEmpty(failedStep) == false) {
-                        StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
-                        return indexLifecycleService.moveClusterStateToStep(currentState, request.getIndex(), currentStepKey, nextStepKey);
-                    } else {
-                        listener.onFailure(new IllegalArgumentException("cannot re-run an action for an index ["
-                            + request.getIndex() + "] that has not encountered an error when running a Lifecycle Policy"));
-                        return currentState;
-                    }
+                    return innerExecute(currentState, request.indices());
                 }
 
                 @Override

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -23,18 +24,18 @@ public class RestReRunAction extends BaseRestHandler {
 
     public RestReRunAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, IndexLifecycle.BASE_PATH + "_rerun/{name}", this);
+        controller.registerHandler(RestRequest.Method.POST, IndexLifecycle.BASE_PATH + "_rerun/{index}", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_move_to_step_action";
+        return "xpack_lifecycle_re_run_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String index = restRequest.param("name");
-        ReRunAction.Request request = new ReRunAction.Request(index);
+        String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
+        ReRunAction.Request request = new ReRunAction.Request(indices);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(ReRunAction.INSTANCE, request, new RestToXContentListener<>(channel));

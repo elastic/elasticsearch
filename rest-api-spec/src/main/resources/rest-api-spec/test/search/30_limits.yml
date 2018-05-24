@@ -63,7 +63,7 @@ setup:
 "Docvalues_fields size limit":
 
   - skip:
-      version: " - 6.99.99" # TODO: change to 6.3.99 on backport
+      version: " - 6.3.99"
       reason: "The object notation for docvalue_fields is only supported on 6.4+"
   - do:
       catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./

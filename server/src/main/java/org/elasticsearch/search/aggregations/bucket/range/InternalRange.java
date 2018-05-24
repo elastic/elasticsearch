@@ -51,10 +51,10 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         private final String key;
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat formatter) {
+                DocValueFormat format) {
             this.keyed = keyed;
-            this.format = formatter;
-            this.key = key != null ? key : generateKey(from, to, formatter);
+            this.format = format;
+            this.key = key != null ? key : generateKey(from, to, format);
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -158,11 +158,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return builder;
         }
 
-        private static String generateKey(double from, double to, DocValueFormat formatter) {
+        private static String generateKey(double from, double to, DocValueFormat format) {
             StringBuilder builder = new StringBuilder()
-                .append(Double.isInfinite(from) ? "*" : formatter.format(from))
+                .append(Double.isInfinite(from) ? "*" : format.format(from))
                 .append("-")
-                .append(Double.isInfinite(to) ? "*" : formatter.format(to));
+                .append(Double.isInfinite(to) ? "*" : format.format(to));
             return builder.toString();
         }
 
@@ -202,15 +202,15 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @SuppressWarnings("unchecked")
-        public R create(String name, List<B> ranges, DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
+        public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) {
-            return (R) new InternalRange<B, R>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
+            return (R) new InternalRange<B, R>(name, ranges, format, keyed, pipelineAggregators, metaData);
         }
 
         @SuppressWarnings("unchecked")
         public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat formatter) {
-            return (B) new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
+                DocValueFormat format) {
+            return (B) new Bucket(key, from, to, docCount, aggregations, keyed, format);
         }
 
         @SuppressWarnings("unchecked")

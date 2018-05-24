@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.DeleteLicenseAction;
@@ -105,13 +106,7 @@ import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
-import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksNodeService;
-import org.elasticsearch.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.persistent.StartPersistentTaskAction;
-import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
@@ -208,6 +203,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             final Settings.Builder builder = Settings.builder();
             builder.put(SecuritySettings.addTransportSettings(settings));
             builder.put(SecuritySettings.addUserSettings(settings));
+            builder.put(ThreadContext.PREFIX + "." + "has_xpack", true);
             return builder.build();
         } else {
             return Settings.EMPTY;
@@ -268,11 +264,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 GetCalendarEventsAction.INSTANCE,
                 PostCalendarEventsAction.INSTANCE,
                 PersistJobAction.INSTANCE,
-                // licensing
-                StartPersistentTaskAction.INSTANCE,
-                UpdatePersistentTaskStatusAction.INSTANCE,
-                RemovePersistentTaskAction.INSTANCE,
-                CompletionPersistentTaskAction.INSTANCE,
                 // security
                 ClearRealmCacheAction.INSTANCE,
                 ClearRolesCacheAction.INSTANCE,
@@ -341,18 +332,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // ML - Custom metadata
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
-                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
-                        PersistentTasksCustomMetaData::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE,
-                        PersistentTasksCustomMetaData::readDiffFrom),
                 // ML - Persistent action requests
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.TASK_NAME,
                         StartDatafeedAction.DatafeedParams::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME,
                         OpenJobAction.JobParams::new),
                 // ML - Task statuses
-                new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
-                        PersistentTasksNodeService.Status::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class, JobTaskStatus.NAME, JobTaskStatus::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MACHINE_LEARNING,
@@ -405,8 +390,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // ML - Custom metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
                         parser -> MlMetadata.METADATA_PARSER.parse(parser, null).build()),
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
-                        PersistentTasksCustomMetaData::fromXContent),
                 // ML - Persistent action requests
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(StartDatafeedAction.TASK_NAME),
                         StartDatafeedAction.DatafeedParams::fromXContent),
@@ -422,8 +405,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(LicensesMetaData.TYPE),
                         LicensesMetaData::fromXContent),
                 //rollup
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupField.TASK_NAME),
-                        parser -> RollupJob.fromXContent(parser)),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupField.TASK_NAME), RollupJob::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME), RollupJobStatus::fromXContent),
                 // ILM - Custom Metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),

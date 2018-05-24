@@ -11,6 +11,7 @@ import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
+import org.gradle.api.tasks.StopExecutionException
 import org.gradle.api.tasks.TaskState
 
 import static java.util.Collections.unmodifiableList
@@ -285,8 +286,10 @@ class VagrantTestPlugin implements Plugin<Project> {
             dependsOn copyPackagingArchives
             doFirst {
                 project.delete("${archivesDir}/upgrade_is_oss")
+                if (project.extensions.esvagrant.upgradeFromVersion.before('6.3.0')) {
+                    throw new StopExecutionException("upgrade version is before 6.3.0")
+                }
             }
-            onlyIf { project.extensions.esvagrant.upgradeFromVersion.onOrAfter('6.3.0') }
             file "${archivesDir}/upgrade_is_oss"
             contents ''
         }

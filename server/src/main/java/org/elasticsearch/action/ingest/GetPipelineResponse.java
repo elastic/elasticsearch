@@ -20,16 +20,22 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
 
@@ -74,6 +80,15 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         return isFound() ? RestStatus.OK : RestStatus.NOT_FOUND;
     }
 
+    /**
+     * Get the list of pipelines that were a part of this response
+     * The pipeline id can be obtained using
+     * @return A list of PipelineConfiguration objects.
+     */
+    public List<PipelineConfiguration> getPipelineConfigs() {
+        return Collections.unmodifiableList(pipelines);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -82,5 +97,29 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         }
         builder.endObject();
         return builder;
+    }
+
+    /**
+     *
+     * @param parser the parser for the XContent that contains the serialized GetPipelineResponse.
+     * @return an instance of GetPipelineResponse read from the parser
+     * @throws IOException
+     */
+    public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        List<PipelineConfiguration> pipelines = new ArrayList<>();
+        while(parser.nextToken().equals(Token.FIELD_NAME)) {
+            String pipelineId = parser.currentName();
+            parser.nextToken();
+            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+            contentBuilder.generator().copyCurrentStructure(parser);
+            PipelineConfiguration pipeline =
+                new PipelineConfiguration(
+                    pipelineId, BytesReference.bytes(contentBuilder), contentBuilder.contentType()
+                );
+            pipelines.add(pipeline);
+        }
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        return new GetPipelineResponse(pipelines);
     }
 }

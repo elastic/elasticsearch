@@ -12,6 +12,9 @@
 *   Purely negative queries (only MUST_NOT clauses) now return a score of `0`
     rather than `1`.
 
+*   The boundary specified using geohashes in the `geo_bounding_box` query
+    now include entire geohash cell, instead of just geohash center.
+
 ==== Adaptive replica selection enabled by default
 
 Adaptive replica selection has been enabled by default. If you wish to return to

@@ -533,12 +533,13 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
         final String ascUrlString = urlString + ".asc";
         final URL ascUrl = openUrl(ascUrlString);
-        try (// fin is a file stream over the downloaded plugin zip whose signature to verify
-             InputStream fin = pluginZipInputStream(zip);
-             // sin is a URL stream to the signature corresponding to the downloaded plugin zip
-             InputStream sin = urlOpenStream(ascUrl);
-             // pin is a decoded base64 stream over the embedded public key in RFC2045 format
-             InputStream pin = Base64.getMimeDecoder().wrap(getPublicKey())) {
+        try (
+                // fin is a file stream over the downloaded plugin zip whose signature to verify
+                InputStream fin = pluginZipInputStream(zip);
+                // sin is a URL stream to the signature corresponding to the downloaded plugin zip
+                InputStream sin = urlOpenStream(ascUrl);
+                // pin is a decoded base64 stream over the embedded public key in RFC2045 format
+                InputStream pin = Base64.getMimeDecoder().wrap(getPublicKey())) {
             final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
             final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
 

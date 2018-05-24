@@ -80,7 +80,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
             if (tailored.isEmpty()) {
                 return null;
             } else {
-                final RuleBasedBreakIterator breakers[] = new RuleBasedBreakIterator[UScript.CODE_LIMIT];
+                final BreakIterator breakers[] = new BreakIterator[UScript.CODE_LIMIT];
                 for (Map.Entry<Integer, String> entry : tailored.entrySet()) {
                     int code = entry.getKey();
                     String resourcePath = entry.getValue();
@@ -105,7 +105,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     //parse a single RBBi rule file
-    private RuleBasedBreakIterator parseRules(String filename, Environment env) throws IOException {
+    private BreakIterator parseRules(String filename, Environment env) throws IOException {
 
         final Path path = env.configFile().resolve(filename);
         String rules = Files.readAllLines(path)

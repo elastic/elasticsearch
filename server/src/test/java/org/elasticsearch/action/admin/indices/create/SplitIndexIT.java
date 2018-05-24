@@ -193,8 +193,9 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .put("index.blocks.write", true)).get();
         ensureGreen();
         Settings.Builder firstSplitSettingsBuilder = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", firstSplitShards);
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", firstSplitShards)
+                .putNull("index.blocks.write");
         if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
             firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
         }
@@ -225,10 +226,12 @@ public class SplitIndexIT extends ESIntegTestCase {
         ensureGreen();
         // now split source into a new index
         assertAcked(client().admin().indices().prepareResizeIndex("first_split", "second_split")
-            .setResizeType(ResizeType.SPLIT)
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", secondSplitShards).build()).get());
+                .setResizeType(ResizeType.SPLIT)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", secondSplitShards)
+                        .putNull("index.blocks.write")
+                        .build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         // let it be allocated anywhere and bump replicas
@@ -340,7 +343,11 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         // now split source into target
         final Settings splitSettings =
-                Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", numberOfTargetShards).build();
+                Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", numberOfTargetShards)
+                        .putNull("index.blocks.write")
+                        .build();
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
             .setResizeType(ResizeType.SPLIT)
             .setSettings(splitSettings).get());
@@ -396,8 +403,10 @@ public class SplitIndexIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(Settings.builder()
-                    .put("index.number_of_replicas", createWithReplicas ? 1 : 0)
-                    .put("index.number_of_shards", 2).build()).get());
+                        .put("index.number_of_replicas", createWithReplicas ? 1 : 0)
+                        .put("index.number_of_shards", 2)
+                        .putNull("index.blocks.write")
+                        .build()).get());
             ensureGreen();
 
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -507,10 +516,12 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         // check that the index sort order of `source` is correctly applied to the `target`
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
-            .setResizeType(ResizeType.SPLIT)
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", 4).build()).get());
+                .setResizeType(ResizeType.SPLIT)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", 4)
+                        .putNull("index.blocks.write")
+                        .build()).get());
         ensureGreen();
         flushAndRefresh();
         GetSettingsResponse settingsResponse =

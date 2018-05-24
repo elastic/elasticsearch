@@ -61,25 +61,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         }
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
-            if (MetaPluginInfo.isMetaPlugin(plugin)) {
-                MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(plugin);
-                List<Path> subPluginPaths = new ArrayList<>();
-                try (DirectoryStream<Path> subPaths = Files.newDirectoryStream(plugin)) {
-                    for (Path subPlugin : subPaths) {
-                        if (MetaPluginInfo.isPropertiesFile(subPlugin)) {
-                            continue;
-                        }
-                        subPluginPaths.add(subPlugin);
-                    }
-                }
-                Collections.sort(subPluginPaths);
-                terminal.println(Terminal.Verbosity.SILENT, metaInfo.getName());
-                for (Path subPlugin : subPluginPaths) {
-                    printPlugin(env, terminal, subPlugin, "\t");
-                }
-            } else {
-                printPlugin(env, terminal, plugin, "");
-            }
+            printPlugin(env, terminal, plugin, "");
         }
     }
 

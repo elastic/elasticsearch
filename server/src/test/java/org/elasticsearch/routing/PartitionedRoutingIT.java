@@ -108,10 +108,11 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
 
             logger.info("--> shrinking index [" + previousIndex + "] to [" + index + "]");
             client().admin().indices().prepareResizeIndex(previousIndex, index)
-                .setSettings(Settings.builder()
-                    .put("index.number_of_shards", currentShards)
-                    .put("index.number_of_replicas", numberOfReplicas())
-                    .build()).get();
+                    .setSettings(Settings.builder()
+                            .put("index.number_of_shards", currentShards)
+                            .put("index.number_of_replicas", numberOfReplicas())
+                            .putNull("index.routing.allocation.require._name")
+                            .build()).get();
             ensureGreen();
         }
     }

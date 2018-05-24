@@ -720,7 +720,13 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Set<URL> classpath =
                 JarHell.parseClassPath()
                         .stream()
-                        .filter(url -> urlToString(url).matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR) == false)
+                        .filter(url -> {
+                            try {
+                                return url.toURI().getPath().matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR) == false;
+                            } catch (final URISyntaxException e) {
+                                throw new AssertionError(e);
+                            }
+                        })
                         .collect(Collectors.toSet());
 
         // read existing bundles. this does some checks on the installation too.
@@ -738,14 +744,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // TODO: no jars should be an error
         // TODO: verify the classname exists in one of the jars!
-    }
-
-    private String urlToString(final URL url) {
-        try {
-            return url.toURI().getPath();
-        } catch (final URISyntaxException e) {
-            throw new AssertionError(e);
-        }
     }
 
     private void install(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env) throws Exception {

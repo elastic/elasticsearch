@@ -7,6 +7,9 @@ during certain <<painless-operators, operations>>. An explicit cast specifies
 the target type and forcefully occurs as its own operation.  Use the *cast
 operator* to specify an explicit cast.
 
+See the <<allowed-casts, cast table>> for a quick reference on all
+allowed casts.
+
 *Errors*
 
 * If during a cast there exists no equivalent value for the target type.
@@ -454,3 +457,49 @@ type value is derived from what the `def` type value represents at run-time.
     assign `float 3.0` to `f`;
     (note this example illustrates promotion done at run-time as promotion
             done at compile-time would have resolved to a `def` type value)
+
+[[allowed-casts]]
+==== Allowed Casts
+
+The following table lists all allowed casts (with implicit as I, explicit as
+E, and not allowed as -):
+
+[cols="<3,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1"]
+|====
+|                  | b | s | c | i | j | f | d | B | S | C | I | L | F | D | T | R | def
+| byte      (b)    |   | I | I | I | I | I | I | - | - | - | - | - | - | - | - | - | I
+| short     (s)    | E |   | E | I | I | I | I | - | - | - | - | - | - | - | - | - | I
+| char      (c)    | E | E |   | I | I | I | I | - | - | - | - | - | - | - | E | - | I
+| int       (i)    | E | E | E |   | I | I | I | - | - | - | - | - | - | - | - | - | I
+| long      (j)    | E | E | E | E |   | I | I | - | - | - | - | - | - | - | - | - | I
+| float     (f)    | E | E | E | E | E |   | I | - | - | - | - | - | - | - | - | - | I
+| double    (d)    | E | E | E | E | E | E |   | - | - | - | - | - | - | - | - | - | I
+| Byte      (B)    | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | - | I
+| Short     (S)    | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | I
+| Character (C)    | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | I
+| Integer   (I)    | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | I
+| Long      (L)    | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | I
+| Float     (F)    | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | I
+| Double    (D)    | - | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | I
+| String    (T)    | - | - | E | - | - | - | - | - | - | - | - | - | - | - |   | - | I
+| Reference ( R )  | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | @ | I
+| def as byte      | I | I | I | I | I | I | I | I | I | I | I | I | I | I | - | - |
+| def as short     | E | I | E | I | I | I | I | E | I | E | I | I | I | I | - | - |
+| def as char      | E | E | I | I | I | I | I | E | E | I | I | I | I | I | E | - |
+| def as int       | E | E | E | I | I | I | I | E | E | E | I | I | I | I | - | - |
+| def as long      | E | E | E | E | I | I | I | E | E | E | E | I | I | I | - | - |
+| def as float     | E | E | E | E | E | I | I | E | E | E | E | E | I | I | - | - |
+| def as double    | E | E | E | E | E | E | I | E | E | E | E | E | E | I | - | - |
+| def as Byte      | I | I | I | I | I | I | I | I | I | I | I | I | I | I | - | - |
+| def as Short     | E | I | E | I | I | I | I | E | I | E | I | I | I | I | - | - |
+| def as Character | E | E | I | I | I | I | I | E | E | I | I | I | I | I | - | - |
+| def as Integer   | E | E | E | I | I | I | I | E | E | E | I | I | I | I | - | - |
+| def as Long      | E | E | E | E | I | I | I | E | E | E | E | I | I | I | - | - |
+| def as Float     | E | E | E | E | E | I | I | E | E | E | E | E | I | I | - | - |
+| def as Double    | E | E | E | E | E | E | I | E | E | E | E | E | E | I | - | - |
+| def as String    | - | - | E | - | - | - | - | - | - | - | - | - | - | - | I | - |
+| def as Reference | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | @ |
+|====
+
+@ See <<reference-type-casting, reference type casting>> for allowed reference
+  type casts.

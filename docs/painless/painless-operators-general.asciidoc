@@ -4,9 +4,8 @@
 [[precedence]]
 ==== Precedence
 
-You group expressions using the precedence operator to guarantee
-the order of evaluation and override existing precedence relationships between operators. The format is an opening parenthesis, one or more expressions, and
-a closing parenthesis. For example, `(20+1)*2`.
+Use the *precedence operator* to guarantee the order of evaluation and override
+existing precedence relationships between operators.
 
 *Grammar:*
 [source,ANTLR4]

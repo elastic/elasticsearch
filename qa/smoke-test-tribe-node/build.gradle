@@ -54,6 +54,13 @@ integTestCluster {
   setting 'tribe.two.http.enabled', 'true'
   setting 'tribe.two.http.port', '40250-40299'
   setting 'tribe.two.transport.tcp.port', '40250-40399'
+  if ('zip'.equals(distribution)) {
+    /*
+     * The default distribution requires a setting for `on_conflict` when
+     * you use tribe.
+     */
+    setting 'tribe.on_conflict', 'prefer_tribe.one'
+  }
 
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

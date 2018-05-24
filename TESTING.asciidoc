@@ -512,7 +512,9 @@ into it
 vagrant ssh debian-9
 --------------------------------------------
 
-Now inside the VM, to run the https://github.com/sstephenson/bats[bats] packaging tests
+Now inside the VM, start the packaging tests from the terminal. There are two packaging
+test projects. The old ones are written with https://github.com/sstephenson/bats[bats]
+and only run on linux. To run them do
 
 --------------------------------------------
 cd $PACKAGING_ARCHIVES
@@ -524,17 +526,35 @@ sudo bats $BATS_TESTS/*.bats
 sudo bats $BATS_TESTS/20_tar_package.bats $BATS_TESTS/25_tar_plugins.bats
 --------------------------------------------
 
-To run the Java packaging tests, again inside the VM
+The new packaging tests are written in Java and run on both linux and windows. On
+linux (again, inside the VM)
 
 --------------------------------------------
-bash $PACKAGING_TESTS/run-tests.sh
+# run the full suite
+sudo bash $PACKAGING_TESTS/run-tests.sh
+
+# run specific test cases
+sudo bash $PACKAGING_TESTS/run-tests.sh \
+  org.elasticsearch.packaging.test.DefaultZipTests \
+  org.elasticsearch.packaging.test.OssZipTests
 --------------------------------------------
 
-or on Windows
+or on Windows, from a terminal running as Administrator
 
 --------------------------------------------
+# run the full suite
 powershell -File $Env:PACKAGING_TESTS/run-tests.ps1
+
+# run specific test cases
+powershell -File $Env:PACKAGING_TESTS/run-tests.ps1 `
+  org.elasticsearch.packaging.test.DefaultZipTests `
+  org.elasticsearch.packaging.test.OssZipTests
 --------------------------------------------
+
+Note that on Windows boxes when running from inside the GUI, you may have to log out and
+back in to the `vagrant` user (password `vagrant`) for the environment variables that
+locate the packaging tests and distributions to take effect, due to how vagrant provisions
+Windows machines.
 
 When you've made changes you want to test, keep the VM up and reload the tests and
 distributions inside by running (on the host)

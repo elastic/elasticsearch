@@ -137,7 +137,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         version = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+        if (in.getVersion().before(Version.V_6_4_0)) {
             List<String> fieldList = (List<String>) in.readGenericValue();
             if (fieldList == null) {
                 docValueFields = null;
@@ -188,7 +188,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeBoolean(version);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+        if (out.getVersion().before(Version.V_6_4_0)) {
             out.writeGenericValue(docValueFields == null
                     ? null
                     : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));

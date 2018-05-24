@@ -68,7 +68,11 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
 
     @Override
     public boolean reinit(Settings settings) {
-        // secure settings should be readable
+        // Secure settings should be readable inside this method. Duplicate client
+        // settings in a format (`GoogleCloudStorageClientSettings`) that does not
+        // require for the `SecureSettings` to be open. Pass that around (the
+        // `GoogleCloudStorageClientSettings` instance) instead of the `Settings`
+        // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
         this.storageService.updateClientsSettings(clientsSettings);
         return true;

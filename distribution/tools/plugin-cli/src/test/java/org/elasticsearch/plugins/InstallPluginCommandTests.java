@@ -1102,7 +1102,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                 "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/" + icu + "-" + Version.CURRENT + ".zip";
         final MessageDigest digest = MessageDigest.getInstance("SHA-512");
         /*
-         * To setup a situation where the expected public key ID does not match the public key ID used for singing, we generate a new public
+         * To setup a situation where the expected public key ID does not match the public key ID used for signing, we generate a new public
          * key at the moment of signing (see the signature invocation). Note that this key will not match the key that we push down to the
          * install plugin command.
          */

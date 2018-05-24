@@ -425,7 +425,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /**
-     * Downlaods a ZIP from the URL. This method also validates the downloaded plugin ZIP via the following means:
+     * Downloads a ZIP from the URL. This method also validates the downloaded plugin ZIP via the following means:
      * <ul>
      * <li>
      * For an official plugin we download the SHA-512 checksum and validate the integrity of the downloaded ZIP. We also download the

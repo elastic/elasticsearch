@@ -32,21 +32,22 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
-import java.util.concurrent.atomic.AtomicLong;
 
 final class ByteSizeCachingDirectory extends FilterDirectory {
 
     private static class SizeAndModCount {
         final long size;
         final long modCount;
+        final boolean pendingWrite;
 
-        SizeAndModCount(long length, long modCount) {
+        SizeAndModCount(long length, long modCount, boolean pendingWrite) {
             this.size = length;
             this.modCount = modCount;
+            this.pendingWrite = pendingWrite;
         }
     }
 
-    private static long estimateSize(Directory directory) throws IOException {
+    private static long estimateSizeInBytes(Directory directory) throws IOException {
         long estimatedSize = 0;
         String[] files = directory.listAll();
         for (String file : files) {
@@ -60,39 +61,61 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
         return estimatedSize;
     }
 
-    private final AtomicLong modCount = new AtomicLong();
     private final SingleObjectCache<SizeAndModCount> size;
+    // Both these variables need to be accessed under `this` lock.
+    private long modCount = 0;
+    private long numOpenOutputs = 0;
 
     ByteSizeCachingDirectory(Directory in, TimeValue refreshInterval) {
         super(in);
-        size = new SingleObjectCache<SizeAndModCount>(refreshInterval, new SizeAndModCount(0L, -1L)) {
+        size = new SingleObjectCache<SizeAndModCount>(refreshInterval, new SizeAndModCount(0L, -1L, true)) {
             @Override
             protected SizeAndModCount refresh() {
-                // Compute modCount first so that updates that happen while the size
-                // is being computed invalidate the length
-                final long modCount = ByteSizeCachingDirectory.this.modCount.get();
+                // It is ok for the size of the directory to be more recent than
+                // the mod count, we would just recompute the size of the
+                // directory on the next call as well. However the opposite
+                // would be bad as we would potentially have a stale cache
+                // entry for a long time. So we fetch the values of modCount and
+                // numOpenOutputs BEFORE computing the size of the directory.
+                final long modCount;
+                final boolean pendingWrite;
+                synchronized(ByteSizeCachingDirectory.this) {
+                    modCount = ByteSizeCachingDirectory.this.modCount;
+                    pendingWrite = ByteSizeCachingDirectory.this.numOpenOutputs != 0;
+                }
                 final long size;
                 try {
-                    size = estimateSize(getDelegate());
+                    // Compute this OUTSIDE of the lock
+                    size = estimateSizeInBytes(getDelegate());
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-                return new SizeAndModCount(size, modCount);
+                return new SizeAndModCount(size, modCount, pendingWrite);
             }
 
             @Override
             protected boolean needsRefresh() {
-                if (getNoRefresh().modCount == modCount.get()) {
-                    // no updates to the directory since the last refresh
+                if (super.needsRefresh() == false) {
+                    // The size was computed recently, don't recompute
                     return false;
                 }
-                return super.needsRefresh();
+                SizeAndModCount cached = getNoRefresh();
+                if (cached.pendingWrite) {
+                    // The cached entry was generated while there were pending
+                    // writes, so the size might be stale: recompute.
+                    return true;
+                }
+                synchronized(ByteSizeCachingDirectory.this) {
+                    // If there are pending writes or if new files have been
+                    // written/deleted since last time: recompute
+                    return numOpenOutputs != 0 || cached.modCount != modCount;
+                }
             }
         };
     }
 
     /** Return the cumulative size of all files in this directory. */
-    long estimateSize() throws IOException {
+    long estimateSizeInBytes() throws IOException {
         try {
             return size.getOrRefresh().size;
         } catch (UncheckedIOException e) {
@@ -112,33 +135,49 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
     }
 
     private IndexOutput wrapIndexOutput(IndexOutput out) {
+        synchronized (this) {
+            numOpenOutputs++;
+        }
         return new FilterIndexOutput(out.toString(), out) {
             @Override
             public void writeBytes(byte[] b, int length) throws IOException {
+                // Don't write to atomicXXX here since it might be called in
+                // tight loops and memory barriers are costly
                 super.writeBytes(b, length);
-                modCount.incrementAndGet();
             }
 
             @Override
             public void writeByte(byte b) throws IOException {
+                // Don't write to atomicXXX here since it might be called in
+                // tight loops and memory barriers are costly
                 super.writeByte(b);
-                modCount.incrementAndGet();
             }
 
             @Override
             public void close() throws IOException {
                 // Close might cause some data to be flushed from in-memory buffers, so
                 // increment the modification counter too.
-                super.close();
-                modCount.incrementAndGet();
+                try {
+                    super.close();
+                } finally {
+                    synchronized (this) {
+                        numOpenOutputs--;
+                        modCount++;
+                    }
+                }
             }
         };
     }
 
     @Override
     public void deleteFile(String name) throws IOException {
-        super.deleteFile(name);
-        modCount.incrementAndGet();
+        try {
+            super.deleteFile(name);
+        } finally {
+            synchronized (this) {
+                modCount++;
+            }
+        }
     }
 
 }

@@ -53,28 +53,49 @@ public class ByteSizeCachingDirectoryTests extends ESTestCase {
             LengthCountingDirectory countingDir = new LengthCountingDirectory(dir);
 
             ByteSizeCachingDirectory cachingDir = new ByteSizeCachingDirectory(countingDir, new TimeValue(0));
-            assertEquals(11, cachingDir.estimateSize());
-            assertEquals(11, cachingDir.estimateSize());
+            assertEquals(11, cachingDir.estimateSizeInBytes());
+            assertEquals(11, cachingDir.estimateSizeInBytes());
             assertEquals(1, countingDir.numFileLengthCalls);
 
             try (IndexOutput out = cachingDir.createOutput("foo", IOContext.DEFAULT)) {
                 out.writeBytes(new byte[5], 5);
+
+                cachingDir.estimateSizeInBytes();
+                // +2 because there are 3 files
+                assertEquals(3, countingDir.numFileLengthCalls);
+                // An index output is open so no caching
+                cachingDir.estimateSizeInBytes();
+                assertEquals(5, countingDir.numFileLengthCalls);
             }
 
-            assertEquals(16, cachingDir.estimateSize());
-            assertEquals(3, countingDir.numFileLengthCalls);
-            assertEquals(16, cachingDir.estimateSize());
-            assertEquals(3, countingDir.numFileLengthCalls);
+            assertEquals(16, cachingDir.estimateSizeInBytes());
+            assertEquals(7, countingDir.numFileLengthCalls);
+            assertEquals(16, cachingDir.estimateSizeInBytes());
+            assertEquals(7, countingDir.numFileLengthCalls);
 
             try (IndexOutput out = cachingDir.createTempOutput("bar", "baz", IOContext.DEFAULT)) {
                 out.writeBytes(new byte[4], 4);
+
+                cachingDir.estimateSizeInBytes();
+                assertEquals(10, countingDir.numFileLengthCalls);
+                // An index output is open so no caching
+                cachingDir.estimateSizeInBytes();
+                assertEquals(13, countingDir.numFileLengthCalls);
             }
 
-            assertEquals(20, cachingDir.estimateSize());
+            assertEquals(20, cachingDir.estimateSizeInBytes());
             // +3 because there are 3 files
-            assertEquals(6, countingDir.numFileLengthCalls);
-            assertEquals(20, cachingDir.estimateSize());
-            assertEquals(6, countingDir.numFileLengthCalls);
+            assertEquals(16, countingDir.numFileLengthCalls);
+            assertEquals(20, cachingDir.estimateSizeInBytes());
+            assertEquals(16, countingDir.numFileLengthCalls);
+
+            cachingDir.deleteFile("foo");
+
+            assertEquals(15, cachingDir.estimateSizeInBytes());
+            // +2 because there are 2 files now
+            assertEquals(18, countingDir.numFileLengthCalls);
+            assertEquals(15, cachingDir.estimateSizeInBytes());
+            assertEquals(18, countingDir.numFileLengthCalls);
         }
     }
 

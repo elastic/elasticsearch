@@ -530,6 +530,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Security.addProvider(new BouncyCastleProvider());
     }
 
+    /**
+     * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
+     * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
+     *
+     * @param zip       the path to the downloaded plugin ZIP
+     * @param urlString the URL source of the downloade plugin ZIP
+     * @throws IOException  if an I/O exception occurs reading from various input streams
+     * @throws PGPException if the PGP implementation throws an internal exception during verification
+     */
     void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
         final String ascUrlString = urlString + ".asc";
         final URL ascUrl = openUrl(ascUrlString);
@@ -566,14 +575,31 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
+    /**
+     * An input stream to the raw bytes of the plugin ZIP.
+     *
+     * @param zip the path to the downloaded plugin ZIP
+     * @return an input stream to the raw bytes of the plugin ZIP.
+     * @throws IOException if an I/O exception occurs preparing the input stream
+     */
     InputStream pluginZipInputStream(final Path zip) throws IOException {
         return Files.newInputStream(zip);
     }
 
+    /**
+     * Return the public key ID of the signing key that is expected to have signed the official plugin.
+     *
+     * @return the public key ID
+     */
     String getPublicKeyId() {
         return "D27D666CD88E42B4";
     }
 
+    /**
+     * An input stream to the public key of the signing key.
+     *
+     * @return an input stream to the public key
+     */
     InputStream getPublicKey() {
         return InstallPluginCommand.class.getResourceAsStream("/public_key");
     }

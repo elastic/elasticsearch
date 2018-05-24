@@ -95,7 +95,9 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -1542,18 +1544,11 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testSnapshotTrimmedOperations() throws Exception {
-        List<Translog.Index> allOperations = new ArrayList<>();
-        List<Translog.Index> effectiveOperations = new ArrayList<>();
-
-        long translogOperations = 0;
-        final AtomicBoolean wasRollover = new AtomicBoolean(false);
+        final TestingTranslog testingTranslog = new TestingTranslog(translog);
+        final List<Translog.Operation> allOperations = new ArrayList<>();
 
         for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
-            int extraDocs = randomIntBetween(10, 15);
-
-            List<Translog.Index> newOperations = new ArrayList<>();
-
-            List<Long> ops = LongStream.range(0, translogOperations + extraDocs)
+            List<Long> ops = LongStream.range(0, allOperations.size() + randomIntBetween(10, 15))
                 .boxed().collect(Collectors.toList());
             Randomness.shuffle(ops);
 
@@ -1562,10 +1557,10 @@ public class TranslogTests extends ESTestCase {
 
                 // have to use exactly the same source for same seq# if primaryTerm is not changed
                 if (primaryTerm.get() == translog.getCurrent().getPrimaryTerm()) {
-                    for (Translog.Index allOp : allOperations) {
-                        if (allOp.seqNo() == op) {
+                    for (Translog.Operation allOp : allOperations) {
+                        if (allOp instanceof Translog.Index && allOp.seqNo() == op) {
                             // use the latest source of op with the same seq# - therefore no break
-                            source = allOp.source().utf8ToString();
+                            source = ((Translog.Index)allOp).source().utf8ToString();
                         }
                     }
                 }
@@ -1573,63 +1568,87 @@ public class TranslogTests extends ESTestCase {
                 // use ongoing primaryTerms - or the same as it was
                 Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(),
                     source.getBytes("UTF-8"));
-                translog.add(operation);
-
+                testingTranslog.add(operation);
                 allOperations.add(operation);
-                newOperations.add(operation);
             }
 
-            wasRollover.set(randomBoolean());
-            if (wasRollover.get()) {
+            if (randomBoolean()) {
                 primaryTerm.incrementAndGet();
-                translog.rollGeneration();
+                testingTranslog.rollGeneration();
             }
 
-            int trimmedDocs = randomIntBetween(4, 8);
-            long maxTrimmedSeqNo = translogOperations + extraDocs - trimmedDocs + 1;
+            long maxTrimmedSeqNo = randomInt(allOperations.size());
 
-            translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            testingTranslog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+
+            List<Translog.Operation> effectiveOperations = testingTranslog.operations();
+
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                assertThat(snapshot, containsOperationsInAnyOrder(effectiveOperations));
+                assertThat(snapshot.totalOperations(), is(allOperations.size()));
+                assertThat(snapshot.skippedOperations(), is(allOperations.size() - effectiveOperations.size()));
+            }
+        }
+    }
+
+    /**
+     * this class mimic behaviour of original {@link Translog} and delegated to the original as well
+     */
+    static class TestingTranslog {
+        private final List<List<Translog.Operation>> operationsList = new ArrayList<>();
+        private final Translog translog;
+
+        TestingTranslog(Translog translog) {
+            this.translog = translog;
+            this.operationsList.add(new LinkedList<>());
+        }
+
+        void add(Translog.Operation operation) throws IOException {
+            translog.add(operation);
+            operationsList.get(operationsList.size() - 1).add(operation);
+        }
+
+        void rollGeneration() throws IOException {
+            translog.rollGeneration();
+            operationsList.add(new LinkedList<>());
+        }
+
+        void trimOperations(long belowTerm, long aboveSeqNo) throws IOException {
+            translog.trimOperations(belowTerm, aboveSeqNo);
             translog.sync();
 
-            List<Translog.Operation> actualOperations = new ArrayList<>();
-            int actualTotalOperations;
-            int actualSkippedOperations;
-            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-                Translog.Operation next;
-                while ((next = snapshot.next()) != null) {
-                    actualOperations.add(next);
+            for (Iterator<List<Translog.Operation>> opListIt = operationsList.iterator();opListIt.hasNext();) {
+                if (!opListIt.hasNext()) {
+                    // ignore the last one
+                    break;
                 }
-                actualTotalOperations = snapshot.totalOperations();
-                actualSkippedOperations = snapshot.skippedOperations();
+                List<Translog.Operation> operations = opListIt.next();
+                for (Iterator<Translog.Operation> it = operations.iterator(); it.hasNext(); ) {
+                    Translog.Operation op = it.next();
+                    boolean drop = op.primaryTerm() < belowTerm && op.seqNo() > aboveSeqNo;
+                    if (drop) {
+                        it.remove();
+                    }
+                }
             }
+        }
 
-            final long effectiveMaxTrimSeqNo =
-                wasRollover.get() ? maxTrimmedSeqNo
-                // if there was no rollover - we have not trimmed ops for this primary term - all of them have to be in snapshot
-                    : translogOperations + extraDocs + 1;
+        List<Translog.Operation> operations() {
+            final List<Translog.Operation> actualOperations = new ArrayList<>();
 
-            newOperations.stream()
-                .filter(op -> op.primaryTerm() <= primaryTerm.get() && op.seqNo() <= effectiveMaxTrimSeqNo)
-                .forEach(effectiveOperations::add);
-
-            Set<Long> seqNoSet = new HashSet<>();
-            effectiveOperations =
-                effectiveOperations
-                    .stream().distinct()
-                    // sort by ascending seq# - but descending for primaryTerm if seq# are equal
-                    .sorted(Comparator.comparingLong(Translog.Index::seqNo)
-                        .thenComparing(Comparator.comparingLong(Translog.Index::primaryTerm).reversed()))
-                    // and picks up only ops with higher primaryTerm
-                    .filter(op -> seqNoSet.add(op.seqNo()))
-                    .collect(Collectors.toList());
+            final Set<Long> seenSeqNo = new HashSet<>();
+            for(ListIterator<List<Translog.Operation>> listIt = operationsList.listIterator(operationsList.size()); listIt.hasPrevious();){
+                List<Translog.Operation> operations = listIt.previous();
+                for (Translog.Operation operation : operations) {
+                    if (seenSeqNo.add(operation.seqNo())) {
+                        actualOperations.add(operation);
+                    }
+                }
+            }
 
             Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
 
-            assertThat(actualTotalOperations, is(allOperations.size()));
-            assertThat(actualSkippedOperations, is(allOperations.size() - effectiveOperations.size()));
-            assertThat(actualOperations, is(effectiveOperations));
-
-            translogOperations += ops.size();
+            return actualOperations;
         }
     }
 
@@ -1706,105 +1725,6 @@ public class TranslogTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    public void testSnapshotTrimTrimmedOperations() throws Exception {
-        int extraDocs = randomIntBetween(10, 15);
-        List<Long> ops = LongStream.range(0, extraDocs)
-            .boxed().collect(Collectors.toList());
-        Randomness.shuffle(ops);
-
-        List<Translog.Index> allOperations = new ArrayList<>();
-        for (final long op : ops) {
-            Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(),
-                randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8"));
-            translog.add(operation);
-            allOperations.add(operation);
-        }
-
-        primaryTerm.incrementAndGet();
-        translog.rollGeneration();
-
-        int aboveSeqNo = randomIntBetween(2, extraDocs - 2);
-        translog.trimOperations(primaryTerm.get(), aboveSeqNo);
-        translog.sync();
-
-
-        List<Translog.Operation> actualOperations = new ArrayList<>();
-        int actualTotalOperations;
-        int actualSkippedOperations;
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            Translog.Operation next;
-            while ((next = snapshot.next()) != null) {
-                actualOperations.add(next);
-            }
-            actualTotalOperations = snapshot.totalOperations();
-            actualSkippedOperations = snapshot.skippedOperations();
-        }
-
-        Collections.sort(allOperations, Comparator.comparing(Translog.Operation::seqNo));
-        Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
-
-        List<Translog.Index> trimmedOperations = aboveSeqNo + 1 < allOperations.size()
-            ? allOperations.subList(0, aboveSeqNo + 1) : allOperations;
-        assertThat(actualTotalOperations, is(allOperations.size()));
-        assertThat(actualOperations, is(trimmedOperations));
-        assertThat(actualSkippedOperations, is(allOperations.size() - trimmedOperations.size()));
-
-        // trim trimmed translog => when aboveSeqNo is higher than original aboveSeqNo
-        // no any ops are shrunk
-
-        int aboveSeqNo2 = randomIntBetween(aboveSeqNo + 1, extraDocs);
-
-        translog.trimOperations(primaryTerm.get(), aboveSeqNo2);
-        translog.sync();
-
-        List<Translog.Operation> actualOperations2 = new ArrayList<>();
-        int actualTotalOperations2;
-        int actualSkippedOperations2;
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            Translog.Operation next;
-            while ((next = snapshot.next()) != null) {
-                actualOperations2.add(next);
-            }
-            actualTotalOperations2 = snapshot.totalOperations();
-            actualSkippedOperations2 = snapshot.skippedOperations();
-        }
-
-        Collections.sort(actualOperations2, Comparator.comparing(Translog.Operation::seqNo));
-
-        assertThat(actualTotalOperations2, is(allOperations.size()));
-        assertThat(actualOperations2, is(trimmedOperations));
-        assertThat(actualSkippedOperations2, is(allOperations.size() - trimmedOperations.size()));
-
-        // trim trimmed translog => when aboveSeqNo is lower than original aboveSeqNo
-        // several ops have to be shrunk
-
-        int aboveSeqNo3 = randomInt(aboveSeqNo - 1);
-
-        translog.trimOperations(primaryTerm.get(), aboveSeqNo3);
-        translog.sync();
-
-        List<Translog.Operation> actualOperations3 = new ArrayList<>();
-        int actualTotalOperations3;
-        int actualSkippedOperations3;
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            Translog.Operation next;
-            while ((next = snapshot.next()) != null) {
-                actualOperations3.add(next);
-            }
-            actualTotalOperations3 = snapshot.totalOperations();
-            actualSkippedOperations3 = snapshot.skippedOperations();
-        }
-
-        Collections.sort(actualOperations3, Comparator.comparing(Translog.Operation::seqNo));
-
-        trimmedOperations = aboveSeqNo3 + 1 < allOperations.size()
-            ? allOperations.subList(0, aboveSeqNo3 + 1) : allOperations;
-
-        assertThat(actualTotalOperations3, is(allOperations.size()));
-        assertThat(actualOperations3, is(trimmedOperations));
-        assertThat(actualSkippedOperations3, is(allOperations.size() - trimmedOperations.size()));
     }
 
     public void testLocationHashCodeEquals() throws IOException {

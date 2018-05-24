@@ -362,15 +362,21 @@ public class MockScriptEngine implements ScriptEngine {
     
                 @Override
                 public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                    LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(ctx);
-                    Map<String, Object> vars = new HashMap<>(leafLookup.asMap());
-                    if (params != null) {
-                        vars.putAll(params);
-                    }
-                    return new ScoreScript(vars, lookup, ctx) {
+                    Scorer[] scorerHolder = new Scorer[1];
+                    return new ScoreScript(params, lookup, ctx) {
                         @Override
                         public double execute() {
+                            Map<String, Object> vars = new HashMap<>(getParams());
+                            vars.put("doc", getDoc());
+                            if (scorerHolder[0] != null) {
+                                vars.put("_score", new ScoreAccessor(scorerHolder[0]));
+                            }
                             return ((Number) scripts.apply(vars)).doubleValue();
+                        }
+    
+                        @Override
+                        public void setScorer(Scorer scorer) {
+                            scorerHolder[0] = scorer;
                         }
                     };
                 }

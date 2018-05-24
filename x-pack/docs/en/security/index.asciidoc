@@ -108,7 +108,7 @@ include::authentication/overview.asciidoc[]
 include::authorization/overview.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/auditing.asciidoc
-include::auditing.asciidoc[]
+include::auditing/index.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/securing-communications.asciidoc
 include::securing-communications.asciidoc[]

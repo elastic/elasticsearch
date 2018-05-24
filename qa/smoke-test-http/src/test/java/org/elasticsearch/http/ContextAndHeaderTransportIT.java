@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -222,8 +221,8 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws IOException {
         final String IRRELEVANT_HEADER = "SomeIrrelevantHeader";
         Request request = new Request("GET", "/" + queryIndex + "/_search");
-        request.setHeaders(new BasicHeader(CUSTOM_HEADER, randomHeaderValue),
-                new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue));
+        request.addHeader(CUSTOM_HEADER, randomHeaderValue);
+        request.addHeader(IRRELEVANT_HEADER, randomHeaderValue);
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);

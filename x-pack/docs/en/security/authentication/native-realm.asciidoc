@@ -10,7 +10,7 @@ manage user passwords.
 [float]
 ==== Configuring a native realm
 
-See {ref}/[Configuring a native realm]. 
+See {ref}/configuring-native-realm.html[Configuring a native realm]. 
 
 [[native-settings]]
 ==== Native realm settings

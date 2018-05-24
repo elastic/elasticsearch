@@ -1,0 +1,130 @@
+[role="xpack"]
+[float]
+[[audit-log-output]]
+=== Logfile audit output
+
+The `logfile` audit output is the default output for auditing. It writes data to
+the `<clustername>_access.log` file in the logs directory.
+
+[float]
+[[audit-log-entry-format]]
+=== Log entry format
+
+The format of a log entry is:
+
+[source,txt]
+----------------------------------------------------------------------------
+[<timestamp>] [<local_node_info>] [<layer>] [<entry_type>] <attribute_list>
+----------------------------------------------------------------------------
+
+`<timestamp>`       ::      When the event occurred. You can configure the
+                            timestamp format in `log4j2.properties`.
+`<local_node_info>` ::      Information about the local node that generated
+                            the log entry. You can control what node information
+                            is included by configuring the
+                            {ref}/auditing-settings.html#node-audit-settings[local node info settings].
+`<layer>`           ::      The layer from which this event originated:
+                            `rest`, `transport` or `ip_filter`.
+`<entry_type>`      ::       The type of event that occurred: `anonymous_access_denied`,
+                            `authentication_failed`, `access_denied`, `access_granted`,
+                            `connection_granted`, `connection_denied`.
+`<attribute_list>`  ::      A comma-separated list of key-value pairs that contain
+                            data pertaining to the event. Formatted as
+                            `attr1=[val1], attr2=[val2]`. See <<audit-event-attributes,
+                            Audit Entry Attributes>> for the attributes that can be included
+                            for each type of event.
+
+[float]
+[[audit-log-settings]]
+=== Logfile output settings
+
+The events and some other information about what gets logged can be
+controlled using settings in the `elasticsearch.yml` file. See
+{ref}/auditing-settings.html#event-audit-settings[Audited Event Settings] and
+{ref}/auditing-settings.html#node-audit-settings[Local Node Info Settings].
+
+IMPORTANT: No filtering is performed when auditing, so sensitive data may be
+audited in plain text when including the request body in audit events.
+
+[[logging-file]]
+You can also configure how the logfile is written in the `log4j2.properties`
+file located in `CONFIG_DIR`. By default, audit information is appended to the
+`<clustername>_access.log` file located in the standard Elasticsearch `logs` directory
+(typically located at `$ES_HOME/logs`). The file rolls over on a daily basis.
+
+[float]
+[[audit-log-ignore-policy]]
+=== Logfile audit events ignore policies
+
+The comprehensive audit trail is necessary to ensure accountability. It offers tremendous
+value during incident response and can even be required for demonstrating compliance.
+
+The drawback of an audited system is represented by the inevitable performance penalty incurred.
+In all truth, the audit trail spends _I/O ops_ that are not available anymore for the user's queries.
+Sometimes the verbosity of the audit trail may become a problem that the event type restrictions,
+<<audit-log-settings, defined by `include` and `exclude`>>, will not alleviate.
+
+*Audit events ignore policies* are a finer way to tune the verbosity of the audit trail.
+These policies define rules that match audit events which will be _ignored_ (read as: not printed).
+Rules match on the values of attributes of audit events and complement the <<audit-log-settings, include/exclude>> method.
+Imagine the corpus of audit events and the policies chopping off unwanted events.
+
+IMPORTANT: When utilizing audit events ignore policies you are acknowledging potential
+accountability gaps that could render illegitimate actions undetectable.
+Please take time to review these policies whenever your system architecture changes.
+
+A policy is a named set of filter rules. Each filter rule applies to a single event attribute,
+one of the `users`, `realms`, `roles` or `indices` attributes. The filter rule defines
+a list of {ref}/query-dsl-regexp-query.html#regexp-syntax[Lucene regexp], *any* of which has to match the value of the audit
+event attribute for the rule to match.
+A policy matches an event if *all* the rules comprising it match the event.
+An audit event is ignored, therefore not printed, if it matches *any* policy. All other
+non-matching events are printed as usual.
+
+All policies are defined under the `xpack.security.audit.logfile.events.ignore_filters`
+settings namespace. For example, the following policy named _example1_ matches
+events from the _kibana_ or _admin_user_ principals **and** operating over indices of the
+wildcard form _app-logs*_:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.logfile.events.ignore_filters:
+  example1:
+    users: ["kibana", "admin_user"]
+    indices: ["app-logs*"]
+----------------------------
+
+An audit event generated by the _kibana_ user and operating over multiple indices
+, some of which do not match the indices wildcard, will not match.
+As expected, operations generated by all other users (even operating only on indices that
+match the _indices_ filter) will not match this policy either.
+
+Audit events of different types may have <<audit-event-attributes, different attributes>>.
+If an event does not contain an attribute for which some policy defines filters, the
+event will not match the policy.
+For example, the following policy named _example2_, will never match `authentication_success` or
+`authentication_failed` events, irrespective of the user's roles, because these
+event schemas do not contain the `role` attribute:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.logfile.events.ignore_filters:
+  example2:
+    roles: ["admin", "ops_admin_*"]
+----------------------------
+
+Likewise, any events of users with multiple roles, some of which do not match the
+regexps will not match this policy.
+
+For completeness, although practical use cases should be sparse, a filter can match
+a missing attribute of an event, using the empty string ("") or the empty list ([]).
+For example, the following policy will match events that do not have the `indices`
+attribute (`anonymous_access_denied`, `authentication_success` and other types) as well
+as events over the _next_ index.
+
+[source,yaml]
+----------------------------
+xpack.security.audit.logfile.events.ignore_filters:
+  example3:
+    indices: ["next", ""]
+----------------------------

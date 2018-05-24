@@ -31,6 +31,3 @@ dependencies {
  * and will be fixed later.
  * Tracked by https://github.com/elastic/elasticsearch/issues/30628
  */
-if ("zip".equals(integTestCluster.distribution)) {
-    integTestRunner.enabled = false
-}

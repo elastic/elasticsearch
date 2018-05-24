@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.DeleteLicenseAction;
@@ -193,6 +194,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             final Settings.Builder builder = Settings.builder();
             builder.put(SecuritySettings.addTransportSettings(settings));
             builder.put(SecuritySettings.addUserSettings(settings));
+            builder.put(ThreadContext.PREFIX + "." + "has_xpack", true);
             return builder.build();
         } else {
             return Settings.EMPTY;

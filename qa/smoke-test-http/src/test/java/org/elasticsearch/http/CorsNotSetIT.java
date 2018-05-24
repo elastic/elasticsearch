@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
@@ -33,7 +32,8 @@ public class CorsNotSetIT extends HttpSmokeTestCase {
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws IOException {
         String corsValue = "http://localhost:9200";
         Request request = new Request("GET", "/");
-        request.setHeaders(new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));
+        request.addHeader("User-Agent", "Mozilla Bar");
+        request.addHeader("Origin", corsValue);
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());

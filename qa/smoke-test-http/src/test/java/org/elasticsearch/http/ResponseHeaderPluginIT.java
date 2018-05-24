@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -26,8 +25,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.ArrayList;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -62,7 +61,7 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
         }
 
         Request request = new Request("GET", "/_protected");
-        request.setHeaders(new BasicHeader("Secret", "password"));
+        request.addHeader("Secret", "password");
         Response authResponse = getRestClient().performRequest(request);
         assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(authResponse.getHeader("Secret"), equalTo("granted"));

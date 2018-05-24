@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -135,9 +136,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
             clusterApplierService.currentTimeOverride = System.nanoTime();
             clusterApplierService.runOnApplierThread("test1",
                 currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).nanos(),
-                new ClusterStateTaskListener() {
+                new ClusterApplyListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void onSuccess(String source) {
                         latch.countDown();
                     }
 
@@ -151,9 +152,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(2).nanos();
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
-                new ClusterStateTaskListener() {
+                new ClusterApplyListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void onSuccess(String source) {
                         fail();
                     }
 
@@ -166,9 +167,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
             // We don't check logging for this on since there is no guarantee that it will occur before our check
             clusterApplierService.runOnApplierThread("test3",
                 currentState -> {},
-                new ClusterStateTaskListener() {
+                new ClusterApplyListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void onSuccess(String source) {
                         latch.countDown();
                     }
 
@@ -216,9 +217,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
             clusterApplierService.currentTimeOverride = System.nanoTime();
             clusterApplierService.runOnApplierThread("test1",
                 currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).nanos(),
-                new ClusterStateTaskListener() {
+                new ClusterApplyListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void onSuccess(String source) {
                         latch.countDown();
                         processedFirstTask.countDown();
                     }
@@ -234,9 +235,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(32).nanos();
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
-                new ClusterStateTaskListener() {
+                new ClusterApplyListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void onSuccess(String source) {
                         fail();
                     }
 
@@ -247,9 +248,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 });
             clusterApplierService.runOnApplierThread("test3",
                 currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(34).nanos(),
-                new ClusterStateTaskListener() {
+                new ClusterApplyListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void onSuccess(String source) {
                         latch.countDown();
                     }
 
@@ -262,9 +263,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
             // We don't check logging for this on since there is no guarantee that it will occur before our check
             clusterApplierService.runOnApplierThread("test4",
                 currentState -> {},
-                new ClusterStateTaskListener() {
+                new ClusterApplyListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void onSuccess(String source) {
                         latch.countDown();
                     }
 
@@ -340,10 +341,10 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
-            new ClusterStateTaskListener() {
+            new ClusterApplyListener() {
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void onSuccess(String source) {
                     latch.countDown();
                 }
 
@@ -390,9 +391,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
-            new ClusterStateTaskListener() {
+            new ClusterApplyListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void onSuccess(String source) {
                     latch.countDown();
                 }
 

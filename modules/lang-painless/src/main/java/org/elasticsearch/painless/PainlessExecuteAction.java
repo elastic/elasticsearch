@@ -122,7 +122,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
     public static class Request extends SingleShardRequest<Request> implements ToXContent {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
-        private static final ParseField CONTEXT_FIELD = new ParseField("context");
+        private static final ParseField EXECUTE_CONTEXT_FIELD = new ParseField("execute_context");
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "painless_execute_request", args -> new Request((Script) args[0], (ExecuteScriptContext) args[1]));
 
@@ -139,7 +139,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
                 token = p.nextToken();
                 assert token == XContentParser.Token.END_OBJECT;
                 return context;
-            }, CONTEXT_FIELD);
+            }, EXECUTE_CONTEXT_FIELD);
         }
 
         static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
@@ -386,7 +386,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(SCRIPT_FIELD.getPreferredName(), script);
-            builder.field(CONTEXT_FIELD.getPreferredName(), executeScriptContext);
+            builder.field(EXECUTE_CONTEXT_FIELD.getPreferredName(), executeScriptContext);
             return builder;
         }
 

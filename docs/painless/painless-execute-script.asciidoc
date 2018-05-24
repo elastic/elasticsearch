@@ -9,9 +9,9 @@ The Painless execute API allows an arbitrary script to be executed and a result 
 .Parameters
 [options="header"]
 |======
-| Name             | Required  | Default                | Description
-| `script`         | yes       | -                      | The script to execute
-| `context`        | no        | `painless_test`        | The context the script should be executed in.
+| Name              | Required  | Default                | Description
+| `script`          | yes       | -                      | The script to execute
+| `execute_context` | no        | `painless_test`        | The context the script should be executed in.
 |======
 
 ==== Contexts
@@ -77,7 +77,7 @@ POST /_scripts/painless/_execute
     "params": {
       "max_length": 4
     }
-    "context": {
+    "execute_context": {
       "index": "my-index",
       "document": {
         "field": "four"
@@ -121,7 +121,7 @@ POST /_scripts/painless/_execute
     "params": {
       "max_rank": 4
     }
-    "context": {
+    "execute_context": {
       "index": "my-index",
       "document": {
         "rank": 4

@@ -19,6 +19,11 @@ This query allows a script to act as a filter.  Also see the
 This query finds queries that are stored as documents that match with
 the specified document.
 
+<<query-dsl-feature-query,`feature` query>>::
+
+A query that computes scores based on the values of numeric features and is
+able to efficiently skip non-competitive hits.
+
 <<query-dsl-wrapper-query,`wrapper` query>>::
 
 A query that accepts other queries as json or yaml string.
@@ -28,5 +33,7 @@ include::mlt-query.asciidoc[]
 include::script-query.asciidoc[]
 
 include::percolate-query.asciidoc[]
+
+include::feature-query.asciidoc[]
 
 include::wrapper-query.asciidoc[]

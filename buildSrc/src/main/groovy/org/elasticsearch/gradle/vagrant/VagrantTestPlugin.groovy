@@ -11,6 +11,7 @@ import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
+import org.gradle.api.tasks.StopExecutionException
 import org.gradle.api.tasks.TaskState
 
 import static java.util.Collections.unmodifiableList
@@ -52,6 +53,8 @@ class VagrantTestPlugin implements Plugin<Project> {
     static final List<String> DISTRIBUTIONS = unmodifiableList([
             'archives:tar',
             'archives:oss-tar',
+            'archives:zip',
+            'archives:oss-zip',
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
@@ -242,13 +245,27 @@ class VagrantTestPlugin implements Plugin<Project> {
         Task createLinuxRunnerScript = project.tasks.create('createLinuxRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
             file "${testsDir}/run-tests.sh"
-            contents "java -cp \"\$PACKAGING_TESTS/*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
+            contents """\
+                     if [ "\$#" -eq 0 ]; then
+                       test_args=( "${-> project.extensions.esvagrant.testClass}" )
+                     else
+                       test_args=( "\$@" )
+                     fi
+                     java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
+                     """
         }
         Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
             file "${testsDir}/run-tests.ps1"
+            // the use of $args rather than param() here is deliberate because the syntax for array (multivalued) parameters is likely
+            // a little trappy for those unfamiliar with powershell
             contents """\
-                     java -cp "\$Env:PACKAGING_TESTS/*" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}
+                     if (\$args.Count -eq 0) {
+                       \$testArgs = @("${-> project.extensions.esvagrant.testClass}")
+                     } else {
+                       \$testArgs = \$args
+                     }
+                     java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
         }
@@ -269,8 +286,10 @@ class VagrantTestPlugin implements Plugin<Project> {
             dependsOn copyPackagingArchives
             doFirst {
                 project.delete("${archivesDir}/upgrade_is_oss")
+                if (project.extensions.esvagrant.upgradeFromVersion.before('6.3.0')) {
+                    throw new StopExecutionException("upgrade version is before 6.3.0")
+                }
             }
-            onlyIf { project.extensions.esvagrant.upgradeFromVersion.onOrAfter('6.3.0') }
             file "${archivesDir}/upgrade_is_oss"
             contents ''
         }
@@ -525,9 +544,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
             if (LINUX_BOXES.contains(box)) {
                 javaPackagingTest.command = 'ssh'
-                javaPackagingTest.args = ['--command', 'bash "$PACKAGING_TESTS/run-tests.sh"']
+                javaPackagingTest.args = ['--command', 'sudo bash "$PACKAGING_TESTS/run-tests.sh"']
             } else {
                 javaPackagingTest.command = 'winrm'
+                // winrm commands run as administrator
                 javaPackagingTest.args = ['--command', 'powershell -File "$Env:PACKAGING_TESTS/run-tests.ps1"']
             }
 

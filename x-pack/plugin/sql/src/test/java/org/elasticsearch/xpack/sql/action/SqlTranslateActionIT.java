@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
@@ -35,7 +36,9 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         FetchSourceContext fetch = source.fetchSource();
         assertEquals(true, fetch.fetchSource());
         assertArrayEquals(new String[] { "data" }, fetch.includes());
-        assertEquals(singletonList("count"), source.docValueFields());
+        assertEquals(
+                singletonList(new DocValueFieldsContext.FieldAndFormat("count", DocValueFieldsContext.USE_DEFAULT_FORMAT)),
+                source.docValueFields());
         assertEquals(singletonList(SortBuilders.fieldSort("count")), source.sorts());
     }
 }

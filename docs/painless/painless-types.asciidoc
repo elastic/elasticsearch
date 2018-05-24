@@ -112,10 +112,9 @@ multiple pieces of data (member fields) and logic to manipulate that data
 (API) for scripts.
 
 A reference type instance is a single set of data for one reference type
-object allocated to the heap. Use the
-<<new-instance, new instance operator>> to allocate a reference type instance.
-Use a reference type instance to load from, store to, and manipulate complex
-data.
+object allocated to the heap. Use the <<new-instance, new instance operator>> to
+allocate a reference type instance. Use a reference type instance to load from,
+store to, and manipulate complex data.
 
 A reference type value refers to a reference type instance, and multiple
 reference type values may refer to the same reference type instance. A change to

@@ -49,18 +49,26 @@ As an administrator, you will need to define the roles that you want to use,
 then assign users to the roles. These can be assigned to users in a number of
 ways depending on the realms by which the users are authenticated.
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/built-in-roles.asciidoc
 include::built-in-roles.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/managing-roles.asciidoc
 include::managing-roles.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/privileges.asciidoc
 include::privileges.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/alias-privileges.asciidoc
 include::alias-privileges.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/mapping-roles.asciidoc
 include::mapping-roles.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/field-and-document-access-control.asciidoc
 include::field-and-document-access-control.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/run-as-privilege.asciidoc
 include::run-as-privilege.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authorization/custom-roles-provider.asciidoc
 include::custom-roles-provider.asciidoc[]

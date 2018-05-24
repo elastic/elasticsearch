@@ -102,10 +102,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Return true if the given bucket exists
+     * Return true iff the given bucket exists
      *
      * @param bucketName name of the bucket
-     * @return true if the bucket exists, false otherwise
+     * @return true iff the bucket exists
      */
     boolean doesBucketExist(String bucketName) {
         try {
@@ -117,7 +117,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * List blobs in the bucket under the specified path. The path root is removed.
+     * List blobs in the specific bucket under the specified path. The path root is removed.
      *
      * @param path base path of the blobs to list
      * @return a map of blob names and their metadata
@@ -127,7 +127,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * List all blobs in the bucket which have a prefix
+     * List all blobs in the specific bucket with names prefixed
      *
      * @param path
      *            base path of the blobs to list. This path is removed from the
@@ -149,10 +149,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Returns true if the blob exists in the bucket
+     * Returns true if the blob exists in the specific bucket
      *
      * @param blobName name of the blob
-     * @return true if the blob exists, false otherwise
+     * @return true iff the blob exists
      */
     boolean blobExists(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);
@@ -164,7 +164,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * Returns an {@link java.io.InputStream} for the given blob name
      *
      * @param blobName name of the blob
-     * @return an InputStream
+     * @return the InputStream used to read blob's content
      */
     InputStream readBlob(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);
@@ -193,7 +193,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Writes a blob in the bucket.
+     * Writes a blob in the specific bucket
      *
      * @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
@@ -270,7 +270,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Deletes the blob from the bucket
+     * Deletes the blob from the specific bucket
      *
      * @param blobName name of the blob
      */
@@ -283,7 +283,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Deletes multiple blobs from the bucket all of which have names prefixed
+     * Deletes multiple blobs from the specific bucket all of which have prefixed names
      *
      * @param prefix prefix of the blobs to delete
      */
@@ -292,7 +292,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Deletes multiple blobs from the given bucket using a batch request
+     * Deletes multiple blobs from the specific bucket using a batch request
      *
      * @param blobNames names of the blobs to delete
      */
@@ -321,7 +321,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * Moves a blob within the same bucket
+     * Moves a blob within the specific bucket
      *
      * @param sourceBlobName name of the blob to move
      * @param targetBlobName new name of the blob in the same bucket

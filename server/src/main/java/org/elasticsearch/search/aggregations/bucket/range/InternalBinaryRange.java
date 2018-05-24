@@ -74,7 +74,7 @@ public final class InternalBinaryRange
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)
+            String key = in.getVersion().onOrAfter(Version.V_6_4_0)
                 ? in.readString()
                 : in.readOptionalString();
 
@@ -88,7 +88,7 @@ public final class InternalBinaryRange
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 out.writeString(key);
             } else {
                 out.writeOptionalString(key);

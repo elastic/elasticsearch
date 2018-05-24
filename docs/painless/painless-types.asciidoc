@@ -83,11 +83,11 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign `int 1` to `i`
+    store `int 1` to `i`
 <2> declare `double d`;
-    assign default `double 0.0` to `d`
+    store default `double 0.0` to `d`
 <3> declare `boolean b`;
-    assign `boolean true` to `b`
+    store `boolean true` to `b`
 +
 * Method call on a primitive type using the corresponding reference type.
 +
@@ -98,8 +98,8 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign `int 1` to `i`
-<2> access `i` -> `int 1`;
+    store `int 1` to `i`
+<2> load from `i` -> `int 1`;
     box `int 1` -> `Integer 1 reference`;
     call `toString` on `Integer 1 reference` -> `String '1'`
 
@@ -197,16 +197,16 @@ relationships.
 <1> declare `List l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
-    assign `List reference` to `l`
-<2> access `l` -> `List reference`;
+    store `List reference` to `l`
+<2> load from `l` -> `List reference`;
     implicit cast `int 1` to `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
 <3> declare `int i`;
-    access `l` -> `List reference`;
+    load from `l` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
     add `int 1` and `int 2` -> `int 3`;
-    assign `int 3` to `i`
+    store `int 3` to `i`
 +
 * Sharing a reference type instance.
 +
@@ -222,26 +222,26 @@ relationships.
 <1> declare `List l0`;
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
-    assign `List reference` to `l0`
+    store `List reference` to `l0`
 <2> declare `List l1`;
-    access `l0` -> `List reference`;
-    assign `List reference` to `l1`
+    load from `l0` -> `List reference`;
+    store `List reference` to `l1`
     (note `l0` and `l1` refer to the same instance known as a shallow-copy)
-<3> access `l0` -> `List reference`;
+<3> load from `l0` -> `List reference`;
     implicit cast `int 1` to `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
-<4> access `l1` -> `List reference`;
+<4> load from `l1` -> `List reference`;
     implicit cast `int 2` to `def` -> `def`
     call `add` on `List reference` with arguments (`def`)
 <5> declare `int i`;
-    access `l0` -> `List reference`;
+    load from `l0` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def @0`;
     implicit cast `def @0` to `int 1` -> `int 1`;
-    access `l1` -> `List reference`;
+    load from `l1` -> `List reference`;
     call `get` on `List reference` with arguments (`int 1`) -> `def @1`;
     implicit cast `def @1` to `int 2` -> `int 2`;
     add `int 1` and `int 2` -> `int 3`;
-    assign `int 3` to `i`;
+    store `int 3` to `i`;
 +
 * Using the static members of a reference type.
 +
@@ -252,11 +252,11 @@ relationships.
 ----
 +
 <1> declare `int i`;
-    access `MAX_VALUE` on `Integer` -> `int 2147483647`;
-    assign `int 2147483647` to `i`
+    load from `MAX_VALUE` on `Integer` -> `int 2147483647`;
+    store `int 2147483647` to `i`
 <2> declare `long l`;
     call `parseLong` on `Long` with arguments (`long 123`) -> `long 123`;
-    assign `long 123` to `l`
+    store `long 123` to `l`
 
 [[dynamic-types]]
 ==== Dynamic Types
@@ -295,13 +295,13 @@ types and reference types directly when performance is critical.
 +
 <1> declare `def dp`;
     implicit cast `int 1` to `def` -> `def`;
-    assign `def` to `dp`
+    store `def` to `dp`
 <2> declare `def dr`;
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `def` -> `def`;
-    assign `def` to `dr`
-<3> access `dp` -> `def`;
-    assign `def` to `dr`;
+    store `def` to `dr`
+<3> load from `dp` -> `def`;
+    store `def` to `dr`;
     (note the switch in the type `dr` represents from `ArrayList` to `int`)
 +
 * A `def` type value representing the child-most descendant of a value.
@@ -317,12 +317,12 @@ types and reference types directly when performance is critical.
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `Object reference`
             -> `Object reference`;
-    assign `Object reference` to `l`
+    store `Object reference` to `l`
 <2> declare `def d`;
-    access `l` -> `Object reference`;
+    load from `l` -> `Object reference`;
     implicit cast `Object reference` to `def` -> `def`;
-    assign `def` to `d`;
-<3> access `d` -> `def`;
+    store `def` to `d`;
+<3> load from `d` -> `def`;
     implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
     call `ensureCapacity` on `ArrayList reference` with arguments (`int 10`);
     (note `def` was implicit cast to `ArrayList reference`
@@ -350,15 +350,15 @@ explicit allocation. Use a <<strings, string literal>> to directly evaluate a
 ----
 +
 <1> declare `String r`;
-    assign `String "some text"` to `r`
+    store `String "some text"` to `r`
 <2> declare `String s`;
-    assign `String 'some text'` to `s`
+    store `String 'some text'` to `s`
 <3> declare `String t`;
     allocate `String` instance with arguments (`String "some text"`)
             -> `String "some text"`;
-    assign `String "some text"` to `t`
+    store `String "some text"` to `t`
 <4> declare `String u`;
-    assign default `null` to `u`
+    store default `null` to `u`
 
 [[void-type]]
 ==== void Type
@@ -426,24 +426,24 @@ the array type `int[][]`.
 ----
 +
 <1> declare `int[] x`;
-    assign default `null` to `x`
+    store default `null` to `x`
 <2> declare `float[] y`;
     allocate `1-d float array` instance with `length [10]`
             -> `1-d float array reference`;
-    assign `1-d float array reference` to `y`
+    store `1-d float array reference` to `y`
 <3> declare `def z`;
     allocate `1-d float array` instance with `length [5]`
             -> `1-d float array reference`;
     implicit cast `1-d float array reference` to `def` -> `def`;
-    assign `def` to `z`
-<4> access `y` -> `1-d float array reference`;
-    assign `float 1.0` to `index [9]` of `1-d float array reference`
-<5> access `y` -> `1-d float array reference @0`;
-    access `index [9]` of `1-d float array reference @0` -> `float 1.0`;
-    access `z` -> `def`;
+    store `def` to `z`
+<4> load from `y` -> `1-d float array reference`;
+    store `float 1.0` to `index [9]` of `1-d float array reference`
+<5> load from `y` -> `1-d float array reference @0`;
+    load from `index [9]` of `1-d float array reference @0` -> `float 1.0`;
+    load from `z` -> `def`;
     implicit cast `def` to `1-d float array reference @1`
             -> `1-d float array reference @1`;
-    assign `float 1.0` to `index [0]` of `1-d float array reference @1`
+    store `float 1.0` to `index [0]` of `1-d float array reference @1`
 +
 * Use of a multi-dimensional array.
 +
@@ -457,10 +457,10 @@ the array type `int[][]`.
 <1> declare `int[][][] ia`;
     allocate `3-d int array` instance with length `[2, 3, 4]`
             -> `3-d int array reference`;
-    assign `3-d int array reference` to `ia3`
-<2> access `ia3` -> `3-d int array reference`;
-    assign `int 99` to `index [1, 2, 3]` of `3-d int array reference`
+    store `3-d int array reference` to `ia3`
+<2> load from `ia3` -> `3-d int array reference`;
+    store `int 99` to `index [1, 2, 3]` of `3-d int array reference`
 <3> declare `int i`;
-    access `ia3` -> `3-d int array reference`;
-    access `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
-    assign `int 99` to `i`
+    load from `ia3` -> `3-d int array reference`;
+    load from `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
+    store `int 99` to `i`

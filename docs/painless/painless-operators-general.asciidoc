@@ -4,23 +4,34 @@
 [[precedence]]
 ==== Precedence
 
-Use the *precedence operator* to guarantee the order of evaluation and override
-existing precedence relationships between operators.
+Use the *precedence operator* to guarantee the order of evaluation for an
+expression and override existing precedence relationships between operators.
 
-*Grammar:*
+*Grammar*
 [source,ANTLR4]
 ----
 precedence: '(' expression ')';
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Use of the precedence operator.
++
+[source,Painless]
 ----
-int x = (5+4)*6; // declares the variable int x and sets it to (5+4)*6
-                 // where 5+4 is evaluated first due to the precedence operator
-int y = 2*(x-4); // declares the variable int y and sets it to 2*(x-4)
-                 // where x-4 is evaluated first due to the precedence operator
+<1> int x = (5+4)*6;
+<2> int y = 12/(x-50);
 ----
++
+<1> declare `int x`;
+    add `int 5` and `int 4` -> `int 9`;
+    multiply `int 9` and `int 6` -> `int 54`;
+    assign `int 54` to `x`;
+    (note the add is evaluated before the multiply due to the *precedence
+            operator*)
+<2> declare `int y`;
+    load `x`
+
 
 [[function-call]]
 ==== Function Call

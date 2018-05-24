@@ -34,15 +34,15 @@ cast: '(' TYPE ')' expression
 +
 <1> declare `int i`;
     explicit cast `long 5` to `int 5` -> `int 5`;
-    assign `int 5` to `i`
+    store `int 5` to `i`
 <2> declare `Map m`;
     allocate `HashMap` instance -> `HashMap reference`;
     implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
-    assign `Map reference` to `m`
+    store `Map reference` to `m`
 <3> declare `HashMap hm`;
-    access `m` -> `Map reference`;
+    load from `m` -> `Map reference`;
     explicit cast `Map reference` to `HashMap reference` -> `HashMap reference`;
-    assign `HashMap reference` to `hm`
+    store `HashMap reference` to `hm`
 
 [[numeric-type-casting]]
 ==== Numeric Type Casting
@@ -81,19 +81,19 @@ following table:
 ----
 +
 <1> declare `int a`;
-    assign `int 1` to `a`
+    store `int 1` to `a`
 <2> declare `long b`;
-    access `a` -> `int 1`;
+    load from `a` -> `int 1`;
     implicit cast `int 1` to `long 1` -> `long 1`;
-    assign `long 1` to `b`
+    store `long 1` to `b`
 <3> declare `short c`;
-    access `b` -> `long 1`;
+    load from `b` -> `long 1`;
     explicit cast `long 1` to `short 1` -> `short 1`;
-    assign `short 1` value to `c`
+    store `short 1` value to `c`
 <4> declare `double e`;
-    access `a` -> `int 1`;
+    load from `a` -> `int 1`;
     explicit cast `int 1` to `double 1.0`;
-    assign `double 1.0` to `e`;
+    store `double 1.0` to `e`;
     (note the explicit cast is extraneous since an implicit cast is valid)
 +
 * Invalid numeric type casts resulting in errors.
@@ -109,9 +109,9 @@ following table:
     *error* -> cannot implicit cast `double 1.0` to `int 1`;
     (note an explicit cast is valid)
 <2> declare `int b`;
-    assign `int 2` to `b`
+    store `int 2` to `b`
 <3> declare byte `c`;
-    access `b` -> `int 2`;
+    load from `b` -> `int 2`;
     *error* -> cannot implicit cast `int 2` to `byte 2`;
     (note an explicit cast is valid)
 
@@ -139,21 +139,21 @@ or the target type is a descendant of the original type.
 ----
 +
 <1> declare `List x`;
-    assign default value `null` to `x`
+    store default value `null` to `x`
 <2> declare `ArrayList y`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    assign `ArrayList reference` to `y`;
-<3> access `y` -> `ArrayList reference`;
+    store `ArrayList reference` to `y`;
+<3> load from `y` -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
-    assign `List reference` to `x`;
+    store `List reference` to `x`;
     (note `ArrayList` is a descendant of `List`)
-<4> access `x` -> `List reference`;
+<4> load from `x` -> `List reference`;
     explicit cast `List reference` to `ArrayList reference`
             -> `ArrayList reference`;
-    assign `ArrayList reference` to `y`;
-<5> access `y` -> `ArrayList reference`;
+    store `ArrayList reference` to `y`;
+<5> load from `y` -> `ArrayList reference`;
     explicit cast `ArrayList reference` to `List reference` -> `List reference`;
-    assign `List reference` to `x`;
+    store `List reference` to `x`;
     (note the explicit cast is extraneous, and an implicit cast is valid)
 +
 * Invalid reference type casts resulting in errors.
@@ -168,13 +168,13 @@ or the target type is a descendant of the original type.
 <1> declare `List x`;
     allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
-    assign `List reference` to `x`
+    store `List reference` to `x`
 <2> declare `ArrayList y`;
-    access `x` -> `List reference`;
+    load from `x` -> `List reference`;
     *error* -> cannot implicit cast `List reference` to `ArrayList reference`;
     (note an explicit cast is valid since `ArrayList` is a descendant of `List`)
 <3> declare `ArrayList y`;
-    access `x` -> `List reference`;
+    load from `x` -> `List reference`;
     *error* -> cannot explicit cast `List reference` to `Map reference`;
     (note no cast would be valid since neither `List` nor `Map` is a descendant
             of the other)
@@ -209,24 +209,24 @@ based on the current type value the `def` type value represents.
 +
 <1> declare `def d0`;
     implicit cast `int 3` to `def`;
-    assign `int 3` to `d0`
+    store `int 3` to `d0`
 <2> allocate `ArrayList` instance -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `def` -> `def`;
-    assign `def` to `d0`
+    store `def` to `d0`
 <3> declare `Object o`;
     allocate `HashMap` instance -> `HashMap reference`;
     implicit cast `HashMap reference` to `Object reference`
             -> `Object reference`;
-    assign `Object reference` to `o`
+    store `Object reference` to `o`
 <4> declare `def d1`;
-    access `o` -> `Object reference`;
+    load from `o` -> `Object reference`;
     implicit cast `Object reference` to `def` -> `def`;
-    assign `def` to `d1`
+    store `def` to `d1`
 <5> declare `int i`;
-    access `d1` -> `def`;
+    load from `d1` -> `def`;
     implicit cast `def` to `HashMap reference` -> HashMap reference`;
     call `size` on `HashMap reference` -> `int 0`;
-    assign `int 0` to `i`;
+    store `int 0` to `i`;
     (note `def` was implicit cast to `HashMap reference` since `HashMap` is the
             child-most descendant type value that the `def` type value
             represents)
@@ -245,29 +245,29 @@ based on the current type value the `def` type value represents.
 +
 <1> declare `def d`;
     implicit cast `double 1.0` to `def` -> `def`;
-    assign `def` to `d`
+    store `def` to `d`
 <2> declare `int i`;
-    access `d` -> `def`;
+    load from `d` -> `def`;
     implicit cast `def` to `double 1.0` -> `double 1.0`;
     explicit cast `double 1.0` to `int 1` -> `int 1`;
-    assign `int 1` to `i`;
+    store `int 1` to `i`;
     (note the explicit cast is necessary since a `double` value cannot be
      converted to an `int` value implicitly)
-<3> assign `int 1` to `d`;
+<3> store `int 1` to `d`;
     (note the switch in the type `d` represents from `double` to `int`)
 <4> declare `float i`;
-    access `d` -> `def`;
+    load from `d` -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
     implicit cast `int 1` to `float 1.0` -> `float 1.0`;
-    assign `float 1.0` to `f`
+    store `float 1.0` to `f`
 <5> allocate `ArrayList` instance -> `ArrayList reference`;
-    assign `ArrayList reference` to `d`;
+    store `ArrayList reference` to `d`;
     (note the switch in the type `d` represents from `int` to `ArrayList`)
 <6> declare `List l`;
-    access `d` -> `def`;
+    load from `d` -> `def`;
     implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
-    assign `List reference` to `l`
+    store `List reference` to `l`
 +
 * Invalid dynamic type casts resulting in errors.
 +
@@ -280,17 +280,17 @@ based on the current type value the `def` type value represents.
 ----
 <1> declare `def d`;
     implicit cast `int 1` to `def` -> `def`;
-    assign `def` to `d`
+    store `def` to `d`
 <2> declare `short s`;
-    access `d` -> `def`;
+    load from `d` -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
     *error* -> cannot implicit cast `int 1` to `short 1`;
     (note an explicit cast is valid)
 <3> allocate `HashMap` instance -> `HashMap reference`;
     implicit cast `HashMap reference` to `def` -> `def`;
-    assign `def` to `d`
+    store `def` to `d`
 <4> declare `List l`;
-    access `d` -> `def`;
+    load from `d` -> `def`;
     implicit cast `def` to `HashMap reference`;
     *error* -> cannot implicit cast `HashMap reference` to `List reference`;
     (note no cast would be valid since neither `HashMap` nor `List` is a
@@ -319,9 +319,9 @@ Use the *cast operator* to convert a <<string-type, `String` type>> value into a
 +
 <1> declare `char c`;
     explicit cast `String "C"` to `char C` -> `char C`;
-    assign `char C` to `c`
+    store `char C` to `c`
 <2> explicit cast `String 'c'` to `char c` -> `char c`;
-    assign `char c` to `c`
+    store `char c` to `c`
 +
 * Casting a `String` reference into a `char` value.
 +
@@ -331,11 +331,11 @@ Use the *cast operator* to convert a <<string-type, `String` type>> value into a
 <2> char c = (char)s;
 ----
 <1> declare `String s`;
-    assign `String "s"` to `s`;
+    store `String "s"` to `s`;
 <2> declare `char c`
-    access `s` -> `String "s"`;
+    load from `s` -> `String "s"`;
     explicit cast `String "s"` to `char s` -> `char s`;
-    assign `char s` to `c`
+    store `char s` to `c`
 
 [[boxing-unboxing]]
 ==== Boxing and Unboxing
@@ -375,22 +375,22 @@ value and vice versa.
 +
 <1> declare `List l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    assign `ArrayList reference` to `l`;
-<2> access `l` -> `List reference`;
+    store `ArrayList reference` to `l`;
+<2> load from `l` -> `List reference`;
     implicit cast `int 1` to `def` -> `def`;
     call `add` on `List reference` with arguments (`def`);
     (note internally `int 1` is boxed to `Integer 1` to store as a `def` type
             value)
 <3> declare `Integer I`;
     call `valueOf` on `Integer` with arguments of (`int 0`) -> `Integer 0`;
-    assign `Integer 0` to `I`;
+    store `Integer 0` to `I`;
 <4> declare `int i`;
-    access `I` -> `Integer 0`;
+    load from `I` -> `Integer 0`;
     unbox `Integer 0` -> `int 0`;
-    access `l` -> `List reference`;
+    load from `l` -> `List reference`;
     call `get` on `List reference` with arguments (`int 0`) -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
-    assign `int 1` to `i`;
+    store `int 1` to `i`;
     (note internally `int 1` is unboxed from `Integer 1` when loaded from a
             `def` type value)
 +
@@ -444,44 +444,45 @@ type value is derived from what the `def` type value represents at run-time.
     promote `int 2` and `double 2.0 @0` -> `double 2.0 @0`;
     implicit cast `int 2` to `double 2.0 @1` -> `double 2.0 @1`;
     add `double 2.0 @1` and `double 2.0 @0` -> `double 4.0`;
-    assign `double 4.0` to `d`
+    store `double 4.0` to `d`
 <2> declare `def x`;
     implicit cast `int 1` to `def` -> `def`;
-    assign `def` to `x`;
+    store `def` to `x`;
 <3> declare `float f`;
-    access `x` -> `def`;
+    load from `x` -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
     promote `int 1` and `float 2.0` -> `float 2.0`;
     implicit cast `int 1` to `float 1.0` -> `float `1.0`;
     add `float 1.0` and `float 2.0` -> `float 3.0`;
-    assign `float 3.0` to `f`;
+    store `float 3.0` to `f`;
     (note this example illustrates promotion done at run-time as promotion
             done at compile-time would have resolved to a `def` type value)
 
 [[allowed-casts]]
 ==== Allowed Casts
 
-The following table lists all allowed casts (with implicit as I, explicit as
-E, and not allowed as -):
+The following table lists all allowed casts read as row (original type) to
+column (target type) with implicit as `I`, explicit as `E`, and not allowed as
+`-`:
 
 [cols="<3,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1"]
 |====
 |                  | b | s | c | i | j | f | d | B | S | C | I | L | F | D | T | R | def
-| byte      (b)    |   | I | I | I | I | I | I | - | - | - | - | - | - | - | - | - | I
-| short     (s)    | E |   | E | I | I | I | I | - | - | - | - | - | - | - | - | - | I
-| char      (c)    | E | E |   | I | I | I | I | - | - | - | - | - | - | - | E | - | I
-| int       (i)    | E | E | E |   | I | I | I | - | - | - | - | - | - | - | - | - | I
-| long      (j)    | E | E | E | E |   | I | I | - | - | - | - | - | - | - | - | - | I
-| float     (f)    | E | E | E | E | E |   | I | - | - | - | - | - | - | - | - | - | I
-| double    (d)    | E | E | E | E | E | E |   | - | - | - | - | - | - | - | - | - | I
-| Byte      (B)    | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | - | I
-| Short     (S)    | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | I
-| Character (C)    | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | I
-| Integer   (I)    | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | I
-| Long      (L)    | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | I
-| Float     (F)    | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | I
-| Double    (D)    | - | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | I
-| String    (T)    | - | - | E | - | - | - | - | - | - | - | - | - | - | - |   | - | I
+| byte      ( b )  |   | I | I | I | I | I | I | - | - | - | - | - | - | - | - | - | I
+| short     ( s )  | E |   | E | I | I | I | I | - | - | - | - | - | - | - | - | - | I
+| char      ( c )  | E | E |   | I | I | I | I | - | - | - | - | - | - | - | E | - | I
+| int       ( i )  | E | E | E |   | I | I | I | - | - | - | - | - | - | - | - | - | I
+| long      ( j )  | E | E | E | E |   | I | I | - | - | - | - | - | - | - | - | - | I
+| float     ( f )  | E | E | E | E | E |   | I | - | - | - | - | - | - | - | - | - | I
+| double    ( d )  | E | E | E | E | E | E |   | - | - | - | - | - | - | - | - | - | I
+| Byte      ( B )  | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | - | I
+| Short     ( S )  | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | I
+| Character ( C )  | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | I
+| Integer   ( I )  | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | I
+| Long      ( L )  | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | I
+| Float     ( F )  | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | I
+| Double    ( D )  | - | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | I
+| String    ( T )  | - | - | E | - | - | - | - | - | - | - | - | - | - | - |   | - | I
 | Reference ( R )  | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | @ | I
 | def as byte      | I | I | I | I | I | I | I | I | I | I | I | I | I | I | - | - |
 | def as short     | E | I | E | I | I | I | I | E | I | E | I | I | I | I | - | - |

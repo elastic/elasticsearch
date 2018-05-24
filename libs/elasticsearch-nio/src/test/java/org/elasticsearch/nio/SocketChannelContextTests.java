@@ -125,7 +125,7 @@ public class SocketChannelContextTests extends ESTestCase {
             if (t == null) {
                 throw new AssertionError("Connection should not succeed");
             } else {
-                exception.set((Exception) t);
+                exception.set(t);
             }
         });
 

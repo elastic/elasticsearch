@@ -19,11 +19,12 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.nio.utils.CompletableContext;
+
 import java.io.IOException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -37,7 +38,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
 
     protected final S rawChannel;
     private final Consumer<Exception> exceptionHandler;
-    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
+    private final CompletableContext<Void> closeContext = new CompletableContext<>();
     private volatile SelectionKey selectionKey;
 
     ChannelContext(S rawChannel, Consumer<Exception> exceptionHandler) {
@@ -82,7 +83,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
      * @param listener to be called
      */
     public void addCloseListener(BiConsumer<Void, Throwable> listener) {
-        closeContext.whenComplete(listener);
+        closeContext.addListener(listener);
     }
 
     public boolean isOpen() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.nio.utils.CompletableContext;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -27,7 +28,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -48,7 +48,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final ReadWriteHandler readWriteHandler;
     private final SocketSelector selector;
-    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
+    private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
     private boolean ioException;
     private boolean peerClosed;
@@ -74,7 +74,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     public void addConnectListener(BiConsumer<Void, Throwable> listener) {
-        connectContext.whenComplete(listener);
+        connectContext.addListener(listener);
     }
 
     public boolean isConnectComplete() {

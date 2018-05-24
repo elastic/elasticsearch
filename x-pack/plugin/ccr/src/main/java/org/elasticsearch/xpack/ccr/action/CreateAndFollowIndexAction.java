@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -251,19 +253,20 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     }
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                    IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndexMetaData);
+                    IndexMetaData.Builder imdBuilder = IndexMetaData.builder(request.getFollowRequest().getFollowIndex());
     
+                    // Copy all settings, but overwrite a few settings.
                     Settings.Builder settingsBuilder = Settings.builder();
                     settingsBuilder.put(leaderIndexMetaData.getSettings());
                     // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
                     settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                     settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowIndex());
                     settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-    
                     imdBuilder.settings(settingsBuilder);
-                    imdBuilder.index(request.getFollowRequest().getFollowIndex());
-                    for (int shardId = 0 ; shardId < leaderIndexMetaData.getNumberOfShards(); shardId++) {
-                        imdBuilder.putInSyncAllocationIds(shardId, new HashSet<>());
+    
+                    // Copy mappings from leader IMD to follow IMD
+                    for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
+                        imdBuilder.putMapping(cursor.value);
                     }
                     mdBuilder.put(imdBuilder.build(), false);
 

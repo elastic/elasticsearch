@@ -198,7 +198,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         final Environment env = TestEnvironment.newEnvironment(settings);
         final RealmConfig realmConfig = new RealmConfig(getTestName(), Settings.EMPTY, settings, env, threadContext);
-        final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm("test", realmConfig) {
+        final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm("test", realmConfig, threadPool) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
                 listener.onResponse(AuthenticationResult.notHandled());

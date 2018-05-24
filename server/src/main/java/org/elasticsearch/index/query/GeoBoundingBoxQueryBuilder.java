@@ -515,7 +515,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
         if (envelope != null) {
-            if ((Double.isNaN(top) && Double.isNaN(bottom) && Double.isNaN(left) && Double.isNaN(right)) == false) {
+            if (Double.isNaN(top) == false || Double.isNaN(bottom) == false || Double.isNaN(left) == false ||
+                Double.isNaN(right) == false) {
                 throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
                     + "using well-known text and explicit corners.");
             }

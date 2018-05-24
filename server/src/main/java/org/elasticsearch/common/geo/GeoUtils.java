@@ -388,7 +388,7 @@ public class GeoUtils {
     }
 
     /**
-     * Represents the point of the geohash cell that should be used as the value of geohas
+     * Represents the point of the geohash cell that should be used as the value of geohash
      */
     public enum EffectivePoint {
         TOP_LEFT,
@@ -397,6 +397,10 @@ public class GeoUtils {
         BOTTOM_RIGHT
     }
 
+    /**
+     * Parse a geopoint represented as an object, string or an array. If the geopoint is represented as a geohash,
+     * the left bottom corner of the geohash cell is used as the geopoint coordinates.GeoBoundingBoxQueryBuilder.java
+     */
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue)
             throws IOException, ElasticsearchParseException {
         return parseGeoPoint(parser, point, ignoreZValue, EffectivePoint.BOTTOM_LEFT);

@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.getClusterIndexHealth;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NativeRealmTests extends ESTestCase {
 
@@ -26,12 +28,15 @@ public class NativeRealmTests extends ESTestCase {
     }
 
     public void testCacheClearOnIndexHealthChange() {
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         int expectedInvalidation = 0;
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         RealmConfig config = new RealmConfig("native", Settings.EMPTY, settings, TestEnvironment.newEnvironment(settings),
                 new ThreadContext(settings));
-        final NativeRealm nativeRealm = new NativeRealm(config, mock(NativeUsersStore.class)) {
+        final NativeRealm nativeRealm = new NativeRealm(config, mock(NativeUsersStore.class), threadPool) {
             @Override
             void clearCache() {
                 numInvalidation.incrementAndGet();

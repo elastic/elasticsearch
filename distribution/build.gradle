@@ -242,6 +242,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           if (it.relativePath.segments[-2] == 'bin') {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             it.mode = 0755
+          } else {
+            it.mode = 0644
           }
         }
         if (oss) {

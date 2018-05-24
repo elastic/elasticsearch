@@ -42,6 +42,6 @@ public class RestForceMergeActionTests extends ESTestCase {
             .withContent(new BytesArray(json), XContentType.JSON).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> handler.prepareRequest(request, mock(NodeClient.class)));
-        assertThat(e.getMessage(), equalTo("forcemerge takes arguments in http params, not as http body"));
+        assertThat(e.getMessage(), equalTo("forcemerge takes arguments in query parameters, not in the request body"));
     }
 }

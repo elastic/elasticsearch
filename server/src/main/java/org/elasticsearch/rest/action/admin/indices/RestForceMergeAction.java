@@ -48,7 +48,7 @@ public class RestForceMergeAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.hasContent()) {
-            throw new IllegalArgumentException("forcemerge takes arguments in http params, not as http body");
+            throw new IllegalArgumentException("forcemerge takes arguments in query parameters, not in the request body");
         }
         ForceMergeRequest mergeRequest = new ForceMergeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         mergeRequest.indicesOptions(IndicesOptions.fromRequest(request, mergeRequest.indicesOptions()));

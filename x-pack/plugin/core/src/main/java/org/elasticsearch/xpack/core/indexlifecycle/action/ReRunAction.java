@@ -28,7 +28,7 @@ import java.util.Objects;
 
 public class ReRunAction extends Action<ReRunAction.Request, ReRunAction.Response, ReRunAction.RequestBuilder> {
     public static final ReRunAction INSTANCE = new ReRunAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/_rerun/post";
+    public static final String NAME = "indices:admin/xpack/index_lifecycle/_rerun/post";
 
     protected ReRunAction() {
         super(NAME);

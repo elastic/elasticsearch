@@ -125,7 +125,7 @@ public class TransportNodesListGatewayStartedShards extends
                 final ShardStateMetaData shardStateMetaData = indexShard.getShardStateMetaData();
                 final String allocationId = shardStateMetaData.allocationId != null ?
                     shardStateMetaData.allocationId.getId() : null;
-                logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
+                logger.trace("{} shard state info found: [{}]", shardId, shardStateMetaData);
                 return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetaData.primary);
             }
 

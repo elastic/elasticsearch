@@ -101,7 +101,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"size\": 1"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -122,7 +122,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"use_size\": true"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -143,7 +143,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"use_size\": true"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));

@@ -449,6 +449,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         // index
         for (Map.Entry<String, CompletionInputMetaData> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
+            if (input.trim().isEmpty()) {
+                context.addIgnoredField(fieldType.name());
+                continue;
+            }
             // truncate input
             if (input.length() > maxInputLength) {
                 int len = Math.min(maxInputLength, input.length());

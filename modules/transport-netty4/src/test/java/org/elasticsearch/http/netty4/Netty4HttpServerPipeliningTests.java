@@ -32,13 +32,16 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -110,6 +113,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 assertThat(responseBodies, contains(requests.toArray()));
             }
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {HttpTransportSettings.SETTING_PIPELINING});
     }
 
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
@@ -152,6 +157,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 assertThat(slowIds, equalTo(ids));
             }
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {HttpTransportSettings.SETTING_PIPELINING});
     }
 
     class CustomNettyHttpServerTransport extends Netty4HttpServerTransport {

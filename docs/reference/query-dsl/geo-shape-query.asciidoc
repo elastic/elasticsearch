@@ -93,6 +93,7 @@ to 'shapes'.
 * `type` - Index type where the pre-indexed shape is.
 * `path` - The field specified as path containing the pre-indexed shape.
 Defaults to 'shape'.
+* `routing` - The routing of the shape document if required.
 
 The following is an example of using the Filter with a pre-indexed
 shape:

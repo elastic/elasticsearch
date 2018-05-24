@@ -375,7 +375,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     @Override
                     public void onAllNodesAcked(@Nullable Exception e) {
-                        listener.onResponse(new ClusterStateUpdateResponse(true));
+                        listener.onResponse(new ClusterStateUpdateResponse(e == null));
                     }
 
                     @Override

@@ -37,16 +37,16 @@ the current platform, put this [assumption](https://github.com/junit-team/junit4
 in your test method or in a `@Before` method
 
 ```java
-assumeThat(distribution.packaging.compatible, is(true));
+assumeTrue(distribution.packaging.compatible);
 ```
 
 Similarly if you write a test that is intended only for particular platforms,
 you can make an assumption using the constants and methods in [Platforms.java](src/main/java/org/elasticsearch/packaging/util/Platforms.java)
 
 ```java
-assumeThat("only run on windows", Platforms.WINDOWS, is(true));
+assumeTrue("only run on windows", Platforms.WINDOWS);
 
-assumeThat("only run if using systemd", Platforms.isSystemd(), is(true));
+assumeTrue("only run if using systemd", Platforms.isSystemd());
 ```
 
 ## Writing a test that covers multiple distributions

@@ -158,12 +158,12 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return builder;
         }
 
-        protected String generateKey(double from, double to, DocValueFormat formatter) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(Double.isInfinite(from) ? "*" : formatter.format(from));
-            sb.append("-");
-            sb.append(Double.isInfinite(to) ? "*" : formatter.format(to));
-            return sb.toString();
+        private static String generateKey(double from, double to, DocValueFormat formatter) {
+            StringBuilder builder = new StringBuilder()
+                .append(Double.isInfinite(from) ? "*" : formatter.format(from))
+                .append("-")
+                .append(Double.isInfinite(to) ? "*" : formatter.format(to));
+            return builder.toString();
         }
 
         @Override

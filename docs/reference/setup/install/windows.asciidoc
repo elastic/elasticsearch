@@ -79,13 +79,13 @@ part of the installation, with the option to configure a HTTPS proxy through whi
 [[msi-installer-selected-plugins]]
 image::images/msi_installer/msi_installer_selected_plugins.png[]
 
-Upon choosing to install X-Pack plugin, an additional step allows a choice of the type of X-Pack
-license to install, in addition to X-Pack Security configuration and built-in user configuration:
+Upon choosing to install {xpack} plugin, an additional step allows a choice of the type of {xpack}
+license to install, in addition to {security} configuration and built-in user configuration:
 
 [[msi-installer-xpack]]
 image::images/msi_installer/msi_installer_xpack.png[]
 
-NOTE: X-Pack includes a choice of a Trial or Basic license for 30 days. After that, you can obtain one of the
+NOTE: {xpack} includes a choice of a Trial or Basic license for 30 days. After that, you can obtain one of the
 https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security].
 The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
 
@@ -286,43 +286,43 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 
 `XPACKLICENSE`::
 
-  When installing X-Pack plugin, the type of license to install,
+  When installing {xpack} plugin, the type of license to install,
   either `Basic` or `Trial`. Defaults to `Basic`
 
 `XPACKSECURITYENABLED`::
 
-  When installing X-Pack plugin with a `Trial` license, whether X-Pack Security should be enabled.
+  When installing {xpack} plugin with a `Trial` license, whether {security} should be enabled.
   Defaults to `true`
 
 `BOOTSTRAPPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password to
+  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password to
   used to bootstrap the cluster and persisted as the `bootstrap.password` setting in the keystore.
   Defaults to a randomized value.
 
 `SKIPSETTINGPASSWORDS`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, whether the
+  When installing {xpack} plugin with a `Trial` license and {security} enabled, whether the
   installation should skip setting up the built-in users `elastic`, `kibana` and `logstash_system`.
   Defaults to `false`
 
 `ELASTICUSERPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
+  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password
   to use for the built-in user `elastic`. Defaults to `""`
 
 `KIBANAUSERPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
+  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password
   to use for the built-in user `kibana`. Defaults to `""`
 
 `LOGSTASHSYSTEMUSERPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
+  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password
   to use for the built-in user `logstash_system`. Defaults to `""`
 
 To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to
-the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[X-Pack]:
+the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[{xpack}]:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------

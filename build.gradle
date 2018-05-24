@@ -36,6 +36,16 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 
+plugins {
+    id 'com.gradle.build-scan' version '1.13.2'
+}
+if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
+    buildScan {
+        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+        termsOfServiceAgree = 'yes'
+    }
+}
+
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'

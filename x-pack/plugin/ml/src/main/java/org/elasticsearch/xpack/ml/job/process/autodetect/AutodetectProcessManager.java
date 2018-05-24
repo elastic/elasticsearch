@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
@@ -15,11 +16,12 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersiste
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -59,6 +62,7 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Date;
@@ -96,6 +100,10 @@ public class AutodetectProcessManager extends AbstractComponent {
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
 
+    // Undocumented setting for integration test purposes
+    public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
+            Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Property.NodeScope);
+
     private final Client client;
     private final Environment environment;
     private final ThreadPool threadPool;
@@ -107,7 +115,11 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
 
+    private NativeStorageProvider nativeStorageProvider;
     private final ConcurrentMap<Long, ProcessContext> processByAllocation = new ConcurrentHashMap<>();
+
+    // a map that manages the allocation of temporary space to jobs
+    private final ConcurrentMap<String, Path> nativeTmpStorage = new ConcurrentHashMap<>();
 
     private final int maxAllowedRunningJobs;
 
@@ -133,6 +145,15 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
+        this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
+    }
+
+    public void onNodeStartup() {
+        try {
+            nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
+        } catch (Exception e) {
+            logger.warn("Failed to cleanup native storage from previous invocation", e);
+        }
     }
 
     public synchronized void closeAllJobsOnThisNode(String reason) throws IOException {
@@ -252,16 +273,39 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     /**
+     * Request temporary storage to be used for the job
+     *
+     * @param jobTask The job task
+     * @param requestedSize requested size
+     * @return a Path to local storage or null if storage is not available
+     */
+    public Path tryGetTmpStorage(JobTask jobTask, ByteSizeValue requestedSize) {
+        String jobId = jobTask.getJobId();
+        Path path = nativeTmpStorage.get(jobId);
+        if (path == null) {
+            path = nativeStorageProvider.tryGetLocalTmpStorage(jobId, requestedSize);
+            if (path != null) {
+                nativeTmpStorage.put(jobId, path);
+            }
+        } else if (!nativeStorageProvider.localTmpStorageHasEnoughSpace(path, requestedSize)) {
+            // the previous tmp location ran out of disk space, do not allow further usage
+            return null;
+        }
+        return path;
+    }
+
+    /**
      * Do a forecast for the running job.
      *
      * @param jobTask   The job task
      * @param params    Forecast parameters
      */
     public void forecastJob(JobTask jobTask, ForecastParams params, Consumer<Exception> handler) {
-        logger.debug("Forecasting job {}", jobTask.getJobId());
+        String jobId = jobTask.getJobId();
+        logger.debug("Forecasting job {}", jobId);
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot forecast because job [%s] is not open", jobTask.getJobId());
+            String message = String.format(Locale.ROOT, "Cannot forecast because job [%s] is not open", jobId);
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -271,7 +315,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             if (e == null) {
                 handler.accept(null);
             } else {
-                String msg = String.format(Locale.ROOT, "[%s] exception while forecasting job", jobTask.getJobId());
+                String msg = String.format(Locale.ROOT, "[%s] exception while forecasting job", jobId);
                 logger.error(msg, e);
                 handler.accept(ExceptionsHelper.serverError(msg, e));
             }
@@ -477,6 +521,11 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
             }
             setJobState(jobTask, JobState.FAILED);
+            try {
+                removeTmpStorage(jobTask.getJobId());
+            } catch (IOException e) {
+                logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobTask.getJobId()), e);
+            }
         };
     }
 
@@ -534,6 +583,12 @@ public class AutodetectProcessManager extends AbstractComponent {
             // the job is closed is honoured, hold the lock throughout the close procedure so that another
             // thread that gets into this method blocks until the first thread has finished closing the job
             processContext.unlock();
+        }
+        // delete any tmp storage
+        try {
+            removeTmpStorage(jobId);
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}]Failed to delete temporary files", jobId), e);
         }
     }
 
@@ -611,6 +666,13 @@ public class AutodetectProcessManager extends AbstractComponent {
             return Optional.empty();
         }
         return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
+    }
+
+    private void removeTmpStorage(String jobId) throws IOException {
+        Path path = nativeTmpStorage.get(jobId);
+        if (path != null) {
+            nativeStorageProvider.cleanupLocalTmpStorage(path);
+        }
     }
 
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {

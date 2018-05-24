@@ -297,7 +297,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.executeListener(listener, null);
 
-        verify(eventHandler).listenerException(listener, exception);
+        verify(eventHandler).listenerException(exception);
     }
 
     public void testExecuteFailedListenerWillHandleException() throws Exception {
@@ -307,6 +307,6 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.executeFailedListener(listener, ioException);
 
-        verify(eventHandler).listenerException(listener, exception);
+        verify(eventHandler).listenerException(exception);
     }
 }

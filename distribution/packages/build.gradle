@@ -123,16 +123,27 @@ Closure commonPackageConfig(String type, boolean oss) {
       from(rootProject.projectDir) {
         include 'README.textile'
       }
+      into('lib') {
+        with copySpec {
+          with libFiles
+          // we need to specify every intermediate directory so we iterate through the parents; duplicate calls with the same part are fine
+          eachFile { FileCopyDetails fcp ->
+            String[] segments = fcp.relativePath.segments
+            for (int i = segments.length - 2; i > 0 && segments[i] != 'lib'; --i) {
+              System.out.println(segments[0..i])
+              directory('/' + segments[0..i].join('/'), 0755)
+            }
+          }
+        }
+      }
       into('modules') {
         with copySpec {
           with modulesFiles(oss)
-          // we need to specify every intermediate directory, but modules could have sub directories
-          // and there might not be any files as direct children of intermediates (eg platform)
-          // so we must iterate through the parents, but duplicate calls with the same path
-          // are ok (they don't show up in the built packages)
+          // we need to specify every intermediate directory so we iterate through the parents; duplicate calls with the same part are fine
           eachFile { FileCopyDetails fcp ->
             String[] segments = fcp.relativePath.segments
             for (int i = segments.length - 2; i > 0 && segments[i] != 'modules'; --i) {
+              System.out.println(segments[0..i])
               directory('/' + segments[0..i].join('/'), 0755)
             }
           }
@@ -241,8 +252,8 @@ ospackage {
     signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
-                         project.file(project.property('signing.secretKeyRingFile')) :
-                         new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+            project.file(project.property('signing.secretKeyRingFile')) :
+            new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
   }
 
   requires('coreutils')
@@ -253,7 +264,6 @@ ospackage {
   permissionGroup 'root'
 
   into '/usr/share/elasticsearch'
-  with libFiles
   with noticeFile
 }
 

@@ -237,10 +237,10 @@ public abstract class Engine implements Closeable {
     public abstract boolean isThrottled();
 
     /**
-     * Trims translog for terms below <code>belowTerm</code> and seq# above or equals <code>aboveOrEqSeqNo</code>
+     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
      * @see Translog#trimOperations(long, long)
      */
-    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveOrEqSeqNo) throws EngineException;
+    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
 
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {

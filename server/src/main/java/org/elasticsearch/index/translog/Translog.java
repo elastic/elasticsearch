@@ -697,11 +697,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Trims translog for terms of files below <code>belowTerm</code> and seq# above or equals to <code>aboveOrEqSeqNo</code>.
-     * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveOrEqSeqNo} therefore {@link TranslogSnapshot} skips those operations.
+     * Trims translog for terms of files below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>.
+     * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveSeqNo} therefore {@link TranslogSnapshot} skips those operations.
      */
-    public void trimOperations(long belowTerm, long aboveOrEqSeqNo) throws IOException {
-        assert aboveOrEqSeqNo >= 0 : "aboveOrEqSeqNo has to be non-negative number";
+    public void trimOperations(long belowTerm, long aboveSeqNo) throws IOException {
+        assert aboveSeqNo >= SequenceNumbers.NO_OPS_PERFORMED : "aboveSeqNo has to a valid sequence number";
 
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
@@ -710,14 +710,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     "Trim requested for term [ " + belowTerm + " ] , current is [ " + current.getPrimaryTerm() + " ]");
             }
             // we assume that the current translog generation doesn't have trimmable ops. Verify that.
-            assert current.assertNoSeqAbove(belowTerm, aboveOrEqSeqNo);
+            assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
                 for (TranslogReader reader : readers) {
                     final TranslogReader newReader =
                         reader.getPrimaryTerm() < belowTerm
-                            ? reader.closeIntoTrimmedReader(aboveOrEqSeqNo, getChannelFactory())
+                            ? reader.closeIntoTrimmedReader(aboveSeqNo, getChannelFactory())
                             : reader;
                     newReaders.add(newReader);
                 }

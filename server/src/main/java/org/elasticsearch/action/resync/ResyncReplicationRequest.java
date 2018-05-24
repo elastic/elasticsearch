@@ -34,22 +34,22 @@ import java.util.Arrays;
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 
-    private long trimAboveOrEqSeqNo;
+    private long trimAboveSeqNo;
     private Translog.Operation[] operations;
 
     ResyncReplicationRequest() {
         super();
     }
 
-    public ResyncReplicationRequest(final ShardId shardId, final long trimAboveOrEqSeqNo,
+    public ResyncReplicationRequest(final ShardId shardId, final long trimAboveSeqNo,
                                     final Translog.Operation[] operations) {
         super(shardId);
-        this.trimAboveOrEqSeqNo = trimAboveOrEqSeqNo;
+        this.trimAboveSeqNo = trimAboveSeqNo;
         this.operations = operations;
     }
 
-    public long getTrimAboveOrEqSeqNo() {
-        return trimAboveOrEqSeqNo;
+    public long getTrimAboveSeqNo() {
+        return trimAboveSeqNo;
     }
 
     public Translog.Operation[] getOperations() {
@@ -69,9 +69,9 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         }
         super.readFrom(in);
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            trimAboveOrEqSeqNo = in.readZLong();
+            trimAboveSeqNo = in.readZLong();
         } else {
-            trimAboveOrEqSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
@@ -80,7 +80,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeZLong(trimAboveOrEqSeqNo);
+            out.writeZLong(trimAboveSeqNo);
         }
         out.writeArray(Translog.Operation::writeOperation, operations);
     }
@@ -90,13 +90,13 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ResyncReplicationRequest that = (ResyncReplicationRequest) o;
-        return trimAboveOrEqSeqNo == that.trimAboveOrEqSeqNo
+        return trimAboveSeqNo == that.trimAboveSeqNo
             && Arrays.equals(operations, that.operations);
     }
 
     @Override
     public int hashCode() {
-        return Long.hashCode(trimAboveOrEqSeqNo) + 31 * Arrays.hashCode(operations);
+        return Long.hashCode(trimAboveSeqNo) + 31 * Arrays.hashCode(operations);
     }
 
     @Override
@@ -105,7 +105,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
             "shardId=" + shardId +
             ", timeout=" + timeout +
             ", index='" + index + '\'' +
-            ", trimAboveOrEqSeqNo=" + trimAboveOrEqSeqNo +
+            ", trimAboveSeqNo=" + trimAboveSeqNo +
             ", ops=" + operations.length +
             "}";
     }

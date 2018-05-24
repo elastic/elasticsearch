@@ -1478,8 +1478,8 @@ public class TranslogTests extends ESTestCase {
             fail("corrupted");
         } catch (IllegalStateException ex) {
             assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3080, " +
-                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveOrEqSeqNo=-2} but got: Checkpoint{offset=0, numOps=0, " +
-                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveOrEqSeqNo=-2}", ex.getMessage());
+                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} but got: Checkpoint{offset=0, numOps=0, " +
+                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveSeqNo=-2}", ex.getMessage());
         }
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
@@ -1609,7 +1609,7 @@ public class TranslogTests extends ESTestCase {
                     : translogOperations + extraDocs + 1;
 
             newOperations.stream()
-                .filter(op -> op.primaryTerm() <= primaryTerm.get() && op.seqNo() < effectiveMaxTrimSeqNo)
+                .filter(op -> op.primaryTerm() <= primaryTerm.get() && op.seqNo() <= effectiveMaxTrimSeqNo)
                 .forEach(effectiveOperations::add);
 
             Set<Long> seqNoSet = new HashSet<>();
@@ -1725,8 +1725,8 @@ public class TranslogTests extends ESTestCase {
         primaryTerm.incrementAndGet();
         translog.rollGeneration();
 
-        int aboveOrEqSeqNo = randomIntBetween(2, extraDocs - 2);
-        translog.trimOperations(primaryTerm.get(), aboveOrEqSeqNo);
+        int aboveSeqNo = randomIntBetween(2, extraDocs - 2);
+        translog.trimOperations(primaryTerm.get(), aboveSeqNo);
         translog.sync();
 
 
@@ -1745,18 +1745,18 @@ public class TranslogTests extends ESTestCase {
         Collections.sort(allOperations, Comparator.comparing(Translog.Operation::seqNo));
         Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
 
-        List<Translog.Index> trimmedOperations = aboveOrEqSeqNo < allOperations.size()
-            ? allOperations.subList(0, aboveOrEqSeqNo) : allOperations;
+        List<Translog.Index> trimmedOperations = aboveSeqNo + 1 < allOperations.size()
+            ? allOperations.subList(0, aboveSeqNo + 1) : allOperations;
         assertThat(actualTotalOperations, is(allOperations.size()));
         assertThat(actualOperations, is(trimmedOperations));
         assertThat(actualSkippedOperations, is(allOperations.size() - trimmedOperations.size()));
 
-        // trim trimmed translog => when aboveOrEqSeqNo is higher than original aboveOrEqSeqNo
+        // trim trimmed translog => when aboveSeqNo is higher than original aboveSeqNo
         // no any ops are shrunk
 
-        int aboveOrEqSeqNo2 = randomIntBetween(aboveOrEqSeqNo + 1, extraDocs);
+        int aboveSeqNo2 = randomIntBetween(aboveSeqNo + 1, extraDocs);
 
-        translog.trimOperations(primaryTerm.get(), aboveOrEqSeqNo2);
+        translog.trimOperations(primaryTerm.get(), aboveSeqNo2);
         translog.sync();
 
         List<Translog.Operation> actualOperations2 = new ArrayList<>();
@@ -1777,12 +1777,12 @@ public class TranslogTests extends ESTestCase {
         assertThat(actualOperations2, is(trimmedOperations));
         assertThat(actualSkippedOperations2, is(allOperations.size() - trimmedOperations.size()));
 
-        // trim trimmed translog => when aboveOrEqSeqNo is lower than original aboveOrEqSeqNo
+        // trim trimmed translog => when aboveSeqNo is lower than original aboveSeqNo
         // several ops have to be shrunk
 
-        int aboveOrEqSeqNo3 = randomInt(aboveOrEqSeqNo - 1);
+        int aboveSeqNo3 = randomInt(aboveSeqNo - 1);
 
-        translog.trimOperations(primaryTerm.get(), aboveOrEqSeqNo3);
+        translog.trimOperations(primaryTerm.get(), aboveSeqNo3);
         translog.sync();
 
         List<Translog.Operation> actualOperations3 = new ArrayList<>();
@@ -1799,8 +1799,8 @@ public class TranslogTests extends ESTestCase {
 
         Collections.sort(actualOperations3, Comparator.comparing(Translog.Operation::seqNo));
 
-        trimmedOperations = aboveOrEqSeqNo3 < allOperations.size()
-            ? allOperations.subList(0, aboveOrEqSeqNo3) : allOperations;
+        trimmedOperations = aboveSeqNo3 + 1 < allOperations.size()
+            ? allOperations.subList(0, aboveSeqNo3 + 1) : allOperations;
 
         assertThat(actualTotalOperations3, is(allOperations.size()));
         assertThat(actualOperations3, is(trimmedOperations));

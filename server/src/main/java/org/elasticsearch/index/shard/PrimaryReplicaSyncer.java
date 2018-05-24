@@ -253,14 +253,12 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             }
 
-            final long trimmedAboveOrEqSeqNo = firstMessage.get()
-                ? maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1
-                : SequenceNumbers.UNASSIGNED_SEQ_NO;
-            // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveOrEqSeqNo at least
-            if (!operations.isEmpty() || trimmedAboveOrEqSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
+            // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
+            if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 task.setPhase("sending_ops");
                 ResyncReplicationRequest request =
-                    new ResyncReplicationRequest(shardId, trimmedAboveOrEqSeqNo, operations.toArray(EMPTY_ARRAY));
+                    new ResyncReplicationRequest(shardId, trimmedAboveSeqNo, operations.toArray(EMPTY_ARRAY));
                 logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
                     new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
                 firstMessage.set(false);

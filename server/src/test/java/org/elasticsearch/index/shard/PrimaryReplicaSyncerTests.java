@@ -97,10 +97,10 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         if (syncNeeded) {
             assertTrue("Sync action was not called", syncActionCalled.get());
             ResyncReplicationRequest resyncRequest = resyncRequests.remove(0);
-            assertThat(resyncRequest.getTrimAboveOrEqSeqNo(), equalTo(Long.valueOf(numDocs)));
+            assertThat(resyncRequest.getTrimAboveSeqNo(), equalTo(numDocs - 1L));
 
-            assertThat("trimAboveOrEqSeqNo has to be specified in request #0 only", resyncRequests.stream()
-                    .mapToLong(ResyncReplicationRequest::getTrimAboveOrEqSeqNo)
+            assertThat("trimAboveSeqNo has to be specified in request #0 only", resyncRequests.stream()
+                    .mapToLong(ResyncReplicationRequest::getTrimAboveSeqNo)
                     .filter(seqNo -> seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO)
                     .findFirst()
                     .isPresent(),

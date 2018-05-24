@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.mockito.Mockito.mock;
@@ -34,10 +35,12 @@ public class NioGroupTests extends ESTestCase {
     private NioGroup nioGroup;
 
     @Override
+    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
-        nioGroup = new NioGroup(logger, daemonThreadFactory(Settings.EMPTY, "acceptor"), 1, AcceptorEventHandler::new,
-            daemonThreadFactory(Settings.EMPTY, "selector"), 1, SocketEventHandler::new);
+        nioGroup = new NioGroup(daemonThreadFactory(Settings.EMPTY, "acceptor"), 1,
+            (s) -> new AcceptorEventHandler(s, mock(Consumer.class)), daemonThreadFactory(Settings.EMPTY, "selector"), 1,
+            () -> new SocketEventHandler(mock(Consumer.class)));
     }
 
     @Override
@@ -69,10 +72,12 @@ public class NioGroupTests extends ESTestCase {
         nioGroup.close();
     }
 
+    @SuppressWarnings("unchecked")
     public void testExceptionAtStartIsHandled() throws IOException {
         RuntimeException ex = new RuntimeException();
-        CheckedRunnable<IOException> ctor = () -> new NioGroup(logger, r -> {throw ex;}, 1,
-            AcceptorEventHandler::new, daemonThreadFactory(Settings.EMPTY, "selector"), 1, SocketEventHandler::new);
+        CheckedRunnable<IOException> ctor = () -> new NioGroup(r -> {throw ex;}, 1,
+            (s) -> new AcceptorEventHandler(s, mock(Consumer.class)), daemonThreadFactory(Settings.EMPTY, "selector"),
+            1, () -> new SocketEventHandler(mock(Consumer.class)));
         RuntimeException runtimeException = expectThrows(RuntimeException.class, ctor::run);
         assertSame(ex, runtimeException);
         // ctor starts threads. So we are testing that a failure to construct will stop threads. Our thread

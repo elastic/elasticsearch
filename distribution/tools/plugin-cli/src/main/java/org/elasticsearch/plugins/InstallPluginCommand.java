@@ -30,7 +30,6 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -87,8 +86,8 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * <li>A URL to a plugin zip</li>
  * </ul>
  *
- * Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file
- * or a meta plugin properties file. See {@link PluginInfo} and {@link MetaPluginInfo}, respectively.
+ * Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file.
+ * See {@link PluginInfo}.
  * <p>
  * The installation process first extracts the plugin files into a temporary
  * directory in order to verify the plugin satisfies the following requirements:
@@ -106,11 +105,6 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * files specific to the plugin. The config files be installed into a subdirectory of the
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
- * <p>
- * If the plugin is a meta plugin, the installation process installs each plugin separately
- * inside the meta plugin directory. The {@code bin} and {@code config} directory are also moved
- * inside the meta plugin directory.
- * </p>
  */
 class InstallPluginCommand extends EnvironmentAwareCommand {
 
@@ -245,7 +239,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Downloads the plugin and returns the file it was downloaded to. */
     private Path download(Terminal terminal, String pluginId, Path tmpDir) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, pluginId, Platforms.PLATFORM_NAME);
+            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadZipAndChecksum(terminal, url, tmpDir, false);
         }
@@ -277,22 +271,43 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return System.getProperty(PROPERTY_STAGING_ID);
     }
 
+    boolean isSnapshot() {
+        return Build.CURRENT.isSnapshot();
+    }
+
     /** Returns the url for an official elasticsearch plugin. */
-    private String getElasticUrl(Terminal terminal, String stagingHash, Version version,
-                                        String pluginId, String platform) throws IOException {
+    private String getElasticUrl(
+            final Terminal terminal,
+            final String stagingHash,
+            final Version version,
+            final boolean isSnapshot,
+            final String pluginId,
+            final String platform) throws IOException, UserException {
         final String baseUrl;
-        if (stagingHash != null) {
-            baseUrl = String.format(Locale.ROOT,
-                "https://staging.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", version, stagingHash, pluginId);
-        } else {
-            baseUrl = String.format(Locale.ROOT,
-                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+        if (isSnapshot && stagingHash == null) {
+            throw new UserException(
+                    ExitCodes.CONFIG, "attempted to install release build of official plugin on snapshot build of Elasticsearch");
         }
-        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, version);
+        if (stagingHash != null) {
+            if (isSnapshot) {
+                baseUrl = nonReleaseUrl("snapshots", version, stagingHash, pluginId);
+            } else {
+                baseUrl = nonReleaseUrl("staging", version, stagingHash, pluginId);
+            }
+        } else {
+            baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+        }
+        final String platformUrl =
+                String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, Version.displayVersion(version, isSnapshot));
         if (urlExists(terminal, platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, version);
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Version.displayVersion(version, isSnapshot));
+    }
+
+    private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
+        return String.format(
+                Locale.ROOT, "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", hostname, version, stagingHash, pluginId);
     }
 
     /** Returns the url for an elasticsearch plugin in maven. */
@@ -550,7 +565,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     // checking for existing version of the plugin
-    private void verifyPluginName(Path pluginPath, String pluginName, Path candidateDir) throws UserException, IOException {
+    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
         // don't let user install plugin conflicting with module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(pluginName)) {
@@ -567,28 +582,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 pluginName);
             throw new UserException(PLUGIN_EXISTS, message);
         }
-        // checks meta plugins too
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginPath)) {
-            for (Path plugin : stream) {
-                if (candidateDir.equals(plugin.resolve(pluginName))) {
-                    continue;
-                }
-                if (MetaPluginInfo.isMetaPlugin(plugin) && Files.exists(plugin.resolve(pluginName))) {
-                    final MetaPluginInfo info = MetaPluginInfo.readFromProperties(plugin);
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "plugin name [%s] already exists in a meta plugin; if you need to update the meta plugin, " +
-                            "uninstall it first using command 'remove %s'",
-                        plugin.resolve(pluginName).toAbsolutePath(),
-                        info.getName());
-                    throw new UserException(PLUGIN_EXISTS, message);
-                }
-            }
-        }
     }
 
     /** Load information about the plugin, and verify it can be installed with no errors. */
-    private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
+    private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, Environment env) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         if (info.hasNativeController()) {
             throw new IllegalStateException("plugins can not have native controllers");
@@ -596,7 +593,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsFile(), info.getName(), pluginRoot);
+        verifyPluginName(env.pluginsFile(), info.getName());
 
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
@@ -635,11 +632,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         List<Path> deleteOnFailure = new ArrayList<>();
         deleteOnFailure.add(tmpRoot);
         try {
-            if (MetaPluginInfo.isMetaPlugin(tmpRoot)) {
-                installMetaPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
-            } else {
-                installPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
-            }
+            installPlugin(terminal, isBatch, tmpRoot, env, deleteOnFailure);
         } catch (Exception installProblem) {
             try {
                 IOUtils.rm(deleteOnFailure.toArray(new Path[0]));
@@ -651,70 +644,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /**
-     * Installs the meta plugin and all the bundled plugins from {@code tmpRoot} into the plugins dir.
-     * If a bundled plugin has a bin dir and/or a config dir, those are copied.
-     */
-    private void installMetaPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
-                                   Environment env, List<Path> deleteOnFailure) throws Exception {
-        final MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(tmpRoot);
-        verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot);
-
-        final Path destination = env.pluginsFile().resolve(metaInfo.getName());
-        deleteOnFailure.add(destination);
-        terminal.println(VERBOSE, metaInfo.toString());
-
-        final List<Path> pluginPaths = new ArrayList<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(tmpRoot)) {
-            // Extract bundled plugins path and validate plugin names
-            for (Path plugin : paths) {
-                if (MetaPluginInfo.isPropertiesFile(plugin)) {
-                    continue;
-                }
-                final PluginInfo info = PluginInfo.readFromProperties(plugin);
-                PluginsService.verifyCompatibility(info);
-                verifyPluginName(env.pluginsFile(), info.getName(), plugin);
-                pluginPaths.add(plugin);
-            }
-        }
-
-        // read optional security policy from each bundled plugin, and confirm all exceptions one time with user
-
-        Set<String> permissions = new HashSet<>();
-        final List<PluginInfo> pluginInfos = new ArrayList<>();
-        for (Path plugin : pluginPaths) {
-            final PluginInfo info = loadPluginInfo(terminal, plugin, isBatch, env);
-            pluginInfos.add(info);
-
-            Path policy = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
-            if (Files.exists(policy)) {
-                permissions.addAll(PluginSecurity.parsePermissions(policy, env.tmpFile()));
-            }
-        }
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
-
-        // move support files and rename as needed to prepare the exploded plugin for its final location
-        for (int i = 0; i < pluginPaths.size(); ++i) {
-            Path pluginPath = pluginPaths.get(i);
-            PluginInfo info = pluginInfos.get(i);
-            installPluginSupportFiles(info, pluginPath, env.binFile().resolve(metaInfo.getName()),
-                                      env.configFile().resolve(metaInfo.getName()), deleteOnFailure);
-            // ensure the plugin dir within the tmpRoot has the correct name
-            if (pluginPath.getFileName().toString().equals(info.getName()) == false) {
-                Files.move(pluginPath, pluginPath.getParent().resolve(info.getName()), StandardCopyOption.ATOMIC_MOVE);
-            }
-        }
-        movePlugin(tmpRoot, destination);
-        String[] plugins = pluginInfos.stream().map(PluginInfo::getName).toArray(String[]::new);
-        terminal.println("-> Installed " + metaInfo.getName() + " with: " + Strings.arrayToCommaDelimitedString(plugins));
-    }
-
-    /**
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are moved.
      */
     private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
                                Environment env, List<Path> deleteOnFailure) throws Exception {
-        final PluginInfo info = loadPluginInfo(terminal, tmpRoot, isBatch, env);
+        final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
         // read optional security policy (extra permissions), if it exists, confirm or warn the user
         Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
         final Set<String> permissions;

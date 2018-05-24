@@ -1,9 +1,9 @@
 [[painless-keywords]]
 === Keywords
 
-The keywords in the table below are reserved for built-in language
-features. These keywords cannot be used as
-<<painless-identifiers, identifiers>> or <<painless-types, types>>.
+Keywords are reserved tokens for built-in language features and cannot be used
+as <<painless-identifiers, identifiers>> within a script. The following are
+keywords:
 
 [cols="^1,^1,^1,^1,^1"]
 |====

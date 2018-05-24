@@ -16,7 +16,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -29,7 +28,6 @@ import java.util.stream.Collectors;
 
 public class TransportUpdateCalendarJobAction extends HandledTransportAction<UpdateCalendarJobAction.Request, PutCalendarAction.Response> {
 
-    private final ClusterService clusterService;
     private final JobProvider jobProvider;
     private final JobManager jobManager;
 
@@ -37,28 +35,21 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     public TransportUpdateCalendarJobAction(Settings settings, ThreadPool threadPool,
                                             TransportService transportService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            ClusterService clusterService, JobProvider jobProvider, JobManager jobManager) {
+                                            JobProvider jobProvider, JobManager jobManager) {
         super(settings, UpdateCalendarJobAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, UpdateCalendarJobAction.Request::new);
-        this.clusterService = clusterService;
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;
     }
 
     @Override
     protected void doExecute(UpdateCalendarJobAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
-        ClusterState clusterState = clusterService.state();
-        MlMetadata maybeNullMetaData = clusterState.getMetaData().custom(MLMetadataField.TYPE);
-        final MlMetadata mlMetadata = maybeNullMetaData == null ? MlMetadata.EMPTY_METADATA : maybeNullMetaData;
-
         Set<String> jobIdsToAdd = Strings.tokenizeByCommaToSet(request.getJobIdsToAddExpression());
         Set<String> jobIdsToRemove = Strings.tokenizeByCommaToSet(request.getJobIdsToRemoveExpression());
 
-        jobProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove, mlMetadata,
+        jobProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove,
                 c -> {
-                    List<String> existingJobsOrGroups =
-                            c.getJobIds().stream().filter(mlMetadata::isGroupOrJob).collect(Collectors.toList());
-                    jobManager.updateProcessOnCalendarChanged(existingJobsOrGroups);
+                    jobManager.updateProcessOnCalendarChanged(c.getJobIds());
                     listener.onResponse(new PutCalendarAction.Response(c));
                 }, listener::onFailure);
     }

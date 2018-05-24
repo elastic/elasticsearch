@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
 import java.util.Collections;
@@ -59,6 +60,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
+        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         LicensesMetaData licensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
         License currentLicense = LicensesMetaData.extractLicense(licensesMetaData);
         if (currentLicense == null || currentLicense.type().equals("basic") == false) {

@@ -108,7 +108,7 @@ Available parameters inside a score context:
 
 document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
 index:: The name of an index containing a mapping that is compatable with the document being indexed.
-query:: If `_score` is used in the script then a query can specified that will be used the compute a score.
+query:: If `_score` is used in the script then a query can specified that will be used to compute a score.
 
 ====== Example
 

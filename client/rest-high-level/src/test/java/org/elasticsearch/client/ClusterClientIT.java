@@ -146,25 +146,28 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         String id = "some_pipeline_id";
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
-        pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
-        pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
-        //Start first processor
         pipelineBuilder.startObject();
-        pipelineBuilder.startObject("set");
-        pipelineBuilder.field("field", "foo");
-        pipelineBuilder.field("value", "bar");
-        pipelineBuilder.endObject();
-        pipelineBuilder.endObject();
-        //End first processor
-        //Start second processor
-        pipelineBuilder.startObject();
-        pipelineBuilder.startObject("convert");
-        pipelineBuilder.field("field", "rank");
-        pipelineBuilder.field("type", "integer");
-        pipelineBuilder.endObject();
-        pipelineBuilder.endObject();
-        //End second processor
-        pipelineBuilder.endArray();
+        {
+            pipelineBuilder.field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
+            pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
+            {
+                pipelineBuilder.startObject().startObject("set");
+                {
+                    pipelineBuilder
+                        .field("field", "foo")
+                        .field("value", "bar");
+                }
+                pipelineBuilder.endObject().endObject();
+                pipelineBuilder.startObject().startObject("convert");
+                {
+                    pipelineBuilder
+                        .field("field", "rank")
+                        .field("type", "integer");
+                }
+                pipelineBuilder.endObject().endObject();
+            }
+            pipelineBuilder.endArray();
+        }
         pipelineBuilder.endObject();
         PutPipelineRequest request = new PutPipelineRequest(
             id,

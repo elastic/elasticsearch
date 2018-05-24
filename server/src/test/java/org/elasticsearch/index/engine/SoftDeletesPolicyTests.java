@@ -38,7 +38,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         long safeCommitCheckpoint = globalCheckpoint.get();
         SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 10000), retainedOps);
-        long lastExposedSeqNo = policy.getLastSeqNoSeenByMergePolicy();
+        long lastExposedSeqNo = policy.getMaxExposedSeqNo();
         List<Releasable> locks = new ArrayList<>();
         int iters = scaledRandomIntBetween(10, 1000);
         for (int i = 0; i < iters; i++) {
@@ -64,13 +64,13 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                 long minRetainedSeqNo = Math.min(safeCommitCheckpoint, globalCheckpoint.get() - retainedOps) + 1;
                 lastExposedSeqNo = Math.max(lastExposedSeqNo, minRetainedSeqNo);
             }
-            assertThat(policy.getLastSeqNoSeenByMergePolicy(), equalTo(lastExposedSeqNo));
+            assertThat(policy.getMaxExposedSeqNo(), equalTo(lastExposedSeqNo));
         }
 
         locks.forEach(Releasable::close);
         policy.getRetentionQuery();
         long minRetainedSeqNo = Math.min(safeCommitCheckpoint, globalCheckpoint.get() - retainedOps) + 1;
         lastExposedSeqNo = Math.max(lastExposedSeqNo, minRetainedSeqNo);
-        assertThat(policy.getLastSeqNoSeenByMergePolicy(), equalTo(lastExposedSeqNo));
+        assertThat(policy.getMaxExposedSeqNo(), equalTo(lastExposedSeqNo));
     }
 }

@@ -98,7 +98,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
-    public static final String SOFT_DELETES_MIN_RETAINED_SEQNO = "soft_deletes_min_retained_seq_no";
+    public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
 
     protected final ShardId shardId;
     protected final String allocationId;

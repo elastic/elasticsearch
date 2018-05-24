@@ -314,7 +314,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
 
     private long getLastSeqNoSeenByMergePolicy(SoftDeletesPolicy softDeletesPolicy) {
         softDeletesPolicy.getRetentionQuery(); // advance the soft-deletes policy if possible
-        return softDeletesPolicy.getLastSeqNoSeenByMergePolicy();
+        return softDeletesPolicy.getMaxExposedSeqNo();
     }
 
     IndexCommit mockLegacyIndexCommit(UUID translogUUID, long translogGen) throws IOException {

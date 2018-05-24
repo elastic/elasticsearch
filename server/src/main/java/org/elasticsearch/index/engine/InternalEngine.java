@@ -257,8 +257,8 @@ public class InternalEngine extends Engine {
     private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
         final Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().userData;
         final long lastSeqNoSeenByMergePolicy;
-        if (commitUserData.containsKey(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)) {
-            lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO));
+        if (commitUserData.containsKey(Engine.MIN_RETAINED_SEQNO)) {
+            lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(Engine.MIN_RETAINED_SEQNO));
         } else {
             lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
@@ -2225,7 +2225,9 @@ public class InternalEngine extends Engine {
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
-                commitData.put(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getLastSeqNoSeenByMergePolicy()));
+                if (softDeleteEnabled) {
+                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMaxExposedSeqNo()));
+                }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
@@ -2371,7 +2373,7 @@ public class InternalEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long minSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return getLastSeqNoSeenByMergePolicy() <= minSeqNo;
+            return getMaxExposedSeqNoToMergePolicy() <= minSeqNo;
         } else {
             final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(minSeqNo, minSeqNo - 1);
@@ -2388,8 +2390,9 @@ public class InternalEngine extends Engine {
     }
 
     // pkg-level for testing
-    final long getLastSeqNoSeenByMergePolicy() {
-        return softDeletesPolicy.getLastSeqNoSeenByMergePolicy();
+    final long getMaxExposedSeqNoToMergePolicy() {
+        assert softDeleteEnabled : Thread.currentThread().getName();
+        return softDeletesPolicy.getMaxExposedSeqNo();
     }
 
     @Override

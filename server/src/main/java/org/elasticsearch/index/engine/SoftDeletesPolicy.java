@@ -35,17 +35,17 @@ import java.util.function.LongSupplier;
 final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
     private long checkpointOfSafeCommit;
-    // This lock count is used to prevent `lastSeqNoSeenByMergePolicy` from advancing.
+    // This lock count is used to prevent `maxExposedSeqNo` from advancing.
     private int retentionLockCount;
     // The extra number of operations before the global checkpoint are retained
     private long retentionOperations;
-    // The "max" seq_no value that has been exposed to the MergePolicy. Ops after this seq# should exist in the Lucene index.
-    private long lastSeqNoSeenByMergePolicy;
+    // The max seq_no value that has been exposed to the MergePolicy. Ops after this seq# should exist in the Lucene index.
+    private long maxExposedSeqNo;
 
-    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, long lastSeqNoSeenByMergePolicy, long retentionOperations) {
+    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, long maxExposedSeqNo, long retentionOperations) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
-        this.lastSeqNoSeenByMergePolicy = lastSeqNoSeenByMergePolicy;
+        this.maxExposedSeqNo = maxExposedSeqNo;
         this.checkpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
     }
@@ -91,11 +91,11 @@ final class SoftDeletesPolicy {
     }
 
     /**
-     * Returns the last seqno that has been exposed to the merge policy.
+     * Returns the max seqno that has been exposed to the merge policy.
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
-    synchronized long getLastSeqNoSeenByMergePolicy() {
-        return lastSeqNoSeenByMergePolicy;
+    synchronized long getMaxExposedSeqNo() {
+        return maxExposedSeqNo;
     }
 
     /**
@@ -110,12 +110,11 @@ final class SoftDeletesPolicy {
             // then sends ops after the local checkpoint of that commit. This requires keeping all ops after checkpointOfSafeCommit;
             // - Changes APIs are driven the combination of the global checkpoint and retention ops. Here we prefer using the global
             // checkpoint instead of max_seqno because only operations up to the global checkpoint are exposed in the the changes APIs.
-            //
             final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOperations;
             final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, checkpointOfSafeCommit) + 1;
             // This can go backward as the retentionOperations value can be changed in settings.
-            lastSeqNoSeenByMergePolicy = Math.max(lastSeqNoSeenByMergePolicy, minSeqNoToRetain);
+            maxExposedSeqNo = Math.max(maxExposedSeqNo, minSeqNoToRetain);
         }
-        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, lastSeqNoSeenByMergePolicy, Long.MAX_VALUE);
+        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, maxExposedSeqNo, Long.MAX_VALUE);
     }
 }

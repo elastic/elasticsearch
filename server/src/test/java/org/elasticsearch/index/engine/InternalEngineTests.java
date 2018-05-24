@@ -170,7 +170,6 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -4799,8 +4798,8 @@ public class InternalEngineTests extends EngineTestCase {
         Set<Long> existingSeqNos = new HashSet<>();
         store = createStore();
         engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get));
-        assertThat(engine.getLastSeqNoSeenByMergePolicy(), equalTo(0L));
-        long lastSeqNoSeenByMP = engine.getLastSeqNoSeenByMergePolicy();
+        assertThat(engine.getMaxExposedSeqNoToMergePolicy(), equalTo(0L));
+        long lastSeqNoSeenByMP = engine.getMaxExposedSeqNoToMergePolicy();
         for (Engine.Operation op : operations) {
             final Engine.Result result;
             if (op instanceof Engine.Index) {
@@ -4822,14 +4821,14 @@ public class InternalEngineTests extends EngineTestCase {
             }
             if (rarely()) {
                 engine.flush(true, true);
-                assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)),
-                    equalTo(engine.getLastSeqNoSeenByMergePolicy()));
+                assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.MIN_RETAINED_SEQNO)),
+                    equalTo(engine.getMaxExposedSeqNoToMergePolicy()));
             }
             if (rarely()) {
                 engine.forceMerge(randomBoolean());
             }
             try (Closeable ignored = engine.acquireRetentionLockForPeerRecovery()) {
-                long minRetainSeqNos = engine.getLastSeqNoSeenByMergePolicy();
+                long minRetainSeqNos = engine.getMaxExposedSeqNoToMergePolicy();
                 assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
                 Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService("test")).stream()
@@ -4838,8 +4837,8 @@ public class InternalEngineTests extends EngineTestCase {
             }
             try (Engine.IndexCommitRef commitRef = engine.acquireSafeIndexCommit()) {
                 IndexCommit safeCommit = commitRef.getIndexCommit();
-                if (safeCommit.getUserData().containsKey(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)) {
-                    lastSeqNoSeenByMP = Long.parseLong(safeCommit.getUserData().get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO));
+                if (safeCommit.getUserData().containsKey(Engine.MIN_RETAINED_SEQNO)) {
+                    lastSeqNoSeenByMP = Long.parseLong(safeCommit.getUserData().get(Engine.MIN_RETAINED_SEQNO));
                 }
             }
         }
@@ -4850,10 +4849,10 @@ public class InternalEngineTests extends EngineTestCase {
         }
         trimUnsafeCommits(engine.config());
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
-            assertThat(recoveringEngine.getLastSeqNoSeenByMergePolicy(), equalTo(lastSeqNoSeenByMP));
+            assertThat(recoveringEngine.getMaxExposedSeqNoToMergePolicy(), equalTo(lastSeqNoSeenByMP));
             recoveringEngine.recoverFromTranslog();
             try (Closeable ignored = recoveringEngine.acquireRetentionLockForPeerRecovery()) {
-                long minRetainSeqNos = recoveringEngine.getLastSeqNoSeenByMergePolicy();
+                long minRetainSeqNos = recoveringEngine.getMaxExposedSeqNoToMergePolicy();
                 Set<Long> actualOps = readAllOperationsInLucene(recoveringEngine, createMapperService("test")).stream()
                     .map(Translog.Operation::seqNo).collect(Collectors.toSet());
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);

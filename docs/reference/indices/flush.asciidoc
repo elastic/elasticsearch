@@ -102,7 +102,7 @@ which returns something similar to:
                      "max_seq_no" : "-1",
                      "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
                      "max_unsafe_auto_id_timestamp" : "-1",
-                     "soft_deletes_min_retained_seq_no": "-1"
+                     "min_retained_seq_no": "0"
                    },
                    "num_docs" : 0
                  }

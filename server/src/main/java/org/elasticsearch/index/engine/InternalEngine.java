@@ -260,7 +260,7 @@ public class InternalEngine extends Engine {
         if (commitUserData.containsKey(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)) {
             lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO));
         } else {
-            lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
+            lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
         return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastSeqNoSeenByMergePolicy,
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());

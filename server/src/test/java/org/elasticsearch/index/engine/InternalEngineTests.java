@@ -4799,7 +4799,8 @@ public class InternalEngineTests extends EngineTestCase {
         Set<Long> existingSeqNos = new HashSet<>();
         store = createStore();
         engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get));
-        long lastSeqNoSeenByMP = SequenceNumbers.NO_OPS_PERFORMED;
+        assertThat(engine.getLastSeqNoSeenByMergePolicy(), equalTo(0L));
+        long lastSeqNoSeenByMP = engine.getLastSeqNoSeenByMergePolicy();
         for (Engine.Operation op : operations) {
             final Engine.Result result;
             if (op instanceof Engine.Index) {

@@ -122,8 +122,12 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
+import org.elasticsearch.script.mustache.RestMultiSearchTemplateAction;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -1373,7 +1377,53 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertToXContentBody(searchTemplateRequest, request.getEntity());
     }
+    
+    public void testMultiSearchTemplate() throws Exception {
+        final int numSearchRequests = randomIntBetween(1, 10);
+        MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
+        
+        for (int i = 0; i < numSearchRequests; i++) {
+            // Create a random request.
+            String[] indices = randomIndicesNames(0, 5);
+            SearchRequest searchRequest = new SearchRequest(indices);
+            
+            Map<String, String> expectedParams = new HashMap<>();
+            setRandomSearchParams(searchRequest, expectedParams);
+    
+            // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
+            searchRequest.scroll((Scroll) null);
+            // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
+            searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
+            
+            setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
+            
+            SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
+    
+            searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
+            searchTemplateRequest.setScriptType(ScriptType.INLINE);
+            searchTemplateRequest.setProfile(randomBoolean());
+    
+            Map<String, Object> scriptParams = new HashMap<>();
+            scriptParams.put("field", "name");
+            scriptParams.put("value", randomAlphaOfLengthBetween(2, 5));
+            searchTemplateRequest.setScriptParams(scriptParams);
+    
+            multiSearchTemplateRequest.add(searchTemplateRequest);            
+        }
 
+        Request multiRequest = RequestConverters.multiSearchTemplate(multiSearchTemplateRequest);
+        
+        assertEquals(HttpPost.METHOD_NAME, multiRequest.getMethod());
+        assertEquals("/_msearch/template", multiRequest.getEndpoint());
+        List<SearchTemplateRequest> searchRequests = multiSearchTemplateRequest.requests();
+        assertEquals(numSearchRequests, searchRequests.size());
+
+        HttpEntity actualEntity = multiRequest.getEntity();
+        byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
+        assertEquals(new BytesArray(expectedBytes), new BytesArray(EntityUtils.toByteArray(actualEntity)));        
+    }
+    
     public void testExistsAlias() {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
         String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
@@ -2385,7 +2435,7 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("preference", searchRequest.preference());
         }
         if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.values()));
+            searchRequest.searchType(randomFrom(SearchType.CURRENTLY_SUPPORTED));
         }
         expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
         if (randomBoolean()) {
@@ -2410,7 +2460,7 @@ public class RequestConvertersTests extends ESTestCase {
             Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
-            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+             setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         expectedParams.put("ignore_unavailable", Boolean.toString(getter.get().ignoreUnavailable()));
         expectedParams.put("allow_no_indices", Boolean.toString(getter.get().allowNoIndices()));

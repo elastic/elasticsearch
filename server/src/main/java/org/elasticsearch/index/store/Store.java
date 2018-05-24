@@ -862,7 +862,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                numDocs = Lucene.getExactNumDocs(commit != null ? commit : findIndexCommit(directory, segmentCommitInfos));
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
@@ -875,7 +874,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         maxVersion = version;
                     }
                     for (String file : info.files()) {
-                        checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
+                        String extension = IndexFileNames.getExtension(file);
+                        checksumFromLuceneFile(directory, file, builder, logger, version,
+                            SEGMENT_INFO_EXTENSION.equals(extension) || DOC_VALUES_FILE_EXTENSION.equals(extension));
                     }
                 }
                 if (maxVersion == null) {
@@ -883,6 +884,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                // only open a reader after checksumming segment files
+                numDocs = Lucene.getExactNumDocs(commit != null ? commit : findIndexCommit(directory, segmentCommitInfos));
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;
@@ -970,7 +973,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private static final String DEL_FILE_EXTENSION = "del"; // legacy delete file
         private static final String LIV_FILE_EXTENSION = "liv"; // lucene 5 delete file
-        private static final String FIELD_INFOS_FILE_EXTENSION = "fnm";
+        private static final String DOC_VALUES_FILE_EXTENSION = "dvd";
         private static final String SEGMENT_INFO_EXTENSION = "si";
 
         /**

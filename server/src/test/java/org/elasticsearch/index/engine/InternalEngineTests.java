@@ -4820,7 +4820,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.refresh("test");
             }
             if (rarely()) {
-                engine.flush();
+                engine.flush(true, true);
                 assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.SOFT_DELETES_MIN_RETAINED_SEQNO)),
                     equalTo(engine.getLastSeqNoSeenByMergePolicy()));
             }

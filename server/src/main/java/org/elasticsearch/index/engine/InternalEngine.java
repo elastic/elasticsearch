@@ -2353,6 +2353,7 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
+    @Override
     public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
                                                       long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
@@ -2373,7 +2374,7 @@ public class InternalEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long minSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return getMaxExposedSeqNoToMergePolicy() <= minSeqNo;
+            return getMaxExposedSeqNo() <= minSeqNo;
         } else {
             final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(minSeqNo, minSeqNo - 1);
@@ -2389,8 +2390,12 @@ public class InternalEngine extends Engine {
         }
     }
 
-    // pkg-level for testing
-    final long getMaxExposedSeqNoToMergePolicy() {
+    /**
+     * Returns the max seqno that has been exposed to the MergePolicy.
+     * Operations whose seq# are at least this value should exist in the Lucene index.
+     * See {@link SoftDeletesPolicy#maxExposedSeqNo}
+     */
+    final long getMaxExposedSeqNo() {
         assert softDeleteEnabled : Thread.currentThread().getName();
         return softDeletesPolicy.getMaxExposedSeqNo();
     }

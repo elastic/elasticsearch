@@ -705,6 +705,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
         assertThat(q3, is(new PhraseQuery(1, "field", "two", "word")));
 
+        Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(queryShardContext);
+        assertThat(q4, is(new TermQuery(new Term("field", "singleton"))));
+
+        Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+        assertThat(q5,
+            is(new PhraseQuery.Builder().add(new Term("field", "sparkl")).add(new Term("field", "stopword"), 2).build()));
+
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()

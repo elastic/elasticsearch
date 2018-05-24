@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
@@ -186,7 +187,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             fieldType().indexPhrases(indexPhrases);
             return new TextFieldMapper(
-                    name, fieldType, defaultFieldType, positionIncrementGap, prefixMapper, indexPhrases,
+                    name, fieldType(), defaultFieldType, positionIncrementGap, prefixMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -286,16 +287,20 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final class PhraseFieldType extends StringFieldType {
 
-        static PhraseFieldType newInstance(String name, NamedAnalyzer analyzer) {
-            PhraseFieldType pft = new PhraseFieldType(name);
-            pft.setAnalyzer(analyzer.name(), analyzer.analyzer());
-            return pft;
-        }
+        final TextFieldType parent;
 
-        PhraseFieldType(String name) {
+        PhraseFieldType(TextFieldType parent) {
             setTokenized(true);
             setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            setName(name);
+            if (parent.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+            }
+            if (parent.storeTermVectorOffsets()) {
+                setStoreTermVectorOffsets(true);
+            }
+            setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
+            setName(parent.name() + FAST_PHRASE_SUFFIX);
+            this.parent = parent;
         }
 
         void setAnalyzer(String name, Analyzer delegate) {
@@ -304,7 +309,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public MappedFieldType clone() {
-            return new PhraseFieldType(name());
+            return new PhraseFieldType(parent);
         }
 
         @Override
@@ -448,6 +453,7 @@ public class TextFieldMapper extends FieldMapper {
             this.fielddataMinFrequency = ref.fielddataMinFrequency;
             this.fielddataMaxFrequency = ref.fielddataMaxFrequency;
             this.fielddataMinSegmentSize = ref.fielddataMinSegmentSize;
+            this.indexPhrases = ref.indexPhrases;
         }
 
         public TextFieldType clone() {
@@ -461,6 +467,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             TextFieldType that = (TextFieldType) o;
             return fielddata == that.fielddata
+                    && indexPhrases == that.indexPhrases
                     && fielddataMinFrequency == that.fielddataMinFrequency
                     && fielddataMaxFrequency == that.fielddataMaxFrequency
                     && fielddataMinSegmentSize == that.fielddataMinSegmentSize;
@@ -468,7 +475,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), fielddata,
+            return Objects.hash(super.hashCode(), fielddata, indexPhrases,
                     fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }
 
@@ -514,6 +521,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         void indexPhrases(boolean indexPhrases) {
+            checkIfFrozen();
             this.indexPhrases = indexPhrases;
         }
 
@@ -554,7 +562,8 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            if (indexPhrases && slop == 0) {
+
+            if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
@@ -574,6 +583,17 @@ public class TextFieldMapper extends FieldMapper {
             return builder.build();
         }
 
+        private static boolean hasGaps(TokenStream stream) throws IOException {
+            assert stream instanceof CachingTokenFilter;
+            PositionIncrementAttribute posIncAtt = stream.getAttribute(PositionIncrementAttribute.class);
+            stream.reset();
+            while (stream.incrementToken()) {
+                if (posIncAtt.getPositionIncrement() > 1)
+                    return true;
+            }
+            return false;
+        }
+
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (fielddata == false) {
@@ -589,8 +609,8 @@ public class TextFieldMapper extends FieldMapper {
     private PrefixFieldMapper prefixFieldMapper;
     private PhraseFieldMapper phraseFieldMapper;
 
-    protected TextFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap, PrefixFieldMapper prefixFieldMapper, boolean indexPhrases,
+    protected TextFieldMapper(String simpleName, TextFieldType fieldType, MappedFieldType defaultFieldType,
+                                int positionIncrementGap, PrefixFieldMapper prefixFieldMapper,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
@@ -600,10 +620,7 @@ public class TextFieldMapper extends FieldMapper {
         }
         this.positionIncrementGap = positionIncrementGap;
         this.prefixFieldMapper = prefixFieldMapper;
-        this.phraseFieldMapper = indexPhrases
-            ? new PhraseFieldMapper(PhraseFieldType.newInstance(simpleName + FAST_PHRASE_SUFFIX,
-                                                                fieldType().indexAnalyzer()), indexSettings)
-            : null;
+        this.phraseFieldMapper = fieldType.indexPhrases ? new PhraseFieldMapper(new PhraseFieldType(fieldType), indexSettings) : null;
     }
 
     @Override

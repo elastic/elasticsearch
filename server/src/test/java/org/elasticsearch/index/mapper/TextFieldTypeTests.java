@@ -71,6 +71,13 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
                 tft.setFielddataMinSegmentSize(1000);
             }
         });
+        addModifier(new Modifier("index_phrases", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                tft.indexPhrases(true);
+            }
+        });
     }
 
     public void testTermQuery() {

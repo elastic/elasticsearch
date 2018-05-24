@@ -228,6 +228,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
      *****************************************************************************/
     libFiles = copySpec {
       into('lib') {
+        // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from { project(':server').jar }
         from { project(':server').configurations.runtime }
         from { project(':libs:plugin-classloader').jar }

@@ -39,7 +39,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-pipeline-reque
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-pipeline-execute]
 --------------------------------------------------
-<1> Execute the request and get back the response in a GetPipelineResponse object.
+<1> Execute the request and get back the response in a PutPipelineResponse object.
 
 [[java-rest-high-cluster-put-pipeline-async]]
 ==== Asynchronous Execution
@@ -71,7 +71,7 @@ provided as an argument
 <2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-cluster-put-pipeline-response]]
-==== Put Mapping Response
+==== Put Pipeline Response
 
 The returned `PutPipelineResponse` allows to retrieve information about the executed
  operation as follows:

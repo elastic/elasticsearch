@@ -1,10 +1,10 @@
 [[painless-identifiers]]
 === Identifiers
 
-Specify identifiers to <<declaration, declare>>, <<assignment, assign>>, and
-<<painless-operators, use>> variables, <<dot-operator, access fields>>, and
-<<dot-operator, call methods>>. <<painless-keywords, Keywords>> and
-<<painless-types, types>> cannot be used as identifiers.
+Use an identifier as a named token to specify a
+<<painless-variables, variable>>, <<painless-types, type>>,
+<<dot-operator, field>>, <<dot-operator, method>>, or function.
+<<painless-keywords, Keywords>> cannot be used as identifiers.
 
 *Grammar*
 [source,ANTLR4]

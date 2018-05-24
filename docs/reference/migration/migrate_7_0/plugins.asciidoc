@@ -10,7 +10,7 @@ You need to use settings which are starting with `azure.client.` prefix instead.
 * Global timeout setting `cloud.azure.storage.timeout` has been removed.
 You must set it per azure client instead. Like `azure.client.default.timeout: 10s` for example.
 
-See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].
+See {plugins}/repository-azure-repository-settings.html#repository-azure-repository-settings[Azure Repository settings].
 
 ==== Google Cloud Storage Repository plugin
 

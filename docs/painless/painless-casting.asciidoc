@@ -7,7 +7,7 @@ during certain <<painless-operators, operations>>. An explicit cast specifies
 the target type and forcefully occurs as its own operation.  Use the *cast
 operator* to specify an explicit cast.
 
-See the <<allowed-casts, cast table>> for a quick reference on all
+Refer to the <<allowed-casts, cast table>> for a quick reference on all
 allowed casts.
 
 *Errors*
@@ -441,7 +441,7 @@ type value is derived from what the `def` type value represents at run-time.
 <3> float f = x + 2.0F;
 ----
 <1> declare `double d`;
-    promote `int 2` and `double 2.0 @0` -> `double 2.0 @0`;
+    promote `int 2` and `double 2.0 @0`: result `double`;
     implicit cast `int 2` to `double 2.0 @1` -> `double 2.0 @1`;
     add `double 2.0 @1` and `double 2.0 @0` -> `double 4.0`;
     store `double 4.0` to `d`
@@ -451,7 +451,7 @@ type value is derived from what the `def` type value represents at run-time.
 <3> declare `float f`;
     load from `x` -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
-    promote `int 1` and `float 2.0` -> `float 2.0`;
+    promote `int 1` and `float 2.0`: result `float`;
     implicit cast `int 1` to `float 1.0` -> `float `1.0`;
     add `float 1.0` and `float 2.0` -> `float 3.0`;
     store `float 3.0` to `f`;
@@ -461,45 +461,61 @@ type value is derived from what the `def` type value represents at run-time.
 [[allowed-casts]]
 ==== Allowed Casts
 
-The following table lists all allowed casts read as row (original type) to
+The following tables list all allowed casts read as row (original type) to
 column (target type) with implicit as `I`, explicit as `E`, and not allowed as
 `-`:
 
-[cols="<3,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1"]
+*Primitive/Reference Types*
+
+[cols="<3,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1"]
 |====
-|                  | b | s | c | i | j | f | d | B | S | C | I | L | F | D | T | R | def
-| byte      ( b )  |   | I | I | I | I | I | I | - | - | - | - | - | - | - | - | - | I
-| short     ( s )  | E |   | E | I | I | I | I | - | - | - | - | - | - | - | - | - | I
-| char      ( c )  | E | E |   | I | I | I | I | - | - | - | - | - | - | - | E | - | I
-| int       ( i )  | E | E | E |   | I | I | I | - | - | - | - | - | - | - | - | - | I
-| long      ( j )  | E | E | E | E |   | I | I | - | - | - | - | - | - | - | - | - | I
-| float     ( f )  | E | E | E | E | E |   | I | - | - | - | - | - | - | - | - | - | I
-| double    ( d )  | E | E | E | E | E | E |   | - | - | - | - | - | - | - | - | - | I
-| Byte      ( B )  | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | - | I
-| Short     ( S )  | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | I
-| Character ( C )  | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | I
-| Integer   ( I )  | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | I
-| Long      ( L )  | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | I
-| Float     ( F )  | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | I
-| Double    ( D )  | - | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | I
-| String    ( T )  | - | - | E | - | - | - | - | - | - | - | - | - | - | - |   | - | I
-| Reference ( R )  | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | @ | I
-| def as byte      | I | I | I | I | I | I | I | I | I | I | I | I | I | I | - | - |
-| def as short     | E | I | E | I | I | I | I | E | I | E | I | I | I | I | - | - |
-| def as char      | E | E | I | I | I | I | I | E | E | I | I | I | I | I | E | - |
-| def as int       | E | E | E | I | I | I | I | E | E | E | I | I | I | I | - | - |
-| def as long      | E | E | E | E | I | I | I | E | E | E | E | I | I | I | - | - |
-| def as float     | E | E | E | E | E | I | I | E | E | E | E | E | I | I | - | - |
-| def as double    | E | E | E | E | E | E | I | E | E | E | E | E | E | I | - | - |
-| def as Byte      | I | I | I | I | I | I | I | I | I | I | I | I | I | I | - | - |
-| def as Short     | E | I | E | I | I | I | I | E | I | E | I | I | I | I | - | - |
-| def as Character | E | E | I | I | I | I | I | E | E | I | I | I | I | I | - | - |
-| def as Integer   | E | E | E | I | I | I | I | E | E | E | I | I | I | I | - | - |
-| def as Long      | E | E | E | E | I | I | I | E | E | E | E | I | I | I | - | - |
-| def as Float     | E | E | E | E | E | I | I | E | E | E | E | E | I | I | - | - |
-| def as Double    | E | E | E | E | E | E | I | E | E | E | E | E | E | I | - | - |
-| def as String    | - | - | E | - | - | - | - | - | - | - | - | - | - | - | I | - |
-| def as Reference | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | @ |
+|                  | o | b | s | c | i | j | f | d | O | B | S | C | I | L | F | D | T | R | def
+| boolean   ( o )  |   | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | I
+| byte      ( b )  | - |   | I | I | I | I | I | I | - | - | - | - | - | - | - | - | - | - | I
+| short     ( s )  | - | E |   | E | I | I | I | I | - | - | - | - | - | - | - | - | - | - | I
+| char      ( c )  | - | E | E |   | I | I | I | I | - | - | - | - | - | - | - | - | E | - | I
+| int       ( i )  | - | E | E | E |   | I | I | I | - | - | - | - | - | - | - | - | - | - | I
+| long      ( j )  | - | E | E | E | E |   | I | I | - | - | - | - | - | - | - | - | - | - | I
+| float     ( f )  | - | E | E | E | E | E |   | I | - | - | - | - | - | - | - | - | - | - | I
+| double    ( d )  | - | E | E | E | E | E | E |   | - | - | - | - | - | - | - | - | - | - | I
+| Boolean   ( O )  | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | I
+| Byte      ( B )  | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | - | I
+| Short     ( S )  | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | - | I
+| Character ( C )  | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | - | I
+| Integer   ( I )  | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | - | I
+| Long      ( L )  | - | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | - | I
+| Float     ( F )  | - | - | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | - | I
+| Double    ( D )  | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - |   | - | - | I
+| String    ( T )  | - | - | - | E | - | - | - | - | - | - | - | - | - | - | - | - |   | - | I
+| Reference ( R )  | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | @ | I
+|====
+
+@ See <<reference-type-casting, reference type casting>> for allowed reference
+  type casts.
+
+*`def` Type*
+
+[cols="<3,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1,^1"]
+|====
+|                  | o | b | s | c | i | j | f | d | O | B | S | C | I | L | F | D | T | R | def
+| def as boolean   | I | - | - | - | - | - | - | - | I | - | - | - | - | - | - | - | - | - |
+| def as byte      | - | I | I | I | I | I | I | I | - | I | I | I | I | I | I | I | - | - |
+| def as short     | - | E | I | E | I | I | I | I | - | E | I | E | I | I | I | I | - | - |
+| def as char      | - | E | E | I | I | I | I | I | - | E | E | I | I | I | I | I | E | - |
+| def as int       | - | E | E | E | I | I | I | I | - | E | E | E | I | I | I | I | - | - |
+| def as long      | - | E | E | E | E | I | I | I | - | E | E | E | E | I | I | I | - | - |
+| def as float     | - | E | E | E | E | E | I | I | - | E | E | E | E | E | I | I | - | - |
+| def as double    | - | E | E | E | E | E | E | I | - | E | E | E | E | E | E | I | - | - |
+| def as Boolean   | I | - | - | - | - | - | - | - | I | - | - | - |   | - | - | - | - | - |
+| def as Byte      | - | I | I | I | I | I | I | I | - | I | I | I | I | I | I | I | - | - |
+| def as Short     | - | E | I | E | I | I | I | I | - | E | I | E | I | I | I | I | - | - |
+| def as Character | - | E | E | I | I | I | I | I | - | E | E | I | I | I | I | I | - | - |
+| def as Integer   | - | E | E | E | I | I | I | I | - | E | E | E | I | I | I | I | - | - |
+| def as Long      | - | E | E | E | E | I | I | I | - | E | E | E | E | I | I | I | - | - |
+| def as Float     | - | E | E | E | E | E | I | I | - | E | E | E | E | E | I | I | - | - |
+| def as Double    | - | E | E | E | E | E | E | I | - | E | E | E | E | E | E | I | - | - |
+| def as String    | - | - | - | E | - | - | - | - | - | - | - | - | - | - | - | - | I | - |
+| def as Reference | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | @ |
 |====
 
 @ See <<reference-type-casting, reference type casting>> for allowed reference

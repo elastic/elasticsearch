@@ -319,3 +319,23 @@ def d = 2;                 // declares the def variable d and sets it to the int
 z = z + d;                 // sets the String variable z to the concatenation of the String variable z
 d = "con" + x + y + "cat"; // sets the def variable d to the concatenation of String constant "con", x, y, and the String constant "cat"
 ----
+
+[[elvis]]
+==== Elvis
+
+The elvis operator consists of two expressions.  If the first expression is a non-null value then the resultant value will be the evaluated first expression otherwise the resultant value will be the evaluated second expression.  This is typically used as a shortcut for a null check in a conditional.  An error will occur if the expected result is a primitive type.  The format is an expression, followed by the question-mark-colon operator, and finishes with an expression.
+
+*Grammar:*
+[source,ANTLR4]
+----
+elvis: expression '?:' expression;
+----
+
+*Examples:*
+[source,Java]
+----
+List l = new ArrayList();      // declares the List variable l and sets it to a newly allocated ArrayList
+List y = l ?: new ArrayList(); // declares the List variable y and sets it to l since l is not null
+y = null;                      // sets y to null
+def z = y ?: new HashMap();    // declares the def variable z and sets it to a newly allocated HashMap since y is null
+----

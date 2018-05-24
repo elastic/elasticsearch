@@ -4,8 +4,10 @@
 [[precedence]]
 ==== Precedence
 
-Use the *precedence operator* to guarantee the order of evaluation for an
-expression and override existing precedence relationships between operators.
+An expression encapsulated within a *precedence operator* overrides
+existing precedence relationships between operators and is evaluated
+prior to other expressions in inward-to-outward order. Use the *precedence
+operator* to guarantee the order of evaluation for an expression.
 
 *Grammar*
 [source,ANTLR4]
@@ -15,7 +17,7 @@ precedence: '(' expression ')';
 
 *Examples*
 
-* Use of the precedence operator.
+* Uses of the *precedence operator*.
 +
 [source,Painless]
 ----
@@ -26,87 +28,127 @@ precedence: '(' expression ')';
 <1> declare `int x`;
     add `int 5` and `int 4` -> `int 9`;
     multiply `int 9` and `int 6` -> `int 54`;
-    assign `int 54` to `x`;
+    store `int 54` to `x`;
     (note the add is evaluated before the multiply due to the *precedence
             operator*)
 <2> declare `int y`;
-    load `x`
-
+    load from `x` -> `int 54`;
+    subtract `int 50` from `int 54` -> `int 4`;
+    divide `int 12` by `int 4` -> `int 3`;
+    store `int 3` to `y`;
+    (note the subtract is evaluated before the divide due to the *precedence
+            operator*)
 
 [[function-call]]
 ==== Function Call
 
-User-defined function calls can be made in Painless using the parenthesis
-operator.  See Function Calls [MARK] for more information.
+A function call is defined within a script.  Use the *function call operator* to
+call an existing function.
+
+*Grammar*
+[source,ANTLR4]
+----
+function_call: ID '(' ( expression (',' expression)* )? ')'';
+----
+
+*Examples*
+
+* Use of the *function call operator*.
++
+[source,Painless]
+----
+<1> int add(int x, int y) {
+      return x + y;
+  }
+
+<2> int z = add(1, 2);
+----
++
+<1> define function `add` that returns `int` and has parameters (`int x`,
+            `int y`)
+<2> declare `int z`;
+    call `add` with arguments (`int 1`, `int 2`) -> `int 3`;
+    store `int 3` to `z`
 
 [[cast]]
 ==== Cast
 
-The cast operator can be used to explicitly convert one type to another.  See casting [MARK] for more information.
+An explicit cast converts the value of an original type to the equivalent value
+of a target type forcefully as an operation.  Use the *cast operator* to specify
+an explicit cast. Refer to <<painless-casting, casting>> for more information.
 
 [[conditional]]
 ==== Conditional
 
-A conditional operation consists of three expressions.  The first expression is evaluated with an expected boolean result type.  If the first expression evaluates to true then the second expression will be evaluated.  If the first expression evaluates to false then the third expression will be evaluated.  This can be used as a shortcut many different operations without requiring a full if/else branch.  Errors will occur if the first expression does not evaluate to a boolean type or if one of the second or third expression cannot be converted to a type appropriate for the expected result.  The format is an expression followed by a question-mark operator, another expression, a colon operator, and finishes with a final expression.
+A conditional consists of three expressions. The first expression is evaluated
+with an expected boolean result type. If the first expression evaluates to true
+then the second expression will be evaluated.  If the first expression evaluates
+to false then the third expression will be evaluated. The second and third
+expressions will be <<promotion, promoted>> if the evaluated values are not the
+same type. Use the *conditional operator* as a shortcut to avoid the need for a
+full if/else branch in certain expressions.
 
-*Grammar:*
+*Errors*
+
+* If the first expression does not evaluate to a boolean type value.
+* If the values for the second and third expressions cannot be promoted.
+
+*Grammar*
 [source,ANTLR4]
 ----
 conditional: expression '?' expression ':' expression;
 ----
 
-A numeric type promotion may occur during the evaluation of a conditional with the second and third expressions if the expected result is a numeric type.  A def type evaluated at run-time will follow the same promotion table at run-time following whatever type def represents.
+*Promotion*
 
-Promotion Table:
+[cols="<1,^1,^1,^1,^1,^1,^1,^1,^1,^1"]
 |====
-||byte|short|char|int|long|float|double|def
-|byte|int|int|int|int|long|float|double|def
-|short|int|int|int|int|long|float|double|def
-|char|int|int|int|int|long|float|double|def
-|int|int|int|int|int|long|float|double|def
-|long|long|long|long|long|long|float|double|def
-|float|float|float|float|float|float|float|double|def
-|double|double|double|double|double|double|double|double|def
-|def|def|def|def|def|def|def|def|def
+|           | byte   | short  | char   | int    | long   | float  | double | Reference | def
+| byte      | int    | int    | int    | int    | long   | float  | double | -         | def
+| short     | int    | int    | int    | int    | long   | float  | double | -         | def
+| char      | int    | int    | int    | int    | long   | float  | double | -         | def
+| int       | int    | int    | int    | int    | long   | float  | double | -         | def
+| long      | long   | long   | long   | long   | long   | float  | double | -         | def
+| float     | float  | float  | float  | float  | float  | float  | double | -         | def
+| double    | double | double | double | double | double | double | double | -         | def
+| Reference | -      | -      | -      | -      | -      | -      | -      | Object @  | def
+| def       | def    | def    | def    | def    | def    | def    | def    | def       | def
 |====
 
-*Examples:*
-[source,Java]
+@ If the two reference type values are the same then this promotion will not
+occur.
+
+*Examples*
+
+* Uses of the *conditional operator*.
++
+[source,Painless]
 ----
-boolean b = true;                        // declares the boolean variable b and sets it the constant boolean true
-
-int x = b ? 1 : 2;                       // declares the int variable x and sets it to the int constant 1
-                                         // since the first expression of the conditional evaluates to true
-                                         // so the second expression is evaluated for a result
-
-List y = x > 1 ? new ArrayList() : null; // declares the List variable y and sets it to null
-                                         // since the first expression of the conditional evaluates to false
-                                         // so the third expression is evaluated for a result
-
-def z = x < 2 ? true : false;            // declares the def variable z and sets it to the boolean constant true
-                                         // since the first expression of the conditional evaluates to true
-                                         // so the second expression is evaluated for a result
+<1> boolean b = true;
+<2> int x = b ? 1 : 2;
+<3> List y = x > 1 ? new ArrayList() : null;
+<4> def z = x < 2 ? x : 2.0;
 ----
-
-[[elvis]]
-==== Elvis
-
-The elvis operator consists of two expressions.  If the first expression is a non-null value then the resultant value will be the evaluated first expression otherwise the resultant value will be the evaluated second expression.  This is typically used as a shortcut for a null check in a conditional.  An error will occur if the expected result is a primitive type.  The format is an expression, followed by the question-mark-colon operator, and finishes with an expression.
-
-*Grammar:*
-[source,ANTLR4]
-----
-elvis: expression '?:' expression;
-----
-
-*Examples:*
-[source,Java]
-----
-List l = new ArrayList();      // declares the List variable l and sets it to a newly allocated ArrayList
-List y = l ?: new ArrayList(); // declares the List variable y and sets it to l since l is not null
-y = null;                      // sets y to null
-def z = y ?: new HashMap();    // declares the def variable z and sets it to a newly allocated HashMap since y is null
-----
++
+<1> declare `boolean b`;
+    store `boolean true` to `b`
+<2> declare `int x`;
+    load from `b` -> `boolean true`
+    evaluate 1st expression: `int 1` -> `int 1`;
+    store `int 1` to `x`
+<3> declare `List y`;
+    load from `x` -> `int 1`;
+    `int 1` greater than `int 1` -> `boolean false`;
+    evaluate 2nd expression: `null` -> `null`;
+    store `null` to `y`;
+<4> declare `def z`;
+    load from `x` -> `int 1`;
+    `int 1` less than `int 2` -> `boolean true`;
+    evaluate 1st expression: load from `x` -> `int 1`;
+    promote `int 1` and `double 2.0`: result `double`;
+    implicit cast `int 1` to `double 1.0` -> `double 1.0`;
+    implicit cast `double 1.0` to `def` -> `def`;
+    store `def` to `z`;
 
 [[assignment]]
 ==== Assignment

@@ -151,23 +151,27 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getUserCount(final ActionListener<Long> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareSearch(SECURITY_INDEX_NAME)
-                    .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE))
-                    .setSize(0)
-                    .request(),
-                new ActionListener<SearchResponse>() {
-                    @Override
-                    public void onResponse(SearchResponse response) {
-                        listener.onResponse(response.getHits().getTotalHits());
-                    }
+        if (securityIndex.indexExists() == false) {
+            listener.onResponse(0L);
+        } else {
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareSearch(SECURITY_INDEX_NAME)
+                        .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE))
+                        .setSize(0)
+                        .request(),
+                    new ActionListener<SearchResponse>() {
+                        @Override
+                        public void onResponse(SearchResponse response) {
+                            listener.onResponse(response.getHits().getTotalHits());
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                }, client::search));
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, client::search));
+        }
     }
 
     /**

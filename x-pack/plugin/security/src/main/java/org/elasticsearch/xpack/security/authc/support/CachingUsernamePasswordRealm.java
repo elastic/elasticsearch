@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -146,6 +147,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }, listener::onFailure);
 
         doAuthenticate(token, wrapped);
+    }
+
+    @Override
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("cache", Collections.singletonMap("size", getCacheSize()));
+            listener.onResponse(stats);
+        }, listener::onFailure));
     }
 
     protected int getCacheSize() {

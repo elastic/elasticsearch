@@ -73,12 +73,12 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             final RestClient restClient = mock(RestClient.class);
             restHighLevelClient = new CustomRestClient(restClient);
 
-            doAnswer(inv -> mockPerformRequest(((Request) inv.getArguments()[0]).getHeaders()[0]))
+            doAnswer(inv -> mockPerformRequest(((Request) inv.getArguments()[0]).getHeaders().iterator().next()))
                     .when(restClient)
                     .performRequest(any(Request.class));
 
             doAnswer(inv -> mockPerformRequestAsync(
-                        ((Request) inv.getArguments()[0]).getHeaders()[0],
+                        ((Request) inv.getArguments()[0]).getHeaders().iterator().next(),
                         (ResponseListener) inv.getArguments()[1]))
                     .when(restClient)
                     .performRequestAsync(any(Request.class), any(ResponseListener.class));

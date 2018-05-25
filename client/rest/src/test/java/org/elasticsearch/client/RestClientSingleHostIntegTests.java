@@ -29,7 +29,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.TargetAuthenticationStrategy;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
@@ -379,7 +378,9 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         String requestBody = "{ \"field\": \"value\" }";
         Request request = new Request(method, "/" + statusCode);
         request.setJsonEntity(requestBody);
-        request.setHeaders(headers);
+        for (Header header : headers) {
+            request.addHeader(header.getName(), header.getValue());
+        }
         Response esResponse;
         try {
             esResponse = restClient.performRequest(request);

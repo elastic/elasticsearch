@@ -58,6 +58,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -606,6 +607,21 @@ final class RequestConverters {
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addPathPart(putPipelineRequest.getId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withTimeout(putPipelineRequest.timeout());
+        parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
+
+        request.setEntity(createEntity(putPipelineRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

@@ -127,35 +127,6 @@ public class RequestTests extends RestClientTestCase {
         assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));
     }
 
-    public void testAddHeader() {
-        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
-        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
-        Request request = new Request(method, endpoint);
-
-        try {
-            request.addHeader(null, randomAsciiLettersOfLengthBetween(3, 10));
-            fail("expected failure");
-        } catch (NullPointerException e) {
-            assertEquals("header name cannot be null", e.getMessage());
-        }
-
-        try {
-            request.addHeader(randomAsciiLettersOfLengthBetween(3, 10), null);
-            fail("expected failure");
-        } catch (NullPointerException e) {
-            assertEquals("header value cannot be null", e.getMessage());
-        }
-
-        int numHeaders = between(0, 5);
-        List<Header> headers = new ArrayList<>();
-        for (int i = 0; i < numHeaders; i++) {
-            Header header = new Request.ReqHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
-            headers.add(header);
-            request.addHeader(header.getName(), header.getValue());
-        }
-        assertEquals(headers, new ArrayList<>(request.getHeaders()));
-    }
-
     public void testEqualsAndHashCode() {
         Request request = randomRequest();
         assertEquals(request, request);

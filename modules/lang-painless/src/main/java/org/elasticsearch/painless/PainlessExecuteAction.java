@@ -79,11 +79,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -148,7 +148,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
             Map<String, ScriptContext<?>> supportedContexts = new HashMap<>();
             supportedContexts.put("painless_test", PainlessTestScript.CONTEXT);
             supportedContexts.put("filter", FilterScript.CONTEXT);
-            supportedContexts.put("score", SearchScript.SCRIPT_SCORE_CONTEXT);
+            supportedContexts.put("score", ScoreScript.CONTEXT);
             SUPPORTED_CONTEXTS = Collections.unmodifiableMap(supportedContexts);
         }
 
@@ -415,7 +415,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {
             if (scriptContext == FilterScript.CONTEXT) {
                 return true;
-            } else if (scriptContext == SearchScript.SCRIPT_SCORE_CONTEXT) {
+            } else if (scriptContext == ScoreScript.CONTEXT) {
                 return true;
             } else {
                 return false;
@@ -585,13 +585,13 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
                     boolean result = filterScript.execute();
                     return new Response(result);
                 }, indexService);
-            } else if (scriptContext == SearchScript.SCRIPT_SCORE_CONTEXT) {
+            } else if (scriptContext == ScoreScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
-                    SearchScript.Factory factory = scriptService.compile(request.script, SearchScript.CONTEXT);
-                    SearchScript.LeafFactory leafFactory =
+                    ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
+                    ScoreScript.LeafFactory leafFactory =
                         factory.newFactory(request.getScript().getParams(), context.lookup());
-                    SearchScript searchScript = leafFactory.newInstance(leafReaderContext);
-                    searchScript.setDocument(0);
+                    ScoreScript scoreScript = leafFactory.newInstance(leafReaderContext);
+                    scoreScript.setDocument(0);
 
                     if (request.executeScriptContext.query != null) {
                         Query luceneQuery = request.executeScriptContext.query.rewrite(context).toQuery(context);
@@ -602,10 +602,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
                         // Consume the first (and only) match.
                         int docID = scorer.iterator().nextDoc();
                         assert docID == scorer.docID();
-                        searchScript.setScorer(scorer);
+                        scoreScript.setScorer(scorer);
                     }
 
-                    double result = searchScript.runAsDouble();
+                    double result = scoreScript.execute();
                     return new Response(result);
                 }, indexService);
             } else {

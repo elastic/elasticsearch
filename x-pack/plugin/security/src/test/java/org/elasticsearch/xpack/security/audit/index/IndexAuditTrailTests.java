@@ -378,6 +378,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         // test custom index settings override template
         assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexAuditTrailTemplate.settings()), is(numReplicas));
         assertThat(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexAuditTrailTemplate.settings()), is(numShards));
+        // test upgrade template and installed template are equal
         final GetIndexTemplatesRequest request = new GetIndexTemplatesRequest(IndexAuditTrail.INDEX_TEMPLATE_NAME);
         final GetIndexTemplatesResponse response = client().admin().indices().getTemplates(request).get();
         assertThat(response.getIndexTemplates(), hasSize(1));

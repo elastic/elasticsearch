@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -24,8 +25,8 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
 
     private final NativeUsersStore userStore;
 
-    public NativeRealm(RealmConfig config, NativeUsersStore usersStore) {
-        super(NativeRealmSettings.TYPE, config);
+    public NativeRealm(RealmConfig config, NativeUsersStore usersStore, ThreadPool threadPool) {
+        super(NativeRealmSettings.TYPE, config, threadPool);
         this.userStore = usersStore;
     }
 

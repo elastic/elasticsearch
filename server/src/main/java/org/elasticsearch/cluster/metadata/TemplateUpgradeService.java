@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
@@ -32,8 +31,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -75,6 +72,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
     public final Client client;
 
     private final AtomicInteger updatesInProgress = new AtomicInteger();
+    private volatile boolean allUpdatesSuccessful;
 
     private ImmutableOpenMap<String, IndexTemplateMetaData> lastTemplateMetaData;
 
@@ -124,7 +122,8 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         lastTemplateMetaData = templates;
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
-            if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size())) {
+            if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size() + 1)) {
+                allUpdatesSuccessful = true;
                 logger.info("Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
                     Version.CURRENT,
                     changes.get().v1().size(),
@@ -151,26 +150,18 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
-                    // check successful template change
-                    final Optional<Tuple<Map<String, BytesReference>, Set<String>>> afterChanges =
-                            calculateTemplateChanges(clusterService.state().getMetaData().getTemplates());
-                    if (afterChanges.isPresent() && afterChanges.get().v1().containsKey(request.name())) {
-                        throw new IllegalStateException("Successful template [" + request.name() + "] upgrade is not successful");
-                    }
-                    if (updatesInProgress.decrementAndGet() == 0) {
-                        logger.info("Finished upgrading templates to version {}", Version.CURRENT);
-                    }
                     if (response.isAcknowledged() == false) {
+                        allUpdatesSuccessful = false;
                         logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());
                     }
+                    tryFinishUpdate();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (updatesInProgress.decrementAndGet() == 0) {
-                        logger.info("Templates were upgraded to version {}", Version.CURRENT);
-                    }
+                    allUpdatesSuccessful = false;
                     logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
+                    tryFinishUpdate();
                 }
             });
         }
@@ -181,33 +172,44 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             client.admin().indices().deleteTemplate(request, new ActionListener<DeleteIndexTemplateResponse>() {
                 @Override
                 public void onResponse(DeleteIndexTemplateResponse response) {
-                    // check successful template deletion
-                    final Optional<Tuple<Map<String, BytesReference>, Set<String>>> afterChanges =
-                            calculateTemplateChanges(clusterService.state().getMetaData().getTemplates());
-                    if (afterChanges.isPresent() && afterChanges.get().v2().contains(request.name())) {
-                        throw new IllegalStateException("Successful template [" + request.name() + "] delete is not successful");
-                    }
-                    if (updatesInProgress.decrementAndGet() == 0) {
-                        logger.info("Finished upgrading templates to version {}", Version.CURRENT);
-                    }
                     if (response.isAcknowledged() == false) {
+                        allUpdatesSuccessful = false;
                         logger.warn("Error deleting template [{}], request was not acknowledged", template);
                     }
+                    tryFinishUpdate();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (updatesInProgress.decrementAndGet() == 0) {
-                        logger.info("Templates were upgraded to version {}", Version.CURRENT);
-                    }
+                    allUpdatesSuccessful = false;
                     if (e instanceof IndexTemplateMissingException == false) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn
                         logger.warn(new ParameterizedMessage("Error deleting template [{}]", template), e);
                     }
+                    tryFinishUpdate();
                 }
             });
         }
+    }
+
+    private void tryFinishUpdate() {
+        assert updatesInProgress.get() > 0;
+        if (updatesInProgress.decrementAndGet() > 1) {
+            return;
+        }
+        if (allUpdatesSuccessful) {
+            logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
+        } else {
+            logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
+        }
+        allUpdatesSuccessful = true;
+        final boolean changesRequired = calculateTemplateChanges(clusterService.state().getMetaData().getTemplates()).isPresent();
+        if (changesRequired) {
+            logger.warn("Templates are still reported as out of date. The upgrade will be retried.");
+        }
+        final int noMoreUpdates = updatesInProgress.decrementAndGet();
+        assert noMoreUpdates == 0;
     }
 
     int getUpdatesInProgress() {

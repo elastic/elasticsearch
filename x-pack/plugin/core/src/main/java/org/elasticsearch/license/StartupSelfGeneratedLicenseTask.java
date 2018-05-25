@@ -63,7 +63,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
             return updateWithLicense(currentState, type);
         } else if (LicenseUtils.licenseNeedsExtended(currentLicensesMetaData.getLicense())) {
             return extendBasic(currentState, currentLicensesMetaData);
-        } else if (LicenseUtils.signatureNeedsUpdate(currentLicensesMetaData.getLicense())) {
+        } else if (LicenseUtils.signatureNeedsUpdate(currentLicensesMetaData.getLicense(), currentState.nodes())) {
             return updateLicenseSignature(currentState, currentLicensesMetaData);
         } else {
             return currentState;

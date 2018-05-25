@@ -55,7 +55,7 @@ setup:
   - do:
       snapshot.create:
         repository: test_repo_status_1
-        snapshot: test_snapshot
+        snapshot: test_snapshot_bwc
         wait_for_completion: true
 
   - do:
@@ -64,7 +64,7 @@ setup:
         snapshot: test_snapshot
 
   - is_true: snapshots
-  - match: { snapshots.0.snapshot: test_snapshot }
+  - match: { snapshots.0.snapshot: test_snapshot_bwc }
   - match: { snapshots.0.state: SUCCESS }
   - gt: { snapshots.0.stats.number_of_files: 0 }
   - gt: { snapshots.0.stats.processed_files: 0 }

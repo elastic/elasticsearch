@@ -36,6 +36,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -54,12 +55,12 @@ public class Sniffer implements Closeable {
 
     private final HostsSniffer hostsSniffer;
     private final RestClient restClient;
-
     private final long sniffIntervalMillis;
     private final long sniffAfterFailureDelayMillis;
     private final Scheduler scheduler;
-
-    private final AtomicReference<Future<?>> nextTask = new AtomicReference<>();
+    private final AtomicBoolean initialized = new AtomicBoolean(false);
+    //this is just a placeholder, it will be replaced once the first sniffing round runs
+    private volatile ScheduledTask nextScheduledTask = new ScheduledTask(null, null);
 
     Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
         this(restClient, hostsSniffer, new DefaultScheduler(), sniffInterval, sniffAfterFailureDelay);
@@ -71,28 +72,47 @@ public class Sniffer implements Closeable {
         this.sniffIntervalMillis = sniffInterval;
         this.sniffAfterFailureDelayMillis = sniffAfterFailureDelay;
         this.scheduler = scheduler;
-        //first sniffing round is immediately executed, next one will be executed depending on the configured sniff interval
-        scheduleNextRound(0L, sniffIntervalMillis, false);
+        //the first sniffing round is scheduled, so this constructor returns before nextScheduledTask is assigned to a proper task
+        Task task = new Task(sniffIntervalMillis) {
+            @Override
+            public void run() {
+                super.run();
+                initialized.compareAndSet(false, true);
+            }
+        };
+        //we do not keep track of the returned future as we never intend to cancel the initial sniffing round, we rather
+        //prevent any other operation from being executed till the sniffer is properly initialized
+        scheduler.schedule(task, 0L);
     }
 
     /**
-     * Triggers a new immediate sniffing round, which will schedule a new round in sniffAfterFailureDelayMillis ms
+     * Triggers a new immediate sniffing round, which will schedule a new round in sniffAfterFailureDelayMillis
      */
     public void sniffOnFailure() {
-        scheduleNextRound(0L, sniffAfterFailureDelayMillis, true);
-    }
-
-    private void scheduleNextRound(long delay, long nextDelay, boolean mustCancelNextRound) {
-        Task task = new Task(nextDelay);
-        Future<?> nextFuture = scheduler.schedule(task, delay);
-        Future<?> previousFuture = nextTask.getAndSet(nextFuture);
-        if (mustCancelNextRound) {
-            previousFuture.cancel(false);
+        //we don't want sniffOnFailure to do anything until the initial sniffing round has been completed
+        if (initialized.get()) {
+            //we want to limit sniffing rounds triggered by concurrent calls of this method.
+            //if sniffing is already running, there is no point in scheduling another round right after the current one.
+            ScheduledTask scheduledTask = this.nextScheduledTask;
+            //concurrent calls may be checking the same task state, but only the first cancelOrSKip call on the same task returns true.
+            //It can also happen that the task gets replaced while we check its state, in which case the original task is completed
+            //and calling cancelOrSKip on it returns false.
+            if (scheduledTask.cancelOrSKip()) {
+                //we do not keep track of this future as the task will immediately run and we don't intend to cancel it
+                //due to concurrent sniffOnFailure runs. Effectively the previous cancelled task will stay assigned to nextTask
+                //till this onFailure round is run and schedules its corresponding following afterFailure round.
+                scheduler.schedule(new Task(sniffAfterFailureDelayMillis), 0L);
+            }
         }
     }
 
-    final class Task implements Runnable {
+    enum TaskState {
+        WAITING, SKIPPED, STARTED
+    }
+
+    class Task implements Runnable {
         final long nextTaskDelay;
+        final AtomicReference<TaskState> taskState = new AtomicReference<>(TaskState.WAITING);
 
         Task(long nextTaskDelay) {
             this.nextTaskDelay = nextTaskDelay;
@@ -100,13 +120,63 @@ public class Sniffer implements Closeable {
 
         @Override
         public void run() {
+            if (taskState.compareAndSet(TaskState.WAITING, TaskState.STARTED) == false) {
+                return;
+            }
             try {
                 sniff();
             } catch (Exception e) {
                 logger.error("error while sniffing nodes", e);
             } finally {
-                scheduleNextRound(nextTaskDelay, sniffIntervalMillis, false);
+                Task task = new Task(sniffIntervalMillis);
+                Future<?> future = scheduler.schedule(task, nextTaskDelay);
+                //tasks are run by a single threaded executor, so swapping is safe with a simple volatile variable
+                ScheduledTask previousTask = nextScheduledTask;
+                nextScheduledTask = new ScheduledTask(task, future);
+                assert initialized.get() == false ||
+                        previousTask.task.isSkipped() || previousTask.task.hasStarted() : "task that we are replacing is neither " +
+                        "cancelled nor has it ever started";
             }
+        }
+
+        /**
+         * Returns true if the task has started, false in case it didn't start (yet?) or it was skipped
+         */
+        boolean hasStarted() {
+            return taskState.get() == TaskState.STARTED;
+        }
+
+        /**
+         * Sets this task to be skipped. Returns true if the task will be skipped, false if the task has already started or completed.
+         */
+        boolean skip() {
+            return taskState.compareAndSet(TaskState.WAITING, TaskState.SKIPPED);
+        }
+
+        /**
+         * Returns true if the task was set to be skipped before it was started
+         */
+        boolean isSkipped() {
+            return taskState.get() == TaskState.SKIPPED;
+        }
+    }
+
+    static final class ScheduledTask {
+        final Task task;
+        final Future<?> future;
+
+        ScheduledTask(Task task, Future<?> future) {
+            this.task = task;
+            this.future = future;
+        }
+
+        /**
+         * Cancels this task. Returns true if the task has been successfully cancelled, meaning it won't be executed
+         * or if it is its execution won't have any effect. Returns false if the task cannot be cancelled (possibly it was
+         * already cancelled or already completed).
+         */
+        boolean cancelOrSKip() {
+            return future.cancel(false) && task.skip();
         }
     }
 
@@ -124,7 +194,9 @@ public class Sniffer implements Closeable {
 
     @Override
     public void close() {
-        nextTask.get().cancel(false);
+        if (initialized.get()) {
+            nextScheduledTask.future.cancel(false);
+        }
         this.scheduler.shutdown();
     }
 

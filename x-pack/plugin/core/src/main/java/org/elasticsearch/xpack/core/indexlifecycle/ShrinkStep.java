@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,7 +38,16 @@ public class ShrinkStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
-        // if operating on the shrunken index, do nothing
+        String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
+        // Either shrunken index was created outside of ILM, or this step is being
+        // executed again due to the policy moving back to previously run steps.
+        // no exception should be thrown, and nothing needs to be done
+        IndexMetaData shrunkenIndex = currentState.metaData().index(shrunkenIndexName);
+        if (shrunkenIndex != null
+                && indexMetaData.getIndex().getName().equals(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.get(shrunkenIndex.getSettings()))) {
+            listener.onResponse(true);
+            return;
+        }
 
         Long lifecycleDate = LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(indexMetaData.getSettings());
         if (lifecycleDate == null) {
@@ -57,7 +67,6 @@ public class ShrinkStep extends AsyncActionStep {
             .put(LifecycleSettings.LIFECYCLE_ACTION, action)
             .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME) // skip source-index steps
             .build();
-        String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName());
         indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
             resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));
@@ -74,7 +83,7 @@ public class ShrinkStep extends AsyncActionStep {
     public int hashCode() {
         return Objects.hash(super.hashCode(), numberOfShards, shrunkIndexPrefix);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -84,8 +93,8 @@ public class ShrinkStep extends AsyncActionStep {
             return false;
         }
         ShrinkStep other = (ShrinkStep) obj;
-        return super.equals(obj) && 
-                Objects.equals(numberOfShards, other.numberOfShards) && 
+        return super.equals(obj) &&
+                Objects.equals(numberOfShards, other.numberOfShards) &&
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 

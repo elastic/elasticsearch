@@ -59,6 +59,11 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
         return this;
     }
 
+    public ClusterStateRequestBuilder setMetaDataCustoms(boolean filter) {
+        request.metaDataCustoms(filter);
+        return this;
+    }
+
     /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.node.DiscoveryNodes}. Defaults
      * to {@code true}.

@@ -196,6 +196,8 @@ import static java.util.Collections.emptyList;
 
 public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
+    // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
+    @Deprecated
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =

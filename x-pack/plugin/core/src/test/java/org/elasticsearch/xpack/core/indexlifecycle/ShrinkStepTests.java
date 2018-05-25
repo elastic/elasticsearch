@@ -16,8 +16,11 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
@@ -97,6 +100,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .putAlias(AliasMetaData.builder("my_alias"))
             .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(sourceIndexMetaData, false)).build();
 
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
@@ -133,7 +138,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(sourceIndexMetaData, null, new Listener() {
+        step.performAction(sourceIndexMetaData, clusterState, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -156,6 +161,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     public void testPerformActionNotComplete() throws Exception {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData, false)).build();
         ShrinkStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
@@ -178,7 +185,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, clusterState, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -201,6 +208,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     public void testPerformActionFailure() throws Exception {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData, false)).build();
         Exception exception = new RuntimeException();
         ShrinkStep step = createRandomInstance();
 
@@ -222,7 +231,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, clusterState, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -243,4 +252,34 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }
 
+    public void testPerformActionWithExistingShrunkenIndex() {
+        ShrinkStep step = createRandomInstance();
+        String index = randomAlphaOfLength(10);
+        String shrunkenIndex = step.getShrunkIndexPrefix() + index;
+
+        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetaData shrunkenIndexMetaData = IndexMetaData.builder(shrunkenIndex).settings(
+            settings(Version.CURRENT).put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, index))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData, false).put(shrunkenIndexMetaData, false)).build();
+
+        SetOnce<Boolean> completed = new SetOnce<>();
+        step.performAction(indexMetaData, clusterState, new Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                completed.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call");
+            }
+        });
+
+        assertTrue(completed.get());
+        Mockito.verifyZeroInteractions(client);
+    }
 }

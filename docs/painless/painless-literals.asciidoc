@@ -1,18 +1,19 @@
 [[painless-literals]]
 === Literals
 
-Use literals to specify different types of values directly in a script.
+Use a literal to specify a value directly in an
+<<painless-operators, operation>>.
 
 [[integers]]
 ==== Integers
 
-Use integer literals to specify an integer value in decimal, octal, or hex
-notation of the <<primitive-types, primitive types>> `int`, `long`, `float`,
+Use an integer literal to specify an integer type value in decimal, octal, or
+hex notation of a <<primitive-types, primitive type>> `int`, `long`, `float`,
 or `double`. Use the following single letter designations to specify the
-<<primitive-types, primitive type>>: `l` or `L` for `long`, `f` or `F` for
-`float`, and `d` or `D` for `double`. If not specified, the type defaults to
-`int`.  Use `0` as a prefix to specify an integer literal as octal, and use
-`0x` or `0X` as a prefix to specify an integer literal as hex.
+primitive type: `l` or `L` for `long`, `f` or `F` for `float`, and `d` or `D`
+for `double`. If not specified, the type defaults to `int`.  Use `0` as a prefix
+to specify an integer literal as octal, and use `0x` or `0X` as a prefix to
+specify an integer literal as hex.
 
 *Grammar*
 [source,ANTLR4]
@@ -46,11 +47,10 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 [[floats]]
 ==== Floats
 
-Use floating point literals to specify a floating point value of the
-<<primitive-types, primitive types>> `float` or `double`. Use the following
-single letter designations to specify the <<primitive-types, primitive type>>:
-`f` or `F` for `float` and `d` or `D` for `double`. If not specified, the type defaults
-to `double`.
+Use a floating point literal to specify a floating point type value of a
+<<primitive-types, primitive type>> `float` or `double`. Use the following
+single letter designations to specify the primitive type: `f` or `F` for `float`
+and `d` or `D` for `double`. If not specified, the type defaults to `double`.
 
 *Grammar*
 [source,ANTLR4]
@@ -81,7 +81,7 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 [[strings]]
 ==== Strings
 
-Use string literals to specify <<string-type, String>> values with
+Use a string literal to specify a <<string-type, `String` type>> value with
 either single-quotes or double-quotes. Use a `\"` token to include a
 double-quote as part of a double-quoted string literal. Use a `\'` token to
 include a single-quote as part of a single-quoted string literal.  Use a `\\`
@@ -117,26 +117,6 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 [[characters]]
 ==== Characters
 
-Use the <<painless-casting, casting operator>> to convert string literals or
-<<string-type, String>> values into <<primitive-types, char>> values.
-<<string-type, String>> values converted into
-<<primitive-types, char>> values must be exactly one character in length
-or an error will occur.
-
-*Examples*
-
-* Casting string literals into <<primitive-types, char>> values.
-+
-[source,Painless]
-----
-(char)"C"
-(char)'c'
-----
-+
-* Casting a <<string-type, String>> value into a <<primitive-types, char>> value.
-+
-[source,Painless]
-----
-String s = "s";
-char c = (char)s;
-----
+A character literal cannot be specified directly. Instead, use the
+<<string-character-casting, cast operator>> to convert a `String` type value
+into a `char` type value.

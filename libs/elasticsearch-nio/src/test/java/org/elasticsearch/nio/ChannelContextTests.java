@@ -83,7 +83,7 @@ public class ChannelContextTests extends ESTestCase {
             if (t == null) {
                 throw new AssertionError("Close should not fail");
             } else {
-                exception.set((Exception) t);
+                exception.set(t);
             }
         });
 

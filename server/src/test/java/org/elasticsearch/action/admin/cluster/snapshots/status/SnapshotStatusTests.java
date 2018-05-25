@@ -91,12 +91,20 @@ public class SnapshotStatusTests extends ESTestCase {
             "    \"total\" : " + totalShards + "\n" +
             "  },\n" +
             "  \"stats\" : {\n" +
+            "    \"incremental\" : {\n" +
+            "      \"file_count\" : 0,\n" +
+            "      \"size_in_bytes\" : 0\n" +
+            "    },\n" +
+            "    \"total\" : {\n" +
+            "      \"file_count\" : 0,\n" +
+            "      \"size_in_bytes\" : 0\n" +
+            "    },\n" +
+            "    \"start_time_in_millis\" : 0,\n" +
+            "    \"time_in_millis\" : 0,\n" +
             "    \"number_of_files\" : 0,\n" +
             "    \"processed_files\" : 0,\n" +
             "    \"total_size_in_bytes\" : 0,\n" +
-            "    \"processed_size_in_bytes\" : 0,\n" +
-            "    \"start_time_in_millis\" : 0,\n" +
-            "    \"time_in_millis\" : 0\n" +
+            "    \"processed_size_in_bytes\" : 0\n" +
             "  },\n" +
             "  \"indices\" : {\n" +
             "    \"" + indexName + "\" : {\n" +
@@ -109,23 +117,39 @@ public class SnapshotStatusTests extends ESTestCase {
             "        \"total\" : " + totalShards + "\n" +
             "      },\n" +
             "      \"stats\" : {\n" +
+            "        \"incremental\" : {\n" +
+            "          \"file_count\" : 0,\n" +
+            "          \"size_in_bytes\" : 0\n" +
+            "        },\n" +
+            "        \"total\" : {\n" +
+            "          \"file_count\" : 0,\n" +
+            "          \"size_in_bytes\" : 0\n" +
+            "        },\n" +
+            "        \"start_time_in_millis\" : 0,\n" +
+            "        \"time_in_millis\" : 0,\n" +
             "        \"number_of_files\" : 0,\n" +
             "        \"processed_files\" : 0,\n" +
             "        \"total_size_in_bytes\" : 0,\n" +
-            "        \"processed_size_in_bytes\" : 0,\n" +
-            "        \"start_time_in_millis\" : 0,\n" +
-            "        \"time_in_millis\" : 0\n" +
+            "        \"processed_size_in_bytes\" : 0\n" +
             "      },\n" +
             "      \"shards\" : {\n" +
             "        \"" + shardId + "\" : {\n" +
             "          \"stage\" : \"" + shardStage.toString() + "\",\n" +
             "          \"stats\" : {\n" +
+            "            \"incremental\" : {\n" +
+            "              \"file_count\" : 0,\n" +
+            "              \"size_in_bytes\" : 0\n" +
+            "            },\n" +
+            "            \"total\" : {\n" +
+            "              \"file_count\" : 0,\n" +
+            "              \"size_in_bytes\" : 0\n" +
+            "            },\n" +
+            "            \"start_time_in_millis\" : 0,\n" +
+            "            \"time_in_millis\" : 0,\n" +
             "            \"number_of_files\" : 0,\n" +
             "            \"processed_files\" : 0,\n" +
             "            \"total_size_in_bytes\" : 0,\n" +
-            "            \"processed_size_in_bytes\" : 0,\n" +
-            "            \"start_time_in_millis\" : 0,\n" +
-            "            \"time_in_millis\" : 0\n" +
+            "            \"processed_size_in_bytes\" : 0\n" +
             "          }\n" +
             "        }\n" +
             "      }\n" +

@@ -63,9 +63,9 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
+                    public ClusterState execute(ClusterState currentState) {
                         DatafeedUpdate update = request.getUpdate();
-                        MlMetadata currentMetadata = currentState.getMetaData().custom(MLMetadataField.TYPE);
+                        MlMetadata currentMetadata = MlMetadata.getMlMetadata(currentState);
                         PersistentTasksCustomMetaData persistentTasks =
                                 currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)

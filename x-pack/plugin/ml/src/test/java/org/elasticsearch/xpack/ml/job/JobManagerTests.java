@@ -326,7 +326,7 @@ public class JobManagerTests extends ESTestCase {
 
     private ClusterState createClusterState() {
         ClusterState.Builder builder = ClusterState.builder(new ClusterName("_name"));
-        builder.metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA));
+        builder.metaData(MetaData.builder());
         return builder.build();
     }
 }

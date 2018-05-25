@@ -31,7 +31,7 @@ import static org.mockito.Mockito.mock;
 
 public class FlushOperationTests extends ESTestCase {
 
-    private BiConsumer<Void, Throwable> listener;
+    private BiConsumer<Void, Exception> listener;
 
     @Before
     @SuppressWarnings("unchecked")

@@ -1,29 +1,31 @@
 [[painless-variables]]
 === Variables
 
-<<declaration, Declare>> variables to <<assignment, assign>> values for
-<<painless-operators, use>> in expressions.  Specify variables as a
-<<primitive-types, primitive type>>, <<reference-types, reference type>>, or
-<<dynamic-types, dynamic type>>.  Variable operations follow the structure of a
-standard JVM in relation to instruction execution and memory usage.
+A variable loads and stores a value for evaluation during
+<<painless-operators, operations>>.
 
 [[declaration]]
 ==== Declaration
 
-Declare variables before use with the format of <<painless-types, type>>
-<<painless-identifiers, identifier>>. Specify a comma-separated list of
-<<painless-identifiers, identifiers>> following the <<painless-types, type>>
-to declare multiple variables in a single statement.  Use an
-<<assignment, assignment>> statement combined with a declaration statement to
-immediately assign a value to a variable. Variables not immediately assigned a
-value will have a default value assigned implicitly based on the
-<<painless-types, type>>.
+Declare a variable before use with the format of <<painless-types, type>>
+followed by <<painless-identifiers, identifier>>. Declare an
+<<array-type, array type>> variable using an opening `[` token and a closing `]`
+token for each dimension directly after the identifier. Specify a
+comma-separated list of identifiers following the type to declare multiple
+variables in a single statement. Use an <<assignment, assignment operator>>
+combined with a declaration to immediately assign a value to a variable.
+A variable not immediately assigned a value will have a default value assigned
+implicitly based on the type.
+
+*Errors*
+
+* If a variable is used prior to or without declaration.
 
 *Grammar*
 [source,ANTLR4]
 ----
 declaration : type ID assignment? (',' ID assignment?)*;
-type: ID ('[' ']')*;
+type: ID ('.' ID)* ('[' ']')*;
 assignment: '=' expression;
 ----
 
@@ -35,27 +37,43 @@ assignment: '=' expression;
 ----
 <1> int x;
 <2> List y;
-<3> int x, y, z;
-<4> def[] d;
+<3> int x, y = 5, z;
+<4> def d;
 <5> int i = 10;
+<6> float[] f;
+<7> Map[][] m;
 ----
 +
-<1> declare a variable of type `int` and identifier `x`
-<2> declare a variable of type `List` and identifier `y`
-<3> declare three variables of type `int` and identifiers `x`, `y`, `z`
-<4> declare a variable of type `def[]` and identifier `d`
-<5> declare a variable of type `int` and identifier `i`;
-    assign the integer literal `10` to `i`
+<1> declare `int x`;
+    assign default `null` to `x`
+<2> declare `List y`;
+    assign default `null` to `y`
+<3> declare `int x`;
+    assign default `int 0` to `x`;
+    declare `int y`;
+    assign `int 5` to `y`;
+    declare `int z`;
+    assign default `int 0` to `z`;
+<4> declare `def d`;
+    assign default `null` to `d`
+<5> declare `int i`;
+    assign `int 10` to `i`
+<6> declare `float[] f`;
+    assign default `null` to `f`
+<7> declare `Map[][] m`;
+    assign default `null` to `m`
 
 [[assignment]]
 ==== Assignment
 
-Use the `equals` operator (`=`) to assign a value to a variable. Any expression
+Use the *assignment operator* to store a value in a variable. Any operation
 that produces a value can be assigned to any variable as long as the
-<<painless-types, types>> are the same or the resultant
-<<painless-types, type>> can be implicitly <<painless-casting, cast>> to
-the variable <<painless-types, type>>.  Otherwise, an error will occur.
-<<reference-types, Reference type>> values are shallow-copied when assigned.
+<<painless-types, types>> are the same or the resultant type can be
+<<painless-casting, implicitly cast>> to the variable type.
+
+*Errors*
+
+* If the type of value is unable to match the type of variable.
 
 *Grammar*
 [source,ANTLR4]
@@ -65,7 +83,7 @@ assignment: ID '=' expression
 
 *Examples*
 
-* Variable assignment with an <<integers, integer literal>>.
+* Variable assignment with an integer literal.
 +
 [source,Painless]
 ----
@@ -73,10 +91,11 @@ assignment: ID '=' expression
 <2> i = 10;
 ----
 +
-<1> declare `int i`
-<2> assign `10` to `i`
+<1> declare `int i`;
+    assign default `int 0` to `i`
+<2> assign `int 10` to `i`
 +
-* <<declaration, Declaration>> combined with immediate variable assignment.
+* Declaration combined with immediate assignment.
 +
 [source,Painless]
 ----
@@ -84,11 +103,12 @@ assignment: ID '=' expression
 <2> double j = 2.0;
 ----
 +
-<1> declare `int i`; assign `10` to `i`
-<2> declare `double j`; assign `2.0` to `j`
+<1> declare `int i`;
+    assign `int 10` to `i`
+<2> declare `double j`;
+    assign `double 2.0` to `j`
 +
-* Assignment of one variable to another using
-<<primitive-types, primitive types>>.
+* Assignment of one variable to another using primitive types.
 +
 [source,Painless]
 ----
@@ -96,11 +116,13 @@ assignment: ID '=' expression
 <2> int j = i;
 ----
 +
-<1> declare `int i`; assign `10` to `i`
-<2> declare `int j`; assign `j` to `i`
+<1> declare `int i`;
+    assign `int 10` to `i`
+<2> declare `int j`;
+    access `i` -> `int 10`;
+    assign `int 10` to `j`
 +
-* Assignment with <<reference-types, reference types>> using the
-<<constructor-call, new operator>>.
+* Assignment with reference types using the *new instance operator*.
 +
 [source,Painless]
 ----
@@ -108,12 +130,15 @@ assignment: ID '=' expression
 <2> Map m = new HashMap();
 ----
 +
-<1> declare `ArrayList l`; assign a newly-allocated `Arraylist` to `l`
-<2> declare `Map m`; assign a newly-allocated `HashMap` to `m`
-    with an implicit cast to `Map`
+<1> declare `ArrayList l`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    assign `ArrayList reference` to `l`
+<2> declare `Map m`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
+    assign `Map reference` to `m`
 +
-* Assignment of one variable to another using
-<<reference-types, reference types>>.
+* Assignment of one variable to another using reference types.
 +
 [source,Painless]
 ----
@@ -123,8 +148,52 @@ assignment: ID '=' expression
 <4> m = k;
 ----
 +
-<1> declare `List l`; assign a newly-allocated `Arraylist` to `l`
-    with an implicit cast to `List`
-<2> declare `List k`; assign a shallow-copy of `l` to `k`
+<1> declare `List l`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    assign `List reference` to `l`
+<2> declare `List k`;
+    access `l` -> `List reference`;
+    assign `List reference` to `k`;
+    (note `l` and `k` refer to the same instance known as a shallow-copy)
 <3> declare `List m`;
-<4> assign a shallow-copy of `k` to `m`
+    assign default `null` to `m`
+<4> access `k` -> `List reference`;
+    assign `List reference` to `m`;
+    (note `l`, `k`, and `m` refer to the same instance)
++
+* Assignment with an array type variable using the *new array operator*.
++
+[source,Painless]
+----
+<1> int[] ia1;
+<2> ia1 = new int[2];
+<3> ia1[0] = 1;
+<4> int[] ib1 = ia1;
+<5> int[][] ic2 = new int[2][5];
+<6> ic2[1][3] = 2;
+<7> ic2[0] = ia1;
+----
++
+<1> declare `int[] ia1`;
+    assign default `null` to `ia1`
+<2> allocate `1-d int array` instance with `length [2]`
+            -> `1-d int array reference`;
+    assign `1-d int array reference` to `ia1`
+<3> access `ia1` -> `1-d int array reference`;
+    assign `int 1` to `index [0]` of `1-d int array reference`
+<4> declare `int[] ib1`;
+    access `ia1` -> `1-d int array reference`;
+    assign `1-d int array reference` to `ib1`;
+    (note `ia1` and `ib1` refer to the same instance known as a shallow copy)
+<5> declare `int[][] ic2`;
+    allocate `2-d int array` instance with `length [2, 5]`
+            -> `2-d int array reference`;
+    assign `2-d int array reference` to `ic2`
+<6> access `ic2` -> `2-d int array reference`;
+    assign `int 2` to `index [1, 3]` of `2-d int array reference`
+<7> access `ia1` -> `1-d int array reference`;
+    access `ic2` -> `2-d int array reference`;
+    assign `1-d int array reference` to
+            `index [0]` of `2-d int array reference`;
+    (note `ia1`, `ib1`, and `index [0]` of `ia2` refer to the same instance)

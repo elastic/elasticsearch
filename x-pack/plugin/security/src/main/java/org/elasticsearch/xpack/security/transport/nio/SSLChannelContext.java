@@ -159,7 +159,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     private static class CloseNotifyOperation implements WriteOperation {
 
-        private static final BiConsumer<Void, Throwable> LISTENER = (v, t) -> {};
+        private static final BiConsumer<Void, Exception> LISTENER = (v, t) -> {};
         private static final Object WRITE_OBJECT = new Object();
         private final SocketChannelContext channelContext;
 
@@ -168,7 +168,7 @@ public final class SSLChannelContext extends SocketChannelContext {
         }
 
         @Override
-        public BiConsumer<Void, Throwable> getListener() {
+        public BiConsumer<Void, Exception> getListener() {
             return LISTENER;
         }
 

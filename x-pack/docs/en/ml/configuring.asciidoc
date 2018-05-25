@@ -34,8 +34,17 @@ The scenarios in this section describe some best practices for generating useful
 * <<ml-configuring-pop>>
 * <<ml-configuring-transform>>
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/customurl.asciidoc
 include::customurl.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/aggregations.asciidoc
 include::aggregations.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/categories.asciidoc
 include::categories.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/populations.asciidoc
 include::populations.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/transforms.asciidoc
 include::transforms.asciidoc[]

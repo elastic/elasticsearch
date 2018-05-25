@@ -144,7 +144,9 @@ You must also specify the information necessary to access certificates. See
 <<auditing-tls-ssl-settings>>. 
 
 You can pass additional settings to the remote client by specifying them in the
-`xpack.security.audit.index.client` namespace. For example, to allow the remote
+`xpack.security.audit.index.client` namespace. For example, you can add 
+<<modules-transport,transport settings>> and 
+<<tcp-settings,advanced TCP settings>> in that namespace. To allow the remote
 client to discover all of the nodes in the remote cluster you can specify the
 `client.transport.sniff` setting:
 

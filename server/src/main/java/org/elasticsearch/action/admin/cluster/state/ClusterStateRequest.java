@@ -51,7 +51,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         routingTable = in.readBoolean();
         nodes = in.readBoolean();
         metaData = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             metaDataCustoms = in.readBoolean();
         }
         blocks = in.readBoolean();
@@ -66,7 +66,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         out.writeBoolean(routingTable);
         out.writeBoolean(nodes);
         out.writeBoolean(metaData);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(metaDataCustoms);
         }
         out.writeBoolean(blocks);

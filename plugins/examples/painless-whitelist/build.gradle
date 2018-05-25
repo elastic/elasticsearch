@@ -30,8 +30,12 @@ dependencies {
   compileOnly project(':modules:lang-painless')
 }
 
-integTestCluster {
-  distribution = 'zip'
+if (System.getProperty('tests.distribution') == null) {
+  integTestCluster.distribution = 'oss-zip'
+}
+
+if (integTestCluster.distribution == 'integ-test-zip') {
+  integTest.enabled = false
 }
 
 test.enabled = false

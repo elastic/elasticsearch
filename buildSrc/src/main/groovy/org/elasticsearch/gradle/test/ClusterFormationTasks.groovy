@@ -532,9 +532,6 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
-        if (node.config.distribution != 'integ-test-zip') {
-            throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
-        }
         if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
         }

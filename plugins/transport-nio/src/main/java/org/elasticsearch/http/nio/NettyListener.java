@@ -36,7 +36,7 @@ import java.util.function.BiConsumer;
  * complete that promise when accept is called. It delegates the normal promise methods to the underlying
  * promise.
  */
-public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromise {
+public class NettyListener implements BiConsumer<Void, Exception>, ChannelPromise {
 
     private final ChannelPromise promise;
 
@@ -45,11 +45,11 @@ public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromis
     }
 
     @Override
-    public void accept(Void v, Throwable throwable) {
-        if (throwable == null) {
+    public void accept(Void v, Exception exception) {
+        if (exception == null) {
             promise.setSuccess();
         } else {
-            promise.setFailure(throwable);
+            promise.setFailure(exception);
         }
     }
 
@@ -212,17 +212,22 @@ public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromis
         return promise.unvoid();
     }
 
-    public static NettyListener fromBiConsumer(BiConsumer<Void, Throwable> biConsumer, Channel channel) {
+    public static NettyListener fromBiConsumer(BiConsumer<Void, Exception> biConsumer, Channel channel) {
         if (biConsumer instanceof NettyListener) {
             return (NettyListener) biConsumer;
         } else {
             ChannelPromise channelPromise = channel.newPromise();
             channelPromise.addListener(f -> {
-                if (f.cause() == null) {
+                Throwable cause = f.cause();
+                if (cause == null) {
                     biConsumer.accept(null, null);
                 } else {
-                    ExceptionsHelper.dieOnError(f.cause());
-                    biConsumer.accept(null, f.cause());
+                    if (cause instanceof Error) {
+                        ExceptionsHelper.dieOnError(cause);
+                        biConsumer.accept(null, new Exception(cause));
+                    } else {
+                        biConsumer.accept(null, (Exception) cause);
+                    }
                 }
             });
 

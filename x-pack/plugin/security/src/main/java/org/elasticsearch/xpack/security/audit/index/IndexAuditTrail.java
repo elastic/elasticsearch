@@ -147,7 +147,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
     private static final Setting<Settings> INDEX_SETTINGS =
-            Setting.groupSetting(setting("audit.index.settings."), Property.NodeScope);
+            Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope);
     private static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(),
                     Property.NodeScope);
@@ -992,23 +992,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     public static Settings customAuditIndexSettings(Settings nodeSettings, Logger logger) {
-        Settings newSettings = Settings.builder()
+        final Settings newSettings = Settings.builder()
                 .put(INDEX_SETTINGS.get(nodeSettings), false)
+                .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
                 .build();
         if (newSettings.names().isEmpty()) {
             return Settings.EMPTY;
         }
 
-        // Filter out forbidden settings:
-        Settings.Builder builder = Settings.builder();
-        builder.put(newSettings.filter(name -> {
+        // Filter out forbidden setting
+        return Settings.builder().put(newSettings.filter(name -> {
             if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                 logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 return false;
             }
             return true;
-        }));
-        return builder.build();
+        })).build();
     }
 
     private void putTemplate(Settings customSettings, Consumer<Exception> consumer) {

@@ -543,7 +543,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 InputStream fin = pluginZipInputStream(zip);
                 // sin is a URL stream to the signature corresponding to the downloaded plugin zip
                 InputStream sin = urlOpenStream(ascUrl);
-                // pin is a input stream to the public key in ASCII-Armor format (RFC4880); the Armor data is in RFC2045
+                // pin is a input stream to the public key in ASCII-Armor format (RFC4880); the Armor data is in RFC2045 format
                 InputStream pin = getPublicKey()) {
             final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
             final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);

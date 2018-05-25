@@ -70,14 +70,29 @@ index:: The name of an index containing a mapping that is compatable with the do
 
 [source,js]
 ----------------------------------------------------------------
+PUT /my-index
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "field": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+
 POST /_scripts/painless/_execute
 {
   "script": {
     "source": "doc['field'].value.length() <= params.max_length",
     "params": {
       "max_length": 4
-    },
-    "execute_context": {
+    }
+  },
+  "execute_context": {
+    "filter": {
       "index": "my-index",
       "document": {
         "field": "four"
@@ -114,14 +129,33 @@ query:: If `_score` is used in the script then a query can specified that will b
 
 [source,js]
 ----------------------------------------------------------------
+PUT /my-index
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "field": {
+          "type": "keyword"
+        },
+        "rank": {
+          "type": "long"
+        }
+      }
+    }
+  }
+}
+
+
 POST /_scripts/painless/_execute
 {
   "script": {
     "source": "doc['rank'].value / params.max_rank",
     "params": {
-      "max_rank": 4
-    },
-    "execute_context": {
+      "max_rank": 5.0
+    }
+  },
+  "execute_context": {
+    "score": {
       "index": "my-index",
       "document": {
         "rank": 4

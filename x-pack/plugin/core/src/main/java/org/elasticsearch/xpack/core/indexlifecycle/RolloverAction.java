@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -104,7 +106,7 @@ public class RolloverAction implements LifecycleAction {
     public TimeValue getMaxAge() {
         return maxAge;
     }
-    
+
     public Long getMaxDocs() {
         return maxDocs;
     }
@@ -127,8 +129,11 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        return Collections.singletonList(
-                new RolloverStep(new StepKey(phase, NAME, RolloverStep.NAME), nextStepKey, client, maxSize, maxAge, maxDocs));
+        StepKey updateDateStepKey = new StepKey(phase, NAME, UpdateRolloverLifecycleDateStep.NAME);
+        RolloverStep rolloverStep = new RolloverStep(new StepKey(phase, NAME, RolloverStep.NAME), updateDateStepKey, client,
+            maxSize, maxAge, maxDocs);
+        UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, nextStepKey, client);
+        return Arrays.asList(rolloverStep, updateDateStep);
     }
 
     @Override

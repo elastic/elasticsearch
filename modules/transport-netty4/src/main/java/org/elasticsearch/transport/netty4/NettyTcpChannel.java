@@ -20,26 +20,21 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPromise;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
-import java.nio.channels.ClosedSelectorException;
-import java.util.concurrent.CompletableFuture;
 
 public class NettyTcpChannel implements TcpChannel {
 
     private final Channel channel;
     private final String profile;
-    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
+    private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
     NettyTcpChannel(Channel channel, String profile) {
         this.channel = channel;
@@ -51,9 +46,9 @@ public class NettyTcpChannel implements TcpChannel {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     Netty4Utils.maybeDie(cause);
-                    closeContext.completeExceptionally(cause);
+                    closeContext.completeExceptionally(new Exception(cause));
                 } else {
-                    closeContext.completeExceptionally(cause);
+                    closeContext.completeExceptionally((Exception) cause);
                 }
             }
         });
@@ -71,7 +66,7 @@ public class NettyTcpChannel implements TcpChannel {
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.whenComplete(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(ActionListener.toBiConsumer(listener));
     }
 
     @Override

@@ -50,7 +50,7 @@ public class SocketSelectorTests extends ESTestCase {
     private NioSocketChannel channel;
     private TestSelectionKey selectionKey;
     private SocketChannelContext channelContext;
-    private BiConsumer<Void, Throwable> listener;
+    private BiConsumer<Void, Exception> listener;
     private ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
     private Selector rawSelector;
 

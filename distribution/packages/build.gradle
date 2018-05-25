@@ -133,8 +133,8 @@ Closure commonPackageConfig(String type, boolean oss) {
             for (int i = segments.length - 2; i > 0 && segments[i] != 'lib'; --i) {
               directory('/' + segments[0..i].join('/'), 0755)
             }
+            fcp.mode = 0644
           }
-          fcp.mode = 0644
         }
       }
       into('modules') {

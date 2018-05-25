@@ -60,7 +60,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> verify the repository");
         int numberOfFiles = FileSystemUtils.files(location).length;
         VerifyRepositoryResponse verifyRepositoryResponse = client.admin().cluster().prepareVerifyRepository("test-repo-1").get();
-        assertThat(verifyRepositoryResponse.nodes().size(), equalTo(cluster().numDataAndMasterNodes()));
+        assertThat(verifyRepositoryResponse.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
 
         logger.info("--> verify that we didn't leave any files as a result of verification");
         assertThat(FileSystemUtils.files(location).length, equalTo(numberOfFiles));

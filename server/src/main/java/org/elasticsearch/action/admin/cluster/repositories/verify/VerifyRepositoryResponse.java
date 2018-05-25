@@ -124,10 +124,10 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(nodes());
+        out.writeList(nodes);
     }
 
-    public List<NodeView> nodes() {
+    public List<NodeView> getNodes() {
         return nodes;
     }
 

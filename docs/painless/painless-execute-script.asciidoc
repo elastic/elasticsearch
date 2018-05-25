@@ -14,11 +14,11 @@ The Painless execute API allows an arbitrary script to be executed and a result 
 | `execute_context` | no        | `painless_test`        | The context the script should be executed in.
 |======
 
-==== Contexts
+==== Execute contexts
 
-Contexts control how scripts are executed, what variables are available at runtime and what the return type is.
+Execute contexts control how scripts are executed, what variables are available at runtime and what the return type is.
 
-===== Painless test script context
+===== Painless test execute context
 
 The `painless_test` context executes scripts as is and do not add any special parameters.
 The only variable that is available is `params`, which can be used to access user defined values.
@@ -54,7 +54,7 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE
 
-===== Filter script context
+===== Filter execute context
 
 The `filter` context executes scripts as if they were executed inside a `script` query.
 For testing purposes a document must be provided that will be indexed temporarily in-memory and
@@ -76,7 +76,7 @@ POST /_scripts/painless/_execute
     "source": "doc['field'].value.length() <= params.max_length",
     "params": {
       "max_length": 4
-    }
+    },
     "execute_context": {
       "index": "my-index",
       "document": {
@@ -99,7 +99,7 @@ Response:
 // TESTRESPONSE
 
 
-===== Score script context
+===== Score execute context
 
 The `score` context executes scripts as if they were executed inside a `script_score` function in
 `function_score` query.
@@ -120,7 +120,7 @@ POST /_scripts/painless/_execute
     "source": "doc['rank'].value / params.max_rank",
     "params": {
       "max_rank": 4
-    }
+    },
     "execute_context": {
       "index": "my-index",
       "document": {

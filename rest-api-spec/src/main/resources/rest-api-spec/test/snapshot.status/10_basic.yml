@@ -61,7 +61,7 @@ setup:
   - do:
       snapshot.status:
         repository: test_repo_status_1
-        snapshot: test_snapshot
+        snapshot: test_snapshot_bwc
 
   - is_true: snapshots
   - match: { snapshots.0.snapshot: test_snapshot_bwc }

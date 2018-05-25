@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -21,18 +25,21 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
-    private final Cache<String, UserWithHash> cache;
+    private final Cache<String, ListenableFuture<Tuple<AuthenticationResult, UserWithHash>>> cache;
+    private final ThreadPool threadPool;
     final Hasher hasher;
 
-    protected CachingUsernamePasswordRealm(String type, RealmConfig config) {
+    protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
         super(type, config);
         hasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()), Hasher.SSHA256);
+        this.threadPool = threadPool;
         TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {
-            cache = CacheBuilder.<String, UserWithHash>builder()
+            cache = CacheBuilder.<String, ListenableFuture<Tuple<AuthenticationResult, UserWithHash>>>builder()
                     .setExpireAfterWrite(ttl)
                     .setMaximumWeight(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
                     .build();
@@ -78,74 +85,95 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-        UserWithHash userWithHash = cache.get(token.principal());
-        if (userWithHash == null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("user [{}] not found in cache for realm [{}], proceeding with normal authentication",
-                        token.principal(), name());
-            }
-            doAuthenticateAndCache(token, ActionListener.wrap((result) -> {
-                if (result.isAuthenticated()) {
-                    final User user = result.getUser();
-                    logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(), user.roles());
+        try {
+            final SetOnce<User> authenticatedUser = new SetOnce<>();
+            final AtomicBoolean createdAndStartedFuture = new AtomicBoolean(false);
+            final ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> future = cache.computeIfAbsent(token.principal(), k -> {
+                final ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> created = new ListenableFuture<>();
+                if (createdAndStartedFuture.compareAndSet(false, true) == false) {
+                    throw new IllegalStateException("something else already started this. how?");
                 }
-                listener.onResponse(result);
-            }, listener::onFailure));
-        } else if (userWithHash.hasHash()) {
-            if (userWithHash.verify(token.credentials())) {
-                if (userWithHash.user.enabled()) {
-                    User user = userWithHash.user;
-                    logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(), user.roles());
-                    listener.onResponse(AuthenticationResult.success(user));
-                } else {
-                    // We successfully authenticated, but the cached user is disabled.
-                    // Reload the primary record to check whether the user is still disabled
-                    cache.invalidate(token.principal());
-                    doAuthenticateAndCache(token, ActionListener.wrap((result) -> {
-                        if (result.isAuthenticated()) {
-                            final User user = result.getUser();
-                            logger.debug("realm [{}] authenticated user [{}] (enabled:{}), with roles [{}]", name(), token.principal(),
-                                   user.enabled(), user.roles());
-                        }
-                        listener.onResponse(result);
-                    }, listener::onFailure));
-                }
-            } else {
-                cache.invalidate(token.principal());
-                doAuthenticateAndCache(token, ActionListener.wrap((result) -> {
+                return created;
+            });
+
+            if (createdAndStartedFuture.get()) {
+                doAuthenticate(token, ActionListener.wrap(result -> {
                     if (result.isAuthenticated()) {
                         final User user = result.getUser();
-                        logger.debug("cached user's password changed. realm [{}] authenticated user [{}], with roles [{}]",
-                                name(), token.principal(), user.roles());
+                        authenticatedUser.set(user);
+                        final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), hasher);
+                        future.onResponse(new Tuple<>(result, userWithHash));
+                    } else {
+                        future.onResponse(new Tuple<>(result, null));
                     }
-                    listener.onResponse(result);
-                }, listener::onFailure));
+                }, future::onFailure));
             }
-        } else {
-            cache.invalidate(token.principal());
-            doAuthenticateAndCache(token, ActionListener.wrap((result) -> {
-                if (result.isAuthenticated()) {
-                    final User user = result.getUser();
-                    logger.debug("cached user came from a lookup and could not be used for authentication. " +
-                            "realm [{}] authenticated user [{}] with roles [{}]", name(), token.principal(), user.roles());
+
+            future.addListener(ActionListener.wrap(tuple -> {
+                if (tuple != null) {
+                    final UserWithHash userWithHash = tuple.v2();
+                    final boolean performedAuthentication = createdAndStartedFuture.get() && userWithHash != null &&
+                        tuple.v2().user == authenticatedUser.get();
+                    handleResult(future, createdAndStartedFuture.get(), performedAuthentication, token, tuple, listener);
+                } else {
+                    handleFailure(future, createdAndStartedFuture.get(), token, new IllegalStateException("unknown error authenticating"),
+                        listener);
                 }
-                listener.onResponse(result);
-            }, listener::onFailure));
+            }, e -> handleFailure(future, createdAndStartedFuture.get(), token, e, listener)),
+                threadPool.executor(ThreadPool.Names.GENERIC));
+        } catch (ExecutionException e) {
+            listener.onResponse(AuthenticationResult.unsuccessful("", e));
         }
     }
 
-    private void doAuthenticateAndCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-        ActionListener<AuthenticationResult> wrapped = ActionListener.wrap((result) -> {
-            Objects.requireNonNull(result, "AuthenticationResult cannot be null");
-            if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                UserWithHash userWithHash = new UserWithHash(result.getUser(), token.credentials(), hasher);
-                // it doesn't matter if we already computed it elsewhere
-                cache.put(token.principal(), userWithHash);
+    private void handleResult(ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> future, boolean createdAndStartedFuture,
+                              boolean performedAuthentication, UsernamePasswordToken token,
+                              Tuple<AuthenticationResult, UserWithHash> result, ActionListener<AuthenticationResult> listener) {
+        final AuthenticationResult authResult = result.v1();
+        if (authResult == null) {
+            // this was from a lookup; clear and redo
+            cache.invalidate(token.principal(), future);
+            authenticateWithCache(token, listener);
+        } else if (authResult.isAuthenticated()) {
+            if (performedAuthentication) {
+                listener.onResponse(authResult);
+            } else {
+                UserWithHash userWithHash = result.v2();
+                if (userWithHash.verify(token.credentials())) {
+                    if (userWithHash.user.enabled()) {
+                        User user = userWithHash.user;
+                        logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
+                            name(), token.principal(), user.roles());
+                        listener.onResponse(AuthenticationResult.success(user));
+                    } else {
+                        // re-auth to see if user has been enabled
+                        cache.invalidate(token.principal(), future);
+                        authenticateWithCache(token, listener);
+                    }
+                } else {
+                    // could be a password change?
+                    cache.invalidate(token.principal(), future);
+                    authenticateWithCache(token, listener);
+                }
             }
-            listener.onResponse(result);
-        }, listener::onFailure);
+        } else {
+            cache.invalidate(token.principal(), future);
+            if (createdAndStartedFuture) {
+                listener.onResponse(authResult);
+            } else {
+                authenticateWithCache(token, listener);
+            }
+        }
+    }
 
-        doAuthenticate(token, wrapped);
+    private void handleFailure(ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> future, boolean createdAndStarted,
+                               UsernamePasswordToken token, Exception e, ActionListener<AuthenticationResult> listener) {
+        cache.invalidate(token.principal(), future);
+        if (createdAndStarted) {
+            listener.onFailure(e);
+        } else {
+            authenticateWithCache(token, listener);
+        }
     }
 
     @Override
@@ -160,29 +188,34 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     @Override
     public final void lookupUser(String username, ActionListener<User> listener) {
         if (cache != null) {
-            UserWithHash withHash = cache.get(username);
-            if (withHash == null) {
-                try {
-                    doLookupUser(username, ActionListener.wrap((user) -> {
-                        Runnable action = () -> listener.onResponse(null);
+            try {
+                ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> future = cache.computeIfAbsent(username, key -> {
+                    ListenableFuture<Tuple<AuthenticationResult, UserWithHash>> created = new ListenableFuture<>();
+                    doLookupUser(username, ActionListener.wrap(user -> {
                         if (user != null) {
                             UserWithHash userWithHash = new UserWithHash(user, null, null);
-                            try {
-                                // computeIfAbsent is used here to avoid overwriting a value from a concurrent authenticate call as it
-                                // contains the password hash, which provides a performance boost and we shouldn't just erase that
-                                cache.computeIfAbsent(username, (n) -> userWithHash);
-                                action = () -> listener.onResponse(userWithHash.user);
-                            } catch (ExecutionException e) {
-                                action = () -> listener.onFailure(e);
-                            }
+                            created.onResponse(new Tuple<>(null, userWithHash));
+                        } else {
+                            created.onResponse(new Tuple<>(null, null));
                         }
-                        action.run();
-                    }, listener::onFailure));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            } else {
-                listener.onResponse(withHash.user);
+                    }, created::onFailure));
+                    return created;
+                });
+
+                future.addListener(ActionListener.wrap(tuple -> {
+                    if (tuple != null) {
+                        if (tuple.v2() == null) {
+                            cache.invalidate(username, future);
+                            listener.onResponse(null);
+                        } else {
+                            listener.onResponse(tuple.v2().user);
+                        }
+                    } else {
+                        listener.onResponse(null);
+                    }
+                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC));
+            } catch (ExecutionException e) {
+                listener.onFailure(e);
             }
         } else {
             doLookupUser(username, listener);
@@ -192,22 +225,18 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     protected abstract void doLookupUser(String username, ActionListener<User> listener);
 
     private static class UserWithHash {
-        User user;
-        char[] hash;
-        Hasher hasher;
+        final User user;
+        final char[] hash;
+        final Hasher hasher;
 
         UserWithHash(User user, SecureString password, Hasher hasher) {
-            this.user = user;
+            this.user = Objects.requireNonNull(user);
             this.hash = password == null ? null : hasher.hash(password);
             this.hasher = hasher;
         }
 
         boolean verify(SecureString password) {
             return hash != null && hasher.verify(password, hash);
-        }
-
-        boolean hasHash() {
-            return hash != null;
         }
     }
 }

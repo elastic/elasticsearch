@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 
 public class PhaseAfterStep extends ClusterStateWaitStep {
+    public static final String NAME = "after";
     private final TimeValue after;
     private final LongSupplier nowSupplier;
 

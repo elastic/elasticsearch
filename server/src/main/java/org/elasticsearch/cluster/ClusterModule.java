@@ -69,8 +69,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.ArrayList;
@@ -140,6 +143,10 @@ public class ClusterModule extends AbstractModule {
         registerMetaDataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
         registerMetaDataCustom(entries, ScriptMetaData.TYPE, ScriptMetaData::new, ScriptMetaData::readDiffFrom);
         registerMetaDataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
+        registerMetaDataCustom(entries, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::new,
+            PersistentTasksCustomMetaData::readDiffFrom);
+        // Task Status (not Diffable)
+        entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
     }
 
@@ -154,6 +161,8 @@ public class ClusterModule extends AbstractModule {
             ScriptMetaData::fromXContent));
         entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexGraveyard.TYPE),
             IndexGraveyard::fromXContent));
+        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
+            PersistentTasksCustomMetaData::fromXContent));
         return entries;
     }
 

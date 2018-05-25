@@ -61,6 +61,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -91,6 +92,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -119,6 +121,7 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1398,6 +1401,26 @@ public class RequestConvertersTests extends ESTestCase {
 
         Request expectedRequest = RequestConverters.clusterPutSettings(request);
         assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
+        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testPutPipeline() throws IOException {
+        String pipelineId = "some_pipeline_id";
+        PutPipelineRequest request = new PutPipelineRequest(
+            "some_pipeline_id",
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(request, expectedParams);
+        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request expectedRequest = RequestConverters.putPipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        endpoint.add(pipelineId);
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
         assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
     }

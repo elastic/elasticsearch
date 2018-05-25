@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
@@ -672,6 +671,82 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
         assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, cause, now);
+    }
+
+    public void testMoveClusterStateToFailedStep() {
+        String indexName = "my_index";
+        String[] indices = new String[] { indexName };
+        String policyName = "my_policy";
+        long now = randomNonNegativeLong();
+        StepKey failedStepKey = new StepKey("current_phase", "current_action", "current_step");
+        StepKey errorStepKey = new StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
+        Step step = new MockStep(failedStepKey, null);
+        PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, errorStepKey.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, errorStepKey.getAction())
+                .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, failedStepKey.getName())
+                .put(LifecycleSettings.LIFECYCLE_STEP, errorStepKey.getName());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(policyRegistry, null, () -> now);
+        ClusterState nextClusterState = runner.moveClusterStateToFailedStep(clusterState, indices);
+        IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey,
+            nextClusterState, now);
+    }
+
+    public void testMoveClusterStateToFailedStepIndexNotFound() {
+        String existingIndexName = "my_index";
+        String invalidIndexName = "does_not_exist";
+        ClusterState clusterState = buildClusterState(existingIndexName, Settings.builder());
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(null, null, () -> 0L);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> runner.moveClusterStateToFailedStep(clusterState, new String[] { invalidIndexName }));
+        assertThat(exception.getMessage(), equalTo("index [" + invalidIndexName + "] does not exist"));
+    }
+//
+    public void testMoveClusterStateToFailedStepInvalidPolicySetting() {
+        String indexName = "my_index";
+        String[] indices = new String[] { indexName };
+        String policyName = "my_policy";
+        long now = randomNonNegativeLong();
+        StepKey failedStepKey = new StepKey("current_phase", "current_action", "current_step");
+        StepKey errorStepKey = new StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
+        Step step = new MockStep(failedStepKey, null);
+        PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, (String) null)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, errorStepKey.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, errorStepKey.getAction())
+            .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, failedStepKey.getName())
+            .put(LifecycleSettings.LIFECYCLE_STEP, errorStepKey.getName());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(policyRegistry, null, () -> now);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> runner.moveClusterStateToFailedStep(clusterState, indices));
+        assertThat(exception.getMessage(), equalTo("index [" + indexName + "] is not associated with an Index Lifecycle Policy"));
+    }
+
+    public void testMoveClusterStateToFailedNotOnError() {
+        String indexName = "my_index";
+        String[] indices = new String[] { indexName };
+        String policyName = "my_policy";
+        long now = randomNonNegativeLong();
+        StepKey failedStepKey = new StepKey("current_phase", "current_action", "current_step");
+        Step step = new MockStep(failedStepKey, null);
+        PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, (String) null)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, failedStepKey.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, failedStepKey.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, failedStepKey.getName());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(policyRegistry, null, () -> now);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> runner.moveClusterStateToFailedStep(clusterState, indices));
+        assertThat(exception.getMessage(), equalTo("cannot re-run an action for an index [" + indices[0]
+            + "] that has not encountered an error when running a Lifecycle Policy"));
     }
 
     public void testAddStepInfoToClusterState() throws IOException {

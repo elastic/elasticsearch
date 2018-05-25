@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
@@ -192,6 +193,27 @@ public class IndexLifecycleRunner {
                         .put(LifecycleSettings.LIFECYCLE_STEP_INFO, BytesReference.bytes(causeXContentBuilder).utf8ToString());
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
         return newClusterStateBuilder.build();
+    }
+
+    ClusterState moveClusterStateToFailedStep(ClusterState currentState, String[] indices) {
+        ClusterState newState = currentState;
+        for (String index : indices) {
+            IndexMetaData indexMetaData = currentState.metaData().index(index);
+            if (indexMetaData == null) {
+                throw new IllegalArgumentException("index [" + index + "] does not exist");
+            }
+            StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(indexMetaData.getSettings());
+            String failedStep = LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(indexMetaData.getSettings());
+            if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
+                && Strings.isNullOrEmpty(failedStep) == false) {
+                StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
+                newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry);
+            } else {
+                throw new IllegalArgumentException("cannot re-run an action for an index ["
+                    + index + "] that has not encountered an error when running a Lifecycle Policy");
+            }
+        }
+        return newState;
     }
 
     private static Settings.Builder moveIndexSettingsToNextStep(Settings existingSettings, StepKey currentStep, StepKey nextStep,

@@ -31,7 +31,9 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
 
 public class TransportReRunAction extends TransportMasterNodeAction<Request, Response> {
+
     IndexLifecycleService indexLifecycleService;
+
     @Inject
     public TransportReRunAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                 ThreadPool threadPool, ActionFilters actionFilters,
@@ -52,34 +54,13 @@ public class TransportReRunAction extends TransportMasterNodeAction<Request, Res
         return new Response();
     }
 
-    ClusterState innerExecute(ClusterState currentState, String[] indices) {
-        ClusterState newState = currentState;
-        for (String index : indices) {
-            IndexMetaData indexMetaData = currentState.metaData().index(index);
-            if (indexMetaData == null) {
-                throw new IllegalArgumentException("index [" + index + "] does not exist");
-            }
-            StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(indexMetaData.getSettings());
-            String failedStep = LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(indexMetaData.getSettings());
-            if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
-                && Strings.isNullOrEmpty(failedStep) == false) {
-                StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
-                newState = indexLifecycleService.moveClusterStateToStep(currentState, index, currentStepKey, nextStepKey);
-            } else {
-                throw new IllegalArgumentException("cannot re-run an action for an index ["
-                    + index + "] that has not encountered an error when running a Lifecycle Policy");
-            }
-        }
-        return newState;
-    }
-
     @Override
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
         clusterService.submitStateUpdateTask("ilm-re-run",
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerExecute(currentState, request.indices());
+                    return indexLifecycleService.moveClusterStateToFailedStep(currentState, request.indices());
                 }
 
                 @Override

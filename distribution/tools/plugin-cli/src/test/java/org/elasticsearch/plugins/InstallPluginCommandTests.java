@@ -893,12 +893,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     final ArmoredOutputStream armored = new ArmoredOutputStream(output);
                     secretKey.getPublicKey().encode(armored);
                     armored.close();
-                    final String publicKey = new String(output.toByteArray(), "UTF-8");
-                    int start = publicKey.indexOf("\n", 1 + publicKey.indexOf("\n"));
-                    int end = publicKey.lastIndexOf("\n", publicKey.lastIndexOf("\n") - 1);
-                    // strip the header (first two lines) and footer (last line)
-                    final String substring = publicKey.substring(1 + start, end);
-                    return new ByteArrayInputStream(substring.getBytes("UTF-8"));
+                    return new ByteArrayInputStream(output.toByteArray());
                 } catch (final IOException e) {
                     throw new AssertionError(e);
                 }

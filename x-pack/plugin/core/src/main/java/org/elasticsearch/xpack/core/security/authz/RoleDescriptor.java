@@ -60,6 +60,10 @@ public class RoleDescriptor implements ToXContentObject {
         this(name, clusterPrivileges, indicesPrivileges, runAs, null);
     }
 
+    /**
+     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[], String[], Map, Map)}
+     */
+    @Deprecated
     public RoleDescriptor(String name,
                           @Nullable String[] clusterPrivileges,
                           @Nullable IndicesPrivileges[] indicesPrivileges,
@@ -68,6 +72,10 @@ public class RoleDescriptor implements ToXContentObject {
         this(name, clusterPrivileges, indicesPrivileges, runAs, metadata, null);
     }
 
+    /**
+     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[], String[], Map, Map)}
+     */
+    @Deprecated
     public RoleDescriptor(String name,
                           @Nullable String[] clusterPrivileges,
                           @Nullable IndicesPrivileges[] indicesPrivileges,

@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,10 +18,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesResponse;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Transport action to retrieve one or more application privileges from the security index
@@ -44,11 +40,11 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
     protected void doExecute(final PutPrivilegesRequest request, final ActionListener<PutPrivilegesResponse> listener) {
         if (request.getPrivileges() == null || request.getPrivileges().size() == 0) {
             listener.onResponse(new PutPrivilegesResponse(Collections.emptyMap()));
-            return;
-        }
-        this.privilegeStore.putPrivileges(request.getPrivileges(), request.getRefreshPolicy(), ActionListener.wrap(
+        } else {
+            this.privilegeStore.putPrivileges(request.getPrivileges(), request.getRefreshPolicy(), ActionListener.wrap(
                 created -> listener.onResponse(new PutPrivilegesResponse(created)),
                 listener::onFailure
-        ));
+            ));
+        }
     }
 }

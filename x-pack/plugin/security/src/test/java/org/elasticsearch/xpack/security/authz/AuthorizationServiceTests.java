@@ -554,7 +554,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
-            new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
         roleMap.put("a_all", role);
 
         final Authentication authentication = createAuthentication(anonymousUser);

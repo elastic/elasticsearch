@@ -45,6 +45,7 @@ public class DeletePrivilegesRequestTests extends ESTestCase {
         assertValidationFailure(new DeletePrivilegesRequest("", new String[]{"all"}), "application name");
         assertValidationFailure(new DeletePrivilegesRequest("app", null), "privileges");
         assertValidationFailure(new DeletePrivilegesRequest("app", new String[0]), "privileges");
+        assertValidationFailure(new DeletePrivilegesRequest("app", new String[]{""}), "privileges");
 
         assertThat(new DeletePrivilegesRequest("app", new String[]{"all"}).validate(), nullValue());
         assertThat(new DeletePrivilegesRequest("app", new String[]{"all", "some"}).validate(), nullValue());

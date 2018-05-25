@@ -69,6 +69,13 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  */
 public class NativePrivilegeStore extends AbstractComponent {
 
+    private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
+        Tuple::v1,
+        t -> CollectionUtils.newSingletonArrayList(t.v2()), (a, b) -> {
+            a.addAll(b);
+            return a;
+        });
+
     private final Client client;
     private final SecurityClient securityClient;
     private final SecurityIndexManager securityIndexManager;
@@ -165,7 +172,7 @@ public class NativePrivilegeStore extends AbstractComponent {
                         .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
-                        .collect(tuplesToMap());
+                        .collect(TUPLES_TO_MAP);
                     clearRolesCache(listener, createdNames);
                 }, listener::onFailure), privileges.size(), Collections.emptyList());
             for (ApplicationPrivilege privilege : privileges) {
@@ -178,19 +185,19 @@ public class NativePrivilegeStore extends AbstractComponent {
                                    ActionListener<IndexResponse> listener) {
         if (privilege.name().size() != 1) {
             listener.onFailure(new IllegalArgumentException("Cannot store application privileges with multivariate names"));
-            return;
-        }
-        try {
-            final String name = privilege.getPrivilegeName();
-            final XContentBuilder xContentBuilder = privilege.toIndexContent(jsonBuilder());
-            ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_INDEX_NAME, "doc", toDocId(privilege.getApplication(), name))
-                    .setSource(xContentBuilder)
-                    .setRefreshPolicy(refreshPolicy)
-                    .request(), listener, client::index);
-        } catch (Exception e) {
-            logger.warn("Failed to put privilege {} - {}", Strings.toString(privilege), e.toString());
-            listener.onFailure(e);
+        } else {
+            try {
+                final String name = privilege.getPrivilegeName();
+                final XContentBuilder xContentBuilder = privilege.toIndexContent(jsonBuilder());
+                ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareIndex(SECURITY_INDEX_NAME, "doc", toDocId(privilege.getApplication(), name))
+                        .setSource(xContentBuilder)
+                        .setRefreshPolicy(refreshPolicy)
+                        .request(), listener, client::index);
+            } catch (Exception e) {
+                logger.warn("Failed to put privilege {} - {}", Strings.toString(privilege), e.toString());
+                listener.onFailure(e);
+            }
         }
     }
 
@@ -203,7 +210,7 @@ public class NativePrivilegeStore extends AbstractComponent {
                         .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
-                        .collect(tuplesToMap());
+                        .collect(TUPLES_TO_MAP);
                     clearRolesCache(listener, deletedNames);
                 }, listener::onFailure), names.size(), Collections.emptyList());
             for (String name : names) {
@@ -232,14 +239,6 @@ public class NativePrivilegeStore extends AbstractComponent {
                         new ElasticsearchException("clearing the role cache failed. please clear the role cache manually", e));
                 }
             }, securityClient::clearRolesCache);
-    }
-
-
-    Collector<Tuple<String, String>, ?, Map<String, List<String>>> tuplesToMap() {
-        return Collectors.toMap(Tuple::v1, t -> CollectionUtils.newSingletonArrayList(t.v2()), (a, b) -> {
-            a.addAll(b);
-            return a;
-        });
     }
 
     private ApplicationPrivilege buildPrivilege(String docId, BytesReference source) {

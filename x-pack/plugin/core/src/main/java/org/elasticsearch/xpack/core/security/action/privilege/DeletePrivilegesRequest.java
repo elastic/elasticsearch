@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -51,7 +52,7 @@ public final class DeletePrivilegesRequest extends ActionRequest implements Writ
         if (Strings.isNullOrEmpty(application)) {
             validationException = addValidationError("application name is missing", validationException);
         }
-        if (privileges == null || privileges.length == 0) {
+        if (privileges == null || privileges.length == 0 || Arrays.stream(privileges).allMatch(Strings::isNullOrEmpty)) {
             validationException = addValidationError("privileges are missing", validationException);
         }
         return validationException;

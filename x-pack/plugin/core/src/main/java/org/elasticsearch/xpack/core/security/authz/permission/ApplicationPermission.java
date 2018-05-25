@@ -32,10 +32,15 @@ public final class ApplicationPermission {
     private final Logger logger;
     private final List<PermissionEntry> permissions;
 
-    public ApplicationPermission(List<Tuple<ApplicationPrivilege, Set<String>>> tuples) {
+    /**
+     * @param privilegesAndResources A list of (privilege, resources). Each element in the {@link List} is a {@link Tuple} containing
+     *                               a single {@link ApplicationPrivilege} and the {@link Set} of resources to which that privilege is
+     *                               applied. The resources are treated as a wildcard {@link Automatons#pattern}.
+     */
+    ApplicationPermission(List<Tuple<ApplicationPrivilege, Set<String>>> privilegesAndResources) {
         this.logger = Loggers.getLogger(getClass());
         Map<ApplicationPrivilege, PermissionEntry> permissionsByPrivilege = new HashMap<>();
-        tuples.forEach(tup -> permissionsByPrivilege.compute(tup.v1(), (k, existing) -> {
+        privilegesAndResources.forEach(tup -> permissionsByPrivilege.compute(tup.v1(), (k, existing) -> {
             final Automaton patterns = Automatons.patterns(tup.v2());
             if (existing == null) {
                 return new PermissionEntry(k, patterns);
@@ -90,7 +95,7 @@ public final class ApplicationPermission {
             this.resources = resources;
         }
 
-        public boolean grants(ApplicationPrivilege other, Automaton resource) {
+        private boolean grants(ApplicationPrivilege other, Automaton resource) {
             return this.application.test(other.getApplication())
                 && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton())
                 && Operations.subsetOf(resource, this.resources);

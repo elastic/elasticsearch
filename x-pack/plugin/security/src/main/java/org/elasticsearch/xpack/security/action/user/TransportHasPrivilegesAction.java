@@ -88,13 +88,12 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     private Set<String> getApplicationNames(HasPrivilegesRequest request) {
         return Arrays.stream(request.applicationPrivileges())
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
-            .distinct()
             .collect(Collectors.toSet());
     }
 
     private void checkPrivileges(HasPrivilegesRequest request, Role userRole, Collection<ApplicationPrivilege> applicationPrivileges,
                                  ActionListener<HasPrivilegesResponse> listener) {
-        logger.debug(() -> new ParameterizedMessage("Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
+        logger.trace(() -> new ParameterizedMessage("Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
             Strings.arrayToCommaDelimitedString(userRole.names()),
             Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
             Strings.arrayToCommaDelimitedString(request.indexPrivileges()),

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -45,7 +44,7 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String application = request.param("application");
-        final String[] privileges = getPrivileges(request);
+        final String[] privileges = request.paramAsStringArray("privilege", null);
         final String refresh = request.param("refresh");
         return channel -> new SecurityClient(client).prepareDeletePrivileges(application, privileges)
                 .setRefreshPolicy(refresh)
@@ -64,11 +63,4 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
                 });
     }
 
-    public String[] getPrivileges(RestRequest request) {
-        final String[] privilegeArray = request.paramAsStringArray("privilege", null);
-        if (privilegeArray == null || (privilegeArray.length == 1 && Strings.isNullOrEmpty(privilegeArray[0]))) {
-            throw new IllegalArgumentException("The \"privilege\" parameter is required");
-        }
-        return privilegeArray;
-    }
 }

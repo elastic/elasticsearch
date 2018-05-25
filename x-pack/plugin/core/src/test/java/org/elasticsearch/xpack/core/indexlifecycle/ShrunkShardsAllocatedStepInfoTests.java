@@ -17,7 +17,7 @@ public class ShrunkShardsAllocatedStepInfoTests extends AbstractXContentTestCase
 
     @Override
     protected Info createTestInstance() {
-        return new Info(randomBoolean(), randomIntBetween(0, 10000), randomIntBetween(0, 10000), randomBoolean());
+        return new Info(randomBoolean(), randomIntBetween(0, 10000), randomBoolean());
     }
 
     @Override
@@ -37,31 +37,27 @@ public class ShrunkShardsAllocatedStepInfoTests extends AbstractXContentTestCase
     }
 
     protected final Info copyInstance(Info instance) throws IOException {
-        return new Info(instance.shrunkIndexExists(), instance.getExpectedShards(), instance.getActualShards(), instance.allShardsActive());
+        return new Info(instance.shrunkIndexExists(), instance.getActualShards(), instance.allShardsActive());
     }
 
     protected Info mutateInstance(Info instance) throws IOException {
         boolean shrunkIndexExists = instance.shrunkIndexExists();
-        int expectedShards = instance.getExpectedShards();
         int actualShards = instance.getActualShards();
         boolean allShardsActive = instance.allShardsActive();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
         case 0:
             shrunkIndexExists = shrunkIndexExists == false;
             break;
         case 1:
-            expectedShards += between(1, 20);
-            break;
-        case 2:
             actualShards += between(1, 20);
             break;
-        case 3:
+        case 2:
             allShardsActive = allShardsActive == false;
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new Info(shrunkIndexExists, expectedShards, actualShards, allShardsActive);
+        return new Info(shrunkIndexExists, actualShards, allShardsActive);
     }
 
 }

@@ -435,9 +435,10 @@ of allowed remote `host` and `port` combinations (e.g.
 ignored by the whitelist - only host and port are used, for example:
 
 
-```
+[source,yaml]
+--------------------------------------------------
 reindex.remote.whitelist: "otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"
-```
+--------------------------------------------------
 
 The whitelist must be configured on any nodes that will coordinate the reindex.
 

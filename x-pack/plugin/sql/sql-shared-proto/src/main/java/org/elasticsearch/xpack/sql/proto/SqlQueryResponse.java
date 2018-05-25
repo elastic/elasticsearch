@@ -18,7 +18,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
+import static org.elasticsearch.xpack.sql.proto.ProtoUtils.parseFieldsValue;
 
 /**
  * Response to perform an sql query for JDBC/CLI client

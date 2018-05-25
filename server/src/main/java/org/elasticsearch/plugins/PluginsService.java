@@ -440,7 +440,7 @@ public class PluginsService extends AbstractComponent {
         List<Bundle> sortedBundles = sortBundles(bundles);
 
         for (Bundle bundle : sortedBundles) {
-            checkBundleJarHell(bundle, transitiveUrls);
+            checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
             final Plugin plugin = loadBundle(bundle, loaded);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
@@ -451,7 +451,7 @@ public class PluginsService extends AbstractComponent {
 
     // jar-hell check the bundle against the parent classloader and extended plugins
     // the plugin cli does it, but we do it again, in case lusers mess with jar files manually
-    static void checkBundleJarHell(Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
+    static void checkBundleJarHell(Set<URL> classpath, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
@@ -484,7 +484,6 @@ public class PluginsService extends AbstractComponent {
             JarHell.checkJarHell(urls, logger::debug); // check jarhell of each extended plugin against this plugin
             transitiveUrls.put(bundle.plugin.getName(), urls);
 
-            Set<URL> classpath = JarHell.parseClassPath();
             // check we don't have conflicting codebases with core
             Set<URL> intersection = new HashSet<>(classpath);
             intersection.retainAll(bundle.urls);

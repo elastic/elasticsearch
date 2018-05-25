@@ -27,6 +27,8 @@ import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -327,6 +329,68 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::get-pipeline-execute-async
             client.cluster().getPipelineAsync(request, listener); // <1>
             // end::get-pipeline-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeletePipeline() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::delete-pipeline-request
+            DeletePipelineRequest request = new DeletePipelineRequest("my-pipeline-id"); // <1>
+            // end::delete-pipeline-request
+
+            // tag::delete-pipeline-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::delete-pipeline-request-timeout
+
+            // tag::delete-pipeline-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::delete-pipeline-request-masterTimeout
+
+            // tag::delete-pipeline-execute
+            DeletePipelineResponse response = client.cluster().deletePipeline(request); // <1>
+            // end::delete-pipeline-execute
+
+            // tag::delete-pipeline-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::delete-pipeline-response
+            assertTrue(acknowledged);
+        }
+    }
+
+    public void testDeletePipelineAsync() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            DeletePipelineRequest request = new DeletePipelineRequest("my-pipeline-id");
+
+            // tag::delete-pipeline-execute-listener
+            ActionListener<DeletePipelineResponse> listener =
+                new ActionListener<DeletePipelineResponse>() {
+                    @Override
+                    public void onResponse(DeletePipelineResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-pipeline-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-pipeline-execute-async
+            client.cluster().deletePipelineAsync(request, listener); // <1>
+            // end::delete-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

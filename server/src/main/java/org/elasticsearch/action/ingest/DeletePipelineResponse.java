@@ -28,19 +28,19 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PutPipelineResponse extends AcknowledgedResponse implements ToXContentObject {
+public class DeletePipelineResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    private static final ConstructingObjectParser<PutPipelineResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "cluster_put_pipeline", true, args -> new PutPipelineResponse((boolean) args[0]));
+    private static final ConstructingObjectParser<DeletePipelineResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_delete_pipeline", true, args -> new DeletePipelineResponse((boolean) args[0]));
 
     static {
         declareAcknowledgedField(PARSER);
     }
 
-    protected PutPipelineResponse() {
+    protected DeletePipelineResponse() {
     }
 
-    protected PutPipelineResponse(boolean acknowledged) {
+    protected DeletePipelineResponse(boolean acknowledged) {
         super(acknowledged);
     }
 
@@ -56,7 +56,7 @@ public class PutPipelineResponse extends AcknowledgedResponse implements ToXCont
         writeAcknowledged(out);
     }
 
-    public static PutPipelineResponse fromXContent(XContentParser parser) {
+    public static DeletePipelineResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

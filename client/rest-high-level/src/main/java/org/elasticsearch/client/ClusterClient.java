@@ -23,10 +23,12 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineResponse;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineResponse;
 
 import java.io.IOException;
 
@@ -110,5 +112,29 @@ public final class ClusterClient {
     public void getPipelineAsync(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline,
             GetPipelineResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Delete an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
+     *     Delete Pipeline API on elastic.co</a>
+     */
+    public DeletePipelineResponse deletePipeline(DeletePipelineRequest request, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::deletePipeline,
+            DeletePipelineResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously delete an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
+     *     Delete Pipeline API on elastic.co</a>
+     */
+    public void deletePipelineAsync(DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline,
+            DeletePipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 }

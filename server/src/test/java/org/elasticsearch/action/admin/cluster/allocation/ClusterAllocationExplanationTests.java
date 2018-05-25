@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -90,7 +91,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                          "{\"id\":\"node-0\",\"name\":\"\",\"transport_address\":\"" + cae.getCurrentNode().getAddress() +
                          "\",\"weight_ranking\":3},\"can_remain_on_current_node\":\"yes\",\"can_rebalance_cluster\":\"yes\"," +
                          "\"can_rebalance_to_other_node\":\"no\",\"rebalance_explanation\":\"cannot rebalance as no target node exists " +
-                         "that can both allocate this shard and improve the cluster balance\"}", builder.string());
+                         "that can both allocate this shard and improve the cluster balance\"}", Strings.toString(builder));
     }
 
     private static ClusterAllocationExplanation randomClusterAllocationExplanation(boolean assignedShard) {

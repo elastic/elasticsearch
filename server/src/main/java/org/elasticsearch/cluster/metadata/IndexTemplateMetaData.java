@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -459,7 +460,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                 String mappingType = currentFieldName;
                                 Map<String, Object> mappingSource =
                                     MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
-                                builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).string());
+                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
@@ -483,7 +484,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             Map<String, Object> mapping = parser.mapOrdered();
                             if (mapping.size() == 1) {
                                 String mappingType = mapping.keySet().iterator().next();
-                                String mappingSource = XContentFactory.jsonBuilder().map(mapping).string();
+                                String mappingSource = Strings.toString(XContentFactory.jsonBuilder().map(mapping));
 
                                 if (mappingSource == null) {
                                     // crap, no mapping source, warn?

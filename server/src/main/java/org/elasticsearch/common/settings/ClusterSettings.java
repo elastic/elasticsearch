@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -79,6 +78,7 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -219,7 +219,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_TIME_SETTING,
-                    NetworkModule.HTTP_ENABLED,
                     NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,
@@ -228,7 +227,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_CORS_ENABLED,
                     HttpTransportSettings.SETTING_CORS_MAX_AGE,
                     HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-                    HttpTransportSettings.SETTING_PIPELINING,
                     HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN,
                     HttpTransportSettings.SETTING_HTTP_HOST,
                     HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST,
@@ -245,6 +243,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
+                    HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT,
+                    HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT,
                     HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
@@ -372,7 +372,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
                     Node.NODE_LOCAL_STORAGE_SETTING,
-                    TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
                     AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
                     ClusterName.CLUSTER_NAME_SETTING,
@@ -420,6 +419,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                    IndexGraveyard.SETTING_MAX_TOMBSTONES
+                    IndexGraveyard.SETTING_MAX_TOMBSTONES,
+                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
             )));
 }

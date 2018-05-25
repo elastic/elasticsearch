@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.fields;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -160,12 +160,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testStoredFields() throws Exception {
         createIndex("test");
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
                 .startObject("field2").field("type", "text").field("store", false).endObject()
                 .startObject("field3").field("type", "text").field("store", true).endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
@@ -253,9 +253,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testScriptDocAndFields() throws Exception {
         createIndex("test");
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num1").field("type", "double").field("store", true).endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
@@ -342,7 +342,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(6.0));
     }
 
-    public void testUidBasedScriptFields() throws Exception {
+    public void testIdBasedScriptFields() throws Exception {
         prepareCreate("test").addMapping("type1", "num1", "type=long").execute().actionGet();
 
         int numDocs = randomIntBetween(1, 30);
@@ -354,23 +354,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse response = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("num1", SortOrder.ASC)
-                .setSize(numDocs)
-                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
-                .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits(), equalTo((long)numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(singleton("uid")));
-            assertThat(response.getHits().getAt(i).getFields().get("uid").getValue(), equalTo("type1#" + Integer.toString(i)));
-        }
-
-        response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
@@ -410,7 +393,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
                 .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
-                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
                 .addScriptField("type",
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
@@ -421,8 +403,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(newHashSet("uid", "type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("uid").getValue(), equalTo("type1#" + Integer.toString(i)));
+            assertThat(fields, equalTo(newHashSet("type", "id")));
             assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
@@ -514,53 +495,53 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testStoredFieldsWithoutSource() throws Exception {
         createIndex("test");
 
-        String mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("type1")
-                        .startObject("_source")
-                            .field("enabled", false)
-                        .endObject()
-                        .startObject("properties")
-                            .startObject("byte_field")
-                                .field("type", "byte")
-                                .field("store", true)
+        String mapping = Strings
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                            .startObject("type1")
+                                .startObject("_source")
+                                    .field("enabled", false)
+                                .endObject()
+                                .startObject("properties")
+                                    .startObject("byte_field")
+                                        .field("type", "byte")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("short_field")
+                                        .field("type", "short")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("integer_field")
+                                        .field("type", "integer")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("long_field")
+                                        .field("type", "long")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("float_field")
+                                        .field("type", "float")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("double_field")
+                                        .field("type", "double")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("date_field")
+                                        .field("type", "date")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("boolean_field")
+                                        .field("type", "boolean")
+                                        .field("store", true)
+                                    .endObject()
+                                    .startObject("binary_field")
+                                        .field("type", "binary")
+                                        .field("store", true)
+                                    .endObject()
+                                .endObject()
                             .endObject()
-                            .startObject("short_field")
-                                .field("type", "short")
-                                .field("store", true)
-                            .endObject()
-                            .startObject("integer_field")
-                                .field("type", "integer")
-                                .field("store", true)
-                            .endObject()
-                            .startObject("long_field")
-                                .field("type", "long")
-                                .field("store", true)
-                            .endObject()
-                            .startObject("float_field")
-                                .field("type", "float")
-                                .field("store", true)
-                            .endObject()
-                            .startObject("double_field")
-                                .field("type", "double")
-                                .field("store", true)
-                            .endObject()
-                            .startObject("date_field")
-                                .field("type", "date")
-                                .field("store", true)
-                            .endObject()
-                            .startObject("boolean_field")
-                                .field("type", "boolean")
-                                .field("store", true)
-                            .endObject()
-                            .startObject("binary_field")
-                                .field("type", "binary")
-                                .field("store", true)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .string();
+                        .endObject());
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
@@ -670,7 +651,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                         .endObject())
                 .get();
 
-        BytesReference source = jsonBuilder().startObject()
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                 .startArray("field1")
                     .startObject()
                         .startObject("field2")
@@ -691,7 +672,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endArray()
-                .endObject().bytes();
+                .endObject());
 
         client().prepareIndex("my-index", "doc", "1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
 
@@ -722,54 +703,54 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testFieldsPulledFromFieldData() throws Exception {
         createIndex("test");
 
-        String mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("type1")
-                        .startObject("_source")
-                            .field("enabled", false)
-                        .endObject()
-                        .startObject("properties")
-                            .startObject("text_field")
-                                .field("type", "text")
-                                .field("fielddata", true)
+        String mapping = Strings
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                            .startObject("type1")
+                                .startObject("_source")
+                                    .field("enabled", false)
+                                .endObject()
+                                .startObject("properties")
+                                    .startObject("text_field")
+                                        .field("type", "text")
+                                        .field("fielddata", true)
+                                    .endObject()
+                                    .startObject("keyword_field")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                    .startObject("byte_field")
+                                        .field("type", "byte")
+                                    .endObject()
+                                    .startObject("short_field")
+                                        .field("type", "short")
+                                    .endObject()
+                                    .startObject("integer_field")
+                                        .field("type", "integer")
+                                    .endObject()
+                                    .startObject("long_field")
+                                        .field("type", "long")
+                                    .endObject()
+                                    .startObject("float_field")
+                                        .field("type", "float")
+                                    .endObject()
+                                    .startObject("double_field")
+                                        .field("type", "double")
+                                    .endObject()
+                                    .startObject("date_field")
+                                        .field("type", "date")
+                                    .endObject()
+                                    .startObject("boolean_field")
+                                        .field("type", "boolean")
+                                    .endObject()
+                                    .startObject("binary_field")
+                                        .field("type", "binary")
+                                    .endObject()
+                                    .startObject("ip_field")
+                                        .field("type", "ip")
+                                    .endObject()
+                                .endObject()
                             .endObject()
-                            .startObject("keyword_field")
-                                .field("type", "keyword")
-                            .endObject()
-                            .startObject("byte_field")
-                                .field("type", "byte")
-                            .endObject()
-                            .startObject("short_field")
-                                .field("type", "short")
-                            .endObject()
-                            .startObject("integer_field")
-                                .field("type", "integer")
-                            .endObject()
-                            .startObject("long_field")
-                                .field("type", "long")
-                            .endObject()
-                            .startObject("float_field")
-                                .field("type", "float")
-                            .endObject()
-                            .startObject("double_field")
-                                .field("type", "double")
-                            .endObject()
-                            .startObject("date_field")
-                                .field("type", "date")
-                            .endObject()
-                            .startObject("boolean_field")
-                                .field("type", "boolean")
-                            .endObject()
-                            .startObject("binary_field")
-                                .field("type", "binary")
-                            .endObject()
-                            .startObject("ip_field")
-                                .field("type", "ip")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .string();
+                        .endObject());
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
@@ -822,6 +803,65 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+
+        builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addDocValueField("text_field", "use_field_mapping")
+                .addDocValueField("keyword_field", "use_field_mapping")
+                .addDocValueField("byte_field", "use_field_mapping")
+                .addDocValueField("short_field", "use_field_mapping")
+                .addDocValueField("integer_field", "use_field_mapping")
+                .addDocValueField("long_field", "use_field_mapping")
+                .addDocValueField("float_field", "use_field_mapping")
+                .addDocValueField("double_field", "use_field_mapping")
+                .addDocValueField("date_field", "use_field_mapping")
+                .addDocValueField("boolean_field", "use_field_mapping")
+                .addDocValueField("ip_field", "use_field_mapping");
+        searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
+                "ip_field")));
+
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo((Object) 3L));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(Joda.forPattern("dateOptionalTime").printer().print(date)));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+
+        builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addDocValueField("byte_field", "#.0")
+                .addDocValueField("short_field", "#.0")
+                .addDocValueField("integer_field", "#.0")
+                .addDocValueField("long_field", "#.0")
+                .addDocValueField("float_field", "#.0")
+                .addDocValueField("double_field", "#.0")
+                .addDocValueField("date_field", "epoch_millis");
+        searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field")));
+
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue(), equalTo("1.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue(), equalTo("2.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo("3.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo("4.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo("5.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo("6.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(Joda.forPattern("epoch_millis").printer().print(date)));
     }
 
     public void testScriptFields() throws Exception {

@@ -21,7 +21,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
@@ -93,6 +93,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -172,7 +173,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 
 /**
- * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
+ * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
 public class Node implements Closeable {
@@ -229,6 +230,7 @@ public class Node implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
+    private final Settings originalSettings;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
@@ -257,9 +259,9 @@ public class Node implements Closeable {
             // use temp logger just to say we are starting. we can't use it later on because the node name might not be set
             Logger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(environment.settings()));
             logger.info("initializing ...");
-
         }
         try {
+            originalSettings = environment.settings();
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
@@ -271,22 +273,24 @@ public class Node implements Closeable {
                 throw new IllegalStateException("Failed to create node environment", ex);
             }
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
-            Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             final String nodeId = nodeEnvironment.nodeId();
             tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
+            final Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             // this must be captured after the node name is possibly added to the settings
             final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
             if (hadPredefinedNodeName == false) {
-                logger.info("node name [{}] derived from node ID [{}]; set [{}] to override", nodeName, nodeId, NODE_NAME_SETTING.getKey());
+                logger.info("node name derived from node ID [{}]; set [{}] to override", nodeId, NODE_NAME_SETTING.getKey());
             } else {
                 logger.info("node name [{}], node ID [{}]", nodeName, nodeId);
             }
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
-                "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+                "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
                 Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
                 jvmInfo.pid(),
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
                 Build.CURRENT.shortHash(),
                 Build.CURRENT.date(),
                 Constants.OS_NAME,
@@ -438,19 +442,7 @@ public class Node implements Closeable {
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(this.settings, clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(settings, transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
-            final Consumer<Binder> httpBind;
-            final HttpServerTransport httpServerTransport;
-            if (networkModule.isHttpEnabled()) {
-                httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
-                httpBind = b -> {
-                    b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
-                };
-            } else {
-                httpBind = b -> {
-                    b.bind(HttpServerTransport.class).toProvider(Providers.of(null));
-                };
-                httpServerTransport = null;
-            }
+            final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
@@ -517,7 +509,7 @@ public class Node implements Closeable {
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(settings, threadPool,
                                 transportService, recoverySettings, clusterService));
                     }
-                    httpBind.accept(b);
+                    b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                     b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                     b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
@@ -537,12 +529,10 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
-                    () -> clusterService.localNode().getId());
+                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
 
-            if (NetworkModule.HTTP_ENABLED.get(settings)) {
-                logger.debug("initializing HTTP handlers ...");
-                actionModule.initRestHandlers(() -> clusterService.state().nodes());
-            }
+            logger.debug("initializing HTTP handlers ...");
+            actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");
 
             success = true;
@@ -575,7 +565,14 @@ public class Node implements Closeable {
     }
 
     /**
-     * The settings that were used to create the node.
+     * The original settings that were used to create the node
+     */
+    public Settings originalSettings() {
+        return originalSettings;
+    }
+
+    /**
+     * The settings that are used by this node. Contains original settings as well as additional settings provided by plugins.
      */
     public Settings settings() {
         return this.settings;
@@ -702,18 +699,13 @@ public class Node implements Closeable {
             }
         }
 
-
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            injector.getInstance(HttpServerTransport.class).start();
-        }
+        injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings)) {
-            if (NetworkModule.HTTP_ENABLED.get(settings)) {
-                HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
-                writePortsFile("http", http.boundAddress());
-            }
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
+            HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
+            writePortsFile("http", http.boundAddress());
         }
 
         logger.info("started");
@@ -731,9 +723,7 @@ public class Node implements Closeable {
         logger.info("stopping ...");
 
         injector.getInstance(ResourceWatcherService.class).stop();
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            injector.getInstance(HttpServerTransport.class).stop();
-        }
+        injector.getInstance(HttpServerTransport.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();
         injector.getInstance(SnapshotShardsService.class).stop();
@@ -776,13 +766,10 @@ public class Node implements Closeable {
         logger.info("closing ...");
         List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");
-        toClose.add(() -> stopWatch.start("tribe"));
-        toClose.add(() -> stopWatch.stop().start("node_service"));
+        toClose.add(() -> stopWatch.start("node_service"));
         toClose.add(nodeService);
         toClose.add(() -> stopWatch.stop().start("http"));
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            toClose.add(injector.getInstance(HttpServerTransport.class));
-        }
+        toClose.add(injector.getInstance(HttpServerTransport.class));
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
@@ -848,7 +835,7 @@ public class Node implements Closeable {
 
 
     /**
-     * Returns <tt>true</tt> if the node is closed.
+     * Returns {@code true} if the node is closed.
      */
     public boolean isClosed() {
         return lifecycle.closed();
@@ -960,6 +947,11 @@ public class Node implements Closeable {
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listeners) {
         return new InternalClusterInfoService(settings, clusterService, threadPool, client, listeners);
+    }
+
+    /** Constructs a {@link org.elasticsearch.http.HttpServerTransport} which may be mocked for tests. */
+    protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
+        return networkModule.getHttpServerTransportSupplier().get();
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {

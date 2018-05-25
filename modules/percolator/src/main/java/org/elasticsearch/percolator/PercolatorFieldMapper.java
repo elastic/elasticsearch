@@ -161,7 +161,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static RangeFieldMapper createExtractedRangeFieldBuilder(String name, RangeType rangeType, BuilderContext context) {
-            RangeFieldMapper.Builder builder = new RangeFieldMapper.Builder(name, rangeType, context.indexCreatedVersion());
+            RangeFieldMapper.Builder builder = new RangeFieldMapper.Builder(name, rangeType);
             // For now no doc values, because in processQuery(...) only the Lucene range fields get added:
             builder.docValues(false);
             return builder.build(context);
@@ -422,7 +422,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
                 queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
                 builder.flush();
-                byte[] queryBuilderAsBytes = BytesReference.toBytes(builder.bytes());
+                byte[] queryBuilderAsBytes = BytesReference.toBytes(BytesReference.bytes(builder));
                 context.doc().add(new Field(qbField.name(), queryBuilderAsBytes, qbField.fieldType()));
             }
         }

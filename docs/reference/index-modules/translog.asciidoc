@@ -108,8 +108,8 @@ provide a command-line tool for this, `elasticsearch-translog`.
 
 [WARNING]
 The `elasticsearch-translog` tool should *not* be run while Elasticsearch is
-running, and you will permanently lose the documents that were contained only in
-the translog!
+running. If you attempt to run this tool while Elasticsearch is running, you 
+will permanently lose the documents that were contained only in the translog!
 
 In order to run the `elasticsearch-translog` tool, specify the `truncate`
 subcommand as well as the directory for the corrupted translog with the `-d`

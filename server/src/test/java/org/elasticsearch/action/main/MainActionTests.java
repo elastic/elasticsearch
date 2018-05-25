@@ -48,9 +48,8 @@ public class MainActionTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterName clusterName = new ClusterName("elasticsearch");
         final Settings settings = Settings.builder().put("node.name", "my-node").build();
-        final boolean available = randomBoolean();
         ClusterBlocks blocks;
-        if (available) {
+        if (randomBoolean()) {
             if (randomBoolean()) {
                 blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
             } else {
@@ -86,7 +85,6 @@ public class MainActionTests extends ESTestCase {
         });
 
         assertNotNull(responseRef.get());
-        assertEquals(available, responseRef.get().isAvailable());
         verify(clusterService, times(1)).state();
     }
 }

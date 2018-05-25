@@ -20,7 +20,6 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -94,7 +92,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
@@ -191,7 +188,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("field1", "quick"))).get();
         assertHitCount(searchResponse, 2L);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            assertSearchHit(searchHit, hasScore(1.0f));
+            assertThat(searchHit, hasScore(1.0f));
         }
 
         searchResponse = client().prepareSearch("test").setQuery(
@@ -210,7 +207,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasScore(searchResponse.getHits().getAt(1).getScore()));
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            assertSearchHit(searchHit, hasScore(1.0f));
+            assertThat(searchHit, hasScore(1.0f));
         }
 
         int num = scaledRandomIntBetween(100, 200);
@@ -228,7 +225,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             long totalHits = searchResponse.getHits().getTotalHits();
             SearchHits hits = searchResponse.getHits();
             for (SearchHit searchHit : hits) {
-                assertSearchHit(searchHit, hasScore(1.0f));
+                assertThat(searchHit, hasScore(1.0f));
             }
             searchResponse = client().prepareSearch("test_1").setQuery(
                     boolQuery().must(matchAllQuery()).must(
@@ -238,7 +235,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             if (totalHits > 1) {
                 float expected = hits.getAt(0).getScore();
                 for (SearchHit searchHit : hits) {
-                    assertSearchHit(searchHit, hasScore(expected));
+                    assertThat(searchHit, hasScore(expected));
                 }
             }
         }
@@ -352,7 +349,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .put(SETTING_NUMBER_OF_SHARDS,1)
                         .put("index.analysis.filter.syns.type","synonym")
                         .putList("index.analysis.filter.syns.synonyms","quick,fast")
-                        .put("index.analysis.analyzer.syns.tokenizer","whitespace")
+                        .put("index.analysis.analyzer.syns.tokenizer","standard")
                         .put("index.analysis.analyzer.syns.filter","syns")
                         )
                 .addMapping("type1", "field1", "type=text,analyzer=syns", "field2", "type=text,analyzer=syns"));
@@ -557,20 +554,17 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
+        assertAcked(prepareCreate("test"));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-                client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
-                client().prepareIndex("test", "type2", "2").setSource("field1", "value1"),
-                client().prepareIndex("test", "type2", "3").setSource("field1", "value1"));
+                client().prepareIndex("test", "type1", "2").setSource("field1", "value1"));
 
         assertHitCount(client().prepareSearch().setQuery(typeQuery("type1")).get(), 2L);
-        assertHitCount(client().prepareSearch().setQuery(typeQuery("type2")).get(), 3L);
+        assertHitCount(client().prepareSearch().setQuery(typeQuery("type2")).get(), 0L);
 
         assertHitCount(client().prepareSearch().setTypes("type1").setQuery(matchAllQuery()).get(), 2L);
-        assertHitCount(client().prepareSearch().setTypes("type2").setQuery(matchAllQuery()).get(), 3L);
+        assertHitCount(client().prepareSearch().setTypes("type2").setQuery(matchAllQuery()).get(), 0L);
 
-        assertHitCount(client().prepareSearch().setTypes("type1", "type2").setQuery(matchAllQuery()).get(), 5L);
+        assertHitCount(client().prepareSearch().setTypes("type1", "type2").setQuery(matchAllQuery()).get(), 2L);
     }
 
     public void testIdsQueryTestsIdIndexed() throws Exception {
@@ -1221,38 +1215,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
     }
 
-    public void testBasicQueryByIdMultiType() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2").addIds("1", "2")).get();
-        assertHitCount(searchResponse, 2L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1")).get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
-        assertHitCount(searchResponse, 2L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "2")).get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery(Strings.EMPTY_ARRAY).addIds("1")).get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "type3").addIds("1", "2", "3", "4")).get();
-        assertHitCount(searchResponse, 2L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-    }
-
 
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(prepareCreate("test")
@@ -1798,56 +1760,6 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         refresh();
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-    }
-
-    // see #5120
-    public void testNGramCopyField() {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 9)
-                .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
-                .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
-                .putList("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
-        assertAcked(builder.addMapping("test", "origin", "type=text,copy_to=meta", "meta", "type=text,analyzer=my_ngram_analyzer"));
-        // we only have ngrams as the index analyzer so searches will get standard analyzer
-
-
-        client().prepareIndex("test", "test", "1").setSource("origin", "C.A1234.5678")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "1234"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "1234.56"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("meta", "A1234"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("meta", "a1234"))
-                .get();
-        assertHitCount(searchResponse, 0L); // it's upper case
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "A1234").analyzer("my_ngram_analyzer"))
-                .get(); // force ngram analyzer
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "a1234").analyzer("my_ngram_analyzer"))
-                .get(); // this one returns a hit since it's default operator is OR
-        assertHitCount(searchResponse, 1L);
     }
 
     public void testMatchPhrasePrefixQuery() throws ExecutionException, InterruptedException {

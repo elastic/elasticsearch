@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.document;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -124,7 +126,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         for (Object value : values) {
             // this call doesn't really need to support writing any kind of object.
             // Stored fields values are converted using MappedFieldType#valueForDisplay.
-            // As a result they can either be Strings, Numbers, Booleans, or BytesReference, that's
+            // As a result they can either be Strings, Numbers, or Booleans, that's
             // all.
             builder.value(value);
         }

@@ -2,7 +2,7 @@
 === Ids Query
 
 Filters documents that only have the provided ids. Note, this query
-uses the <<mapping-uid-field,_uid>> field.
+uses the <<mapping-id-field,_id>> field.
 
 [source,js]
 --------------------------------------------------

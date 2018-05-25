@@ -149,8 +149,11 @@ public final class SearchSlowLog implements SearchOperationListener {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append(context.indexShard().shardId()).append(" ");
-            sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
+            sb.append(context.indexShard().shardId())
+                    .append(" ")
+                    .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
+                    .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
+                    .append("total_hits[").append(context.queryResult().getTotalHits()).append("], ");
             if (context.getQueryShardContext().getTypes() == null) {
                 sb.append("types[], ");
             } else {

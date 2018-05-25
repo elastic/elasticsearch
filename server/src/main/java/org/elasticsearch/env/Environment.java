@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -87,9 +88,14 @@ public class Environment {
     private final Path pidFile;
 
     /** Path to the temporary file directory used by the JDK */
-    private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
+    private final Path tmpFile;
 
     public Environment(final Settings settings, final Path configPath) {
+        this(settings, configPath, PathUtils.get(System.getProperty("java.io.tmpdir")));
+    }
+
+    // Should only be called directly by this class's unit tests
+    Environment(final Settings settings, final Path configPath, final Path tmpPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
             homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
@@ -102,6 +108,8 @@ public class Environment {
         } else {
             configFile = homeFile.resolve("config");
         }
+
+        tmpFile = Objects.requireNonNull(tmpPath);
 
         pluginsFile = homeFile.resolve("plugins");
 
@@ -300,6 +308,16 @@ public class Environment {
     /** Path to the default temp directory used by the JDK */
     public Path tmpFile() {
         return tmpFile;
+    }
+
+    /** Ensure the configured temp directory is a valid directory */
+    public void validateTmpFile() throws IOException {
+        if (Files.exists(tmpFile) == false) {
+            throw new FileNotFoundException("Temporary file directory [" + tmpFile + "] does not exist or is not accessible");
+        }
+        if (Files.isDirectory(tmpFile) == false) {
+            throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
+        }
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {

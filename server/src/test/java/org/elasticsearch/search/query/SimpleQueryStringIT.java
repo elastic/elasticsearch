@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -306,7 +306,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     }
 
     public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type1")
                 .startObject("properties")
@@ -316,7 +316,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().string();
+                .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
             .addMapping("type1", mapping, XContentType.JSON);
@@ -356,7 +356,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testEmptySimpleQueryStringWithAnalysis() throws Exception {
         // https://github.com/elastic/elasticsearch/issues/18202
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type1")
                 .startObject("properties")
@@ -366,7 +366,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().string();
+                .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")

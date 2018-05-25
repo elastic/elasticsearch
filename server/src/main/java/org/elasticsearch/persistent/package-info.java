@@ -30,7 +30,7 @@
  * task.
  * <p>
  * 2. The master node updates the {@link org.elasticsearch.persistent.PersistentTasksCustomMetaData} in the cluster state to indicate
- * that there is a new persistent task is running in the system.
+ * that there is a new persistent task running in the system.
  * <p>
  * 3. The {@link org.elasticsearch.persistent.PersistentTasksNodeService} running on every node in the cluster monitors changes in
  * the cluster state and starts execution of all new tasks assigned to the node it is running on.

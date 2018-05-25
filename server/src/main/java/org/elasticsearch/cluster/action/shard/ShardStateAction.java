@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -205,7 +204,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel) throws Exception {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
+            logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
             clusterService.submitStateUpdateTask(
                 "shard-failed",
                 request,
@@ -214,12 +213,12 @@ public class ShardStateAction extends AbstractComponent {
                 new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request), e);
+                        logger.error(() -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request), e);
                         try {
                             channel.sendResponse(e);
                         } catch (Exception channelException) {
                             channelException.addSuppressed(e);
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send failure [{}] while failing shard [{}]", request.shardId, e, request), channelException);
+                            logger.warn(() -> new ParameterizedMessage("{} failed to send failure [{}] while failing shard [{}]", request.shardId, e, request), channelException);
                         }
                     }
 
@@ -229,7 +228,7 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(new NotMasterException(source));
                         } catch (Exception channelException) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send no longer master while failing shard [{}]", request.shardId, request), channelException);
+                            logger.warn(() -> new ParameterizedMessage("{} failed to send no longer master while failing shard [{}]", request.shardId, request), channelException);
                         }
                     }
 
@@ -238,7 +237,7 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
                         } catch (Exception channelException) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request), channelException);
+                            logger.warn(() -> new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request), channelException);
                         }
                     }
                 }
@@ -323,7 +322,7 @@ public class ShardStateAction extends AbstractComponent {
                 maybeUpdatedState = applyFailedShards(currentState, failedShardsToBeApplied, staleShardsToBeApplied);
                 batchResultBuilder.successes(tasksToBeApplied);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply failed shards {}", failedShardsToBeApplied), e);
+                logger.warn(() -> new ParameterizedMessage("failed to apply failed shards {}", failedShardsToBeApplied), e);
                 // failures are communicated back to the requester
                 // cluster state will not be updated in this case
                 batchResultBuilder.failures(tasksToBeApplied, e);
@@ -501,7 +500,7 @@ public class ShardStateAction extends AbstractComponent {
                 maybeUpdatedState = allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied);
                 builder.successes(tasksToBeApplied);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
+                logger.warn(() -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
                 builder.failures(tasksToBeApplied, e);
             }
 
@@ -510,7 +509,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
         }
     }
 

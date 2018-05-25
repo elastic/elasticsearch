@@ -21,11 +21,11 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
 
+import java.io.StringReader;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
@@ -65,7 +65,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }
         final MustacheFactory factory = createMustacheFactory(options);
-        Reader reader = new FastStringReader(templateSource);
+        Reader reader = new StringReader(templateSource);
         Mustache template = factory.compile(reader, "query-template");
         TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
         return context.factoryClazz.cast(compiled);

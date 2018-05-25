@@ -24,12 +24,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -40,23 +40,23 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(random(), Lucene.STANDARD_ANALYZER));
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper mapper = index.mapperService().documentMapper("type");
         QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L, null);
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field1", "value1")
-                .field("field2", 1)
-                .field("field3", 1.1)
-                .field("field4", "2010-01-01")
-                .startArray("field5").value(1).value(2).value(3).endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field1", "value1")
+                        .field("field2", 1)
+                        .field("field3", 1.1)
+                        .field("field4", "2010-01-01")
+                        .startArray("field5").value(1).value(2).value(3).endArray()
+                        .endObject()),
                 XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type")

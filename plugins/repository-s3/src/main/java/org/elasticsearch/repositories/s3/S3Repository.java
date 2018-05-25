@@ -151,13 +151,12 @@ class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    S3Repository(RepositoryMetaData metadata, Settings settings,
-                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+    S3Repository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) {
         super(metadata, settings, namedXContentRegistry);
 
         String bucket = BUCKET_SETTING.get(metadata.settings());
         if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 gateway");
+            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
         }
 
         boolean serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());

@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -72,6 +73,18 @@ public class UpgradeResponse extends BroadcastResponse {
             Version.writeVersion(entry.getValue().v1(), out);
             out.writeString(entry.getValue().v2());
         }
+    }
+
+    @Override
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("upgraded_indices");
+        for (Map.Entry<String, Tuple<Version, String>> entry : versions.entrySet()) {
+            builder.startObject(entry.getKey());
+            builder.field("upgrade_version", entry.getValue().v1());
+            builder.field("oldest_lucene_segment_version", entry.getValue().v2());
+            builder.endObject();
+        }
+        builder.endObject();
     }
 
     /**

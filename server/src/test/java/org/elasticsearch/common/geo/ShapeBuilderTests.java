@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.geo;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.Polygon;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Polygon;
 
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
@@ -652,5 +652,50 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().build());
         assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
+    }
+
+    public void testPolygon3D() {
+        String expected = "{\n" +
+            "  \"type\" : \"polygon\",\n" +
+            "  \"orientation\" : \"right\",\n" +
+            "  \"coordinates\" : [\n" +
+            "    [\n" +
+            "      [\n" +
+            "        -45.0,\n" +
+            "        30.0,\n" +
+            "        100.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        45.0,\n" +
+            "        30.0,\n" +
+            "        75.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        45.0,\n" +
+            "        -30.0,\n" +
+            "        77.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        -45.0,\n" +
+            "        -30.0,\n" +
+            "        101.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        -45.0,\n" +
+            "        30.0,\n" +
+            "        110.0\n" +
+            "      ]\n" +
+            "    ]\n" +
+            "  ]\n" +
+            "}";
+
+        PolygonBuilder pb =  new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(new Coordinate(-45, 30, 100))
+            .coordinate(new Coordinate(45, 30, 75))
+            .coordinate(new Coordinate(45, -30, 77))
+            .coordinate(new Coordinate(-45, -30, 101))
+            .coordinate(new Coordinate(-45, 30, 110)));
+
+        assertEquals(expected, pb.toString());
     }
 }

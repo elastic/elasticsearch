@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -226,10 +225,8 @@ public class MasterService extends AbstractLifecycleComponent {
                     clusterStatePublisher.accept(clusterChangedEvent, taskOutputs.createAckListener(threadPool, newClusterState));
                 } catch (Discovery.FailedToCommitClusterStateException t) {
                     final long version = newClusterState.version();
-                    logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failing [{}]: failed to commit cluster state version [{}]", summary, version),
-                        t);
+                    logger.warn(() -> new ParameterizedMessage(
+                            "failing [{}]: failed to commit cluster state version [{}]", summary, version), t);
                     taskOutputs.publishingFailed(t);
                     return;
                 }
@@ -239,11 +236,9 @@ public class MasterService extends AbstractLifecycleComponent {
                 try {
                     taskOutputs.clusterStatePublished(clusterChangedEvent);
                 } catch (Exception e) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                    logger.error(() -> new ParameterizedMessage(
                             "exception thrown while notifying executor of new cluster state publication [{}]",
-                            summary),
-                        e);
+                            summary), e);
                 }
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
                 logger.debug("processing [{}]: took [{}] done publishing updated cluster state (version: {}, uuid: {})", summary,
@@ -255,8 +250,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 final long version = newClusterState.version();
                 final String stateUUID = newClusterState.stateUUID();
                 final String fullState = newClusterState.toString();
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.warn(() -> new ParameterizedMessage(
                         "failed to publish updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
                         executionTime,
                         version,
@@ -392,7 +386,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
             });
 
-            return new DelegetingAckListener(ackListeners);
+            return new DelegatingAckListener(ackListeners);
         }
 
         public boolean clusterStateUnchanged() {
@@ -473,8 +467,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 listener.onFailure(source, e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(() -> new ParameterizedMessage(
                         "exception thrown by listener notifying of failure from [{}]", source), inner);
             }
         }
@@ -484,8 +477,7 @@ public class MasterService extends AbstractLifecycleComponent {
             try {
                 listener.onNoLongerMaster(source);
             } catch (Exception e) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(() -> new ParameterizedMessage(
                         "exception thrown by listener while notifying no longer master from [{}]", source), e);
             }
         }
@@ -495,12 +487,9 @@ public class MasterService extends AbstractLifecycleComponent {
             try {
                 listener.clusterStateProcessed(source, oldState, newState);
             } catch (Exception e) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(() -> new ParameterizedMessage(
                         "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n" +
-                            "{}\nnew cluster state:\n{}",
-                        source, oldState, newState),
-                    e);
+                            "{}\nnew cluster state:\n{}", source, oldState, newState), e);
             }
         }
     }
@@ -552,11 +541,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class DelegetingAckListener implements Discovery.AckListener {
+    private static class DelegatingAckListener implements Discovery.AckListener {
 
         private final List<Discovery.AckListener> listeners;
 
-        private DelegetingAckListener(List<Discovery.AckListener> listeners) {
+        private DelegatingAckListener(List<Discovery.AckListener> listeners) {
             this.listeners = listeners;
         }
 
@@ -566,11 +555,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 listener.onNodeAck(node, e);
             }
         }
-
-        @Override
-        public void onTimeout() {
-            throw new UnsupportedOperationException("no timeout delegation");
-        }
     }
 
     private static class AckCountDownListener implements Discovery.AckListener {
@@ -579,7 +563,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private final AckedClusterStateTaskListener ackedTaskListener;
         private final CountDown countDown;
-        private final DiscoveryNodes nodes;
+        private final DiscoveryNode masterNode;
         private final long clusterStateVersion;
         private final Future<?> ackTimeoutCallback;
         private Exception lastFailure;
@@ -588,15 +572,14 @@ public class MasterService extends AbstractLifecycleComponent {
                              ThreadPool threadPool) {
             this.ackedTaskListener = ackedTaskListener;
             this.clusterStateVersion = clusterStateVersion;
-            this.nodes = nodes;
+            this.masterNode = nodes.getMasterNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
-                if (ackedTaskListener.mustAck(node)) {
+                //we always wait for at least the master node
+                if (node.equals(masterNode) || ackedTaskListener.mustAck(node)) {
                     countDown++;
                 }
             }
-            //we always wait for at least 1 node (the master)
-            countDown = Math.max(1, countDown);
             logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, clusterStateVersion);
             this.countDown = new CountDown(countDown);
             this.ackTimeoutCallback = threadPool.schedule(ackedTaskListener.ackTimeout(), ThreadPool.Names.GENERIC, () -> onTimeout());
@@ -604,20 +587,15 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            if (!ackedTaskListener.mustAck(node)) {
-                //we always wait for the master ack anyway
-                if (!node.equals(nodes.getMasterNode())) {
-                    return;
-                }
+            if (node.equals(masterNode) == false && ackedTaskListener.mustAck(node) == false) {
+                return;
             }
             if (e == null) {
                 logger.trace("ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion);
             } else {
                 this.lastFailure = e;
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion),
-                    e);
+                logger.debug(() -> new ParameterizedMessage(
+                        "ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion), e);
             }
 
             if (countDown.countDown()) {
@@ -627,7 +605,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        @Override
         public void onTimeout() {
             if (countDown.fastForward()) {
                 logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", clusterStateVersion);
@@ -650,7 +627,7 @@ public class MasterService extends AbstractLifecycleComponent {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "failed to execute cluster state update in [{}], state:\nversion [{}], source [{}]\n{}{}{}",
                         executionTime,
                         previousClusterState.version(),

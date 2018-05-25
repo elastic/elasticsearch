@@ -6,7 +6,7 @@ See: https://github.com/elastic/docs
 Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
 CONSOLE" and "COPY AS CURL" in the documentation and are automatically tested
 by the command `gradle :docs:check`. To test just the docs from a single page,
-use e.g. `gradle :docs:check -Dtests.method="\*rollover*"`.
+use e.g. `gradle :docs:check -Dtests.method="*rollover*"`.
 
 By default each `// CONSOLE` snippet runs as its own isolated test. You can
 manipulate the test execution in the following ways:
@@ -67,6 +67,23 @@ for its modifiers:
   that puts this to good use. This is fairly similar to `// TEST[setup:name]`
   but rather than the setup defined in `docs/build.gradle` the setup is defined
   right in the documentation file.
+
+In addition to the standard CONSOLE syntax these snippets can contain blocks
+of yaml surrounded by markers like this:
+
+```
+startyaml
+  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}
+endyaml
+```
+
+This allows slightly more expressive testing of the snippets. Since that syntax
+is not supported by CONSOLE the usual way to incorporate it is with a
+`// TEST[s//]` marker like this:
+
+```
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}\nendyaml\n/]
+```
 
 Any place you can use json you can use elements like `$body.path.to.thing`
 which is replaced on the fly with the contents of the thing at `path.to.thing`

@@ -128,9 +128,7 @@ public class Gateway extends AbstractComponent {
                         }
                     } catch (Exception e) {
                         final Index electedIndex = electedIndexMetaData.getIndex();
-                        logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>)
-                                () -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
+                        logger.warn(() -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
                         electedIndexMetaData = IndexMetaData.builder(electedIndexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
 
@@ -159,13 +157,8 @@ public class Gateway extends AbstractComponent {
     }
 
     private void logInvalidSetting(String settingType, Map.Entry<String, String> e, IllegalArgumentException ex) {
-        logger.warn(
-            (org.apache.logging.log4j.util.Supplier<?>)
-                () -> new ParameterizedMessage("ignoring invalid {} setting: [{}] with value [{}]; archiving",
-                    settingType,
-                    e.getKey(),
-                    e.getValue()),
-            ex);
+        logger.warn(() -> new ParameterizedMessage("ignoring invalid {} setting: [{}] with value [{}]; archiving",
+                    settingType, e.getKey(), e.getValue()), ex);
     }
 
     public interface GatewayStateRecoveredListener {

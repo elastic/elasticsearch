@@ -19,7 +19,6 @@
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
-apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
@@ -34,12 +33,12 @@ publishing {
 }
 
 dependencies {
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  compile "org.elasticsearch:elasticsearch-core:${version}"
 
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  
+
   if (isEclipse == false || project.path == ":libs:elasticsearch-nio-tests") {
       testCompile("org.elasticsearch.test:framework:${version}") {
         exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
@@ -65,18 +64,3 @@ forbiddenApisMain {
   // es-all is not checked as we connect and accept sockets
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
-
-//JarHell is part of es core, which we don't want to pull in
-jarHell.enabled=false
-
-thirdPartyAudit.excludes = [
-        'org/osgi/framework/AdaptPermission',
-        'org/osgi/framework/AdminPermission',
-        'org/osgi/framework/Bundle',
-        'org/osgi/framework/BundleActivator',
-        'org/osgi/framework/BundleContext',
-        'org/osgi/framework/BundleEvent',
-        'org/osgi/framework/SynchronousBundleListener',
-        'org/osgi/framework/wiring/BundleWire',
-        'org/osgi/framework/wiring/BundleWiring'
-]

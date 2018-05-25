@@ -342,6 +342,20 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         target2 = ShardRouting.newUnassigned(new ShardId(new Index("target2", "9101112"), 1),
             true, LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(target2, allocation, 0));
+
+        // check that the DiskThresholdDecider still works even if the source index has been deleted
+        ClusterState clusterStateWithMissingSourceIndex = ClusterState.builder(clusterState)
+            .metaData(MetaData.builder(metaData).remove("test"))
+            .routingTable(RoutingTable.builder(clusterState.routingTable()).remove("test").build())
+            .build();
+
+        allocationService.reroute(clusterState, "foo");
+
+        RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null,
+            clusterStateWithMissingSourceIndex.getRoutingNodes(), clusterStateWithMissingSourceIndex, info, 0);
+
+        assertEquals(42L, DiskThresholdDecider.getExpectedShardSize(target, allocationWithMissingSourceIndex, 42L));
+        assertEquals(42L, DiskThresholdDecider.getExpectedShardSize(target2, allocationWithMissingSourceIndex, 42L));
     }
 
 }

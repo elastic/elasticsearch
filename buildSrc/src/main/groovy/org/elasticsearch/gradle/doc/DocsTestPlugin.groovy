@@ -41,7 +41,7 @@ public class DocsTestPlugin extends RestTestPlugin {
              * to the version being built for testing but needs to resolve to
              * the last released version for docs. */
             '\\{version\\}':
-                VersionProperties.elasticsearch.replace('-SNAPSHOT', ''),
+                VersionProperties.elasticsearch.toString().replace('-SNAPSHOT', ''),
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
         ]
         Task listSnippets = project.tasks.create('listSnippets', SnippetsTask)

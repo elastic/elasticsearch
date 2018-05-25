@@ -56,7 +56,7 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            bytesReference = builder.bytes();
+            bytesReference = BytesReference.bytes(builder);
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("titles", new FiltersAggregator.KeyedFilter("titleterms",
                 new WrapperQueryBuilder(bytesReference)));

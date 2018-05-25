@@ -22,7 +22,6 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -128,7 +128,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 translogTrimmed = randomBoolean();
                 if (translogTrimmed) {
-                    final Translog translog = shards.getPrimary().getTranslog();
+                    final Translog translog = getTranslog(shards.getPrimary());
                     translog.getDeletionPolicy().setRetentionAgeInMillis(0);
                     translog.trimUnreferencedReaders();
                 }
@@ -183,9 +183,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     VersionType.EXTERNAL,
                     randomNonNegativeLong(),
                     false,
-                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
-                    mapping -> {});
-            shards.promoteReplicaToPrimary(promotedReplica);
+                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));
+            shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
@@ -199,9 +198,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         VersionType.INTERNAL,
                         SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
                         randomNonNegativeLong(),
-                        false,
-                        mapping -> {
-                        });
+                        false);
             }
             final IndexShard recoveredReplica =
                     shards.addReplicaWithExistingPath(remainingReplica.shardPath(), remainingReplica.routingEntry().currentNodeId());
@@ -236,7 +233,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
                             .source("{}", XContentType.JSON);
                     final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(bulkShardRequest, replica);
+                    indexOnReplica(bulkShardRequest, shards, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
@@ -271,7 +268,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 // otherwise the deletion policy won't trim translog
                 assertBusy(() -> {
                     shards.syncGlobalCheckpoint();
-                    assertThat(newPrimary.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
+                    assertThat(newPrimary.getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
                 });
                 newPrimary.flush(new FlushRequest());
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
@@ -326,7 +323,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "stale_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, replica);
+                indexOnReplica(bulkShardRequest, shards, replica);
             }
             shards.flush();
             shards.promoteReplicaToPrimary(newPrimary).get();
@@ -340,7 +337,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // Index more docs - move the global checkpoint >= seqno of the stale operations.
             goodDocs += shards.indexDocs(scaledRandomIntBetween(staleDocs, staleDocs * 5));
             shards.syncGlobalCheckpoint();
-            assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
+            assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
             replica.close("recover replica - second time", false);
@@ -374,7 +371,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, newPrimary);
+                indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
             logger.info("--> resyncing replicas");
             PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();

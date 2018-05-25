@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -334,7 +335,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 + "\"score\":0.75,"
                 + "\"bg_count\":4"
                 + "}]}}]}}";
-        assertThat(responseBuilder.string(), equalTo(result));
+        assertThat(Strings.toString(responseBuilder), equalTo(result));
 
     }
 

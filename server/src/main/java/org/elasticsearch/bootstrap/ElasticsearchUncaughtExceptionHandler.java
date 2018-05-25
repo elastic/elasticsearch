@@ -71,15 +71,12 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
 
     void onFatalUncaught(final String threadName, final Throwable t) {
         final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
-        logger.error(
-            (org.apache.logging.log4j.util.Supplier<?>)
-                () -> new ParameterizedMessage("fatal error in thread [{}], exiting", threadName), t);
+        logger.error(() -> new ParameterizedMessage("fatal error in thread [{}], exiting", threadName), t);
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {
         final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
-        logger.warn((org.apache.logging.log4j.util.Supplier<?>)
-            () -> new ParameterizedMessage("uncaught exception in thread [{}]", threadName), t);
+        logger.warn(() -> new ParameterizedMessage("uncaught exception in thread [{}]", threadName), t);
     }
 
     void halt(int status) {

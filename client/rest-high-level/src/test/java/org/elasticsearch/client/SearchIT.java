@@ -27,6 +27,9 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -34,8 +37,12 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -44,6 +51,8 @@ import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
+import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
@@ -65,10 +74,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -95,14 +106,31 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         client().performRequest(HttpPut.METHOD_NAME, "/index/type/5", Collections.emptyMap(), doc5);
         client().performRequest(HttpPost.METHOD_NAME, "/index/_refresh");
 
-        StringEntity doc = new StringEntity("{\"field\":\"value1\"}", ContentType.APPLICATION_JSON);
+
+        StringEntity doc = new StringEntity("{\"field\":\"value1\", \"rating\": 7}", ContentType.APPLICATION_JSON);
         client().performRequest(HttpPut.METHOD_NAME, "/index1/doc/1", Collections.emptyMap(), doc);
         doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
         client().performRequest(HttpPut.METHOD_NAME, "/index1/doc/2", Collections.emptyMap(), doc);
-        doc = new StringEntity("{\"field\":\"value1\"}", ContentType.APPLICATION_JSON);
+
+        StringEntity mappings = new StringEntity(
+            "{" +
+            "  \"mappings\": {" +
+            "    \"doc\": {" +
+            "      \"properties\": {" +
+            "        \"rating\": {" +
+            "          \"type\":  \"keyword\"" +
+            "        }" +
+            "      }" +
+            "    }" +
+            "  }" +
+            "}}",
+            ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/index2", Collections.emptyMap(), mappings);
+        doc = new StringEntity("{\"field\":\"value1\", \"rating\": \"good\"}", ContentType.APPLICATION_JSON);
         client().performRequest(HttpPut.METHOD_NAME, "/index2/doc/3", Collections.emptyMap(), doc);
         doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
         client().performRequest(HttpPut.METHOD_NAME, "/index2/doc/4", Collections.emptyMap(), doc);
+
         doc = new StringEntity("{\"field\":\"value1\"}", ContentType.APPLICATION_JSON);
         client().performRequest(HttpPut.METHOD_NAME, "/index3/doc/5", Collections.emptyMap(), doc);
         doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
@@ -291,14 +319,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         MatrixStats matrixStats = searchResponse.getAggregations().get("agg1");
         assertEquals(5, matrixStats.getFieldCount("num"));
         assertEquals(56d, matrixStats.getMean("num"), 0d);
-        assertEquals(1830d, matrixStats.getVariance("num"), 0d);
-        assertEquals(0.09340198804973046, matrixStats.getSkewness("num"), 0d);
+        assertEquals(1830.0000000000002, matrixStats.getVariance("num"), 0d);
+        assertEquals(0.09340198804973039, matrixStats.getSkewness("num"), 0d);
         assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 0d);
         assertEquals(5, matrixStats.getFieldCount("num2"));
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
         assertEquals(330d, matrixStats.getVariance("num2"), 0d);
         assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-16);
-        assertEquals(1.3517561983471074, matrixStats.getKurtosis("num2"), 0d);
+        assertEquals(1.3517561983471071, matrixStats.getKurtosis("num2"), 0d);
         assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
         assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);
     }
@@ -478,7 +506,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
-            HttpEntity entity = new NStringEntity(builder.string(), ContentType.APPLICATION_JSON);
+            HttpEntity entity = new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             client().performRequest(HttpPut.METHOD_NAME, "test/type1/" + Integer.toString(i), Collections.emptyMap(), entity);
         }
         client().performRequest(HttpPost.METHOD_NAME, "/test/_refresh");
@@ -710,6 +738,154 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(true));
         assertThat(multiSearchResponse.getResponses()[1].getFailure().getMessage(), containsString("search_phase_execution_exception"));
         assertThat(multiSearchResponse.getResponses()[1].getResponse(), nullValue());
+    }
+
+    public void testSearchTemplate() throws IOException {
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+        searchTemplateRequest.setRequest(new SearchRequest("index"));
+
+        searchTemplateRequest.setScriptType(ScriptType.INLINE);
+        searchTemplateRequest.setScript(
+            "{" +
+            "  \"query\": {" +
+            "    \"match\": {" +
+            "      \"num\": {{number}}" +
+            "    }" +
+            "  }" +
+            "}");
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("number", 10);
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        searchTemplateRequest.setExplain(true);
+        searchTemplateRequest.setProfile(true);
+
+        SearchTemplateResponse searchTemplateResponse = execute(searchTemplateRequest,
+            highLevelClient()::searchTemplate,
+            highLevelClient()::searchTemplateAsync);
+
+        assertNull(searchTemplateResponse.getSource());
+
+        SearchResponse searchResponse = searchTemplateResponse.getResponse();
+        assertNotNull(searchResponse);
+
+        assertEquals(1, searchResponse.getHits().totalHits);
+        assertEquals(1, searchResponse.getHits().getHits().length);
+        assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
+
+        SearchHit hit = searchResponse.getHits().getHits()[0];
+        assertNotNull(hit.getExplanation());
+
+        assertFalse(searchResponse.getProfileResults().isEmpty());
+    }
+
+    public void testNonExistentSearchTemplate() {
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+        searchTemplateRequest.setRequest(new SearchRequest("index"));
+
+        searchTemplateRequest.setScriptType(ScriptType.STORED);
+        searchTemplateRequest.setScript("non-existent");
+        searchTemplateRequest.setScriptParams(Collections.emptyMap());
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(searchTemplateRequest,
+                highLevelClient()::searchTemplate,
+                highLevelClient()::searchTemplateAsync));
+
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testRenderSearchTemplate() throws IOException {
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+
+        searchTemplateRequest.setScriptType(ScriptType.INLINE);
+        searchTemplateRequest.setScript(
+            "{" +
+            "  \"query\": {" +
+            "    \"match\": {" +
+            "      \"num\": {{number}}" +
+            "    }" +
+            "  }" +
+            "}");
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("number", 10);
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        // Setting simulate true causes the template to only be rendered.
+        searchTemplateRequest.setSimulate(true);
+
+        SearchTemplateResponse searchTemplateResponse = execute(searchTemplateRequest,
+            highLevelClient()::searchTemplate,
+            highLevelClient()::searchTemplateAsync);
+        assertNull(searchTemplateResponse.getResponse());
+
+        BytesReference expectedSource = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("query")
+                        .startObject("match")
+                            .field("num", 10)
+                        .endObject()
+                    .endObject()
+                .endObject());
+
+        BytesReference actualSource = searchTemplateResponse.getSource();
+        assertNotNull(actualSource);
+
+        assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
+    }
+
+    public void testFieldCaps() throws IOException {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
+            .indices("index1", "index2")
+            .fields("rating", "field");
+
+        FieldCapabilitiesResponse response = execute(request,
+            highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
+
+        // Check the capabilities for the 'rating' field.
+        assertTrue(response.get().containsKey("rating"));
+        Map<String, FieldCapabilities> ratingResponse = response.getField("rating");
+        assertEquals(2, ratingResponse.size());
+
+        FieldCapabilities expectedKeywordCapabilities = new FieldCapabilities(
+            "rating", "keyword", true, true, new String[]{"index2"}, null, null);
+        assertEquals(expectedKeywordCapabilities, ratingResponse.get("keyword"));
+
+        FieldCapabilities expectedLongCapabilities = new FieldCapabilities(
+            "rating", "long", true, true, new String[]{"index1"}, null, null);
+        assertEquals(expectedLongCapabilities, ratingResponse.get("long"));
+
+        // Check the capabilities for the 'field' field.
+        assertTrue(response.get().containsKey("field"));
+        Map<String, FieldCapabilities> fieldResponse = response.getField("field");
+        assertEquals(1, fieldResponse.size());
+
+        FieldCapabilities expectedTextCapabilities = new FieldCapabilities(
+            "field", "text", true, false);
+        assertEquals(expectedTextCapabilities, fieldResponse.get("text"));
+    }
+
+    public void testFieldCapsWithNonExistentFields() throws IOException {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
+            .indices("index2")
+            .fields("nonexistent");
+
+        FieldCapabilitiesResponse response = execute(request,
+            highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
+        assertTrue(response.get().isEmpty());
+    }
+
+    public void testFieldCapsWithNonExistentIndices() {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
+            .indices("non-existent")
+            .fields("rating");
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
     private static void assertSearchHeader(SearchResponse searchResponse) {

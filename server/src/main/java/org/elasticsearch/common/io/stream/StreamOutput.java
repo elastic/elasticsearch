@@ -35,6 +35,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -53,11 +55,14 @@ import java.nio.file.NotDirectoryException;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 /**
@@ -72,6 +77,25 @@ import java.util.function.IntFunction;
  * on {@link StreamInput}.
  */
 public abstract class StreamOutput extends OutputStream {
+
+    private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
+
+    static {
+        final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
+        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
+        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
+        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
+        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);
+        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);
+        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);
+        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);
+
+        for (TimeUnit value : TimeUnit.values()) {
+            assert timeUnitByteMap.containsKey(value) : value;
+        }
+
+        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);
+    }
 
     private Version version = Version.CURRENT;
 
@@ -852,8 +876,12 @@ public abstract class StreamOutput extends OutputStream {
                 writeCause = false;
             } else if (throwable instanceof IOException) {
                 writeVInt(17);
+            } else if (throwable instanceof EsRejectedExecutionException) {
+                writeVInt(18);
+                writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
+                writeCause = false;
             } else {
-                ElasticsearchException ex;
+                final ElasticsearchException ex;
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
                     ex = (ElasticsearchException) throwable;
                 } else {
@@ -863,7 +891,6 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(ElasticsearchException.getId(ex.getClass()));
                 ex.writeTo(this);
                 return;
-
             }
             if (writeMessage) {
                 writeOptionalString(throwable.getMessage());
@@ -967,6 +994,36 @@ public abstract class StreamOutput extends OutputStream {
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         writeVInt(enumValue.ordinal());
+    }
+
+    /**
+     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     */
+    public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
+        writeVInt(enumSet.size());
+        for (E e : enumSet) {
+            writeEnum(e);
+        }
+    }
+
+    /**
+     * Write a {@link TimeValue} to the stream
+     */
+    public void writeTimeValue(TimeValue timeValue) throws IOException {
+        writeZLong(timeValue.duration());
+        writeByte(TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit()));
+    }
+
+    /**
+     * Write an optional {@link TimeValue} to the stream.
+     */
+    public void writeOptionalTimeValue(@Nullable TimeValue timeValue) throws IOException {
+        if (timeValue == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeTimeValue(timeValue);
+        }
     }
 
 }

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
@@ -109,7 +110,13 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     }
 
     protected static Coordinate readFromStream(StreamInput in) throws IOException {
-        return new Coordinate(in.readDouble(), in.readDouble());
+        double x = in.readDouble();
+        double y = in.readDouble();
+        Double z = null;
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            z = in.readOptionalDouble();
+        }
+        return z == null ? new Coordinate(x, y) : new Coordinate(x, y, z);
     }
 
     @Override
@@ -123,6 +130,9 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
         out.writeDouble(coordinate.x);
         out.writeDouble(coordinate.y);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -216,6 +226,9 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      * @return type of the shape
      */
     public abstract GeoShapeType type();
+
+    /** tracks number of dimensions for this shape */
+    public abstract int numDimensions();
 
     /**
      * Calculate the intersection of a line segment and a vertical dateline.
@@ -429,7 +442,11 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     }
 
     protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
-        return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
+        builder.startArray().value(coordinate.x).value(coordinate.y);
+        if (Double.isNaN(coordinate.z) == false) {
+            builder.value(coordinate.z);
+        }
+        return builder.endArray();
     }
 
     /**

@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -88,6 +89,36 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("test", "type1", "1")}).minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(response, 1L);
+    }
+
+    //Issue #30148
+    public void testMoreLikeThisForZeroTokensInOneOfTheAnalyzedFields() throws Exception {
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test")
+            .addMapping("type", jsonBuilder()
+            .startObject().startObject("type")
+                .startObject("properties")
+                .startObject("myField").field("type", "text").endObject()
+                .startObject("empty").field("type", "text").endObject()
+                .endObject()
+            .endObject().endObject());
+
+        assertAcked(createIndexRequestBuilder);
+
+        ensureGreen();
+
+        client().index(indexRequest("test").type("type").id("1").source(jsonBuilder().startObject()
+            .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
+        client().index(indexRequest("test").type("type").id("2").source(jsonBuilder().startObject()
+            .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
+
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+            moreLikeThisQuery(new String[]{"myField", "empty"}, null, new Item[]{new Item("test", "type", "1")})
+                .minTermFreq(1).minDocFreq(1)
+        ).get();
+
+        assertHitCount(searchResponse, 1L);
     }
 
     public void testSimpleMoreLikeOnLongField() throws Exception {
@@ -161,10 +192,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         String aliasName = "foo_name";
         String typeName = "bar";
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping, XContentType.JSON).get();
         client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
@@ -183,10 +214,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testMoreLikeThisIssue2197() throws Exception {
         Client client = client();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
@@ -206,10 +237,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #2489
     public void testMoreLikeWithCustomRouting() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
@@ -227,10 +258,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         assertAcked(prepareCreate("foo", 2,
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("bar", mapping, XContentType.JSON));
@@ -364,39 +395,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, ids("1")).include(true).minTermFreq(1).minDocFreq(1);
         SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
         assertHitCount(mltResponse, 3L);
-    }
-
-    public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
-        logger.info("Creating index test");
-        int numOfTypes = randomIntBetween(2, 10);
-        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id));
-        for (int i = 0; i < numOfTypes; i++) {
-            createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
-                    .startObject("text").field("type", "text").endObject()
-                    .endObject().endObject().endObject());
-        }
-        assertAcked(createRequestBuilder);
-
-        logger.info("Running Cluster Health");
-        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
-
-        logger.info("Indexing...");
-        List<IndexRequestBuilder> builders = new ArrayList<>(numOfTypes);
-        for (int i = 0; i < numOfTypes; i++) {
-            builders.add(client().prepareIndex("test", "type" + i).setSource("text", "lucene" + " " + i).setId(String.valueOf(i)));
-        }
-        indexRandom(true, builders);
-
-        logger.info("Running MoreLikeThis");
-        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, new Item[] {new Item("test", "type0", "0")}).include(true).minTermFreq(1).minDocFreq(1);
-
-        String[] types = new String[numOfTypes];
-        for (int i = 0; i < numOfTypes; i++) {
-            types[i] = "type"+i;
-        }
-        SearchResponse mltResponse = client().prepareSearch().setTypes(types).setQuery(queryBuilder).execute().actionGet();
-        assertHitCount(mltResponse, numOfTypes);
     }
 
     public void testMoreLikeThisMultiValueFields() throws Exception {

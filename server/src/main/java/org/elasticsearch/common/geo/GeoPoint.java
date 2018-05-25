@@ -22,16 +22,22 @@ package org.elasticsearch.common.geo;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.ElasticsearchParseException;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 
-public final class GeoPoint {
+public final class GeoPoint implements ToXContentFragment {
 
     private double lat;
     private double lon;
@@ -75,15 +81,31 @@ public final class GeoPoint {
     }
 
     public GeoPoint resetFromString(String value) {
-        int comma = value.indexOf(',');
-        if (comma != -1) {
-            lat = Double.parseDouble(value.substring(0, comma).trim());
-            lon = Double.parseDouble(value.substring(comma + 1).trim());
-        } else {
-            resetFromGeoHash(value);
-        }
-        return this;
+        return resetFromString(value, false);
     }
+
+    public GeoPoint resetFromString(String value, final boolean ignoreZValue) {
+        if (value.contains(",")) {
+            return resetFromCoordinates(value, ignoreZValue);
+        }
+        return resetFromGeoHash(value);
+    }
+
+
+    public GeoPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
+        String[] vals = value.split(",");
+        if (vals.length > 3) {
+            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
+                + "but found: [{}]", vals.length);
+        }
+        double lat = Double.parseDouble(vals[0].trim());
+        double lon = Double.parseDouble(vals[1].trim());
+        if (vals.length > 2) {
+            GeoPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
+        }
+        return reset(lat, lon);
+    }
+
 
     public GeoPoint resetFromIndexHash(long hash) {
         lon = GeoHashUtils.decodeLongitude(hash);
@@ -110,7 +132,12 @@ public final class GeoPoint {
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {
-        final long hash = mortonEncode(geohash);
+        final long hash;
+        try {
+            hash = mortonEncode(geohash);
+        } catch (IllegalArgumentException ex) {
+            throw new ElasticsearchParseException(ex.getMessage(), ex);
+        }
         return this.reset(GeoHashUtils.decodeLatitude(hash), GeoHashUtils.decodeLongitude(hash));
     }
 
@@ -183,5 +210,18 @@ public final class GeoPoint {
 
     public static GeoPoint fromGeohash(long geohashLong) {
         return new GeoPoint().resetFromGeoHash(geohashLong);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.latlon(lat, lon);
+    }
+
+    public static double assertZValue(final boolean ignoreZValue, double zValue) {
+        if (ignoreZValue == false) {
+            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
+                + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
+        }
+        return zValue;
     }
 }

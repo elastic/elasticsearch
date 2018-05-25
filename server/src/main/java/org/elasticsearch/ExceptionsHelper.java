@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 
@@ -67,6 +68,8 @@ public final class ExceptionsHelper {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
+            } else if (t instanceof EsRejectedExecutionException) {
+                return RestStatus.TOO_MANY_REQUESTS;
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
@@ -237,6 +240,35 @@ public final class ExceptionsHelper {
             }
         }
         return true;
+    }
+
+    /**
+     * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
+     * caught and bubbles up to the uncaught exception handler.
+     *
+     * @param throwable the throwable to test
+     */
+    public static void dieOnError(Throwable throwable) {
+        final Optional<Error> maybeError = ExceptionsHelper.maybeError(throwable, logger);
+        if (maybeError.isPresent()) {
+            /*
+             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
+             * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
+             * to where we want it to. So, we fork a thread and throw the exception from there where Netty can not get to it. We do not wrap
+             * the exception so as to not lose the original cause during exit.
+             */
+            try {
+                // try to log the current stack trace
+                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
+                logger.error("fatal error\n{}", formatted);
+            } finally {
+                new Thread(
+                    () -> {
+                        throw maybeError.get();
+                    })
+                    .start();
+            }
+        }
     }
 
     /**

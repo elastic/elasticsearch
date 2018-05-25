@@ -22,18 +22,16 @@ package org.elasticsearch.discovery.single;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.zen.PendingClusterStateStats;
-import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -65,9 +63,9 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
         clusterState = event.state();
         CountDownLatch latch = new CountDownLatch(1);
 
-        ClusterStateTaskListener listener = new ClusterStateTaskListener() {
+        ClusterApplyListener listener = new ClusterApplyListener() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void onSuccess(String source) {
                 latch.countDown();
                 ackListener.onNodeAck(transportService.getLocalNode(), null);
             }
@@ -76,11 +74,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
             public void onFailure(String source, Exception e) {
                 latch.countDown();
                 ackListener.onNodeAck(transportService.getLocalNode(), e);
-                logger.warn(
-                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                        "failed while applying cluster state locally [{}]",
-                        event.source()),
-                    e);
+                logger.warn(() -> new ParameterizedMessage("failed while applying cluster state locally [{}]", event.source()), e);
             }
         };
         clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);

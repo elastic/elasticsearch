@@ -1382,17 +1382,17 @@ public class FieldSortIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
-                .addSort("_uid", order)
+                .addSort("_id", order)
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         SearchHit[] hits = searchResponse.getHits().getHits();
         BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
         for (int i = 0; i < hits.length; ++i) {
-            String uidString = Uid.createUid(hits[i].getType(), hits[i].getId());
-            final BytesRef uid = new BytesRef(uidString);
-            assertEquals(uidString, hits[i].getSortValues()[0]);
-            assertThat(previous, order == SortOrder.ASC ? lessThan(uid) : greaterThan(uid));
-            previous = uid;
+            String idString = hits[i].getId();
+            final BytesRef id = new BytesRef(idString);
+            assertEquals(idString, hits[i].getSortValues()[0]);
+            assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+            previous = id;
         }
     }
 

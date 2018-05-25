@@ -20,6 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -61,9 +63,9 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldType() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
@@ -75,66 +77,66 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("a", "100")
-                    .startObject("b")
-                        .field("c", 42)
-                    .endObject()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                            .field("a", "100")
+                            .startObject("b")
+                                .field("c", 42)
+                            .endObject()
+                        .endObject()),
                 XContentType.JSON));
 
         assertFieldNames(Collections.emptySet(), doc);
     }
 
     public void testExplicitEnabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", true).endObject()
                 .startObject("properties").startObject("field").field("type", "keyword").field("doc_values", false).endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertTrue(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject()),
             XContentType.JSON));
 
         assertFieldNames(set("field"), doc);
     }
 
     public void testDisabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject()),
             XContentType.JSON));
 
         assertNull(doc.rootDoc().get("_field_names"));
     }
 
     public void testMergingMappings() throws Exception {
-        String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String enabledMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", true).endObject()
-            .endObject().endObject().string();
-        String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject());
+        String disabledMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
 
         DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);

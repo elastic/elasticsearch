@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.rankeval.EvalQueryQuality;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -37,8 +39,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
-import java.util.Set;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
 
@@ -55,6 +58,10 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         client().performRequest("PUT", "/index/doc/5", Collections.emptyMap(), doc);
         client().performRequest("PUT", "/index/doc/6", Collections.emptyMap(), doc);
         client().performRequest("POST", "/index/_refresh");
+
+        // add another index to test basic multi index support
+        client().performRequest("PUT", "/index2/doc/7", Collections.emptyMap(), doc);
+        client().performRequest("POST", "/index2/_refresh");
     }
 
     /**
@@ -64,57 +71,56 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
     public void testRankEvalRequest() throws IOException {
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", createRelevant("index" , "2", "3", "4", "5"), testQuery);
+        List<RatedDocument> amsterdamRatedDocs = createRelevant("index" , "2", "3", "4", "5");
+        amsterdamRatedDocs.addAll(createRelevant("index2", "7"));
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", amsterdamRatedDocs, testQuery);
         RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("index", "1"), testQuery);
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(amsterdamRequest);
         specifications.add(berlinRequest);
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec spec = new RankEvalSpec(specifications, metric);
-        spec.addIndices(Collections.singletonList("index"));
 
-        RankEvalResponse response = execute(new RankEvalRequest(spec), highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
-        // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the second is 1/6, divided by 2 to get the average
-        double expectedPrecision = (1.0 / 6.0 + 4.0 / 6.0) / 2.0;
+        RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, new String[] { "index", "index2" });
+        RankEvalResponse response = execute(rankEvalRequest, highLevelClient()::rankEval,
+                highLevelClient()::rankEvalAsync);
+        // the expected Prec@ for the first query is 5/7 and the expected Prec@ for the second is 1/7, divided by 2 to get the average
+        double expectedPrecision = (1.0 / 7.0 + 5.0 / 7.0) / 2.0;
         assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
-        Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
-        assertEquals(2, entrySet.size());
-        for (Entry<String, EvalQueryQuality> entry : entrySet) {
-            EvalQueryQuality quality = entry.getValue();
-            if (entry.getKey() == "amsterdam_query") {
-                assertEquals(2, filterUnknownDocuments(quality.getHitsAndRatings()).size());
-                List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
-                assertEquals(6, hitsAndRatings.size());
-                for (RatedSearchHit hit : hitsAndRatings) {
-                    String id = hit.getSearchHit().getId();
-                    if (id.equals("1") || id.equals("6")) {
-                        assertFalse(hit.getRating().isPresent());
-                    } else {
-                        assertEquals(1, hit.getRating().get().intValue());
-                    }
-                }
-            }
-            if (entry.getKey() == "berlin_query") {
-                assertEquals(5, filterUnknownDocuments(quality.getHitsAndRatings()).size());
-                List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
-                assertEquals(6, hitsAndRatings.size());
-                for (RatedSearchHit hit : hitsAndRatings) {
-                    String id = hit.getSearchHit().getId();
-                    if (id.equals("1")) {
-                        assertEquals(1, hit.getRating().get().intValue());
-                    } else {
-                        assertFalse(hit.getRating().isPresent());
-                    }
-                }
+        Map<String, EvalQueryQuality> partialResults = response.getPartialResults();
+        assertEquals(2, partialResults.size());
+        EvalQueryQuality amsterdamQueryQuality = partialResults.get("amsterdam_query");
+        assertEquals(2, filterUnknownDocuments(amsterdamQueryQuality.getHitsAndRatings()).size());
+        List<RatedSearchHit> hitsAndRatings = amsterdamQueryQuality.getHitsAndRatings();
+        assertEquals(7, hitsAndRatings.size());
+        for (RatedSearchHit hit : hitsAndRatings) {
+            String id = hit.getSearchHit().getId();
+            if (id.equals("1") || id.equals("6")) {
+                assertFalse(hit.getRating().isPresent());
+            } else {
+                assertEquals(1, hit.getRating().get().intValue());
             }
         }
+        EvalQueryQuality berlinQueryQuality = partialResults.get("berlin_query");
+        assertEquals(6, filterUnknownDocuments(berlinQueryQuality.getHitsAndRatings()).size());
+        hitsAndRatings = berlinQueryQuality.getHitsAndRatings();
+        assertEquals(7, hitsAndRatings.size());
+        for (RatedSearchHit hit : hitsAndRatings) {
+            String id = hit.getSearchHit().getId();
+            if (id.equals("1")) {
+                assertEquals(1, hit.getRating().get().intValue());
+            } else {
+                assertFalse(hit.getRating().isPresent());
+            }
+        }
+
+        // now try this when test2 is closed
+        client().performRequest("POST", "index2/_close", Collections.emptyMap());
+        rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, SearchRequest.DEFAULT_INDICES_OPTIONS));
+        response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
     }
 
     private static List<RatedDocument> createRelevant(String indexName, String... docs) {
-        List<RatedDocument> relevant = new ArrayList<>();
-        for (String doc : docs) {
-            relevant.add(new RatedDocument(indexName, doc, 1));
-        }
-        return relevant;
+        return Stream.of(docs).map(s -> new RatedDocument(indexName, s, 1)).collect(Collectors.toList());
     }
 }

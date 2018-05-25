@@ -41,7 +41,7 @@ import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRati
 
 /**
  * Metric implementing Discounted Cumulative Gain.
- * The `normalize` parameter can be set to calculate the normalized NDCG (set to <tt>false</tt> by default).<br>
+ * The `normalize` parameter can be set to calculate the normalized NDCG (set to {@code false} by default).<br>
  * The optional `unknown_doc_rating` parameter can be used to specify a default rating for unlabeled documents.
  * @see <a href="https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Discounted_Cumulative_Gain">Discounted Cumulative Gain</a><br>
  */
@@ -140,9 +140,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
 
         if (normalize) {
             Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
-            double idcg = computeDCG(
-                    allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
-            dcg = dcg / idcg;
+            double idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
+            if (idcg > 0) {
+                dcg = dcg / idcg;
+            } else {
+                dcg = 0;
+            }
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, dcg);
         evalQueryQuality.addHitsAndRatings(ratedHits);

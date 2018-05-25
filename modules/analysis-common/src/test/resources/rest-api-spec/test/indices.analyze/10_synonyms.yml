@@ -1,9 +1,6 @@
 "Synonym filter with char_filter":
   # Tests analyze with synonym and char_filter. This is in the analysis-common module
   # because there are no char filters in core.
-    - skip:
-        version: " - 5.99.99"
-        reason: to support synonym same analysis chain were added in 6.0.0
     - do:
         indices.create:
           index: test_synonym_with_charfilter

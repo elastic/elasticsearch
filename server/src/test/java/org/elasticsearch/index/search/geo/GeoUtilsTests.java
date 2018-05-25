@@ -410,6 +410,19 @@ public class GeoUtilsTests extends ESTestCase {
         }
     }
 
+    public void testParseGeoPointStringZValueError() throws IOException {
+        double lat = randomDouble() * 180 - 90 + randomIntBetween(-1000, 1000) * 180;
+        double lon = randomDouble() * 360 - 180 + randomIntBetween(-1000, 1000) * 360;
+        double alt = randomDouble() * 1000;
+        XContentBuilder json = jsonBuilder().startObject().field("foo", lat + "," + lon + "," + alt).endObject();
+        XContentParser parser = createParser(json);
+        while (parser.currentToken() != Token.VALUE_STRING) {
+            parser.nextToken();
+        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
+        assertThat(e.getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
+    }
+
     public void testParseGeoPointGeohash() throws IOException {
         for (int i = 0; i < 100; i++) {
             int geoHashLength = randomIntBetween(1, GeoHashUtils.PRECISION);
@@ -509,7 +522,21 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
         }
         Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-        assertThat(e.getMessage(), is("only two values allowed"));
+        assertThat(e.getMessage(), is("Exception parsing coordinates: found Z value [0.0] but [ignore_z_value] parameter is [false]"));
+    }
+
+    public void testParseGeoPointArray3D() throws IOException {
+        double lat = 90.0;
+        double lon = -180.0;
+        double elev = 0.0;
+        XContentBuilder json = jsonBuilder().startObject().startArray("foo").value(lon).value(lat).value(elev).endArray().endObject();
+        XContentParser parser = createParser(json);
+        while (parser.currentToken() != Token.START_ARRAY) {
+            parser.nextToken();
+        }
+        GeoPoint point = GeoUtils.parseGeoPoint(parser, new GeoPoint(), true);
+        assertThat(point.lat(), equalTo(lat));
+        assertThat(point.lon(), equalTo(lon));
     }
 
     public void testParseGeoPointArrayWrongType() throws IOException {
@@ -581,6 +608,20 @@ public class GeoUtilsTests extends ESTestCase {
 
             qNode = qNode.getNextLevelCells(null).next();
         }
+    }
+
+    public void testParseGeoPointGeohashPositions() throws IOException {
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.TOP_LEFT), new GeoPoint(42.890625, -71.71875));
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.TOP_RIGHT), new GeoPoint(42.890625, -71.3671875));
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.71484375, -71.71875));
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.BOTTOM_RIGHT), new GeoPoint(42.71484375, -71.3671875));
+        assertNormalizedPoint(parseGeohash("drtk", GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.890625, -71.3671875));
+    }
+
+    private GeoPoint parseGeohash(String geohash, GeoUtils.EffectivePoint effectivePoint) throws IOException {
+        XContentParser parser = createParser(jsonBuilder().startObject().field("geohash", geohash).endObject());
+        parser.nextToken();
+        return GeoUtils.parseGeoPoint(parser, new GeoPoint(), randomBoolean(), effectivePoint);
     }
 
     private static void assertNormalizedPoint(GeoPoint input, GeoPoint expected) {

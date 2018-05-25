@@ -113,7 +113,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext));
+                    builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
                     iterator.remove();
                 } else if (fieldName.equals("includes")) {
                     List<Object> values = (List<Object>) fieldNode;
@@ -217,10 +217,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-    }
-
-    @Override
     public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we will call it in pre parse
         return null;
@@ -228,32 +224,23 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        if (!enabled) {
-            return;
-        }
-        if (!fieldType().stored()) {
-            return;
-        }
         BytesReference source = context.sourceToParse().source();
-        // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-        if (source == null) {
-            return;
+        if (enabled && fieldType().stored() && source != null) {
+            // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
+            if (filter != null) {
+                // we don't update the context source if we filter, we want to keep it as is...
+                Tuple<XContentType, Map<String, Object>> mapTuple =
+                    XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
+                Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                XContentType contentType = mapTuple.v1();
+                XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
+                builder.close();
+                source = bStream.bytes();
+            }
+            BytesRef ref = source.toBytesRef();
+            fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
-
-        if (filter != null) {
-            // we don't update the context source if we filter, we want to keep it as is...
-            Tuple<XContentType, Map<String, Object>> mapTuple =
-                XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
-            Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentType contentType = mapTuple.v1();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
-            builder.close();
-
-            source = bStream.bytes();
-        }
-        BytesRef ref = source.toBytesRef();
-        fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
     }
 
     @Override

@@ -36,8 +36,10 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,7 +48,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
@@ -184,7 +185,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testDefaultSettings() throws Exception {
         final ClusterState result = executeTask();
 
-        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("5"));
+        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() throws Exception {
@@ -354,7 +355,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     private CompressedXContent createMapping(String fieldType) throws IOException {
-        final String mapping = XContentFactory.jsonBuilder()
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
                     .startObject("properties")
@@ -363,7 +364,7 @@ public class IndexCreationTaskTests extends ESTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-            .endObject().string();
+            .endObject());
 
         return new CompressedXContent(mapping);
     }
@@ -388,8 +389,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
             logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator
-        );
+            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         return task.execute(state);
     }
 
@@ -432,9 +432,8 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(routingMapper.required()).thenReturn(false);
 
         when(docMapper.routingFieldMapper()).thenReturn(routingMapper);
-        when(docMapper.parentFieldMapper()).thenReturn(mock(ParentFieldMapper.class));
 
-        when(mapper.docMappers(anyBoolean())).thenReturn(Collections.singletonList(docMapper));
+        when(mapper.documentMapper()).thenReturn(docMapper);
 
         final Index index = new Index("target", "tgt1234");
         final Supplier<Sort> supplier = mock(Supplier.class);

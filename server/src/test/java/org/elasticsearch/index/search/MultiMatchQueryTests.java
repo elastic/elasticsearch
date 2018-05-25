@@ -95,17 +95,24 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
                 randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
         queryShardContext.setAllowUnmappedFields(true);
-        Query parsedQuery = multiMatchQuery("banon").field("name.first", 2).field("name.last", 3).field("foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            Query rewrittenQuery = searcher.searcher().rewrite(parsedQuery);
-            Query tq1 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
-            Query tq2 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
-            Query expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new MatchNoDocsQuery("unknown field foobar"),
-                    new DisjunctionMaxQuery(Arrays.asList(tq2, tq1), 0f)
-                ), 0f);
-            assertEquals(expected, rewrittenQuery);
+        for (float tieBreaker : new float[] {0.0f, 0.5f}) {
+            Query parsedQuery = multiMatchQuery("banon")
+                .field("name.first", 2)
+                .field("name.last", 3).field("foobar")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                .tieBreaker(tieBreaker)
+                .toQuery(queryShardContext);
+            try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+                Query rewrittenQuery = searcher.searcher().rewrite(parsedQuery);
+                Query tq1 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
+                Query tq2 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
+                Query expected = new DisjunctionMaxQuery(
+                    Arrays.asList(
+                        new MatchNoDocsQuery("unknown field foobar"),
+                        new DisjunctionMaxQuery(Arrays.asList(tq2, tq1), tieBreaker)
+                    ), tieBreaker);
+                assertEquals(expected, rewrittenQuery);
+            }
         }
     }
 

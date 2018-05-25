@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,16 +32,14 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestValidateQueryAction extends BaseRestHandler {
     public RestValidateQueryAction(Settings settings, RestController controller) {
@@ -91,37 +88,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                     handleException(validateQueryRequest, finalBodyParsingException.getMessage(), channel);
                 }
             } else {
-                client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        builder.field(VALID_FIELD, response.isValid());
-                        buildBroadcastShardsHeader(builder, request, response);
-                        if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
-                            builder.startArray(EXPLANATIONS_FIELD);
-                            for (QueryExplanation explanation : response.getQueryExplanation()) {
-                                builder.startObject();
-                                if (explanation.getIndex() != null) {
-                                    builder.field(INDEX_FIELD, explanation.getIndex());
-                                }
-                                if(explanation.getShard() >= 0) {
-                                    builder.field(SHARD_FIELD, explanation.getShard());
-                                }
-                                builder.field(VALID_FIELD, explanation.isValid());
-                                if (explanation.getError() != null) {
-                                    builder.field(ERROR_FIELD, explanation.getError());
-                                }
-                                if (explanation.getExplanation() != null) {
-                                    builder.field(EXPLANATION_FIELD, explanation.getExplanation());
-                                }
-                                builder.endObject();
-                            }
-                            builder.endArray();
-                        }
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
-                    }
-                });
+                client.admin().indices().validateQuery(validateQueryRequest, new RestToXContentListener<>(channel));
             }
         };
     }
@@ -132,18 +99,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     private static BytesRestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {
         builder.startObject();
-        builder.field(VALID_FIELD, false);
+        builder.field(ValidateQueryResponse.VALID_FIELD, false);
         if (explain) {
-            builder.field(ERROR_FIELD, error);
+            builder.field(ValidateQueryResponse.ERROR_FIELD, error);
         }
         builder.endObject();
         return new BytesRestResponse(OK, builder);
     }
-
-    private static final String INDEX_FIELD = "index";
-    private static final String SHARD_FIELD = "shard";
-    private static final String VALID_FIELD = "valid";
-    private static final String EXPLANATIONS_FIELD = "explanations";
-    private static final String ERROR_FIELD = "error";
-    private static final String EXPLANATION_FIELD = "explanation";
 }

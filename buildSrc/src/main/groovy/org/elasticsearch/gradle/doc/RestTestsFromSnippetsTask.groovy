@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.doc
 
+import groovy.transform.PackageScope
 import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
@@ -99,13 +100,52 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         return snippet.language == 'js' || snippet.curl
     }
 
+    /**
+     * Converts Kibana's block quoted strings into standard JSON. These
+     * {@code """} delimited strings can be embedded in CONSOLE and can
+     * contain newlines and {@code "} without the normal JSON escaping.
+     * This has to add it.
+     */
+    @PackageScope
+    static String replaceBlockQuote(String body) {
+        int start = body.indexOf('"""');
+        if (start < 0) {
+            return body
+        }
+        /*
+         * 1.3 is a fairly wild guess of the extra space needed to hold
+         * the escaped string.
+         */
+        StringBuilder result = new StringBuilder((int) (body.length() * 1.3));
+        int startOfNormal = 0;
+        while (start >= 0) {
+            int end = body.indexOf('"""', start + 3);
+            if (end < 0) {
+                throw new InvalidUserDataException(
+                    "Invalid block quote starting at $start in:\n$body")
+            }
+            result.append(body.substring(startOfNormal, start));
+            result.append('"');
+            result.append(body.substring(start + 3, end)
+                .replace('"', '\\"')
+                .replace("\n", "\\n"));
+            result.append('"');
+            startOfNormal = end + 3;
+            start = body.indexOf('"""', startOfNormal);
+        }
+        result.append(body.substring(startOfNormal));
+        return result.toString();
+    }
+
     private class TestBuilder {
         private static final String SYNTAX = {
             String method = /(?<method>GET|PUT|POST|HEAD|OPTIONS|DELETE)/
             String pathAndQuery = /(?<pathAndQuery>[^\n]+)/
-            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|#/
+            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|startyaml|#/
             String body = /(?<body>(?:\n(?!$badBody)[^\n]+)+)/
-            String nonComment = /$method\s+$pathAndQuery$body?/
+            String rawRequest = /(?:$method\s+$pathAndQuery$body?)/
+            String yamlRequest = /(?:startyaml(?s)(?<yaml>.+?)(?-s)endyaml)/
+            String nonComment = /(?:$rawRequest|$yamlRequest)/
             String comment = /(?<comment>#.+)/
             /(?:$comment|$nonComment)\n+/
         }()
@@ -185,6 +225,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                  * warning every time. */
                 current.println("  - skip:")
                 current.println("      features: ")
+                current.println("        - default_shards")
                 current.println("        - stash_in_key")
                 current.println("        - stash_in_path")
                 current.println("        - stash_path_replace")
@@ -259,6 +300,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (body != null) {
                 // Throw out the leading newline we get from parsing the body
                 body = body.substring(1)
+                // Replace """ quoted strings with valid json ones
+                body = replaceBlockQuote(body)
                 current.println("        body: |")
                 body.eachLine { current.println("          $it") }
             }
@@ -291,6 +334,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             parse("$snippet", snippet.contents, SYNTAX) { matcher, last ->
                 if (matcher.group("comment") != null) {
                     // Comment
+                    return
+                }
+                String yamlRequest = matcher.group("yaml");
+                if (yamlRequest != null) {
+                    current.println(yamlRequest)
                     return
                 }
                 String method = matcher.group("method")

@@ -84,11 +84,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request) throws IOException;
-
-    protected ShardResponse shardOperation(ShardRequest request, Task task) throws IOException {
-        return shardOperation(request);
-    }
+    protected abstract ShardResponse shardOperation(ShardRequest request, Task task) throws IOException;
 
     /**
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
@@ -222,13 +218,8 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                 if (e != null) {
                     if (logger.isTraceEnabled()) {
                         if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.trace(
-                                (org.apache.logging.log4j.util.Supplier<?>)
-                                    () -> new ParameterizedMessage(
-                                        "{}: failed to execute [{}]",
-                                        shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                        request),
-                                e);
+                            logger.trace(new ParameterizedMessage(
+                                "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
                     }
                 }
@@ -237,13 +228,8 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                 if (logger.isDebugEnabled()) {
                     if (e != null) {
                         if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.debug(
-                                (org.apache.logging.log4j.util.Supplier<?>)
-                                    () -> new ParameterizedMessage(
-                                        "{}: failed to execute [{}]",
-                                        shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                        request),
-                                e);
+                            logger.debug(new ParameterizedMessage(
+                                "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
                     }
                 }
@@ -294,7 +280,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            channel.sendResponse(shardOperation(request));
+            channel.sendResponse(shardOperation(request, task));
         }
 
         @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -49,7 +50,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -106,7 +106,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
             indexModule.addSimilarity("fake-similarity",
-                    (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
+                    (settings, indexCreatedVersion, scriptService) -> new BM25Similarity());
         }
     }
 
@@ -375,8 +375,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
         assertNotNull(mapperService.documentMapperParser().parserContext("type").typeParser("fake-mapper"));
-        assertThat(mapperService.documentMapperParser().parserContext("type").getSimilarity("test"),
-            instanceOf(BM25SimilarityProvider.class));
+        assertThat(mapperService.documentMapperParser().parserContext("type").getSimilarity("test").get(),
+            instanceOf(BM25Similarity.class));
     }
 
     public void testStatsByShardDoesNotDieFromExpectedExceptions() {

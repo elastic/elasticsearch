@@ -266,7 +266,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             }
 
             if (file.metadata.hash() != null && file.metadata().hash().length > 0) {
-                builder.field(META_HASH, file.metadata.hash());
+                BytesRef br = file.metadata.hash();
+                builder.field(META_HASH, br.bytes, br.offset, br.length);
             }
             builder.endObject();
         }

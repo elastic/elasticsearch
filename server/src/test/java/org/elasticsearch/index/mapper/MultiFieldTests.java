@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -168,7 +169,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             builder = builder.startObject(multiFieldName).field("type", "text").endObject();
         }
         builder = builder.endObject().endObject().endObject().endObject().endObject();
-        String mapping = builder.string();
+        String mapping = Strings.toString(builder);
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         Arrays.sort(multiFieldNames);
 
@@ -186,9 +187,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     }
 
     public void testObjectFieldNotAllowed() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
             .field("type", "text").startObject("fields").startObject("multi").field("type", "object").endObject().endObject()
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -199,9 +200,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     }
 
     public void testNestedFieldNotAllowed() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
             .field("type", "text").startObject("fields").startObject("multi").field("type", "nested").endObject().endObject()
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -231,7 +232,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test").mapperService();
         try {
-            mapperService.documentMapperParser().parse("my_type", new CompressedXContent(mapping.string()));
+            mapperService.documentMapperParser().parse("my_type", new CompressedXContent(Strings.toString(mapping)));
             fail("this should throw an exception because one field contains a dot");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Field name [raw.foo] which is a multi field of [city] cannot contain '.'"));

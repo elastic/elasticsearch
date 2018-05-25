@@ -28,7 +28,7 @@ import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;

@@ -135,6 +135,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -173,6 +174,9 @@ import static org.hamcrest.Matchers.hasItem;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
+    private static final List<String> JODA_TIMEZONE_IDS;
+    private static final List<String> JAVA_TIMEZONE_IDS;
+
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     @AfterClass
@@ -191,6 +195,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         }));
 
         BootstrapForTesting.ensureInitialized();
+
+        List<String> jodaTZIds = new ArrayList<>(DateTimeZone.getAvailableIDs());
+        Collections.sort(jodaTZIds);
+        JODA_TIMEZONE_IDS = Collections.unmodifiableList(jodaTZIds);
+
+        List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());
+        Collections.sort(javaTZIds);
+        JAVA_TIMEZONE_IDS = Collections.unmodifiableList(javaTZIds);
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());
@@ -323,11 +335,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param warnings other expected general deprecation warnings
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
+        assertSettingDeprecationsAndWarnings(Arrays.stream(settings).map(Setting::getKey).toArray(String[]::new), warnings);
+    }
+
+    protected final void assertSettingDeprecationsAndWarnings(final String[] settings, final String... warnings) {
         assertWarnings(
                 Stream.concat(
                         Arrays
                                 .stream(settings)
-                                .map(Setting::getKey)
                                 .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                                         "See the breaking changes documentation for the next major version."),
                         Arrays.stream(warnings))
@@ -504,6 +519,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return (byte) random().nextInt();
     }
 
+    /**
+     * Helper method to create a byte array of a given length populated with random byte values
+     *
+     * @see #randomByte()
+     */
+    public static byte[] randomByteArrayOfLength(int size) {
+        byte[] bytes = new byte[size];
+        for (int i = 0; i < size; i++) {
+            bytes[i] = randomByte();
+        }
+        return bytes;
+    }
+
     public static short randomShort() {
         return (short) random().nextInt();
     }
@@ -631,20 +659,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
 
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull, boolean allowEmpty) {
+    public static String[] generateRandomStringArray(int maxArraySize, int stringSize, boolean allowNull, boolean allowEmpty) {
         if (allowNull && random().nextBoolean()) {
             return null;
         }
         int arraySize = randomIntBetween(allowEmpty ? 0 : 1, maxArraySize);
         String[] array = new String[arraySize];
         for (int i = 0; i < arraySize; i++) {
-            array[i] = RandomStrings.randomAsciiOfLength(random(), maxStringSize);
+            array[i] = RandomStrings.randomAsciiOfLength(random(), stringSize);
         }
         return array;
     }
 
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
-        return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
+    public static String[] generateRandomStringArray(int maxArraySize, int stringSize, boolean allowNull) {
+        return generateRandomStringArray(maxArraySize, stringSize, allowNull, true);
     }
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
@@ -669,9 +697,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random DateTimeZone from the ones available in joda library
      */
     public static DateTimeZone randomDateTimeZone() {
-        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
-        Collections.sort(ids);
-        return DateTimeZone.forID(randomFrom(ids));
+        return DateTimeZone.forID(randomFrom(JODA_TIMEZONE_IDS));
+    }
+
+    /**
+     * generate a random TimeZone from the ones available in java.time
+     */
+    public static TimeZone randomTimeZone() {
+        return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
     }
 
     /**
@@ -943,7 +976,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
         try (XContentParser parser = parserFunction.apply(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
-                return builder.bytes();
+                return BytesReference.bytes(builder);
             }
         }
     }
@@ -1128,8 +1161,8 @@ public abstract class ESTestCase extends LuceneTestCase {
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(
-                    XContentHelper.convertToMap(actualJson.bytes(), false).v2(),
-                    XContentHelper.convertToMap(expectedJson.bytes(), false).v2());
+                    XContentHelper.convertToMap(BytesReference.bytes(actualJson), false).v2(),
+                    XContentHelper.convertToMap(BytesReference.bytes(expectedJson), false).v2());
             throw new AssertionError("Didn't match expected value:\n" + message);
         } catch (IOException e) {
             throw new AssertionError("IOException while building failure message", e);
@@ -1141,7 +1174,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
         return builder.generator().contentType().xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput());
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
     }
 
     /**

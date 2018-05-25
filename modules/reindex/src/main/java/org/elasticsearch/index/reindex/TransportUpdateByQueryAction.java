@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.script.Script;
@@ -159,11 +158,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             @Override
             protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
                 throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedParent(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
             }
 
         }

@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
@@ -111,7 +110,7 @@ public class Lucene {
         try {
             return Version.parse(version);
         } catch (ParseException e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
+            logger.warn(() -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
             return defaultVersion;
         }
     }
@@ -638,9 +637,9 @@ public class Lucene {
     }
 
     /**
-     * Returns <tt>true</tt> iff the given exception or
+     * Returns {@code true} iff the given exception or
      * one of it's causes is an instance of {@link CorruptIndexException},
-     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
+     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise {@code false}.
      */
     public static boolean isCorruptionException(Throwable t) {
         return ExceptionsHelper.unwrapCorruption(t) != null;

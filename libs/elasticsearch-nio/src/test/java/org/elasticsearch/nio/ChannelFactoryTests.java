@@ -19,7 +19,7 @@
 
 package org.elasticsearch.nio;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;

@@ -565,7 +565,7 @@ public final class Definition {
             if (component == def.class) {
                 StringBuilder builder = new StringBuilder(def.class.getSimpleName());
 
-                for (int dimension = 0; dimension < dimensions; dimensions++) {
+                for (int dimension = 0; dimension < dimensions; dimension++) {
                     builder.append("[]");
                 }
 

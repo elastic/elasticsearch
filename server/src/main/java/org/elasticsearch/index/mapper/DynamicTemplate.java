@@ -216,7 +216,24 @@ public class DynamicTemplate implements ToXContentObject {
                 }
             }
         }
-        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xcontentFieldType, MatchType.fromString(matchPattern), mapping);
+
+        final MatchType matchType = MatchType.fromString(matchPattern);
+
+        if (indexVersionCreated.onOrAfter(Version.V_6_3_0)) {
+            // Validate that the pattern
+            for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
+                if (regex == null) {
+                    continue;
+                }
+                try {
+                    matchType.matches(regex, "");
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Pattern [" + regex + "] of type [" + matchType + "] is invalid. Cannot create dynamic template [" + name + "].", e);
+                }
+            }
+        }
+
+        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xcontentFieldType, matchType, mapping);
     }
 
     private final String name;

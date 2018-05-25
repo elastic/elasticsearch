@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -226,7 +227,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     }
 
     /**
-     * The source of the document as string (can be <tt>null</tt>).
+     * The source of the document as string (can be {@code null}).
      */
     public String getSourceAsString() {
         if (source == null) {
@@ -241,7 +242,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
 
     /**
-     * The source of the document as a map (can be <tt>null</tt>).
+     * The source of the document as a map (can be {@code null}).
      */
     public Map<String, Object> getSourceAsMap() {
         if (source == null) {
@@ -426,7 +427,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (type != null) {
+        if (type != null && params.paramAsBoolean("include_type_name", true)) {
             builder.field(Fields._TYPE, type);
         }
         if (id != null) {
@@ -444,8 +445,13 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
             builder.field(Fields._SCORE, score);
         }
         for (DocumentField field : metaFields) {
-            Object value = field.getValue();
-            builder.field(field.getName(), value);
+            // _ignored is the only multi-valued meta field
+            // TODO: can we avoid having an exception here?
+            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
+                builder.field(field.getName(), field.getValues());
+            } else {
+                builder.field(field.getName(), field.<Object>getValue());
+            }
         }
         if (source != null) {
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
@@ -585,7 +591,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
             // pretty printing are not preserved,
             // it all depends on the current builder settings
             builder.copyCurrentStructure(parser);
-            return builder.bytes();
+            return BytesReference.bytes(builder);
         }
     }
 

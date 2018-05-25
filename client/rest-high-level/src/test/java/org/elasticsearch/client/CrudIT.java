@@ -19,9 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -39,6 +36,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
@@ -147,11 +145,10 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
-        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
-                stringEntity);
-        assertEquals(201, response.getStatusLine().getStatusCode());
+        IndexRequest index = new IndexRequest("index", "type", "id");
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index);
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
@@ -175,12 +172,11 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
-
+        IndexRequest index = new IndexRequest("index", "type", "id");
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
-                stringEntity);
-        assertEquals(201, response.getStatusLine().getStatusCode());
+        index.source(document, XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index);
         {
             GetRequest getRequest = new GetRequest("index", "type", "id").version(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
@@ -271,18 +267,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
         }
-
-        String document = "{\"field\":\"value1\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id1", Collections.singletonMap("refresh", "true"),
-                stringEntity);
-        assertEquals(201, r.getStatusLine().getStatusCode());
-
-        document = "{\"field\":\"value2\"}";
-        stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id2", Collections.singletonMap("refresh", "true"), stringEntity);
-        assertEquals(201, r.getStatusLine().getStatusCode());
-
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        IndexRequest index = new IndexRequest("index", "type", "id1");
+        index.source("{\"field\":\"value1\"}", XContentType.JSON);
+        bulk.add(index);
+        index = new IndexRequest("index", "type", "id2");
+        index.source("{\"field\":\"value2\"}", XContentType.JSON);
+        bulk.add(index);
+        highLevelClient().bulk(bulk);
         {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
             multiGetRequest.add("index", "type", "id1");
@@ -364,19 +357,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
-                IndexRequest indexRequest = new IndexRequest("index", "type", "missing_parent");
-                indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
-                indexRequest.parent("missing");
-
-                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
-            });
-
-            assertEquals(RestStatus.BAD_REQUEST, exception.status());
-            assertEquals("Elasticsearch exception [type=illegal_argument_exception, " +
-                         "reason=can't specify parent if no parent field has been configured]", exception.getMessage());
-        }
-        {
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
                 IndexRequest indexRequest = new IndexRequest("index", "type", "missing_pipeline");
                 indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
                 indexRequest.setPipeline("missing");
@@ -455,22 +435,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: version conflict, " +
                             "current version [2] is different than the one provided [1]]", exception.getMessage());
-        }
-        {
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
-                UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-                updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
-                if (randomBoolean()) {
-                    updateRequest.parent("missing");
-                } else {
-                    updateRequest.routing("missing");
-                }
-                execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
-            });
-
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=document_missing_exception, reason=[type][id]: document missing]",
-                    exception.getMessage());
         }
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", "with_script");
@@ -617,7 +581,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 bulkRequest.add(deleteRequest);
 
             } else {
-                BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
+                BytesReference source = BytesReference.bytes(XContentBuilder.builder(xContentType.xContent())
+                        .startObject().field("id", i).endObject());
                 if (opType == DocWriteRequest.OpType.INDEX) {
                     IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
                     if (erroneous) {

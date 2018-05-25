@@ -122,9 +122,9 @@ See also {stack-ref}/upgrading-elastic-stack.html[Upgrading the Elastic Stack].
 
 === Problems deleting {ml} jobs
 
-Before you can delete a job, you must delete its {dfeeds} and close the job. If 
-you still encounter problems deleting the job, you might need to take extra 
-steps.
+Before you can delete a job, you must stop and delete its {dfeeds} and close the 
+job. If you still encounter problems deleting the job, you might need to take 
+extra steps.
 
 *Symptoms:*
 
@@ -148,7 +148,11 @@ example use the `ps` command and grep for the autodetect process, which is the
 C++ process that runs the {ml} code. Kill these autodetect processes then delete 
 the job. 
 
-If the job still persists, you can delete the results index. If other jobs 
-are using this index, however, they will also be affected. 
+WARNING: Make sure you delete the right autodetect process. Otherwise, you might
+abort a healthy job.  
+
+If the job still persists, you can delete the results index. Only use this option 
+if you know that the problematic job is the only one using the results index. 
+Otherwise, all results for all affected jobs will be lost. 
 
 See also <<stopping-ml>>.

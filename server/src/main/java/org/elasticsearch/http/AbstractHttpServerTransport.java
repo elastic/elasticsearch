@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.http;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;

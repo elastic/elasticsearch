@@ -96,7 +96,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     }
 
     @Override
-    public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
+    public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
         assert message instanceof NioHttpResponse : "This channel only supports messages that are of type: "
             + NioHttpResponse.class + ". Found type: " + message.getClass() + ".";
         return new HttpWriteOperation(context, (NioHttpResponse) message, listener);

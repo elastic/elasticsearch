@@ -30,6 +30,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -708,6 +709,16 @@ final class RequestConverters {
         parameters.withVerify(putRepositoryRequest.verify());
 
         request.setEntity(createEntity(putRepositoryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addPathPart(deleteRepositoryRequest.name()).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(deleteRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(deleteRepositoryRequest.timeout());
         return request;
     }
 

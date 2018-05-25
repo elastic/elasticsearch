@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.nio;
 
-import io.netty.handler.codec.http.FullHttpResponse;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 
@@ -28,10 +27,10 @@ import java.util.function.BiConsumer;
 public class HttpWriteOperation implements WriteOperation {
 
     private final SocketChannelContext channelContext;
-    private final FullHttpResponse response;
+    private final NioHttpResponse response;
     private final BiConsumer<Void, Throwable> listener;
 
-    HttpWriteOperation(SocketChannelContext channelContext, FullHttpResponse response, BiConsumer<Void, Throwable> listener) {
+    HttpWriteOperation(SocketChannelContext channelContext, NioHttpResponse response, BiConsumer<Void, Throwable> listener) {
         this.channelContext = channelContext;
         this.response = response;
         this.listener = listener;
@@ -48,7 +47,7 @@ public class HttpWriteOperation implements WriteOperation {
     }
 
     @Override
-    public FullHttpResponse getObject() {
+    public NioHttpResponse getObject() {
         return response;
     }
 }

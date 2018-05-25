@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -41,17 +42,22 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
 
 public class ClusterStateIT extends ESSingleNodeTestCase {
 
@@ -159,23 +165,27 @@ public class ClusterStateIT extends ESSingleNodeTestCase {
 
     public void testRequestCustoms() {
         final ClusterStateResponse state = client().admin().cluster().prepareState().setMetaData(true).setMetaDataCustoms(true).get();
-        assertTrue(state.getState().metaData().customs().containsKey(CustomPlugin.TYPE));
+        final ImmutableOpenMap<String, MetaData.Custom> customs = state.getState().metaData().customs();
+        final Set<String> keys = new HashSet<>(Arrays.asList(customs.keys().toArray(String.class)));
+        assertThat(keys, hasItem(CustomPlugin.TYPE));
     }
 
     public void testDoNotRequestCustoms() {
         final ClusterStateResponse state = client().admin().cluster().prepareState().setMetaData(true).setMetaDataCustoms(false).get();
-        assertFalse(state.getState().metaData().customs().containsKey(CustomPlugin.TYPE));
+        final ImmutableOpenMap<String, MetaData.Custom> customs = state.getState().metaData().customs();
+        final Set<String> keys = new HashSet<>(Arrays.asList(customs.keys().toArray(String.class)));
+        assertThat(keys, not(hasItem(CustomPlugin.TYPE)));
     }
 
     public void testRequestCustomsDefault() {
         final ClusterStateResponse state = client().admin().cluster().prepareState().setMetaData(true).get();
-        assertFalse(state.getState().metaData().customs().containsKey(CustomPlugin.TYPE));
+        final ImmutableOpenMap<String, MetaData.Custom> customs = state.getState().metaData().customs();
+        final Set<String> keys = new HashSet<>(Arrays.asList(customs.keys().toArray(String.class)));
+        assertThat(keys, not(hasItem(CustomPlugin.TYPE)));
     }
 
     public void testValidation() {
-        final ClusterStateRequest request = new ClusterStateRequest();
-        request.metaData(false);
-        request.metaDataCustoms(true);
+        final ClusterStateRequest request = new ClusterStateRequest().metaData(false).metaDataCustoms(true);
         final ActionRequestValidationException e = request.validate();
         assertThat(e, hasToString(containsString("metadata customs were requested without requesting metadata")));
     }

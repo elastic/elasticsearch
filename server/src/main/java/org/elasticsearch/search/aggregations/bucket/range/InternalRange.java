@@ -47,7 +47,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         protected final double from;
         protected final double to;
         private final long docCount;
-        final InternalAggregations aggregations;
+        private final InternalAggregations aggregations;
         private final String key;
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
@@ -168,6 +168,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(key);
+            out.writeDouble(from);
+            out.writeDouble(to);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
         }
 
         @Override
@@ -262,11 +267,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         out.writeBoolean(keyed);
         out.writeVInt(ranges.size());
         for (B bucket : ranges) {
-            out.writeOptionalString(((Bucket) bucket).key);
-            out.writeDouble(bucket.from);
-            out.writeDouble(bucket.to);
-            out.writeVLong(((Bucket) bucket).docCount);
-            bucket.aggregations.writeTo(out);
+            bucket.writeTo(out);
         }
     }
 

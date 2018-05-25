@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ApplicationPrivilegeTests extends ESTestCase {
@@ -163,10 +164,43 @@ public class ApplicationPrivilegeTests extends ESTestCase {
 
             final byte[] bytes = out.toByteArray();
             try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
-                final ApplicationPrivilege clone = ApplicationPrivilege.parse(parser, includeTypeField);
+                final ApplicationPrivilege clone = ApplicationPrivilege.parse(parser,
+                    randomBoolean() ? randomAlphaOfLength(3) : null,
+                    randomBoolean() ? randomAlphaOfLength(3) : null,
+                    includeTypeField);
                 assertThat(clone, Matchers.equalTo(original));
                 assertThat(original, Matchers.equalTo(clone));
             }
+        }
+    }
+
+    public void testParseXContentWithDefaultNames() throws IOException {
+        final String json = "{ \"actions\": [ \"data:read\" ], \"metadata\" : { \"num\": 1, \"bool\":false } }";
+        final XContent xContent = XContentType.JSON.xContent();
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
+            final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, "my_app", "read", false);
+            assertThat(privilege.getApplication(), equalTo("my_app"));
+            assertThat(privilege.getPrivilegeName(), equalTo("read"));
+            assertThat(privilege.getPatterns(), equalTo(new String[] { "data:read" }));
+            assertThat(privilege.getMetadata().entrySet(), iterableWithSize(2));
+            assertThat(privilege.getMetadata().get("num"), equalTo(1));
+            assertThat(privilege.getMetadata().get("bool"), equalTo(false));
+        }
+    }
+
+    public void testParseXContentWithoutUsingDefaultNames() throws IOException {
+        final String json = "{" +
+            "  \"application\": \"your_app\"," +
+            "  \"name\": \"write\"," +
+            "  \"actions\": [ \"data:write\" ]" +
+            "}";
+        final XContent xContent = XContentType.JSON.xContent();
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
+            final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, "my_app", "read", false);
+            assertThat(privilege.getApplication(), equalTo("your_app"));
+            assertThat(privilege.getPrivilegeName(), equalTo("write"));
+            assertThat(privilege.getPatterns(), equalTo(new String[] { "data:write" }));
+            assertThat(privilege.getMetadata().entrySet(), iterableWithSize(0));
         }
     }
 
@@ -179,7 +213,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final String applicationName;
         if (randomBoolean()) {
             applicationName = "*";
-        } else  {
+        } else {
             applicationName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 10);
         }
         final String privilegeName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 8);

@@ -62,7 +62,7 @@ public final class PutPrivilegesRequestBuilder
     }
 
     ApplicationPrivilege parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {
-        final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, false);
+        final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, applicationName, privilegeName, false);
         checkPrivilegeName(privilege, applicationName, privilegeName);
         return privilege;
     }

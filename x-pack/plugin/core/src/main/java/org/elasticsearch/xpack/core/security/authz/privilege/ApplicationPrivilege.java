@@ -11,14 +11,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,25 +47,15 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
     public static final String DOC_TYPE_VALUE = "application-privilege";
 
-    private static final ConstructingObjectParser<ApplicationPrivilege, Boolean> PARSER = new ConstructingObjectParser<>(DOC_TYPE_VALUE,
-        arr -> new ApplicationPrivilege((String) arr[0], (String) arr[1], (List<String>) arr[2], (Map<String, Object>) arr[3])
-    );
+    private static final ObjectParser<Builder, Boolean> PARSER = new ObjectParser<>(DOC_TYPE_VALUE, Builder::new);
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Fields.APPLICATION);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Fields.NAME);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), Fields.ACTIONS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (parser, context) -> parser.map(), Fields.METADATA);
-        PARSER.declareField((priv, fieldValue) -> {
-            if (DOC_TYPE_VALUE.equals(fieldValue) == false) {
-                throw new IllegalStateException("XContent has wrong " + Fields.TYPE.getPreferredName() + " field " + fieldValue);
-            }
-        }, (parser, acceptType) -> {
-            if (acceptType == false) {
-                throw new IllegalStateException("Field " + Fields.TYPE.getPreferredName() + " cannot be specified here");
-            }
-            return parser.text();
-        }, Fields.TYPE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(Builder::applicationName, Fields.APPLICATION);
+        PARSER.declareString(Builder::privilegeName, Fields.NAME);
+        PARSER.declareStringArray(Builder::actions, Fields.ACTIONS);
+        PARSER.declareObject(Builder::metadata, (parser, context) -> parser.map(), Fields.METADATA);
+        PARSER.declareField((parser, builder, allowType) -> builder.type(parser.text(), allowType), Fields.TYPE,
+            ObjectParser.ValueType.STRING);
     }
 
     private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
@@ -262,10 +251,19 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
     /**
      * Construct a new {@link ApplicationPrivilege} from XContent.
+     *
      * @param allowType If true, accept a "type" field (for which the value must match {@link #DOC_TYPE_VALUE});
      */
-    public static ApplicationPrivilege parse(XContentParser parser, boolean allowType) throws IOException {
-        return PARSER.parse(parser, allowType);
+    public static ApplicationPrivilege parse(XContentParser parser, String defaultApplication, String defaultPrivilegeName,
+                                             boolean allowType) throws IOException {
+        final Builder builder = PARSER.parse(parser, allowType);
+        if (builder.applicationName == null) {
+            builder.applicationName(defaultApplication);
+        }
+        if (builder.privilegeName == null) {
+            builder.privilegeName(defaultPrivilegeName);
+        }
+        return builder.build();
     }
 
     public static ApplicationPrivilege readFrom(StreamInput in) throws IOException {
@@ -282,6 +280,47 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         out.writeCollection(name, StreamOutput::writeString);
         out.writeStringArray(patterns);
         out.writeGenericValue(metadata);
+    }
+
+    private static final class Builder {
+        private String applicationName;
+        private String privilegeName;
+        private List<String> actions;
+        private Map<String, Object> metadata;
+
+        private Builder applicationName(String applicationName) {
+            this.applicationName = applicationName;
+            return this;
+        }
+
+        private Builder privilegeName(String privilegeName) {
+            this.privilegeName = privilegeName;
+            return this;
+        }
+
+        private Builder actions(List<String> actions) {
+            this.actions = actions;
+            return this;
+        }
+
+        private Builder metadata(Map<String, Object> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        private Builder type(String type, boolean allowed) {
+            if (allowed == false) {
+                throw new IllegalStateException("Field " + Fields.TYPE.getPreferredName() + " cannot be specified here");
+            }
+            if (DOC_TYPE_VALUE.equals(type) == false) {
+                throw new IllegalStateException("XContent has wrong " + Fields.TYPE.getPreferredName() + " field " + type);
+            }
+            return this;
+        }
+
+        private ApplicationPrivilege build() {
+            return new ApplicationPrivilege(applicationName, privilegeName, actions, metadata);
+        }
     }
 
     public interface Fields {

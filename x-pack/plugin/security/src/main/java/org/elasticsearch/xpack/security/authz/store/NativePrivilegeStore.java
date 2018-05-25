@@ -253,7 +253,7 @@ public class NativePrivilegeStore extends AbstractComponent {
             try (StreamInput input = source.streamInput();
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, input)) {
-                final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, true);
+                final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, null, null, true);
                 assert privilege.getApplication().equals(name.v1())
                     : "Incorrect application name for privilege. Expected [" + name.v1() + "] but was " + privilege.getApplication();
                 assert privilege.name().size() == 1 && privilege.getPrivilegeName().equals(name.v2())

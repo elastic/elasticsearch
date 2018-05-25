@@ -14,7 +14,9 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PutPrivilegesRequestBuilderTests extends ESTestCase {
 
@@ -99,6 +101,23 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("bar"));
         assertThat(exception.getMessage(), containsString("foo"));
+    }
+
+    public void testInferApplicationNameAndPrivilegeName() throws Exception {
+        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
+        builder.source(new BytesArray("{ \"foo\":{"
+            + "\"read\":{ \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] },"
+            + "\"write\":{ \"actions\":[ \"data:/write/*\", \"admin:/*\" ] },"
+            + "\"all\":{ \"actions\":[ \"/*\" ] }"
+            + "} }"), XContentType.JSON);
+        assertThat(builder.request().getPrivileges(), iterableWithSize(3));
+        for (ApplicationPrivilege p : builder.request().getPrivileges()) {
+            assertThat(p.getApplication(), equalTo("foo"));
+            assertThat(p.getPrivilegeName(), notNullValue());
+        }
+        assertThat(builder.request().getPrivileges().get(0).getPrivilegeName(), equalTo("read"));
+        assertThat(builder.request().getPrivileges().get(1).getPrivilegeName(), equalTo("write"));
+        assertThat(builder.request().getPrivileges().get(2).getPrivilegeName(), equalTo("all"));
     }
 
 }

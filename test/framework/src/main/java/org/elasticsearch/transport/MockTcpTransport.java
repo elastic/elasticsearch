@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.BufferedInputStream;
@@ -50,7 +51,6 @@ import java.net.SocketException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -218,7 +218,7 @@ public class MockTcpTransport extends TcpTransport {
         private final Socket activeChannel;
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
-        private final CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+        private final CompletableContext<Void> closeFuture = new CompletableContext<>();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -364,7 +364,7 @@ public class MockTcpTransport extends TcpTransport {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
-            closeFuture.whenComplete(ActionListener.toBiConsumer(listener));
+            closeFuture.addListener(ActionListener.toBiConsumer(listener));
         }
 
         @Override

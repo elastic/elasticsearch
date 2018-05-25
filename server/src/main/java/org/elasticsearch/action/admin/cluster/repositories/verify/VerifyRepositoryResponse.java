@@ -151,7 +151,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (Version.CURRENT.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeList(getNodes());
         } else {
             clusterName.writeTo(out);

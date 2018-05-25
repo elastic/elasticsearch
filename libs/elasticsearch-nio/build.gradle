@@ -33,6 +33,8 @@ publishing {
 }
 
 dependencies {
+  compile "org.elasticsearch:elasticsearch-core:${version}"
+
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"

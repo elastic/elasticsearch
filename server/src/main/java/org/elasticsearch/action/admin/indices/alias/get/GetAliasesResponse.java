@@ -54,12 +54,14 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
 
     public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases, RestStatus status, String errorMessage) {
         this.aliases = aliases;
-        this.status = status == null ? RestStatus.OK : status;
+        if (status != null) {
+            this.status = status;
+        }
         this.errorMessage = errorMessage;
     }
 
     public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
-        this(aliases, RestStatus.OK, null);
+        this(aliases, null, null);
     }
 
     GetAliasesResponse() {
@@ -176,7 +178,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         
         builder.startObject();
         {
-            if (status != null && RestStatus.OK != status) {
+            if (RestStatus.OK != status) {
                 builder.field("error", errorMessage);
                 builder.field("status", status.getStatus());
             }
@@ -211,7 +213,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         String currentFieldName;
         Token token;
         String exceptionMessage = null;
-        RestStatus status = RestStatus.OK;
+        RestStatus status = null;
 
         while (parser.nextToken() != Token.END_OBJECT) {
             if (parser.currentToken() == Token.FIELD_NAME) {

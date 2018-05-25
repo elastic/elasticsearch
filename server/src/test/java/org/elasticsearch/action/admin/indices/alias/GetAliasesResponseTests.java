@@ -19,15 +19,20 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -36,6 +41,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -176,14 +182,14 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
 
     public void testFromXContentWithMissingAndFoundAlias() throws IOException {
         String xContent =
-                "{\n" +
-                " \"error\": \"alias [something] missing\",\n" +
-                " \"status\": 404,\n" +
-                " \"index\": {\n" +
-                "  \"aliases\": {\n" +
-                "   \"alias\": {}\n" +
-                "  }\n" +
-                " }\n" +
+                "{" +
+                "  \"error\": \"alias [something] missing\"," +
+                "  \"status\": 404," +
+                "  \"index\": {" +
+                "    \"aliases\": {" +
+                "      \"alias\": {}" +
+                "    }" +
+                "  }" +
                 "}";
         final String index = "index";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
@@ -199,26 +205,26 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
 
     public void testFromXContentWithElasticsearchException() throws IOException {
         String xContent =
-                "{\n" +
-                "  \"error\": {\n" +
-                "    \"root_cause\": [\n" +
-                "      {\n" +
-                "        \"type\": \"index_not_found_exception\",\n" +
-                "        \"reason\": \"no such index\",\n" +
-                "        \"resource.type\": \"index_or_alias\",\n" +
-                "        \"resource.id\": \"index\",\n" +
-                "        \"index_uuid\": \"_na_\",\n" +
-                "        \"index\": \"index\"\n" +
-                "      }\n" +
-                "    ],\n" +
-                "    \"type\": \"index_not_found_exception\",\n" +
-                "    \"reason\": \"no such index\",\n" +
-                "    \"resource.type\": \"index_or_alias\",\n" +
-                "    \"resource.id\": \"index\",\n" +
-                "    \"index_uuid\": \"_na_\",\n" +
-                "    \"index\": \"index\"\n" +
-                "  },\n" +
-                "  \"status\": 404\n" +
+                "{" +
+                "  \"error\": {" +
+                "    \"root_cause\": [" +
+                "      {" +
+                "        \"type\": \"index_not_found_exception\"," +
+                "        \"reason\": \"no such index\"," +
+                "        \"resource.type\": \"index_or_alias\"," +
+                "        \"resource.id\": \"index\"," +
+                "        \"index_uuid\": \"_na_\"," +
+                "        \"index\": \"index\"" +
+                "      }" +
+                "    ]," +
+                "    \"type\": \"index_not_found_exception\"," +
+                "    \"reason\": \"no such index\"," +
+                "    \"resource.type\": \"index_or_alias\"," +
+                "    \"resource.id\": \"index\"," +
+                "    \"index_uuid\": \"_na_\"," +
+                "    \"index\": \"index\"" +
+                "  }," +
+                "  \"status\": 404" +
                 "}";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
@@ -231,14 +237,42 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
 
     public void testFromXContentWithNoAliasFound() throws IOException {
         String xContent =
-                "{\n" +
-                "  \"error\": \"alias [aa] missing\",\n" +
-                "  \"status\": 404\n" +
+                "{" +
+                "  \"error\": \"alias [aa] missing\"," +
+                "  \"status\": 404" +
                 "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             GetAliasesResponse getAliasesResponse = GetAliasesResponse.fromXContent(parser);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.errorMessage(), equalTo("alias [aa] missing"));
+        }
+    }
+
+    public void testSerializationBwc() throws IOException {
+        final Version targetNodeVersion = randomVersion(random());
+        final GetAliasesResponse outResponse = createTestInstance();
+
+        try (final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+                final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);) {
+            out.setVersion(targetNodeVersion);
+            outResponse.writeTo(out);
+
+            try (final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+                    final InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);) {
+                final GetAliasesResponse inResponse = new GetAliasesResponse(null);
+                in.setVersion(targetNodeVersion);
+                inResponse.readFrom(in);
+
+                assertThat(outResponse.getAliases(), equalTo(inResponse.getAliases()));
+                if (targetNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+                    // if (targetNodeVersion.onOrAfter(Version.V_6_4_0_ID)) {
+                    assertThat(outResponse.status(), equalTo(inResponse.status()));
+                    assertThat(outResponse.errorMessage(), equalTo(inResponse.errorMessage()));
+                } else {
+                    assertThat(inResponse.status(), equalTo(RestStatus.OK));
+                    assertThat(inResponse.errorMessage(), equalTo(null));
+                }
+            }
         }
     }
 

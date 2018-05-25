@@ -20,7 +20,6 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;

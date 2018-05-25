@@ -19,17 +19,11 @@ import java.util.Objects;
 
 public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
     public static final String NAME = "shrunk-shards-allocated";
-    private final int numberOfShards;
     private String shrunkIndexPrefix;
 
-    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey, int numberOfShards, String shrunkIndexPrefix) {
+    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
         super(key, nextStepKey);
-        this.numberOfShards = numberOfShards;
         this.shrunkIndexPrefix = shrunkIndexPrefix;
-    }
-
-    public int getNumberOfShards() {
-        return numberOfShards;
     }
 
     String getShrunkIndexPrefix() {
@@ -42,23 +36,22 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         // active
         boolean indexExists = clusterState.metaData().index(shrunkIndexPrefix + index.getName()) != null;
         if (indexExists == false) {
-            return new Result(false, new Info(false, -1, -1, false));
+            return new Result(false, new Info(false, -1, false));
         }
         boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkIndexPrefix + index.getName());
         int numShrunkIndexShards = clusterState.metaData().index(shrunkIndexPrefix + index.getName()).getNumberOfShards();
-        boolean isConditionMet = numShrunkIndexShards == numberOfShards && allShardsActive;
-        if (isConditionMet) {
+        if (allShardsActive) {
             return new Result(true, null);
         } else {
-            return new Result(false, new Info(true, numberOfShards, numShrunkIndexShards, allShardsActive));
+            return new Result(false, new Info(true, numShrunkIndexShards, allShardsActive));
         }
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), numberOfShards, shrunkIndexPrefix);
+        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -68,52 +61,40 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
             return false;
         }
         ShrunkShardsAllocatedStep other = (ShrunkShardsAllocatedStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(numberOfShards, other.numberOfShards) &&
-                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
+        return super.equals(obj) && Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 
     public static final class Info implements ToXContentObject {
 
-        private final int expectedShards;
         private final int actualShards;
         private final boolean shrunkIndexExists;
         private final boolean allShardsActive;
         private final String message;
 
-        static final ParseField EXPECTED_SHARDS = new ParseField("expected_shards");
         static final ParseField ACTUAL_SHARDS = new ParseField("actual_shards");
         static final ParseField SHRUNK_INDEX_EXISTS = new ParseField("shrunk_index_exists");
         static final ParseField ALL_SHARDS_ACTIVE = new ParseField("all_shards_active");
         static final ParseField MESSAGE = new ParseField("message");
         static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>("shrunk_shards_allocated_step_info",
-                a -> new Info((boolean) a[0], (int) a[1], (int) a[2], (boolean) a[3]));
+                a -> new Info((boolean) a[0], (int) a[1], (boolean) a[2]));
         static {
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SHRUNK_INDEX_EXISTS);
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), EXPECTED_SHARDS);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), ACTUAL_SHARDS);
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ALL_SHARDS_ACTIVE);
             PARSER.declareString((i, s) -> {}, MESSAGE);
         }
 
-        public Info(boolean shrunkIndexExists, int expectedShards, int actualShards, boolean allShardsActive) {
-            this.expectedShards = expectedShards;
+        public Info(boolean shrunkIndexExists, int actualShards, boolean allShardsActive) {
             this.actualShards = actualShards;
             this.shrunkIndexExists = shrunkIndexExists;
             this.allShardsActive = allShardsActive;
             if (shrunkIndexExists == false) {
                 message = "Waiting for shrunk index to be created";
-            } else if (actualShards != expectedShards) {
-                message = "Waiting for shrunk index shards to be " + expectedShards;
             } else if (allShardsActive == false) {
                 message = "Waiting for all shard copies to be active";
             } else {
                 message = "";
             }
-        }
-
-        public int getExpectedShards() {
-            return expectedShards;
         }
 
         public int getActualShards() {
@@ -133,7 +114,6 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
             builder.startObject();
             builder.field(MESSAGE.getPreferredName(), message);
             builder.field(SHRUNK_INDEX_EXISTS.getPreferredName(), shrunkIndexExists);
-            builder.field(EXPECTED_SHARDS.getPreferredName(), expectedShards);
             builder.field(ACTUAL_SHARDS.getPreferredName(), actualShards);
             builder.field(ALL_SHARDS_ACTIVE.getPreferredName(), allShardsActive);
             builder.endObject();
@@ -142,7 +122,7 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
 
         @Override
         public int hashCode() {
-            return Objects.hash(shrunkIndexExists, expectedShards, actualShards, allShardsActive);
+            return Objects.hash(shrunkIndexExists, actualShards, allShardsActive);
         }
 
         @Override
@@ -155,7 +135,6 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
             }
             Info other = (Info) obj;
             return Objects.equals(shrunkIndexExists, other.shrunkIndexExists) &&
-                    Objects.equals(expectedShards, other.expectedShards) &&
                     Objects.equals(actualShards, other.actualShards) &&
                     Objects.equals(allShardsActive, other.allShardsActive);
         }

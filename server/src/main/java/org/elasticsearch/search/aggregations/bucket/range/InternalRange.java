@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -168,7 +169,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(key);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeString(key);
+            } else {
+                out.writeOptionalString(key);
+            }
             out.writeDouble(from);
             out.writeDouble(to);
             out.writeVLong(docCount);
@@ -254,7 +259,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.readOptionalString();
+            String key = in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)
+                ? in.readString()
+                : in.readOptionalString();
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),
                     InternalAggregations.readAggregations(in), keyed, format));
         }

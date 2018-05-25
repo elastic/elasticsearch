@@ -190,7 +190,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         Set<String> patterns = new HashSet<>();
         for (String name : names) {
             name = name.toLowerCase(Locale.ROOT);
-            if (isValidPrivilegeName(name) != false) {
+            if (isValidPrivilegeName(name)) {
                 ApplicationPrivilege privilege = lookup.get(name);
                 if (privilege != null && size == 1) {
                     return privilege;

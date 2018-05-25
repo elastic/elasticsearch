@@ -22,6 +22,7 @@ package org.elasticsearch.common.geo;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -85,20 +86,26 @@ public final class GeoPoint implements ToXContentFragment {
 
     public GeoPoint resetFromString(String value, final boolean ignoreZValue) {
         if (value.contains(",")) {
-            String[] vals = value.split(",");
-            if (vals.length > 3) {
-                throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
-                    + "but found: [{}]", vals.length);
-            }
-            double lat = Double.parseDouble(vals[0].trim());
-            double lon = Double.parseDouble(vals[1].trim());
-            if (vals.length > 2) {
-                GeoPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
-            }
-            return reset(lat, lon);
+            return resetFromCoordinates(value, ignoreZValue);
         }
         return resetFromGeoHash(value);
     }
+
+
+    public GeoPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
+        String[] vals = value.split(",");
+        if (vals.length > 3) {
+            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
+                + "but found: [{}]", vals.length);
+        }
+        double lat = Double.parseDouble(vals[0].trim());
+        double lon = Double.parseDouble(vals[1].trim());
+        if (vals.length > 2) {
+            GeoPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
+        }
+        return reset(lat, lon);
+    }
+
 
     public GeoPoint resetFromIndexHash(long hash) {
         lon = GeoHashUtils.decodeLongitude(hash);

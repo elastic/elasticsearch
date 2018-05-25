@@ -31,35 +31,24 @@ public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAll
     public ReplicasAllocatedStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        int numberReplicas = randomIntBetween(0, 100);
-        return new ReplicasAllocatedStep(stepKey, nextStepKey, numberReplicas);
+        return new ReplicasAllocatedStep(stepKey, nextStepKey);
     }
 
     @Override
     public ReplicasAllocatedStep mutateInstance(ReplicasAllocatedStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        int numberReplicas = instance.getNumberReplicas();
-        switch (between(0, 2)) {
-        case 0:
+        if (randomBoolean()) {
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
+        } else {
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 2:
-            numberReplicas += randomIntBetween(1, 5);
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
         }
-
-        return new ReplicasAllocatedStep(key, nextKey, numberReplicas);
+        return new ReplicasAllocatedStep(key, nextKey);
     }
 
     @Override
     public ReplicasAllocatedStep copyInstance(ReplicasAllocatedStep instance) {
-        return new ReplicasAllocatedStep(instance.getKey(), instance.getNextStepKey(), instance.getNumberReplicas());
+        return new ReplicasAllocatedStep(instance.getKey(), instance.getNextStepKey());
     }
 
     public void testConditionMet() {
@@ -67,7 +56,7 @@ public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAll
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
-            .numberOfReplicas(step.getNumberReplicas()).build();
+            .numberOfReplicas(randomIntBetween(0, 5)).build();
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetaData.builder(indexMetadata))
@@ -98,7 +87,7 @@ public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAll
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
-            .numberOfReplicas(step.getNumberReplicas()).build();
+            .numberOfReplicas(randomIntBetween(0, 5)).build();
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetaData.builder(indexMetadata))
@@ -122,40 +111,7 @@ public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAll
 
         Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
-        assertEquals(new ReplicasAllocatedStep.Info(step.getNumberReplicas(), step.getNumberReplicas(), false),
-                result.getInfomationContext());
-    }
-
-    public void testConditionNotMetNumberReplicas() {
-        ReplicasAllocatedStep step = createRandomInstance();
-        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(randomValueOtherThan(step.getNumberReplicas(), () -> randomIntBetween(0, 100))).build();
-        MetaData metaData = MetaData.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(indexMetadata))
-            .build();
-        Index index = indexMetadata.getIndex();
-
-        String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .routingTable(RoutingTable.builder()
-                .add(IndexRoutingTable.builder(index).addShard(
-                    TestShardRouting.newShardRouting(new ShardId(index, 0),
-                        nodeId, true, ShardRoutingState.STARTED)))
-                .build())
-            .build();
-
-        Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ReplicasAllocatedStep.Info(step.getNumberReplicas(), indexMetadata.getNumberOfReplicas(), true),
+        assertEquals(new ReplicasAllocatedStep.Info(indexMetadata.getNumberOfReplicas(), false),
                 result.getInfomationContext());
     }
 

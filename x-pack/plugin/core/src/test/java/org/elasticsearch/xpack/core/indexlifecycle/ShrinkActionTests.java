@@ -70,7 +70,6 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         assertTrue(steps.get(3) instanceof ShrunkShardsAllocatedStep);
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));
         assertThat(steps.get(3).getNextStepKey(), equalTo(expectedFifthKey));
-        assertThat(((ShrunkShardsAllocatedStep) steps.get(3)).getNumberOfShards(), equalTo(action.getNumberOfShards()));
         assertThat(((ShrunkShardsAllocatedStep) steps.get(3)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
         assertTrue(steps.get(4) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(4).getKey(), equalTo(expectedFifthKey));

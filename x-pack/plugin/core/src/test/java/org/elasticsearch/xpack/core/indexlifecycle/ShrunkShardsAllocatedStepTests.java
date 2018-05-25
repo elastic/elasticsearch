@@ -29,19 +29,17 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
     public ShrunkShardsAllocatedStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        int numberOfShards = randomIntBetween(1, 10);
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new ShrunkShardsAllocatedStep(stepKey, nextStepKey, numberOfShards, shrunkIndexPrefix);
+        return new ShrunkShardsAllocatedStep(stepKey, nextStepKey, shrunkIndexPrefix);
     }
 
     @Override
     public ShrunkShardsAllocatedStep mutateInstance(ShrunkShardsAllocatedStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        int numberOfShards = instance.getNumberOfShards();
         String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
 
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
@@ -49,28 +47,24 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 2:
-            numberOfShards = numberOfShards + 1;
-            break;
-        case 3:
             shrunkIndexPrefix += randomAlphaOfLength(5);
             break;
         default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrunkShardsAllocatedStep(key, nextKey, numberOfShards, shrunkIndexPrefix);
+        return new ShrunkShardsAllocatedStep(key, nextKey, shrunkIndexPrefix);
     }
 
     @Override
     public ShrunkShardsAllocatedStep copyInstance(ShrunkShardsAllocatedStep instance) {
-        return new ShrunkShardsAllocatedStep(instance.getKey(), instance.getNextStepKey(), instance.getNumberOfShards(),
-                instance.getShrunkIndexPrefix());
+        return new ShrunkShardsAllocatedStep(instance.getKey(), instance.getNextStepKey(), instance.getShrunkIndexPrefix());
     }
 
     public void testConditionMet() {
         ShrunkShardsAllocatedStep step = createRandomInstance();
-        int shrinkNumberOfShards = step.getNumberOfShards();
-        int originalNumberOfShards = step.getNumberOfShards();
+        int shrinkNumberOfShards = randomIntBetween(1, 5);
+        int originalNumberOfShards = randomIntBetween(1, 5);
         String originalIndexName = randomAlphaOfLength(5);
         IndexMetaData originalIndexMetadata = IndexMetaData.builder(originalIndexName)
             .settings(settings(Version.CURRENT))
@@ -109,8 +103,8 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
 
     public void testConditionNotMetBecauseOfActive() {
         ShrunkShardsAllocatedStep step = createRandomInstance();
-        int shrinkNumberOfShards = step.getNumberOfShards();
-        int originalNumberOfShards = step.getNumberOfShards();
+        int shrinkNumberOfShards = randomIntBetween(1, 5);
+        int originalNumberOfShards = randomIntBetween(1, 5);
         String originalIndexName = randomAlphaOfLength(5);
         IndexMetaData originalIndexMetadata = IndexMetaData.builder(originalIndexName)
             .settings(settings(Version.CURRENT))
@@ -144,55 +138,13 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
 
         Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, shrinkNumberOfShards, false),
-                result.getInfomationContext());
-    }
-
-    public void testConditionNotMetBecauseOfShardCount() {
-        ShrunkShardsAllocatedStep step = createRandomInstance();
-        int shrinkNumberOfShards = step.getNumberOfShards();
-        int actualShrinkNumberShards = shrinkNumberOfShards + randomIntBetween(1, 5);
-        int originalNumberOfShards = step.getNumberOfShards();
-        String originalIndexName = randomAlphaOfLength(5);
-        IndexMetaData originalIndexMetadata = IndexMetaData.builder(originalIndexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(originalNumberOfShards)
-            .numberOfReplicas(0).build();
-        IndexMetaData shrunkIndexMetadata = IndexMetaData.builder(step.getShrunkIndexPrefix() + originalIndexName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(actualShrinkNumberShards)
-                .numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(originalIndexMetadata))
-            .put(IndexMetaData.builder(shrunkIndexMetadata))
-            .build();
-        Index shrinkIndex = shrunkIndexMetadata.getIndex();
-
-        String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
-
-        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
-        for (int i = 0; i < actualShrinkNumberShards; i++) {
-            builder.addShard(TestShardRouting.newShardRouting(new ShardId(shrinkIndex, i),
-                nodeId, true, ShardRoutingState.STARTED));
-        }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .routingTable(RoutingTable.builder().add(builder.build()).build()).build();
-
-        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, actualShrinkNumberShards, true),
+        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, false),
                 result.getInfomationContext());
     }
 
     public void testConditionNotMetBecauseOfShrunkIndexDoesntExistYet() {
         ShrunkShardsAllocatedStep step = createRandomInstance();
-        int originalNumberOfShards = step.getNumberOfShards();
+        int originalNumberOfShards = randomIntBetween(1, 5);
         String originalIndexName = randomAlphaOfLength(5);
         IndexMetaData originalIndexMetadata = IndexMetaData.builder(originalIndexName)
             .settings(settings(Version.CURRENT))
@@ -214,6 +166,6 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
 
         Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(false, -1, -1, false), result.getInfomationContext());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(false, -1, false), result.getInfomationContext());
     }
 }

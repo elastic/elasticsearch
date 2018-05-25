@@ -140,7 +140,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             this.nodes = in.readList(NodeView::new).stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
         } else {
             clusterName = new ClusterName(in);
@@ -151,7 +151,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeList(getNodes());
         } else {
             clusterName.writeTo(out);

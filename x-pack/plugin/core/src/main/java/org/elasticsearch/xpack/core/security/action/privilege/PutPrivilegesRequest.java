@@ -26,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a one or more application privileges.
  */
-public class PutPrivilegesRequest extends ActionRequest implements WriteRequest<PutPrivilegesRequest> {
+public final class PutPrivilegesRequest extends ActionRequest implements WriteRequest<PutPrivilegesRequest> {
 
     private List<ApplicationPrivilege> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;

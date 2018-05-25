@@ -11,8 +11,6 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,15 +27,11 @@ import java.util.Objects;
 /**
  * Request builder for {@link PutPrivilegesRequest}
  */
-public class PutPrivilegesRequestBuilder
-        extends ActionRequestBuilder<PutPrivilegesRequest, PutPrivilegesResponse, PutPrivilegesRequestBuilder>
-        implements WriteRequestBuilder<PutPrivilegesRequestBuilder> {
+public final class PutPrivilegesRequestBuilder
+    extends ActionRequestBuilder<PutPrivilegesRequest, PutPrivilegesResponse, PutPrivilegesRequestBuilder>
+    implements WriteRequestBuilder<PutPrivilegesRequestBuilder> {
 
-    public PutPrivilegesRequestBuilder(ElasticsearchClient client) {
-        this(client, PutPrivilegesAction.INSTANCE);
-    }
-
-    PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {
+    public PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {
         super(client, action, new PutPrivilegesRequest());
     }
 
@@ -47,12 +41,12 @@ public class PutPrivilegesRequestBuilder
      */
     public PutPrivilegesRequestBuilder source(String applicationName, String expectedName,
                                               BytesReference source, XContentType xContentType)
-            throws IOException {
+        throws IOException {
         Objects.requireNonNull(xContentType);
         // EMPTY is ok here because we never call namedObject
         try (InputStream stream = source.streamInput();
              XContentParser parser = xContentType.xContent()
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             XContentParser.Token token = parser.currentToken();
             if (token == null) {
                 token = parser.nextToken();
@@ -80,12 +74,12 @@ public class PutPrivilegesRequestBuilder
      * The value for each privilege-name is a privilege object which much match the application and privilege names in which it is nested.
      */
     public PutPrivilegesRequestBuilder source(BytesReference source, XContentType xContentType)
-            throws IOException {
+        throws IOException {
         Objects.requireNonNull(xContentType);
         // EMPTY is ok here because we never call namedObject
         try (InputStream stream = source.streamInput();
              XContentParser parser = xContentType.xContent()
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             XContentParser.Token token = parser.currentToken();
             if (token == null) {
                 token = parser.nextToken();
@@ -103,7 +97,7 @@ public class PutPrivilegesRequestBuilder
                 token = parser.nextToken();
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException("expected the value for {} to be an object, but found {} instead",
-                            applicationName, token);
+                        applicationName, token);
                 }
 
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -114,7 +108,7 @@ public class PutPrivilegesRequestBuilder
                     token = parser.nextToken();
                     if (token != XContentParser.Token.START_OBJECT) {
                         throw new ElasticsearchParseException("expected the value for {} to be an object, but found {} instead",
-                                applicationName, token);
+                            applicationName, token);
                     }
                     privileges.add(parsePrivilege(parser, applicationName, privilegeName));
                 }
@@ -127,16 +121,16 @@ public class PutPrivilegesRequestBuilder
     private String checkPrivilegeName(ApplicationPrivilege privilege, String applicationName, String providedName) {
         if (privilege.name().size() != 1) {
             throw new IllegalArgumentException("privilege name [" + privilege.name()
-                    + "] in source must contain exactly 1 value");
+                + "] in source must contain exactly 1 value");
         }
         final String privilegeName = privilege.getPrivilegeName();
         if (Strings.isNullOrEmpty(applicationName) == false && applicationName.equals(privilege.getApplication()) == false) {
             throw new IllegalArgumentException("privilege application [" + privilege.getApplication()
-                    + "] in source does not match the provided application [" + applicationName + "]");
+                + "] in source does not match the provided application [" + applicationName + "]");
         }
         if (Strings.isNullOrEmpty(providedName) == false && providedName.equals(privilegeName) == false) {
             throw new IllegalArgumentException("privilege name [" + privilegeName
-                    + "] in source does not match the provided name [" + providedName + "]");
+                + "] in source does not match the provided name [" + providedName + "]");
         }
         return privilegeName;
     }

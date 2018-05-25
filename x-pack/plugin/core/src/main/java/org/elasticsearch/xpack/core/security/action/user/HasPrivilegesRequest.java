@@ -39,6 +39,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         }
         if (applicationPrivileges == null) {
             validationException = addValidationError("applicationPrivileges must not be null", validationException);
+        } else {
             for (ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
                 try {
                     ApplicationPrivilege.validateApplicationName(applicationPrivilege.getApplication());

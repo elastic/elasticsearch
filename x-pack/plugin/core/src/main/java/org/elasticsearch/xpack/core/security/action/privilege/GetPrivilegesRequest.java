@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to retrieve one or more application privileges.
  */
-public class GetPrivilegesRequest extends ActionRequest {
+public final class GetPrivilegesRequest extends ActionRequest {
 
     @Nullable
     private String application;

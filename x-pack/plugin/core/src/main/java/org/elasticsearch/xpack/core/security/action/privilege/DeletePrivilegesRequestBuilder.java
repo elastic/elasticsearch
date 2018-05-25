@@ -14,7 +14,7 @@ import java.util.Collection;
 /**
  * Builder for {@link DeletePrivilegesRequest}
  */
-public class DeletePrivilegesRequestBuilder
+public final class DeletePrivilegesRequestBuilder
         extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse, DeletePrivilegesRequestBuilder>
         implements WriteRequestBuilder<DeletePrivilegesRequestBuilder> {
 

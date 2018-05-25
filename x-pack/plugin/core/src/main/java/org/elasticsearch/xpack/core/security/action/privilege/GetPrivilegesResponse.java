@@ -16,7 +16,7 @@ import java.util.Collection;
 /**
  * Response containing one or more application privileges retrieved from the security index
  */
-public class GetPrivilegesResponse extends ActionResponse {
+public final class GetPrivilegesResponse extends ActionResponse {
 
     private ApplicationPrivilege[] privileges;
 
@@ -35,7 +35,7 @@ public class GetPrivilegesResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        in.readArray(ApplicationPrivilege::readFrom, ApplicationPrivilege[]::new);
+        this.privileges = in.readArray(ApplicationPrivilege::readFrom, ApplicationPrivilege[]::new);
     }
 
     @Override

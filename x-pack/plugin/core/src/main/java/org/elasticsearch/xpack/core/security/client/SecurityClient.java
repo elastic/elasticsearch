@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
@@ -294,11 +295,11 @@ public class SecurityClient {
 
     public PutPrivilegesRequestBuilder preparePutPrivilege(String applicationName, String privilegeName,
                                                            BytesReference bytesReference, XContentType xContentType) throws IOException {
-        return new PutPrivilegesRequestBuilder(client).source(applicationName, privilegeName, bytesReference, xContentType);
+        return new PutPrivilegesRequestBuilder(client, PutPrivilegesAction.INSTANCE).source(applicationName, privilegeName, bytesReference, xContentType);
     }
 
     public PutPrivilegesRequestBuilder preparePutPrivileges(BytesReference bytesReference, XContentType xContentType) throws IOException {
-        return new PutPrivilegesRequestBuilder(client).source(bytesReference, xContentType);
+        return new PutPrivilegesRequestBuilder(client, PutPrivilegesAction.INSTANCE).source(bytesReference, xContentType);
     }
 
     public DeletePrivilegesRequestBuilder prepareDeletePrivileges(String applicationName, String[] privileges) {

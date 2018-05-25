@@ -15,17 +15,16 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Response when adding one or more application privileges to the security index.
  * Returns a collection of the privileges that were created (by implication, any other privileges were updated).
  */
-public class PutPrivilegesResponse extends ActionResponse implements ToXContentObject {
+public final class PutPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
     private Map<String, List<String>> created;
 
-    public PutPrivilegesResponse() {
+    PutPrivilegesResponse() {
         this(Collections.emptyMap());
     }
 
@@ -33,6 +32,10 @@ public class PutPrivilegesResponse extends ActionResponse implements ToXContentO
         this.created = Collections.unmodifiableMap(created);
     }
 
+    /**
+     * Get a list of privileges that were created (as opposed to updated)
+     * @return A map from <em>Application Name</em> to a {@code List} of <em>privilege names</em>
+     */
     public Map<String, List<String>> created() {
         return created;
     }

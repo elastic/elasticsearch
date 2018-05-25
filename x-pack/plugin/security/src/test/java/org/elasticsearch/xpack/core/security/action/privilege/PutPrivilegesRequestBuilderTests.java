@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 public class PutPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testBuildRequestWithMultipleElements() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
+        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
         builder.source(new BytesArray("{ "
                 + "\"foo\":{"
                 + "  \"read\":{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] },"
@@ -45,7 +45,7 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testBuildRequestFromJsonObject() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
+        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
         builder.source("foo", "read", new BytesArray(
                 "{  \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] }"
         ), XContentType.JSON);
@@ -57,7 +57,7 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testPrivilegeNameValidationOfSingleElement() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
+        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
                 builder.source("foo", "write", new BytesArray(
                         "{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] }"
@@ -67,7 +67,7 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testApplicationNameValidationOfSingleElement() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
+        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
                 builder.source("bar", "read", new BytesArray(
                         "{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] }"
@@ -77,7 +77,7 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testPrivilegeNameValidationOfMultipleElement() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
+        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
                 builder.source(new BytesArray("{ \"foo\":{"
                         + "\"write\":{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[\"data:/read/*\",\"admin:/read/*\"] },"
@@ -89,7 +89,7 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testApplicationNameValidationOfMultipleElement() throws Exception {
-        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
+        final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null, PutPrivilegesAction.INSTANCE);
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
                 builder.source(new BytesArray("{ \"bar\":{"
                         + "\"read\":{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] },"

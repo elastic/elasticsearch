@@ -560,12 +560,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             // skip armor headers and possible blank line
             int index = 1;
             for (; index < lines.size(); index++) {
-                if (lines.get(index).matches("\\w: \\w") == false && lines.get(index).matches("\\s*")) {
+                if (lines.get(index).matches(".*: .*") == false && lines.get(index).matches("\\s*") == false) {
                     break;
                 }
             }
             final byte[] armoredData =
-                    lines.subList(index + 1, lines.size() - 1).stream().collect(Collectors.joining("\n")).getBytes(StandardCharsets.UTF_8);
+                    lines.subList(index, lines.size() - 1).stream().collect(Collectors.joining("\n")).getBytes(StandardCharsets.UTF_8);
             final InputStream ain = Base64.getMimeDecoder().wrap(new ByteArrayInputStream(armoredData));
             final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
             final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());

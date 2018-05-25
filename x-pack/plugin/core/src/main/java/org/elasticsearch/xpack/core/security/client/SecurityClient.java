@@ -295,7 +295,8 @@ public class SecurityClient {
 
     public PutPrivilegesRequestBuilder preparePutPrivilege(String applicationName, String privilegeName,
                                                            BytesReference bytesReference, XContentType xContentType) throws IOException {
-        return new PutPrivilegesRequestBuilder(client, PutPrivilegesAction.INSTANCE).source(applicationName, privilegeName, bytesReference, xContentType);
+        return new PutPrivilegesRequestBuilder(client, PutPrivilegesAction.INSTANCE)
+            .source(applicationName, privilegeName, bytesReference, xContentType);
     }
 
     public PutPrivilegesRequestBuilder preparePutPrivileges(BytesReference bytesReference, XContentType xContentType) throws IOException {

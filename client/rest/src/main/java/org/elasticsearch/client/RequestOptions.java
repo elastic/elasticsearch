@@ -19,53 +19,43 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableMap;
+
+import java.util.ArrayList;
 
 /**
- * Portion the configuraiton of an HTTP request to Elasticsearch that
+ * Portion the configuration of an HTTP request to Elasticsearch that
  * can be manipulated without changing Elasticsearch's behavior.
  */
 public final class RequestOptions {
+    public static final RequestOptions DEFAULT = new Builder(
+        Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT).build();
 
-    public static Builder builder() {
-        Builder builder = new Builder();
-        builder.setHeaders(NO_HEADERS);
-        builder.setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory.DEFAULT);
-        return builder;
-    }
-
-    private static final Header[] NO_HEADERS = new Header[0];
-
-    private final Header[] headers;
+    private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
 
     private RequestOptions(Builder builder) {
-        this.headers = builder.headers;
+        this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
     }
 
     public Builder toBuilder() {
-        Builder builder = new Builder();
-        builder.setHeaders(headers);
-        builder.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
+        Builder builder = new Builder(headers, httpAsyncResponseConsumerFactory);
         return builder;
     }
 
     /**
      * Headers to attach to the request.
      */
-    public Header[] getHeaders() {
+    public List<Header> getHeaders() {
         return headers;
     }
 
@@ -83,13 +73,13 @@ public final class RequestOptions {
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("RequestOptions{");
-        if (headers.length > 0) {
+        if (headers.size() > 0) {
             b.append(", headers=");
-            for (int h = 0; h < headers.length; h++) {
+            for (int h = 0; h < headers.size(); h++) {
                 if (h != 0) {
                     b.append(',');
                 }
-                b.append(headers[h].toString());
+                b.append(headers.get(h).toString());
             }
         }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
@@ -108,35 +98,38 @@ public final class RequestOptions {
         }
 
         RequestOptions other = (RequestOptions) obj;
-        return Arrays.equals(headers, other.headers)
+        return headers.equals(other.headers)
                 && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(headers), httpAsyncResponseConsumerFactory);
+        return Objects.hash(headers, httpAsyncResponseConsumerFactory);
     }
 
     public static class Builder {
-        private Header[] headers;
+        private final List<Header> headers;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
+
+        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
+            this.headers = new ArrayList<>(headers);
+            this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
+        }
 
         /**
          * Build the {@linkplain RequestOptions}.
          */
-        public RequestOptions builder() {
+        public RequestOptions build() {
             return new RequestOptions(this);
         }
 
         /**
-         * Set the headers to attach to the request.
+         * Add the provided header to the request.
          */
-        public void setHeaders(Header... headers) {
-            Objects.requireNonNull(headers, "headers cannot be null");
-            for (Header header : headers) {
-                Objects.requireNonNull(header, "header cannot be null");
-            }
-            this.headers = headers;
+        public void addHeader(String name, String value) {
+            Objects.requireNonNull(name, "header name cannot be null");
+            Objects.requireNonNull(value, "header value cannot be null");
+            this.headers.add(new ReqHeader(name, value));
         }
 
         /**
@@ -148,6 +141,35 @@ public final class RequestOptions {
         public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
             this.httpAsyncResponseConsumerFactory =
                     Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
+        }
+    }
+
+    /**
+     * Custom implementation of {@link BasicHeader} that overrides equals and hashCode.
+     */
+    @SuppressWarnings("serial")
+    static final class ReqHeader extends BasicHeader {
+
+        ReqHeader(String name, String value) {
+            super(name, value);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other instanceof ReqHeader) {
+                Header otherHeader = (Header) other;
+                return Objects.equals(getName(), otherHeader.getName()) &&
+                        Objects.equals(getValue(), otherHeader.getValue());
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getName(), getValue());
         }
     }
 }

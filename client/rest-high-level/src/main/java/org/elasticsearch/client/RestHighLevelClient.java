@@ -658,7 +658,7 @@ public class RestHighLevelClient implements Closeable {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
-        requestCustomizer.accept(new SafeRequest(req));
+        addHeaders(req, headers);
         Response response;
         try {
             response = client.performRequest(req);
@@ -727,14 +727,21 @@ public class RestHighLevelClient implements Closeable {
         Request req;
         try {
             req = requestConverter.apply(request);
-            requestCustomizer.accept(new SafeRequest(req));
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
+        addHeaders(req, headers);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);
+    }
+
+    private static void addHeaders(Request request, Header... headers) {
+        Objects.requireNonNull(headers, "headers cannot be null");
+        for (Header header : headers) {
+            request.addHeader(header.getName(), header.getValue());
+        }
     }
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,

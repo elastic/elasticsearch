@@ -19,14 +19,17 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -41,6 +44,7 @@ public final class Request {
     private final Map<String, String> parameters = new HashMap<>();
 
     private HttpEntity entity;
+    private RequestOptions options = RequestOptions.DEFAULT;
 
     /**
      * Create the {@linkplain Request}.
@@ -120,6 +124,25 @@ public final class Request {
         return entity;
     }
 
+    /**
+     * Set the portion the configuration of an HTTP request to
+     * Elasticsearch that can be manipulated without changing
+     * Elasticsearch's behavior.
+     */
+    public void setOptions(RequestOptions options) {
+        Objects.requireNonNull(options, "options must not be null");
+        this.options = options;
+    }
+
+    /**
+     * gET the portion the configuration of an HTTP request to
+     * Elasticsearch that can be manipulated without changing
+     * Elasticsearch's behavior.
+     */
+    public RequestOptions getOptions() {
+        return options;
+    }
+
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
@@ -132,6 +155,7 @@ public final class Request {
         if (entity != null) {
             b.append(", entity=").append(entity);
         }
+        // TODO options
         return b.append('}').toString();
     }
 
@@ -148,11 +172,12 @@ public final class Request {
         return method.equals(other.method)
                 && endpoint.equals(other.endpoint)
                 && parameters.equals(other.parameters)
-                && Objects.equals(entity, other.entity);
+                && Objects.equals(entity, other.entity)
+                && options.equals(other.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, endpoint, parameters, entity);
+        return Objects.hash(method, endpoint, parameters, entity, options);
     }
 }

@@ -39,8 +39,8 @@ setup:
   - gt: { snapshots.0.stats.incremental.file_count: 0 }
   - gt: { snapshots.0.stats.incremental.size_in_bytes: 0 }
   - gt: { snapshots.0.stats.total.file_count: 0 }
-  - match: { snapshots.0.stats.start_time_in_millis: \d+ }
-  - gte: { snapshots.0.stats.time_in_millis: 0 }
+  - is_true: snapshots.0.stats.start_time_in_millis
+  - is_true: snapshots.0.stats.time_in_millis
 
 ---
 "Get snapshot status with BWC fields":

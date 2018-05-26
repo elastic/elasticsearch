@@ -71,8 +71,8 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
     public final Client client;
 
-    private final AtomicInteger updatesInProgress = new AtomicInteger();
-    private volatile boolean allUpdatesSuccessful;
+    private final AtomicInteger upgradesInProgress = new AtomicInteger();
+    private volatile boolean allUpgradesSuccessful;
 
     private ImmutableOpenMap<String, IndexTemplateMetaData> lastTemplateMetaData;
 
@@ -101,7 +101,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             return;
         }
 
-        if (updatesInProgress.get() > 0) {
+        if (upgradesInProgress.get() > 0) {
             // we are already running some updates - skip this cluster state update
             return;
         }
@@ -122,8 +122,8 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         lastTemplateMetaData = templates;
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
-            if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size() + 1)) {
-                allUpdatesSuccessful = true;
+            if (upgradesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size() + 1)) {
+                allUpgradesSuccessful = true;
                 logger.info("Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
                     Version.CURRENT,
                     changes.get().v1().size(),
@@ -151,7 +151,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
                     if (response.isAcknowledged() == false) {
-                        allUpdatesSuccessful = false;
+                        allUpgradesSuccessful = false;
                         logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());
                     }
                     tryFinishUpdate();
@@ -159,7 +159,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
                 @Override
                 public void onFailure(Exception e) {
-                    allUpdatesSuccessful = false;
+                    allUpgradesSuccessful = false;
                     logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
                     tryFinishUpdate();
                 }
@@ -173,7 +173,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                 @Override
                 public void onResponse(DeleteIndexTemplateResponse response) {
                     if (response.isAcknowledged() == false) {
-                        allUpdatesSuccessful = false;
+                        allUpgradesSuccessful = false;
                         logger.warn("Error deleting template [{}], request was not acknowledged", template);
                     }
                     tryFinishUpdate();
@@ -181,7 +181,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
                 @Override
                 public void onFailure(Exception e) {
-                    allUpdatesSuccessful = false;
+                    allUpgradesSuccessful = false;
                     if (e instanceof IndexTemplateMissingException == false) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn
@@ -194,26 +194,31 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
     }
 
     private void tryFinishUpdate() {
-        assert updatesInProgress.get() > 0;
-        if (updatesInProgress.decrementAndGet() > 1) {
+        assert upgradesInProgress.get() > 0;
+        if (upgradesInProgress.decrementAndGet() > 1) {
             return;
         }
-        if (allUpdatesSuccessful) {
+        if (allUpgradesSuccessful) {
             logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
         } else {
             logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
         }
-        allUpdatesSuccessful = true;
-        final boolean changesRequired = calculateTemplateChanges(clusterService.state().getMetaData().getTemplates()).isPresent();
+        allUpgradesSuccessful = true;
+        // Check upgraders are satisfied after the update. If they still report that
+        // changes are required it might be a bug or something else fiddled with the
+        // templates during the upgrade.
+        final ImmutableOpenMap<String, IndexTemplateMetaData> upgradedTemplates = clusterService.state().getMetaData().getTemplates();
+        final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
         if (changesRequired) {
-            logger.warn("Templates are still reported as out of date. The upgrade will be retried.");
+            logger.warn("Templates are still reported as out of date after the upgrade. The upgrade will be retried."
+                    + " This might be an indication that something is touching plugin private templates.");
         }
-        final int noMoreUpdates = updatesInProgress.decrementAndGet();
-        assert noMoreUpdates == 0;
+        final int noMoreUpgrades = upgradesInProgress.decrementAndGet();
+        assert noMoreUpgrades == 0;
     }
 
     int getUpdatesInProgress() {
-        return updatesInProgress.get();
+        return upgradesInProgress.get();
     }
 
     Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(

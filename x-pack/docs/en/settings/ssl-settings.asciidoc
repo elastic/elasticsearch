@@ -90,7 +90,7 @@ Path to the keystore that holds the private key and certificate.
 +{ssl-prefix}.ssl.keystore.password+::
 Password to the keystore.
 
-+{ssl-prefix}.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
++{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the keystore.
 
 +{ssl-prefix}.ssl.keystore.key_password+::

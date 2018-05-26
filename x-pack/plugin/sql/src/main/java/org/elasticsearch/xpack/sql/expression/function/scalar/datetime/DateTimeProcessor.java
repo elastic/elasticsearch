@@ -9,9 +9,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeFieldType;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
+import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -78,15 +80,21 @@ public class DateTimeProcessor implements Processor {
             return null;
         }
 
-        if (!(l instanceof ReadableDateTime)) {
-            throw new SqlIllegalArgumentException("A date/time is required; received {}", l);
+        ReadableDateTime dt;
+        if (l instanceof String) {
+            // 6.4+
+            final long millis = Long.parseLong(l.toString());
+            dt = new DateTime(millis, DateTimeZone.forTimeZone(timeZone));
+        } else if (l instanceof ReadableInstant) {
+            // 6.3-
+            dt = (ReadableDateTime) l;
+            if (!TimeZone.getTimeZone("UTC").equals(timeZone)) {
+                dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
+            }
+        } else {
+            throw new SqlIllegalArgumentException("A string or a date is required; received {}", l);
         }
 
-        ReadableDateTime dt = (ReadableDateTime) l;
-
-        if (!TimeZone.getTimeZone("UTC").equals(timeZone)) {
-            dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
-        }
         return extractor.extract(dt);
     }
 

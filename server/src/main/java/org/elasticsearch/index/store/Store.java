@@ -731,13 +731,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private final Logger deletesLogger;
 
-        StoreDirectory(Directory delegateDirectory, Logger deletesLogger) throws IOException {
+        StoreDirectory(Directory delegateDirectory, Logger deletesLogger) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             assert false : "Nobody should close this directory except of the Store itself";
         }
 

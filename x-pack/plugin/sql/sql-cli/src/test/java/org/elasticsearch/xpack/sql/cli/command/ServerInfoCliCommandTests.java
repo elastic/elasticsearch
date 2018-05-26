@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.proto.MainResponse;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -35,8 +35,8 @@ public class ServerInfoCliCommandTests extends ESTestCase {
         TestTerminal testTerminal = new TestTerminal();
         HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
-        when(client.serverInfo()).thenReturn(new MainResponse("my_node", org.elasticsearch.Version.fromString("1.2.3"),
-                new ClusterName("my_cluster"), UUIDs.randomBase64UUID(), Build.CURRENT));
+        when(client.serverInfo()).thenReturn(new MainResponse("my_node", "1.2.3",
+                new ClusterName("my_cluster").value(), UUIDs.randomBase64UUID(), Build.CURRENT));
         ServerInfoCliCommand cliCommand = new ServerInfoCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "info"));
         assertEquals(testTerminal.toString(), "Node:<em>my_node</em> Cluster:<em>my_cluster</em> Version:<em>1.2.3</em>\n");

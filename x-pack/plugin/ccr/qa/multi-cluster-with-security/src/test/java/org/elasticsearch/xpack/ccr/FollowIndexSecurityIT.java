@@ -60,37 +60,28 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
     public void testFollowIndex() throws Exception {
         final int numDocs = 16;
-        final String indexName1 = "index1";
-        final String indexName2 = "index2";
+        final String allowedIndex = "allowed-index";
+        final String unallowedIndex  = "unallowed-index";
         if (runningAgainstLeaderCluster) {
             logger.info("Running against leader cluster");
-            Settings indexSettings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
-                .build();
-            createIndex(indexName1, indexSettings);
-            createIndex(indexName2, indexSettings);
+            Settings indexSettings = Settings.builder().put("index.soft_deletes.enabled", true).build();
+            createIndex(allowedIndex, indexSettings);
+            createIndex(unallowedIndex, indexSettings);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
-                index(indexName1, Integer.toString(i), "field", i);
+                index(allowedIndex, Integer.toString(i), "field", i);
             }
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
-                index(indexName2, Integer.toString(i), "field", i);
+                index(unallowedIndex, Integer.toString(i), "field", i);
             }
-            refresh(indexName1);
-            verifyDocuments(adminClient(), indexName1, numDocs);
+            refresh(allowedIndex);
+            verifyDocuments(adminClient(), allowedIndex, numDocs);
         } else {
-            logger.info("Running against follow cluster");
-            Settings indexSettings = Settings.builder()
-                    .put("index.xpack.ccr.following_index", true)
-                    .build();
-            // TODO: remove mapping here when ccr syncs mappings too
-            createIndex(indexName1, indexSettings, "\"doc\": { \"properties\": { \"field\": { \"type\": \"long\" }}}");
-            ensureYellow(indexName1);
-            followIndex("leader_cluster:" + indexName1, indexName1);
-            assertBusy(() -> verifyDocuments(client(), indexName1, numDocs));
+            createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
+            assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertOK(client().performRequest("POST", "/" + indexName1 + "/_xpack/ccr/_unfollow"));
+            assertOK(client().performRequest("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow"));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
                 Map<String, Object> clusterState = toMap(adminClient().performRequest("GET", "/_cluster/state"));
@@ -98,16 +89,28 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
-
-            // TODO: remove mapping here when ccr syncs mappings too
-            createIndex(indexName2, indexSettings, "\"doc\": { \"properties\": { \"field\": { \"type\": \"long\" }}}");
-            ensureYellow(indexName2);
-            followIndex("leader_cluster:" + indexName2, indexName2);
+    
+            followIndex("leader_cluster:" + allowedIndex, allowedIndex);
+            assertThat(countCcrNodeTasks(), equalTo(1));
+            assertOK(client().performRequest("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow"));
+            // Make sure that there are no other ccr relates operations running:
+            assertBusy(() -> {
+                Map<String, Object> clusterState = toMap(adminClient().performRequest("GET", "/_cluster/state"));
+                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+                assertThat(tasks.size(), equalTo(0));
+                assertThat(countCcrNodeTasks(), equalTo(0));
+            });
+    
+            createAndFollowIndex("leader_cluster:" + unallowedIndex, unallowedIndex);
             // Verify that nothing has been replicated and no node tasks are running
             // These node tasks should have been failed due to the fact that the user
             // has no sufficient priviledges.
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
-            verifyDocuments(adminClient(), indexName2, 0);
+            verifyDocuments(adminClient(), unallowedIndex, 0);
+            
+            followIndex("leader_cluster:" + unallowedIndex, unallowedIndex);
+            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+            verifyDocuments(adminClient(), unallowedIndex, 0);
         }
     }
 
@@ -148,6 +151,11 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_follow", params));
     }
 
+    private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
+        Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow", params));
+    }
+
     void verifyDocuments(RestClient client, String index, int expectedNumDocs) throws IOException {
         Map<String, String> params = new HashMap<>();
         params.put("size", Integer.toString(expectedNumDocs));
@@ -182,15 +190,6 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(HttpPut.METHOD_NAME, name, Collections.emptyMap(),
             new StringEntity("{ \"settings\": " + Strings.toString(settings)
                 + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
-    }
-
-    private static void ensureYellow(String index) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "yellow");
-        params.put("wait_for_no_relocating_shards", "true");
-        params.put("timeout", "30s");
-        params.put("level", "shards");
-        assertOK(adminClient().performRequest("GET", "_cluster/health/" + index, params));
     }
 
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,59 +51,11 @@ import java.util.List;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.hasSize;
 
-public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuilder<AB>> extends ESTestCase {
+public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuilder<AB>> extends AbstractBuilderTestCase {
 
-    protected static final String STRING_FIELD_NAME = "mapped_string";
-    protected static final String INT_FIELD_NAME = "mapped_int";
-    protected static final String DOUBLE_FIELD_NAME = "mapped_double";
-    protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
-    protected static final String DATE_FIELD_NAME = "mapped_date";
     protected static final String IP_FIELD_NAME = "mapped_ip";
 
-    private String[] currentTypes;
-
-    protected String[] getCurrentTypes() {
-        return currentTypes;
-    }
-
-    private NamedWriteableRegistry namedWriteableRegistry;
-    private NamedXContentRegistry xContentRegistry;
     protected abstract AB createTestAggregatorBuilder();
-
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Setup for the whole base test class.
-     */
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        Settings settings = Settings.builder()
-            .put("node.name", AbstractQueryTestCase.class.toString())
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .build();
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        PluginsService pluginsService = new PluginsService(settings, null, null, null, getPlugins());
-        SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
-        entries.addAll(searchModule.getNamedWriteables());
-        namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-        //create some random type with some default field, those types will stick around for all of the subclasses
-        currentTypes = new String[randomIntBetween(0, 5)];
-        for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAlphaOfLengthBetween(1, 10);
-            currentTypes[i] = type;
-        }
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
-    }
 
     /**
      * Generic test that creates new AggregatorFactory from the test
@@ -157,7 +110,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(testAgg);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
                 AggregationBuilder deserialized = in.readNamedWriteable(AggregationBuilder.class);
                 assertEquals(testAgg, deserialized);
                 assertEquals(testAgg.hashCode(), deserialized.hashCode());
@@ -181,12 +134,12 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
 
     // we use the streaming infra to create a copy of the query provided as
     // argument
-    private AB copyAggregation(AB agg) throws IOException {
+    protected AB copyAggregation(AB agg) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
                 @SuppressWarnings("unchecked")
-                AB secondAgg = (AB) namedWriteableRegistry.getReader(AggregationBuilder.class, agg.getWriteableName()).read(in);
+                AB secondAgg = (AB) namedWriteableRegistry().getReader(AggregationBuilder.class, agg.getWriteableName()).read(in);
                 return secondAgg;
             }
         }

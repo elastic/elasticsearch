@@ -26,8 +26,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -64,6 +62,8 @@ import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
+import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
@@ -502,6 +502,32 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Executes a request using the Search Template API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     */
+    public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
+                                                       Header... headers) throws IOException {
+        return performRequestAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate,
+            SearchTemplateResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a request using the Search Template API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     */
+    public final void searchTemplateAsync(SearchTemplateRequest searchTemplateRequest,
+                                          ActionListener<SearchTemplateResponse> listener,
+                                          Header... headers) {
+        performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate,
+            SearchTemplateResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+
+    /**
      * Executes a request using the Ranking Evaluation API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
@@ -564,7 +590,7 @@ public class RestHighLevelClient implements Closeable {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
-        req.setHeaders(headers);
+        addHeaders(req, headers);
         Response response;
         try {
             response = client.performRequest(req);
@@ -614,10 +640,17 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return;
         }
-        req.setHeaders(headers);
+        addHeaders(req, headers);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);
+    }
+
+    private static void addHeaders(Request request, Header... headers) {
+        Objects.requireNonNull(headers, "headers cannot be null");
+        for (Header header : headers) {
+            request.addHeader(header.getName(), header.getValue());
+        }
     }
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,

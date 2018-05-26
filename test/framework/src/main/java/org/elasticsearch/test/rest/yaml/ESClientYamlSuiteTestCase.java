@@ -22,7 +22,6 @@ package org.elasticsearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -111,33 +110,19 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
+            final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
-            List<HttpHost> hosts = getClusterHosts();
-            RestClient restClient = client();
-            Version infoVersion = readVersionsFromInfo(restClient, hosts.size());
-            Version esVersion;
-            try {
-                Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
-                esVersion = versionVersionTuple.v1();
-                Version masterVersion = versionVersionTuple.v2();
-                logger.info("initializing yaml client, minimum es version: [{}] master version: [{}] hosts: {}",
-                        esVersion, masterVersion, hosts);
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
-                    logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                    esVersion = infoVersion;
-                    logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
-                } else {
-                    throw ex;
-                }
-            }
-            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            final List<HttpHost> hosts = getClusterHosts();
+            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
+            final Version esVersion = versionVersionTuple.v1();
+            final Version masterVersion = versionVersionTuple.v2();
+            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
+            final ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
-            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
-            for (String entry : blacklist) {
+            for (final String entry : blacklist) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
         }
@@ -151,9 +136,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
-    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
-                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+    protected ClientYamlTestClient initClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion);
     }
 
     /**
@@ -333,7 +322,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (useDefaultNumberOfShards == false
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
-            request.setHeaders(new BasicHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters()));
+            request.addHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters());
             request.setEntity(new StringEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}"));
             adminClient().performRequest(request);
         }

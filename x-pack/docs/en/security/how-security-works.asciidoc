@@ -1,5 +1,6 @@
+[role="xpack"]
 [[how-security-works]]
-== How Security Works
+== How security works
 
 An Elasticsearch cluster is typically made out of many moving parts. There are
 the Elasticsearch nodes that form the cluster, and often Logstash instances,
@@ -64,7 +65,7 @@ For more information on user authentication see <<authorization>>
 
 
 [float]
-=== Node/Client Authentication and Channel Encryption
+=== Node/client authentication and channel encryption
 
 {security} supports configuring SSL/TLS for securing the communication channels
 to, from and within the cluster. This support accounts for:

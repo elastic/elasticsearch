@@ -71,7 +71,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
     public final Client client;
 
-    private final AtomicInteger upgradesInProgress = new AtomicInteger();
+    final AtomicInteger upgradesInProgress = new AtomicInteger();
     private volatile boolean allUpgradesSuccessful;
 
     private ImmutableOpenMap<String, IndexTemplateMetaData> lastTemplateMetaData;
@@ -102,7 +102,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         }
 
         if (upgradesInProgress.get() > 0) {
-            // we are already running some updates - skip this cluster state update
+            // we are already running some upgrades - skip this cluster state update
             return;
         }
 
@@ -132,13 +132,13 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                 final ThreadContext threadContext = threadPool.getThreadContext();
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     threadContext.markAsSystemContext();
-                    threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
+                    threadPool.generic().execute(() -> upgradeTemplates(changes.get().v1(), changes.get().v2()));
                 }
             }
         }
     }
 
-    void updateTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
+    void upgradeTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
         if (threadPool.getThreadContext().isSystemContext() == false) {
             throw new IllegalStateException("template updates from the template upgrade service should always happen in a system context");
         }
@@ -215,10 +215,6 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         }
         final int noMoreUpgrades = upgradesInProgress.decrementAndGet();
         assert noMoreUpgrades == 0;
-    }
-
-    int getUpdatesInProgress() {
-        return upgradesInProgress.get();
     }
 
     Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(

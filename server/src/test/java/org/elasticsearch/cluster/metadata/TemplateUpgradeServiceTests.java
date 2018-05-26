@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -75,9 +74,6 @@ import static org.mockito.Mockito.when;
 
 public class TemplateUpgradeServiceTests extends ESTestCase {
 
-    private final ClusterService clusterService = new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, Collections.emptyMap());
-
     public void testCalculateChangesAddChangeAndDelete() {
 
         boolean shouldAdd = randomBoolean();
@@ -90,7 +86,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
 
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
+        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, mock(ClusterService.class), null,
             Arrays.asList(
                 templates -> {
                     if (shouldAdd) {
@@ -193,15 +189,15 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, mock(ClusterService.class), threadPool,
             Collections.emptyList());
 
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.updateTemplates(additions, deletions));
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.upgradeTemplates(additions, deletions));
         assertThat(ise.getMessage(), containsString("template upgrade service should always happen in a system context"));
 
         threadContext.markAsSystemContext();
-        service.updateTemplates(additions, deletions);
-        int updatesInProgress = service.getUpdatesInProgress();
+        service.upgradesInProgress.set(additionsCount + deletionsCount + 2); // +2 to skip tryFinishUpgrade
+        service.upgradeTemplates(additions, deletions);
 
         assertThat(putTemplateListeners, hasSize(additionsCount));
         assertThat(deleteTemplateListeners, hasSize(deletionsCount));
@@ -218,18 +214,19 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         for (int i = 0; i < deletionsCount; i++) {
             if (randomBoolean()) {
-                int prevUpdatesInProgress = service.getUpdatesInProgress();
+                int prevUpdatesInProgress = service.upgradesInProgress.get();
                 deleteTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
-                assertThat(prevUpdatesInProgress - service.getUpdatesInProgress(), equalTo(1));
+                assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             } else {
-                int prevUpdatesInProgress = service.getUpdatesInProgress();
+                int prevUpdatesInProgress = service.upgradesInProgress.get();
                 deleteTemplateListeners.get(i).onResponse(new DeleteIndexTemplateResponse(randomBoolean()) {
 
                 });
-                assertThat(prevUpdatesInProgress - service.getUpdatesInProgress(), equalTo(1));
+                assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             }
         }
-        assertThat(updatesInProgress - service.getUpdatesInProgress(), equalTo(additionsCount + deletionsCount));
+        // tryFinishUpgrade was skipped
+        assertThat(service.upgradesInProgress.get(), equalTo(2));
     }
 
     private static final Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
@@ -293,7 +290,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        final ClusterService mockClusterService = mock(ClusterService.class);
+        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, mockClusterService, threadPool,
             Arrays.asList(
                 templates -> {
                     assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
@@ -325,6 +323,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         prevState = state;
         state = ClusterState.builder(prevState).metaData(MetaData.builder(state.metaData()).removeTemplate("user_template")).build();
+        when(mockClusterService.state()).thenReturn(state);
         service.clusterChanged(new ClusterChangedEvent("test 2", state, prevState));
 
         // Make sure that update wasn't invoked since we are still running

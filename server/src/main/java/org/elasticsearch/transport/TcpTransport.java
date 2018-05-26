@@ -1438,6 +1438,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
             threadPool.getThreadContext().readHeaders(streamIn);
+            threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
             if (TransportStatus.isRequest(status)) {
                 handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, remoteAddress, status);
             } else {

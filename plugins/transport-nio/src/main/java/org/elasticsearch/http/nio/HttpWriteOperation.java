@@ -28,16 +28,16 @@ public class HttpWriteOperation implements WriteOperation {
 
     private final SocketChannelContext channelContext;
     private final NioHttpResponse response;
-    private final BiConsumer<Void, Throwable> listener;
+    private final BiConsumer<Void, Exception> listener;
 
-    HttpWriteOperation(SocketChannelContext channelContext, NioHttpResponse response, BiConsumer<Void, Throwable> listener) {
+    HttpWriteOperation(SocketChannelContext channelContext, NioHttpResponse response, BiConsumer<Void, Exception> listener) {
         this.channelContext = channelContext;
         this.response = response;
         this.listener = listener;
     }
 
     @Override
-    public BiConsumer<Void, Throwable> getListener() {
+    public BiConsumer<Void, Exception> getListener() {
         return listener;
     }
 

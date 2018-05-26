@@ -227,13 +227,15 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
      *                   Common files in all distributions                       *
      *****************************************************************************/
     libFiles = copySpec {
-      into 'lib'
+      // delay by using closures, since they have not yet been configured, so no jar task exists yet
       from { project(':server').jar }
       from { project(':server').configurations.runtime }
       from { project(':libs:plugin-classloader').jar }
-      // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
       from { project(':distribution:tools:launchers').jar }
-      from { project(':distribution:tools:plugin-cli').jar }
+      into('tools/plugin-cli') {
+        from { project(':distribution:tools:plugin-cli').jar }
+        from { project(':distribution:tools:plugin-cli').configurations.runtime }
+      }
     }
 
     modulesFiles = { oss ->

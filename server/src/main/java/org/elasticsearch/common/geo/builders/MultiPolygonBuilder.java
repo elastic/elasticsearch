@@ -23,7 +23,7 @@ import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.locationtech.spatial4j.shape.Shape;
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -151,6 +151,15 @@ public class MultiPolygonBuilder extends ShapeBuilder {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int numDimensions() {
+        if (polygons == null || polygons.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "Polygons have not yet been initialized");
+        }
+        return polygons.get(0).numDimensions();
     }
 
     @Override

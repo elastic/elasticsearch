@@ -1317,7 +1317,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     }
 
     /**
-     * Returns the routing factor for this index. The default is <tt>1</tt>.
+     * Returns the routing factor for this index. The default is {@code 1}.
      *
      * @see #getRoutingFactor(int, int) for details
      */

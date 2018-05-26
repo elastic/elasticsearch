@@ -20,6 +20,7 @@ package org.elasticsearch.join.query;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -83,7 +84,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
 
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId,
                                                    XContentBuilder builder) throws IOException {
-        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, builder.string(), false);
+        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), false);
         return createIndexRequest(index, type, id, parentId, source);
     }
 

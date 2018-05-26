@@ -1,0 +1,39 @@
+---
+"Test put watch api":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      xpack.watcher.put_watch:
+        id: "my_watch"
+        master_timeout: "40s"
+        body:  > 
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test",
+                  "doc_type": "test2"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }

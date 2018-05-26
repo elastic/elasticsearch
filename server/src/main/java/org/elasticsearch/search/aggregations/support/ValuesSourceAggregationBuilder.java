@@ -338,7 +338,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             builder.field("format", format);
         }
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field("time_zone", timeZone.toString());
         }
         if (valueType != null) {
             builder.field("value_type", valueType.getPreferredName());

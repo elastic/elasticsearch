@@ -38,7 +38,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.OfflineSorter;
@@ -59,6 +58,7 @@ import org.apache.lucene.util.fst.Util.TopResults;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -697,7 +697,11 @@ public long ramBytesUsed() {
 
     } finally {
         IOUtils.closeWhileHandlingException(reader, writer);
-        IOUtils.deleteFilesIgnoringExceptions(tempDir, tempInput.getName(), tempSortedFileName);
+        try {
+          tempDir.deleteFile(tempInput.getName());
+        } finally {
+          tempDir.deleteFile(tempSortedFileName);
+        }
     }
   }
 

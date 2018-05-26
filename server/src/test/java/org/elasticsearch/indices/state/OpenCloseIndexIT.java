@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -332,7 +333,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     }
 
     public void testOpenCloseWithDocs() throws IOException, ExecutionException, InterruptedException {
-        String mapping = XContentFactory.jsonBuilder().
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().
                 startObject().
                 startObject("type").
                 startObject("properties").
@@ -341,7 +342,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
                 .endObject().
                         endObject().
                         endObject()
-                .endObject().string();
+                .endObject());
 
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type", mapping, XContentType.JSON));

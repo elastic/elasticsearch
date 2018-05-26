@@ -61,7 +61,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
-        final String name = randomFrom(Names.BULK, Names.INDEX);
+        final String name = randomFrom(Names.WRITE, Names.INDEX);
         final int maxSize = 1 + EsExecutors.numberOfProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
@@ -85,10 +85,14 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             initial,
             hasToString(containsString(
                 "Failed to parse value [" + tooBig + "] for setting [thread_pool." + name + ".size] must be ")));
+
+        if (name.equals(Names.INDEX)) {
+            assertSettingDeprecationsAndWarnings(new String[] { "thread_pool.index.size" });
+        }
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
-        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
+        if (name.equals(ThreadPool.Names.WRITE) || name.equals(ThreadPool.Names.INDEX)) {
             return Math.min(size, EsExecutors.numberOfProcessors(settings));
         } else {
             return size;
@@ -116,6 +120,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             // keep alive does not apply to fixed thread pools
             assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
+
+            if (threadPoolName.equals(Names.INDEX)) {
+                assertSettingDeprecationsAndWarnings(new String[] { "thread_pool.index.size" });
+            }
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
@@ -171,6 +179,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             latch.await(3, TimeUnit.SECONDS); // if this throws then ThreadPool#shutdownNow did not interrupt
             assertThat(oldExecutor.isShutdown(), equalTo(true));
             assertThat(oldExecutor.isTerminating() || oldExecutor.isTerminated(), equalTo(true));
+
+            if (threadPoolName.equals(Names.INDEX)) {
+                assertSettingDeprecationsAndWarnings(new String[] { "thread_pool.index.queue_size" });
+            }
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

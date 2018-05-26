@@ -109,7 +109,7 @@ public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> im
                 fieldName = currentFieldName;
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.copyCurrentStructure(parser);
-                functionBytes = builder.bytes();
+                functionBytes = BytesReference.bytes(builder);
             } else if (MULTI_VALUE_MODE.match(currentFieldName, parser.getDeprecationHandler())) {
                 multiValueMode = MultiValueMode.fromString(parser.text());
             } else {

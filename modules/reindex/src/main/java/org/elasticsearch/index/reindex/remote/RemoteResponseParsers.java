@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex.remote;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
@@ -78,7 +79,7 @@ final class RemoteResponseParsers {
                 try (XContentBuilder b = XContentBuilder.builder(s.xContent())) {
                     b.copyCurrentStructure(p);
                     // a hack but this lets us get the right xcontent type to go with the source
-                    return new Tuple<>(b.bytes(), s);
+                    return new Tuple<>(BytesReference.bytes(b), s);
                 }
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);

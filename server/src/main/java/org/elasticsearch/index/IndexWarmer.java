@@ -20,7 +20,6 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -154,9 +153,7 @@ public final class IndexWarmer extends AbstractComponent {
                         indexShard
                             .warmerService()
                             .logger()
-                            .warn(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to warm-up global ordinals for [{}]", fieldType.name()), e);
+                            .warn(() -> new ParameterizedMessage("failed to warm-up global ordinals for [{}]", fieldType.name()), e);
                     } finally {
                         latch.countDown();
                     }

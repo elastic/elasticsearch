@@ -54,8 +54,8 @@ setup:
 ---
 "Docvalues_fields size limit":
   - skip:
-      version: " - 5.99.99"
-      reason: soft limit for docvalue_fields only available as of 6.0.0
+      version: " - 6.3.99"
+      reason: "The object notation for docvalue_fields is only supported on 6.4+"
 
   - do:
       indices.create:
@@ -71,7 +71,13 @@ setup:
         body:
           query:
             match_all: {}
-          docvalue_fields: ["one", "two", "three"]
+          docvalue_fields:
+            - field: "one"
+              format: "use_field_mapping"
+            - field: "two"
+              format: "use_field_mapping"
+            - field: "three"
+              format: "use_field_mapping"
 
 ---
 "Script_fields size limit":

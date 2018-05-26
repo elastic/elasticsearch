@@ -30,6 +30,7 @@ import org.elasticsearch.usage.UsageService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -81,6 +82,13 @@ public class RestIndicesStatsActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
         assertThat(e, hasToString(containsString("request [/_stats] contains _all and individual metrics [_all," + metric + "]")));
+    }
+
+    public void testSuggestIsDeprecated() throws IOException {
+        final Map<String, String> params = Collections.singletonMap("metric", "suggest");
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+        assertWarnings("the suggest metric is deprecated on the indices stats API [/_stats]");
     }
 
 }

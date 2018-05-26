@@ -100,12 +100,15 @@ class TestProgressLogger implements AggregatedEventListener {
 
     @Subscribe
     void onQuit(AggregatedQuitEvent e) throws IOException {
-        suiteLogger.completed()
-        testLogger.completed()
-        for (ProgressLogger slaveLogger : slaveLoggers) {
-            slaveLogger.completed()
+        // if onStart was never called (eg no matching tests), suiteLogger and all the other loggers will be null
+        if (suiteLogger != null) {
+            suiteLogger.completed()
+            testLogger.completed()
+            for (ProgressLogger slaveLogger : slaveLoggers) {
+                slaveLogger.completed()
+            }
+            parentProgressLogger.completed()
         }
-        parentProgressLogger.completed()
     }
 
     @Subscribe

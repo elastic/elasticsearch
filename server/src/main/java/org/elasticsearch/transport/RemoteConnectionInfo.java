@@ -33,7 +33,7 @@ import java.util.Objects;
 
 /**
  * This class encapsulates all remote cluster information to be rendered on
- * <tt>_remote/info</tt> requests.
+ * {@code _remote/info} requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
     final List<TransportAddress> seedNodes;
@@ -61,7 +61,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         seedNodes = input.readList(TransportAddress::new);
         httpAddresses = input.readList(TransportAddress::new);
         connectionsPerCluster = input.readVInt();
-        initialConnectionTimeout = new TimeValue(input);
+        initialConnectionTimeout = input.readTimeValue();
         numNodesConnected = input.readVInt();
         clusterAlias = input.readString();
         if (input.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -100,7 +100,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         out.writeList(seedNodes);
         out.writeList(httpAddresses);
         out.writeVInt(connectionsPerCluster);
-        initialConnectionTimeout.writeTo(out);
+        out.writeTimeValue(initialConnectionTimeout);
         out.writeVInt(numNodesConnected);
         out.writeString(clusterAlias);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {

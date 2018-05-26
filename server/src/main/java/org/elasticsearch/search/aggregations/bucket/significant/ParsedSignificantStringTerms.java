@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 
 public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
 
@@ -71,7 +72,14 @@ public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
         }
 
         static ParsedBucket fromXContent(XContentParser parser) throws IOException {
-            return parseSignificantTermsBucketXContent(parser, new ParsedBucket(), (p, bucket) -> bucket.key = p.utf8BytesOrNull());
+            return parseSignificantTermsBucketXContent(parser, new ParsedBucket(), (p, bucket) -> {
+                CharBuffer cb = p.charBufferOrNull();
+                if (cb == null) {
+                    bucket.key = null;
+                } else {
+                    bucket.key = new BytesRef(cb);
+                }
+            });
         }
     }
 }

@@ -39,13 +39,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public abstract class AbstractXContentTestCase<T extends ToXContent> extends ESTestCase {
 
+    protected static final int NUMBER_OF_TEST_RUNS = 20;
+
     public static <T extends ToXContent> void testFromXContent(int numberOfTestRuns, Supplier<T> instanceSupplier,
                                                                boolean supportsUnknownFields, String[] shuffleFieldsExceptions,
                                                                Predicate<String> randomFieldsExcludeFilter,
                                                                CheckedBiFunction<XContent, BytesReference, XContentParser, IOException>
                                                                        createParserFunction,
                                                                CheckedFunction<XContentParser, T, IOException> parseFunction,
-                                                               BiConsumer<T, T> assertEqualsConsumer) throws IOException {
+                                                               BiConsumer<T, T> assertEqualsConsumer,
+                                                               boolean assertToXContentEquivalence) throws IOException {
         for (int runs = 0; runs < numberOfTestRuns; runs++) {
             T testInstance = instanceSupplier.get();
             XContentType xContentType = randomFrom(XContentType.values());
@@ -61,7 +64,9 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             XContentParser parser = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
             T parsed = parseFunction.apply(parser);
             assertEqualsConsumer.accept(testInstance, parsed);
-            assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
+            if (assertToXContentEquivalence) {
+                assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
+            }
         }
     }
 
@@ -70,11 +75,10 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        testFromXContent(numberOfTestRuns(), this::createTestInstance, supportsUnknownFields(), getShuffleFieldsExceptions(),
-                getRandomFieldsExcludeFilter(), this::createParser, this::parseInstance, this::assertEqualInstances);
+        testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(), getShuffleFieldsExceptions(),
+                getRandomFieldsExcludeFilter(), this::createParser, this::parseInstance, this::assertEqualInstances,
+                assertToXContentEquivalence());
     }
-
-    protected abstract int numberOfTestRuns();
 
     /**
      * Creates a random test instance to use in the tests. This method will be
@@ -98,6 +102,10 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         assertNotSame(newInstance, expectedInstance);
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
+    }
+
+    protected boolean assertToXContentEquivalence() {
+        return true;
     }
 
     /**

@@ -49,6 +49,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -66,7 +67,9 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -173,6 +176,206 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     @Override
+    public QueryStringQueryBuilder mutateInstance(QueryStringQueryBuilder instance) throws IOException {
+        String query = instance.queryString();
+        String defaultField = instance.defaultField();
+        Map<String, Float> fields = instance.fields();
+        Operator operator = instance.defaultOperator();
+        Fuzziness fuzziness = instance.fuzziness();
+        String analyzer = instance.analyzer();
+        String quoteAnalyzer = instance.quoteAnalyzer();
+        Boolean allowLeadingWildCard = instance.allowLeadingWildcard();
+        Boolean analyzeWildcard = instance.analyzeWildcard();
+        int maxDeterminizedStates = instance.maxDeterminizedStates();
+        boolean enablePositionIncrements = instance.enablePositionIncrements();
+        boolean escape = instance.escape();
+        int phraseSlop = instance.phraseSlop();
+        int fuzzyMaxExpansions = instance.fuzzyMaxExpansions();
+        int fuzzyPrefixLength = instance.fuzzyPrefixLength();
+        String fuzzyRewrite = instance.fuzzyRewrite();
+        String rewrite = instance.rewrite();
+        String quoteFieldSuffix = instance.quoteFieldSuffix();
+        Float tieBreaker = instance.tieBreaker();
+        String minimumShouldMatch = instance.minimumShouldMatch();
+        String timeZone = instance.timeZone() == null ? null : instance.timeZone().getID();
+        boolean autoGenerateSynonymsPhraseQuery = instance.autoGenerateSynonymsPhraseQuery();
+        boolean fuzzyTranspositions = instance.fuzzyTranspositions();
+
+        switch (between(0, 23)) {
+        case 0:
+            query = query + " foo";
+            break;
+        case 1:
+            if (defaultField == null) {
+                defaultField = randomAlphaOfLengthBetween(1, 10);
+            } else {
+                defaultField = defaultField + randomAlphaOfLength(5);
+            }
+            break;
+        case 2:
+            fields = new HashMap<>(fields);
+            fields.put(randomAlphaOfLength(10), 1.0f);
+            break;
+        case 3:
+            operator = randomValueOtherThan(operator, () -> randomFrom(Operator.values()));
+            break;
+        case 4:
+            fuzziness = randomValueOtherThan(fuzziness, () -> randomFrom(Fuzziness.AUTO, Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+            break;
+        case 5:
+            if (analyzer == null) {
+                analyzer = randomAnalyzer();
+            } else {
+                analyzer = null;
+            }
+            break;
+        case 6:
+            if (quoteAnalyzer == null) {
+                quoteAnalyzer = randomAnalyzer();
+            } else {
+                quoteAnalyzer = null;
+            }
+            break;
+        case 7:
+            if (allowLeadingWildCard == null) {
+                allowLeadingWildCard = randomBoolean();
+            } else {
+                allowLeadingWildCard = randomBoolean() ? null : (allowLeadingWildCard == false);
+            }
+            break;
+        case 8:
+            if (analyzeWildcard == null) {
+                analyzeWildcard = randomBoolean();
+            } else {
+                analyzeWildcard = randomBoolean() ? null : (analyzeWildcard == false);
+            }
+            break;
+        case 9:
+            maxDeterminizedStates += 5;
+            break;
+        case 10:
+            enablePositionIncrements = (enablePositionIncrements == false);
+            break;
+        case 11:
+            escape = (escape == false);
+            break;
+        case 12:
+            phraseSlop += 5;
+            break;
+        case 13:
+            fuzzyMaxExpansions += 5;
+            break;
+        case 14:
+            fuzzyPrefixLength += 5;
+            break;
+        case 15:
+            if (fuzzyRewrite == null) {
+                fuzzyRewrite = getRandomRewriteMethod();
+            } else {
+                fuzzyRewrite = null;
+            }
+            break;
+        case 16:
+            if (rewrite == null) {
+                rewrite = getRandomRewriteMethod();
+            } else {
+                rewrite = null;
+            }
+            break;
+        case 17:
+            if (quoteFieldSuffix == null) {
+                quoteFieldSuffix = randomAlphaOfLengthBetween(1, 3);
+            } else {
+                quoteFieldSuffix = quoteFieldSuffix + randomAlphaOfLength(1);
+            }
+            break;
+        case 18:
+            if (tieBreaker == null) {
+                tieBreaker = randomFloat();
+            } else {
+                tieBreaker += 0.05f;
+            }
+            break;
+        case 19:
+            if (minimumShouldMatch == null) {
+                minimumShouldMatch = randomMinimumShouldMatch();
+            } else {
+                minimumShouldMatch = null;
+            }
+            break;
+        case 20:
+            if (timeZone == null) {
+                timeZone = randomDateTimeZone().getID();
+            } else {
+                if (randomBoolean()) {
+                    timeZone = null;
+                } else {
+                    timeZone = randomValueOtherThan(timeZone, () -> randomDateTimeZone().getID());
+                }
+            }
+            break;
+        case 21:
+            autoGenerateSynonymsPhraseQuery = (autoGenerateSynonymsPhraseQuery == false);
+            break;
+        case 22:
+            fuzzyTranspositions = (fuzzyTranspositions == false);
+            break;
+        case 23:
+            return changeNameOrBoost(instance);
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+
+        QueryStringQueryBuilder newInstance = new QueryStringQueryBuilder(query);
+        if (defaultField != null) {
+            newInstance.defaultField(defaultField);
+        }
+        newInstance.fields(fields);
+        newInstance.defaultOperator(operator);
+        newInstance.fuzziness(fuzziness);
+        if (analyzer != null) {
+            newInstance.analyzer(analyzer);
+        }
+        if (quoteAnalyzer != null) {
+            newInstance.quoteAnalyzer(quoteAnalyzer);
+        }
+        if (allowLeadingWildCard != null) {
+            newInstance.allowLeadingWildcard(allowLeadingWildCard);
+        }
+        if (analyzeWildcard != null) {
+            newInstance.analyzeWildcard(analyzeWildcard);
+        }
+        newInstance.maxDeterminizedStates(maxDeterminizedStates);
+        newInstance.enablePositionIncrements(enablePositionIncrements);
+        newInstance.escape(escape);
+        newInstance.phraseSlop(phraseSlop);
+        newInstance.fuzzyMaxExpansions(fuzzyMaxExpansions);
+        newInstance.fuzzyPrefixLength(fuzzyPrefixLength);
+        if (fuzzyRewrite != null) {
+            newInstance.fuzzyRewrite(fuzzyRewrite);
+        }
+        if (rewrite != null) {
+            newInstance.rewrite(rewrite);
+        }
+        if (quoteFieldSuffix != null) {
+            newInstance.quoteFieldSuffix(quoteFieldSuffix);
+        }
+        if (tieBreaker != null) {
+            newInstance.tieBreaker(tieBreaker);
+        }
+        if (minimumShouldMatch != null) {
+            newInstance.minimumShouldMatch(minimumShouldMatch);
+        }
+        if (timeZone != null) {
+            newInstance.timeZone(timeZone);
+        }
+        newInstance.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+        newInstance.fuzzyTranspositions(fuzzyTranspositions);
+
+        return newInstance;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, SearchContext context) throws IOException {
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
@@ -180,6 +383,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
             .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
             .or(instanceOf(MatchNoDocsQuery.class)));
+    }
+
+    // Tests fix for https://github.com/elastic/elasticsearch/issues/29403
+    public void testTimezoneEquals() {
+        QueryStringQueryBuilder builder1 = new QueryStringQueryBuilder("bar");
+        QueryStringQueryBuilder builder2 = new QueryStringQueryBuilder("foo");
+        assertNotEquals(builder1, builder2);
+        builder1.timeZone("Europe/London");
+        builder2.timeZone("Europe/London");
+        assertNotEquals(builder1, builder2);
     }
 
     public void testIllegalArguments() {
@@ -838,9 +1051,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("_doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("_doc",
+                Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                     "foo", "type=text",
-                    "_field_names", "enabled=false").string()),
+                    "_field_names", "enabled=false"))),
             MapperService.MergeReason.MAPPING_UPDATE, true);
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
@@ -851,9 +1064,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             // restore mappings as they were before
             context.getMapperService().merge("_doc",
                 new CompressedXContent(
-                    PutMappingRequest.buildFromSimplifiedDef("_doc",
+                    Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                         "foo", "type=text",
-                        "_field_names", "enabled=true").string()),
+                        "_field_names", "enabled=true"))),
                 MapperService.MergeReason.MAPPING_UPDATE, true);
         }
     }
@@ -1045,6 +1258,37 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(expectedQuery, query);
     }
 
+    public void testQuoteFieldSuffix() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
+            new QueryStringQueryBuilder("bar")
+                .quoteFieldSuffix("_2")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME_2, "bar")),
+            new QueryStringQueryBuilder("\"bar\"")
+                .quoteFieldSuffix("_2")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+
+        // Now check what happens if the quote field does not exist
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
+            new QueryStringQueryBuilder("bar")
+                .quoteFieldSuffix(".quote")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
+            new QueryStringQueryBuilder("\"bar\"")
+                .quoteFieldSuffix(".quote")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+    }
+
     public void testToFuzzyQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
@@ -1055,6 +1299,33 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .fuzzyTranspositions(false)
             .toQuery(createShardContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
+    }
+
+    public void testWithStopWords() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("english")
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+    }
+
+    public void testWithPrefixStopWords() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("the* quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("english")
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
         assertEquals(expected, query);
     }
 

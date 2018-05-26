@@ -21,6 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
@@ -61,13 +62,13 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        final String template = jsonBuilder().startObject()
+        final String template = Strings.toString(jsonBuilder().startObject()
                                                 .startObject("query")
                                                     .startObject("{{query_type}}")
                                                         .field("{{field_name}}", "{{field_value}}")
                                                     .endObject()
                                                 .endObject()
-                                            .endObject().string();
+                                            .endObject());
 
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 

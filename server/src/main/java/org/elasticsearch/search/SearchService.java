@@ -21,7 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -162,7 +162,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean defaultAllowPartialSearchResults;
-    
+
     private volatile boolean lowLevelCancellation;
 
     private final Cancellable keepAliveReaper;
@@ -199,10 +199,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
 
         defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, 
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 this::setDefaultAllowPartialSearchResults);
-        
-        
+
+
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
     }
@@ -211,7 +211,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
             throw new IllegalArgumentException("Default keep alive setting for scroll [" + DEFAULT_KEEPALIVE_SETTING.getKey() + "]" +
                 " should be smaller than max keep alive [" + MAX_KEEPALIVE_SETTING.getKey() + "], " +
-                "was (" + defaultKeepAlive.format() + " > " + maxKeepAlive.format() + ")");
+                "was (" + defaultKeepAlive + " > " + maxKeepAlive + ")");
         }
     }
 
@@ -228,11 +228,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void setDefaultAllowPartialSearchResults(boolean defaultAllowPartialSearchResults) {
         this.defaultAllowPartialSearchResults = defaultAllowPartialSearchResults;
     }
-    
+
     public boolean defaultAllowPartialSearchResults() {
         return defaultAllowPartialSearchResults;
-    }    
-    
+    }
+
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
     }
@@ -616,8 +616,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Engine.Searcher engineSearcher = indexShard.acquireSearcher("search");
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            engineSearcher, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout, fetchPhase,
-            request.getClusterAlias());
+            engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout,
+            fetchPhase, request.getClusterAlias(), clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
         try {
             // we clone the query shard context here just for rewriting otherwise we
@@ -673,8 +673,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void contextScrollKeepAlive(SearchContext context, long keepAlive) throws IOException {
         if (keepAlive > maxKeepAlive) {
             throw new QueryPhaseExecutionException(context,
-                "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive).format() + ") is too large. " +
-                    "It must be less than (" + TimeValue.timeValueMillis(maxKeepAlive).format() + "). " +
+                "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive) + ") is too large. " +
+                    "It must be less than (" + TimeValue.timeValueMillis(maxKeepAlive) + "). " +
                     "This limit can be set by changing the [" + MAX_KEEPALIVE_SETTING.getKey() + "] cluster level setting.");
         }
         context.keepAlive(keepAlive);
@@ -1022,7 +1022,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a new {@link QueryRewriteContext} with the given <tt>now</tt> provider
+     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return indicesService.getRewriteContext(nowInMillis);

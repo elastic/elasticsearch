@@ -222,7 +222,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
                 if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                     r.source(searchSourceBuilder);
                 }
@@ -270,7 +270,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 searchRequest.allowPartialSearchResults(true);
             }
-            
+
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
 

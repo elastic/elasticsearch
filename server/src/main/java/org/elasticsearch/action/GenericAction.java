@@ -57,7 +57,7 @@ public abstract class GenericAction<Request extends ActionRequest, Response exte
 
     @Override
     public boolean equals(Object o) {
-        return name.equals(((GenericAction) o).name());
+        return o instanceof GenericAction && name.equals(((GenericAction) o).name());
     }
 
     @Override

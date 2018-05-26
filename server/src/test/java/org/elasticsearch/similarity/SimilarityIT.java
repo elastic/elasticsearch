@@ -46,7 +46,7 @@ public class SimilarityIT extends ESIntegTestCase {
                                     .field("type", "text")
                                 .endObject()
                                 .startObject("field2")
-                                    .field("similarity", "classic")
+                                    .field("similarity", "boolean")
                                     .field("type", "text")
                                 .endObject()
                             .endObject()
@@ -68,9 +68,9 @@ public class SimilarityIT extends ESIntegTestCase {
         assertThat(bm25SearchResponse.getHits().getTotalHits(), equalTo(1L));
         float bm25Score = bm25SearchResponse.getHits().getHits()[0].getScore();
 
-        SearchResponse defaultSearchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
-        assertThat(defaultSearchResponse.getHits().getTotalHits(), equalTo(1L));
-        float defaultScore = defaultSearchResponse.getHits().getHits()[0].getScore();
+        SearchResponse booleanSearchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
+        assertThat(booleanSearchResponse.getHits().getTotalHits(), equalTo(1L));
+        float defaultScore = booleanSearchResponse.getHits().getHits()[0].getScore();
 
         assertThat(bm25Score, not(equalTo(defaultScore)));
     }

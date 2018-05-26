@@ -19,7 +19,8 @@
  */
 package org.elasticsearch.test.test;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -60,6 +62,7 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.not;
 
@@ -69,6 +72,8 @@ import static org.hamcrest.Matchers.not;
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class InternalTestClusterTests extends ESTestCase {
+
+    private static final Setting<?>[] DEPRECATED_SETTINGS = {NetworkModule.HTTP_ENABLED, HttpTransportSettings.SETTING_PIPELINING};
 
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
@@ -218,6 +223,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
+        boolean shouldAssertSettingsDeprecationsAndWarnings = false;
         try {
             {
                 Random random = new Random(seed);
@@ -228,19 +234,25 @@ public class InternalTestClusterTests extends ESTestCase {
                 cluster1.beforeTest(random, random.nextDouble());
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
+            if (cluster0.getNodeNames().length > 0) {
+                shouldAssertSettingsDeprecationsAndWarnings = true;
+                assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
+            }
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
             for (Client client : cluster0.getClients()) {
                 assertTrue(iterator1.hasNext());
                 Client other = iterator1.next();
                 assertSettings(client.settings(), other.settings(), false);
             }
-            assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             assertMMNinNodeSetting(cluster0, cluster0.numMasterNodes());
             assertMMNinNodeSetting(cluster1, cluster0.numMasterNodes());
             cluster0.afterTest();
             cluster1.afterTest();
         } finally {
             IOUtils.close(cluster0, cluster1);
+            if (shouldAssertSettingsDeprecationsAndWarnings) {
+                assertSettingDeprecationsAndWarnings(new Setting<?>[] {NetworkModule.HTTP_ENABLED});
+            }
         }
     }
 
@@ -346,6 +358,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
     }
 
     private Path[] getNodePaths(InternalTestCluster cluster, String name) {
@@ -446,6 +459,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
     }
 
     public void testTwoNodeCluster() throws Exception {
@@ -473,9 +487,11 @@ public class InternalTestClusterTests extends ESTestCase {
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class));
+        plugins.add(NodeAttrCheckPlugin.class);
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, true, 2, 2,
             "test", nodeConfigurationSource, 0, enableHttpPipelining, nodePrefix,
-            Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class), Function.identity());
+            plugins, Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
             assertMMNinNodeSetting(cluster, 2);
@@ -505,5 +521,28 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(DEPRECATED_SETTINGS);
+    }
+
+    /**
+     * Plugin that adds a simple node attribute as setting and checks if that node attribute is not already defined.
+     * Allows to check that the full-cluster restart logic does not copy over plugin-derived settings.
+     */
+    public static class NodeAttrCheckPlugin extends Plugin {
+
+        private final Settings settings;
+
+        public NodeAttrCheckPlugin(Settings settings) {
+            this.settings = settings;
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.get("node.attr.dummy") != null) {
+                fail("dummy setting already exists");
+            }
+            return Settings.builder().put("node.attr.dummy", true).build();
+        }
+
     }
 }

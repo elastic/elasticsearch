@@ -31,28 +31,30 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class UnifiedHighlighter implements Highlighter {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(UnifiedHighlighter.class));
+
     @Override
     public boolean canHighlight(FieldMapper fieldMapper) {
         return true;
@@ -67,8 +69,6 @@ public class UnifiedHighlighter implements Highlighter {
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
         CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
             field.fieldOptions().postTags()[0], encoder);
-        final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
-
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments;
         try {
@@ -83,21 +83,41 @@ public class UnifiedHighlighter implements Highlighter {
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
             final OffsetSource offsetSource = getOffsetSource(fieldMapper.fieldType());
+
+            final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
+            // Issue a deprecation warning if maxAnalyzedOffset is not set, and field length > default setting for 7.0
+            final int maxAnalyzedOffset7 = 1000000;
+            if ((offsetSource == OffsetSource.ANALYSIS) &&  (maxAnalyzedOffset == -1) && (fieldValue.length() > maxAnalyzedOffset7)) {
+                deprecationLogger.deprecated(
+                    "The length [" + fieldValue.length() + "] of [" + highlighterContext.fieldName + "] field of [" +
+                        hitContext.hit().getId() + "] doc of [" + context.indexShard().shardId().getIndexName() + "] index has " +
+                        "exceeded the allowed maximum of [" + maxAnalyzedOffset7 + "] set for the next major Elastic version. " +
+                        "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
+                        "] index level setting. " + "For large texts, indexing with offsets or term vectors is recommended!");
+            }
+            // Throw an error if maxAnalyzedOffset is explicitly set by the user, and field length > maxAnalyzedOffset
+            if ((offsetSource == OffsetSource.ANALYSIS) &&  (maxAnalyzedOffset > 0) && (fieldValue.length() > maxAnalyzedOffset)) {
+                throw new IllegalArgumentException(
+                    "The length [" + fieldValue.length() + "] of [" + highlighterContext.fieldName + "] field of [" +
+                        hitContext.hit().getId() + "] doc of [" + context.indexShard().shardId().getIndexName() + "] index " + 
+                        "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
+                        "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
+                        "] index level setting. " + "For large texts, indexing with offsets or term vectors is recommended!");
+            }
+
             if (field.fieldOptions().numberOfFragments() == 0) {
                 // we use a control char to separate values, which is the only char that the custom break iterator
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
                 CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
                 highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource, passageFormatter,
-                    field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue, field.fieldOptions().noMatchSize(),
-                    maxAnalyzedOffset);
+                    field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = fieldValues.size(); // we are highlighting the whole content, one snippet per value
             } else {
                 //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
                 BreakIterator bi = getBreakIterator(field);
                 highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource, passageFormatter,
-                    field.fieldOptions().boundaryScannerLocale(), bi,
-                    fieldValue, field.fieldOptions().noMatchSize(), maxAnalyzedOffset);
+                    field.fieldOptions().boundaryScannerLocale(), bi, fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
 

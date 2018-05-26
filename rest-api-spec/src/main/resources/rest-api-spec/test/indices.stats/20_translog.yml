@@ -47,7 +47,7 @@ setup:
   - gt: { indices.test.primaries.translog.size_in_bytes: $creation_size }
   - match: { indices.test.primaries.translog.operations: 1 }
   ## creation translog size has some overhead due to an initial empty generation that will be trimmed later
-  - lt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
+  - lte: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
 
   - do:

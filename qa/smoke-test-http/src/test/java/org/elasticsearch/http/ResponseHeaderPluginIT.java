@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +26,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.ArrayList;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +55,7 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
     public void testThatSettingHeadersWorks() throws IOException {
         ensureGreen();
         try {
-            getRestClient().performRequest("GET", "/_protected");
+            getRestClient().performRequest(new Request("GET", "/_protected"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -63,7 +63,9 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
             assertThat(response.getHeader("Secret"), equalTo("required"));
         }
 
-        Response authResponse = getRestClient().performRequest("GET", "/_protected", new BasicHeader("Secret", "password"));
+        Request request = new Request("GET", "/_protected");
+        request.addHeader("Secret", "password");
+        Response authResponse = getRestClient().performRequest(request);
         assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
     }

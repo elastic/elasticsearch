@@ -1,0 +1,101 @@
+[[tribe-node-configuring]]
+=== Tribe Nodes and Security
+
+{ref}/modules-tribe.html[Tribe nodes] act as a federated client across multiple
+clusters. When using tribe nodes with secured clusters, all clusters must have
+{security} enabled and share the same security configuration (users, roles,
+user-role mappings, SSL/TLS CA). The tribe node itself also must be configured
+to grant access to actions and indices on all of the connected clusters, as
+security checks on incoming requests are primarily done on the tribe node 
+itself.
+
+IMPORTANT: Support for tribe nodes in Kibana was added in v5.2.
+
+To use a tribe node with secured clusters:
+
+. Install {xpack} on the tribe node and every node in each connected cluster.
+
+. Enable encryption globally. To encrypt communications, you must enable
+<<ssl-tls,enable SSL/TLS>> on every node.
++
+TIP:  To simplify SSL/TLS configuration, use the same certificate authority to
+      generate certificates for all connected clusters.
+
+. Configure the tribe in the tribe node's `elasticsearch.yml` file. You must
+specify each cluster that is a part of the tribe and configure discovery and
+encryption settings per cluster. For example, the following configuration adds
+two clusters to the tribe:
++
+[source,yml]
+-----------------------------------------------------------
+tribe:
+  on_conflict: prefer_cluster1 <1>
+  c1: <2>
+    cluster.name: cluster1
+    discovery.zen.ping.unicast.hosts: [ "cluster1-node1:9300", "cluster1-node2:9300"]
+    xpack.ssl.key: /home/es/config/x-pack/es-tribe-01.key
+    xpack.ssl.certificate: /home/es/config/x-pack/es-tribe-01.crt
+    xpack.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ]
+    xpack.security.transport.ssl.enabled: true
+    xpack.security.http.ssl.enabled: true
+  c2:
+    cluster.name: cluster2
+    discovery.zen.ping.unicast.hosts: [ "cluster2-node1:9300", "cluster2-node2:9300"]
+    xpack.ssl.key: /home/es/config/x-pack/es-tribe-01.key
+    xpack.ssl.certificate: /home/es/config/x-pack/es-tribe-01.crt
+    xpack.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ]
+    xpack.security.transport.ssl.enabled: true
+    xpack.security.http.ssl.enabled: true
+-----------------------------------------------------------
+<1> Results are returned from the preferred cluster if the named index exists
+    in multiple clusters. A preference is *required* when using {security} on
+    a tribe node.
+<2> An arbitrary name that represents the connection to the cluster.
+
+. Configure the same index privileges for your users on all nodes, including the
+tribe node. The nodes in each cluster must grant access to indices in other
+connected clusters as well as their own.
++
+For example, let's assume `cluster1` and `cluster2` each have a indices `index1`
+and `index2`. To enable a user to submit a request through the tribe node to
+search both clusters:
++
+--
+.. On the tribe node and both clusters, <<defining-roles, define a `tribe_user` role>>
+that has read access to `index1` and `index2`:
++
+[source,yaml]
+-----------------------------------------------------------
+tribe_user:
+  indices:
+    'index*': search
+-----------------------------------------------------------
+
+.. Assign the `tribe_user` role to a user on the tribe node and both clusters.
+For example, run the following command on each node to create `my_tribe_user`
+and assign the `tribe_user` role:
++
+[source,shell]
+-----------------------------------------------------------
+./bin/shield/users useradd my_tribe_user -p password -r tribe_user
+-----------------------------------------------------------
++
+NOTE: Each cluster needs to have its own users with admin privileges. 
+      You cannot perform administration tasks such as create index through
+      the tribe node, you must send the request directly to the appropriate
+      cluster.
+--
+
+. To enable selected users to retrieve merged cluster state information
+for the tribe from the tribe node, grant them the cluster
+<<privileges-list-cluster, `monitor` privilege>> on the tribe node. For example,
+you could create a `tribe_monitor` role that assigns the `monitor` privilege:
++
+[source,yaml]
+-----------------------------------------------------------
+tribe_monitor:
+  cluster: monitor
+-----------------------------------------------------------
+
+. Start the tribe node. If you've made configuration changes to the nodes in the
+connected clusters, they also need to be restarted.

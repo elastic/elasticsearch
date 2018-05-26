@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -48,7 +49,7 @@ public class JsonProcessorTests extends ESTestCase {
 
         Map<String, Object> randomJsonMap = RandomDocumentPicks.randomSource(random());
         XContentBuilder builder = JsonXContent.contentBuilder().map(randomJsonMap);
-        String randomJson = XContentHelper.convertToJson(builder.bytes(), false, XContentType.JSON);
+        String randomJson = XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
         document.put(randomField, randomJson);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

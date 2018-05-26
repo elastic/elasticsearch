@@ -78,9 +78,9 @@ returned with each batch of results.  Each call to the `scroll` API returns the
 next batch of results until there are no more results left to return, ie the 
 `hits` array is empty.
 
-IMPORTANT: The initial search request and each subsequent scroll request
-returns a new `_scroll_id` -- only the most recent `_scroll_id` should be
-used.
+IMPORTANT: The initial search request and each subsequent scroll request each 
+return a `_scroll_id`, which may change with each request -- only the most 
+recent `_scroll_id` should be used.
 
 NOTE: If the request specifies aggregations, only the initial search response
 will contain the aggregations results.

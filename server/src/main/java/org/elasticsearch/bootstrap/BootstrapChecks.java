@@ -21,7 +21,6 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -428,15 +427,11 @@ final class BootstrapChecks {
                     try {
                         return parseProcSysVmMaxMapCount(rawProcSysVmMaxMapCount);
                     } catch (final NumberFormatException e) {
-                        logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "unable to parse vm.max_map_count [{}]",
-                                rawProcSysVmMaxMapCount),
-                            e);
+                        logger.warn(() -> new ParameterizedMessage("unable to parse vm.max_map_count [{}]", rawProcSysVmMaxMapCount), e);
                     }
                 }
             } catch (final IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("I/O exception while trying to read [{}]", path), e);
+                logger.warn(() -> new ParameterizedMessage("I/O exception while trying to read [{}]", path), e);
             }
             return -1;
         }

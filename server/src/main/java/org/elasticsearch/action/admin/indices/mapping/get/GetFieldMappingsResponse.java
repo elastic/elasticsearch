@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -127,7 +128,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (params.paramAsBoolean("pretty", false)) {
                 builder.field("mapping", sourceAsMap());
             } else {
-                builder.rawField("mapping", source, XContentType.JSON);
+                try (InputStream stream = source.streamInput()) {
+                    builder.rawField("mapping", stream, XContentType.JSON);
+                }
             }
             return builder;
         }

@@ -260,7 +260,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            bytesReference = builder.bytes();
+            bytesReference = BytesReference.bytes(builder);
         }
         FilterAggregationBuilder filterAggBuilder = new FilterAggregationBuilder("titles", new WrapperQueryBuilder(bytesReference));
         BucketScriptPipelineAggregationBuilder pipelineAgg = new BucketScriptPipelineAggregationBuilder("const", new Script("1"));

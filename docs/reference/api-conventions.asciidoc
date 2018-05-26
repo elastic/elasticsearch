@@ -220,7 +220,7 @@ Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 `now+1h`:: `now` in milliseconds plus one hour. Resolves to: `2001-01-01 13:00:00`
 `now-1h`:: `now` in milliseconds minus one hour. Resolves to: `2001-01-01 11:00:00`
 `now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00``
- `2001-01-01\|\|+1M/d`:: `now` in milliseconds plus one month. Resolves to: `2001-02-01 00:00:00`
+ `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
 
 [float]
 [[common-options-response-filtering]]

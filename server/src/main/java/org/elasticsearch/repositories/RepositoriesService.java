@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -115,7 +114,8 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                 RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
                 if (repositories == null) {
                     logger.info("put repository [{}]", request.name);
-                    repositories = new RepositoriesMetaData(new RepositoryMetaData(request.name, request.type, request.settings));
+                    repositories = new RepositoriesMetaData(
+                        Collections.singletonList(new RepositoryMetaData(request.name, request.type, request.settings)));
                 } else {
                     boolean found = false;
                     List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size() + 1);
@@ -134,7 +134,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     } else {
                         logger.info("update repository [{}]", request.name);
                     }
-                    repositories = new RepositoriesMetaData(repositoriesMetaData.toArray(new RepositoryMetaData[repositoriesMetaData.size()]));
+                    repositories = new RepositoriesMetaData(repositoriesMetaData);
                 }
                 mdBuilder.putCustom(RepositoriesMetaData.TYPE, repositories);
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
@@ -142,7 +142,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to create repository [{}]", request.name), e);
+                logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name), e);
                 super.onFailure(source, e);
             }
 
@@ -186,7 +186,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                         }
                     }
                     if (changed) {
-                        repositories = new RepositoriesMetaData(repositoriesMetaData.toArray(new RepositoryMetaData[repositoriesMetaData.size()]));
+                        repositories = new RepositoriesMetaData(repositoriesMetaData);
                         mdBuilder.putCustom(RepositoriesMetaData.TYPE, repositories);
                         return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     }
@@ -217,7 +217,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                             try {
                                 repository.endVerification(verificationToken);
                             } catch (Exception e) {
-                                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName), e);
+                                logger.warn(() -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName), e);
                                 listener.onFailure(e);
                                 return;
                             }
@@ -234,7 +234,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                         repository.endVerification(verificationToken);
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName), inner);
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName), inner);
                     }
                     listener.onFailure(e);
                 }
@@ -296,14 +296,14 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                             } catch (RepositoryException ex) {
                                 // TODO: this catch is bogus, it means the old repo is already closed,
                                 // but we have nothing to replace it
-                                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetaData.name()), ex);
+                                logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetaData.name()), ex);
                             }
                         }
                     } else {
                         try {
                             repository = createRepository(repositoryMetaData);
                         } catch (RepositoryException ex) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetaData.name()), ex);
+                            logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetaData.name()), ex);
                         }
                     }
                     if (repository != null) {
@@ -385,7 +385,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             repository.start();
             return repository;
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to create repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name()), e);
+            logger.warn(() -> new ParameterizedMessage("failed to create repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name()), e);
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
         }
     }

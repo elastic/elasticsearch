@@ -1,0 +1,9 @@
+[role="xpack"]
+[[installing-xpack-es]]
+== Installing X-Pack in Elasticsearch
+++++
+<titleabbrev>Installing {xpack}</titleabbrev>
+++++
+
+By default, when you install {es}, {xpack} is installed. See
+<<install-elasticsearch>>.

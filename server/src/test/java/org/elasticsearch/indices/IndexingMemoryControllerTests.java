@@ -251,7 +251,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.min_index_buffer_size", "-6mb").build()));
-        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.min_index_buffer_size] must be >= 0b", e.getMessage());
+        assertEquals("failed to parse value [-6mb] for setting [indices.memory.min_index_buffer_size], must be >= [0]", e.getMessage());
         assertSettingDeprecationsAndWarnings(new Setting<?>[0],
                 "Values less than -1 bytes are deprecated and will not be supported in the next major version: [-6mb]");
     }
@@ -276,7 +276,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.max_index_buffer_size", "-6mb").build()));
-        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.max_index_buffer_size] must be >= -1b", e.getMessage());
+        assertEquals("failed to parse value [-6mb] for setting [indices.memory.max_index_buffer_size], must be >= [-1]", e.getMessage());
         assertSettingDeprecationsAndWarnings(new Setting<?>[0],
                 "Values less than -1 bytes are deprecated and will not be supported in the next major version: [-6mb]");
     }

@@ -161,7 +161,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
-                throw new IllegalArgumentException("Fielddata access on the _uid field is disallowed");
+                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed");
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
@@ -287,9 +287,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {}
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {

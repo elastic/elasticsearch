@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
@@ -71,6 +72,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (requiredFields.remove(fieldInfo.name)) {
+            return Status.YES;
+        }
+        // Always load _ignored to be explicit about ignored fields
+        // This works because _ignored is added as the first metadata mapper,
+        // so its stored fields always appear first in the list.
+        if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
         // All these fields are single-valued so we can stop when the set is

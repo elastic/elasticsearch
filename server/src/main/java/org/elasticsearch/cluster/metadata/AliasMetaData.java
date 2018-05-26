@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -244,7 +245,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             }
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                this.filter = new CompressedXContent(builder.bytes());
+                this.filter = new CompressedXContent(BytesReference.bytes(builder));
                 return this;
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
@@ -252,11 +253,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         }
 
         public Builder filter(XContentBuilder filterBuilder) {
-            try {
-                return filter(filterBuilder.string());
-            } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
-            }
+            return filter(Strings.toString(filterBuilder));
         }
 
         public Builder routing(String routing) {

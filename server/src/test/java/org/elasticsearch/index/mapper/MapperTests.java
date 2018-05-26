@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +52,7 @@ public class MapperTests extends ESTestCase {
 
         final MapperService currentMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
         Exception e = expectThrows(MapperParsingException.class, () ->
-                currentMapperService.parse("type", new CompressedXContent(mapping.string()), true));
+                currentMapperService.parse("type", new CompressedXContent(Strings.toString(mapping)), true));
         assertEquals("[include_in_all] is not allowed for indices created on or after version 6.0.0 as [_all] is deprecated. " +
                         "As a replacement, you can use an [copy_to] on mapping fields to create your own catch all field.",
                 e.getMessage());
@@ -61,7 +62,7 @@ public class MapperTests extends ESTestCase {
         // Create the mapping service with an older index creation version
         final MapperService oldMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
         // Should not throw an exception now
-        oldMapperService.parse("type", new CompressedXContent(mapping.string()), true);
+        oldMapperService.parse("type", new CompressedXContent(Strings.toString(mapping)), true);
     }
 
     private static XContentBuilder createMappingWithIncludeInAll() throws IOException {

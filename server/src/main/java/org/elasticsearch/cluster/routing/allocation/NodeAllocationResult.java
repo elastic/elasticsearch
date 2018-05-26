@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -289,7 +290,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                     if (hasMatchingSyncId()) {
                         builder.field("matching_sync_id", true);
                     } else {
-                        builder.byteSizeField("matching_size_in_bytes", "matching_size", matchingBytes);
+                        builder.humanReadableField("matching_size_in_bytes", "matching_size", new ByteSizeValue(matchingBytes));
                     }
                 }
                 if (storeException != null) {

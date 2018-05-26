@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -113,7 +114,13 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Index scope
          */
-        IndexScope
+        IndexScope,
+
+        /**
+         * Mark this setting as not copyable during an index resize (shrink or split). This property can only be applied to settings that
+         * also have {@link Property#IndexScope}.
+         */
+        NotCopyableOnResize
     }
 
     private final Key key;
@@ -141,10 +148,15 @@ public class Setting<T> implements ToXContentObject {
         if (properties.length == 0) {
             this.properties = EMPTY_PROPERTIES;
         } else {
-            this.properties = EnumSet.copyOf(Arrays.asList(properties));
-            if (isDynamic() && isFinal()) {
+            final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
+            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             }
+            if (propertiesAsSet.contains(Property.NotCopyableOnResize) && propertiesAsSet.contains(Property.IndexScope) == false) {
+                throw new IllegalArgumentException(
+                        "non-index-scoped setting [" + key + "] can not have property [" + Property.NotCopyableOnResize + "]");
+            }
+            this.properties = propertiesAsSet;
         }
     }
 
@@ -300,7 +312,7 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Returns <code>true</code> iff this setting is a group setting. Group settings represent a set of settings rather than a single value.
-     * The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt> that matches all settings
+     * The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like {@code cluster.store.} that matches all settings
      * with this prefix.
      */
     boolean isGroupSetting() {
@@ -704,8 +716,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
-         * will return <tt>remote</tt> as a namespace for the setting <tt>search.remote.username</tt>
+         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: {@code search.} and suffix: {@code username}
+         * will return {@code remote} as a namespace for the setting {@code search.remote.username}
          */
         public String getNamespace(Setting<T> concreteSetting) {
             return key.getNamespace(concreteSetting.getKey());
@@ -790,7 +802,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.startObject();
                 subSettings.toXContent(builder, EMPTY_PARAMS);
                 builder.endObject();
-                return builder.string();
+                return Strings.toString(builder);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -1070,10 +1082,22 @@ public class Setting<T> implements ToXContentObject {
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
         ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
         if (value.getBytes() < minValue.getBytes()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be >= [%s]",
+                    s,
+                    key,
+                    minValue.getStringRep());
+            throw new IllegalArgumentException(message);
         }
         if (value.getBytes() > maxValue.getBytes()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be <= [%s]",
+                    s,
+                    key,
+                    maxValue.getStringRep());
+            throw new IllegalArgumentException(message);
         }
         return value;
     }
@@ -1172,7 +1196,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.value(element);
             }
             builder.endArray();
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException ex) {
             throw new ElasticsearchException(ex);
         }

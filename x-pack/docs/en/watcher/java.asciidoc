@@ -1,0 +1,150 @@
+[[api-java]]
+== Java API
+
+[WARNING]
+===================================
+
+We plan on deprecating the `TransportClient` in Elasticsearch 7.0 and removing
+it completely in 8.0. Instead, you should be using the
+{java-rest}/java-rest-high.html[Java High Level REST Client], which executes
+HTTP requests rather than serialized Java requests. The
+{java-rest}/java-rest-high-level-migration.html[migration guide] describes
+all the steps needed to migrate.
+
+The Java High Level REST Client currently has support for the more commonly
+used APIs, but there are a lot more that still need to be added.  You can help
+us prioritise by telling us which missing APIs you need for your application
+by adding a comment to this issue:
+https://github.com/elastic/elasticsearch/issues/27205[Java high-level REST
+client completeness].
+
+Any missing APIs can always be implemented today by using the
+link:/guide/en/elasticsearch/client/java-rest/current/java-rest-low.html[low
+level Java REST Client] with JSON request and response bodies.
+
+===================================
+
+{xpack} provides a Java client called `WatcherClient` that adds native Java
+support for the {watcher}.
+
+To obtain a `WatcherClient` instance, make sure you first set up the
+`XPackClient`.
+
+[float]
+=== Installing XPackClient
+
+You first need to make sure the +x-pack-transport-{version}+ JAR file is in the classpath.
+You can extract this jar from the downloaded {xpack} bundle.
+
+If you use Maven to manage dependencies, add the following to the `pom.xml`:
+
+["source","xml",subs="attributes,callouts"]
+--------------------------------------------------
+<project ...>
+
+   <repositories>
+      <!-- add the elasticsearch repo -->
+      <repository>
+         <id>elasticsearch-releases</id>
+         <url>https://artifacts.elastic.co/maven</url>
+         <releases>
+            <enabled>true</enabled>
+         </releases>
+         <snapshots>
+            <enabled>false</enabled>
+         </snapshots>
+      </repository>
+      ...
+   </repositories>
+   ...
+
+   <dependencies>
+      <!-- add the x-pack jar as a dependency -->
+      <dependency>
+         <groupId>org.elasticsearch.client</groupId>
+         <artifactId>x-pack-transport</artifactId>
+         <version>{version}</version>
+      </dependency>
+      ...
+   </dependencies>
+   ...
+
+ </project>
+--------------------------------------------------
+
+If you use Gradle, add the dependencies to `build.gradle`:
+
+["source","groovy",subs="attributes,callouts"]
+--------------------------------------------------------------
+repositories {
+  /* ... Any other repositories ... */
+
+  // Add the Elasticsearch Maven Repository
+  maven {
+    url "https://artifacts.elastic.co/maven"
+  }
+}
+
+dependencies {
+  // Provide the x-pack jar on the classpath for compilation and at runtime
+  compile "org.elasticsearch.client:x-pack-transport:{version}"
+
+  /* ... */
+}
+--------------------------------------------------------------
+
+You can also download the https://artifacts.elastic.co/maven/org/elasticsearch/client/x-pack-transport/{version}/x-pack-transport-{version}.jar[X-Pack Transport JAR]
+manually, directly from our Maven repository.
+
+[float]
+=== Obtaining the `WatcherClient`
+
+To obtain an instance of the `WatcherClient` you first need to create the
+`XPackClient`. The `XPackClient` is a wrapper around the standard Java
+Elasticsearch `Client`:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.core.watcher.client.WatcherClient;
+...
+
+TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
+    .put("cluster.name", "myClusterName")
+    ...
+    .build())
+    .addTransportAddress(new TransportAddress(InetAddress.getByName("localhost"), 9300));
+
+XPackClient xpackClient = new XPackClient(client);
+WatcherClient watcherClient = xpackClient.watcher();
+--------------------------------------------------
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/put-watch.asciidoc
+include::java/put-watch.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/get-watch.asciidoc
+include::java/get-watch.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/delete-watch.asciidoc
+include::java/delete-watch.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/execute-watch.asciidoc
+include::java/execute-watch.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/ack-watch.asciidoc
+include::java/ack-watch.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/activate-watch.asciidoc
+include::java/activate-watch.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/deactivate-watch.asciidoc
+include::java/deactivate-watch.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/stats.asciidoc
+include::java/stats.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/service.asciidoc
+include::java/service.asciidoc[]

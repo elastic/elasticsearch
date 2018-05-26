@@ -49,8 +49,8 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 
         if (addRandomFields) {
             String unsupportedField = "unsupported_field";
-            BytesReference mutated = XContentTestUtils.insertIntoXContent(xContentType.xContent(), originalBytes,
-                    Collections.singletonList(""), () -> unsupportedField, () -> randomAlphaOfLengthBetween(3, 10)).bytes();
+            BytesReference mutated = BytesReference.bytes(XContentTestUtils.insertIntoXContent(xContentType.xContent(), originalBytes,
+                    Collections.singletonList(""), () -> unsupportedField, () -> randomAlphaOfLengthBetween(3, 10)));
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                     () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated)));
             assertThat(iae.getMessage(),

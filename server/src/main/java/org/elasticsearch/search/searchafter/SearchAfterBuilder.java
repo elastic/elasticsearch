@@ -26,6 +26,7 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -284,7 +285,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
             toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
+            return Strings.toString(builder);
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to build xcontent.", e);
         }

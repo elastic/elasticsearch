@@ -14,7 +14,7 @@
       "params": {
         "field_data": {
           "type" : "boolean",
-          "description" : "Clear field data"
+          "description" : "Clear field data. This is deprecated. Prefer `fielddata`."
         },
         "fielddata": {
           "type" : "boolean",
@@ -22,7 +22,7 @@
         },
         "fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields to clear when using the `field_data` parameter (default: all)"
+          "description" : "A comma-separated list of fields to clear when using the `fielddata` parameter (default: all)"
         },
         "query": {
           "type" : "boolean",
@@ -45,10 +45,6 @@
         "index": {
           "type" : "list",
           "description" : "A comma-separated list of index name to limit the operation"
-        },
-        "recycler": {
-          "type" : "boolean",
-          "description" : "Clear the recycler cache"
         },
         "request_cache": {
           "type" : "boolean",

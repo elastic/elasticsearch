@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -60,17 +61,17 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testFieldDisabled() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("foo").field("enabled", false).endObject()
             .startObject("bar").field("type", "integer").endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .field("foo", "1234")
             .field("bar", 10)
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertNull(doc.rootDoc().getField("foo"));
         assertNotNull(doc.rootDoc().getField("bar"));
@@ -79,14 +80,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDotsWithExistingMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("foo").startObject("properties")
             .startObject("bar").startObject("properties")
             .startObject("baz").field("type", "integer")
-            .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .field("foo.bar.baz", 123)
             .startObject("foo")
@@ -95,7 +96,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .startObject("foo.bar")
             .field("baz", 789)
             .endObject()
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertNull(doc.dynamicMappingsUpdate()); // no update!
         String[] values = doc.rootDoc().getValues("foo.bar.baz");
@@ -107,16 +108,16 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDotsWithExistingNestedMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("foo").field("type", "nested").startObject("properties")
             .startObject("bar").field("type", "integer")
-            .endObject().endObject().endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .field("foo.bar", 123)
-            .endObject().bytes();
+            .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals(
@@ -126,7 +127,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDotsWithDynamicNestedMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("dynamic_templates")
                     .startObject()
                         .startObject("objects_as_nested")
@@ -136,13 +137,13 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endArray().endObject().endObject().string();
+                .endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .field("foo.bar",42)
-            .endObject().bytes();
+            .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals(
@@ -179,8 +180,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             mapping.endObject();
         }
         mapping.endObject().endObject().endObject();
-        DocumentMapper mapper1 = mapperParser1.parse("type", new CompressedXContent(mapping.string()));
-        DocumentMapper mapper2 = mapperParser2.parse("type", new CompressedXContent(mapping.string()));
+        DocumentMapper mapper1 = mapperParser1.parse("type", new CompressedXContent(Strings.toString(mapping)));
+        DocumentMapper mapper2 = mapperParser2.parse("type", new CompressedXContent(Strings.toString(mapping)));
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject();
         {
@@ -196,7 +197,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         doc.endObject();
 
         // Verify in the case where multiple types are allowed that the _uid field is added to nested documents:
-        ParsedDocument result = mapper1.parse(SourceToParse.source("index1", "type", "1", doc.bytes(), XContentType.JSON));
+        ParsedDocument result = mapper1.parse(SourceToParse.source("index1", "type", "1", BytesReference.bytes(doc), XContentType.JSON));
         assertEquals(2, result.docs().size());
         // Nested document:
         assertNull(result.docs().get(0).getField(IdFieldMapper.NAME));
@@ -216,7 +217,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
 
         // Verify in the case where only a single type is allowed that the _id field is added to nested documents:
-        result = mapper2.parse(SourceToParse.source("index2", "type", "1", doc.bytes(), XContentType.JSON));
+        result = mapper2.parse(SourceToParse.source("index2", "type", "1", BytesReference.bytes(doc), XContentType.JSON));
         assertEquals(2, result.docs().size());
         // Nested document:
         assertNull(result.docs().get(0).getField(UidFieldMapper.NAME));
@@ -237,19 +238,19 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testPropagateDynamicWithExistingMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .field("dynamic", false)
             .startObject("properties")
                 .startObject("foo")
                     .field("type", "object")
                     .field("dynamic", true)
                     .startObject("properties")
-            .endObject().endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startObject("foo")
             .field("bar", "something")
-            .endObject().endObject().bytes();
+            .endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
         assertNotNull(doc.rootDoc().getField("foo.bar"));
@@ -257,19 +258,19 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testPropagateDynamicWithDynamicMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .field("dynamic", false)
             .startObject("properties")
             .startObject("foo")
             .field("type", "object")
             .field("dynamic", true)
             .startObject("properties")
-            .endObject().endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startObject("foo").startObject("bar")
                 .field("baz", "something")
-            .endObject().endObject().endObject().bytes();
+            .endObject().endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
         assertNotNull(doc.rootDoc().getField("foo.bar.baz"));
@@ -277,30 +278,30 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicRootFallback() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .field("dynamic", false)
             .startObject("properties")
             .startObject("foo")
             .field("type", "object")
             .startObject("properties")
-            .endObject().endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startObject("foo")
             .field("bar", "something")
-            .endObject().endObject().bytes();
+            .endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertNull(doc.dynamicMappingsUpdate());
         assertNull(doc.rootDoc().getField("foo.bar"));
     }
 
     DocumentMapper createDummyMapping(MapperService mapperService) throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("y").field("type", "object").endObject()
             .startObject("x").startObject("properties")
             .startObject("subx").field("type", "object").startObject("properties")
             .startObject("subsubx").field("type", "object")
-            .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject().endObject().endObject().endObject());
 
         DocumentMapper defaultMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
         return defaultMapper;
@@ -405,81 +406,81 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicGeoPointArrayWithTemplate() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
                 .startObject("mapping").field("type", "geo_point").field("doc_values", false).endObject()
-            .endObject().endObject().endArray().endObject().endObject().string();
+            .endObject().endObject().endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo")
                 .startArray().value(0).value(0).endArray()
                 .startArray().value(1).value(1).endArray()
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo").length);
     }
 
     public void testDynamicLongArrayWithTemplate() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
                 .startObject("mapping").field("type", "long").endObject()
-            .endObject().endObject().endArray().endObject().endObject().string();
+            .endObject().endObject().endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(4, doc.rootDoc().getFields("foo").length);
     }
 
     public void testDynamicLongArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(4, doc.rootDoc().getFields("foo").length);
     }
 
     public void testDynamicFalseLongArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
     }
 
     public void testDynamicStrictLongArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
@@ -487,78 +488,78 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testMappedGeoPointArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("foo").field("type", "geo_point").field("doc_values", false)
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo")
                 .startArray().value(0).value(0).endArray()
                 .startArray().value(1).value(1).endArray()
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo").length);
     }
 
     public void testMappedLongArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("foo").field("type", "long")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(4, doc.rootDoc().getFields("foo").length);
     }
 
     public void testDynamicObjectWithTemplate() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
                 .startObject("mapping").field("type", "object")
                 .startObject("properties").startObject("bar").field("type", "keyword").endObject().endObject().endObject()
-            .endObject().endObject().endArray().endObject().endObject().string();
+            .endObject().endObject().endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("foo")
                     .field("bar", "baz")
-                .endObject().endObject().bytes();
+                .endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo.bar").length);
     }
 
     public void testDynamicFalseObject() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startObject("foo")
                 .field("bar", "baz")
-            .endObject().endObject().bytes();
+            .endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("foo.bar").length);
     }
 
     public void testDynamicStrictObject() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("foo")
                     .field("bar", "baz")
-                .endObject().endObject().bytes();
+                .endObject().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
@@ -566,28 +567,28 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicFalseValue() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
                 .field("bar", "baz")
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("bar").length);
     }
 
     public void testDynamicStrictValue() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .field("bar", "baz")
-                .endObject().bytes();
+                .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("mapping set to strict, dynamic introduction of [bar] within [type] is not allowed", exception.getMessage());
@@ -595,28 +596,28 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicFalseNull() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
                 .field("bar", (String) null)
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("bar").length);
     }
 
     public void testDynamicStrictNull() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("bar", (String) null)
-                .endObject().bytes();
+                .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("mapping set to strict, dynamic introduction of [bar] within [type] is not allowed", exception.getMessage());
@@ -624,29 +625,29 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testMappedNullValue() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("foo").field("type", "long")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().field("foo", (Long) null)
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
     }
 
     public void testDynamicDottedFieldNameLongArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startArray("foo.bar.baz")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -662,18 +663,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameLongArrayWithParentTemplate() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
                 .startObject("mapping").field("type", "object").endObject()
-            .endObject().endObject().endArray().endObject().endObject().string();
+            .endObject().endObject().endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startArray("foo.bar.baz")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -689,17 +690,17 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties") .startObject("foo")
             .field("type", "object")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startArray("foo.bar.baz")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -715,17 +716,17 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParentWrongType() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties") .startObject("foo")
             .field("type", "long")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startArray("foo.bar.baz")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         MapperParsingException exception = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
@@ -734,30 +735,30 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicFalseDottedFieldNameLongArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startArray("foo.bar.baz")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("foo.bar.baz").length);
     }
 
     public void testDynamicStrictDottedFieldNameLongArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startArray("foo.bar.baz")
                 .value(0)
                 .value(1)
-            .endArray().endObject().bytes();
+            .endArray().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
@@ -765,13 +766,13 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameLong() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().field("foo.bar.baz", 0)
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -787,16 +788,16 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameLongWithParentTemplate() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
                 .startObject("mapping").field("type", "object").endObject()
-            .endObject().endObject().endArray().endObject().endObject().string();
+            .endObject().endObject().endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("foo.bar.baz", 0)
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -812,15 +813,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameLongWithExistingParent() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties") .startObject("foo")
             .field("type", "object")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("foo.bar.baz", 0)
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -836,15 +837,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameLongWithExistingParentWrongType() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties") .startObject("foo")
             .field("type", "long")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("foo.bar.baz", 0)
-            .endObject().bytes();
+            .endObject());
         MapperParsingException exception = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
@@ -853,26 +854,26 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicFalseDottedFieldNameLong() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("foo.bar.baz", 0)
-            .endObject().bytes();
+            .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("foo.bar.baz").length);
     }
 
     public void testDynamicStrictDottedFieldNameLong() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("foo.bar.baz", 0)
-            .endObject().bytes();
+            .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
@@ -880,14 +881,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameObject() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject().startObject("foo.bar.baz")
                 .field("a", 0)
-            .endObject().endObject().bytes();
+            .endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -906,17 +907,17 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameObjectWithParentTemplate() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
                 .startObject("mapping").field("type", "object").endObject()
-            .endObject().endObject().endArray().endObject().endObject().string();
+            .endObject().endObject().endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("foo.bar.baz")
                 .field("a", 0)
-            .endObject().endObject().bytes();
+            .endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -935,12 +936,12 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameObjectWithExistingParent() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("foo")
-                .field("type", "object").endObject().endObject().endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("foo")
+                .field("type", "object").endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder().startObject().startObject("foo.bar.baz").field("a", 0).endObject().endObject()
-                .bytes();
+        BytesReference bytes = BytesReference
+                .bytes(XContentFactory.jsonBuilder().startObject().startObject("foo.bar.baz").field("a", 0).endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
@@ -959,14 +960,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDottedFieldNameObjectWithExistingParentWrongType() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties") .startObject("foo")
             .field("type", "long")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder().startObject().startObject("foo.bar.baz").field("a", 0).endObject().endObject()
-                .bytes();
+        BytesReference bytes = BytesReference
+                .bytes(XContentFactory.jsonBuilder().startObject().startObject("foo.bar.baz").field("a", 0).endObject().endObject());
         MapperParsingException exception = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
 
@@ -976,28 +977,28 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicFalseDottedFieldNameObject() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("foo.bar.baz")
                 .field("a", 0)
-            .endObject().endObject().bytes();
+            .endObject().endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
         assertEquals(0, doc.rootDoc().getFields("foo.bar.baz.a").length);
     }
 
     public void testDynamicStrictDottedFieldNameObject() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("foo.bar.baz")
                 .field("a", 0)
-            .endObject().endObject().bytes();
+            .endObject().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
@@ -1005,15 +1006,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDocumentContainsMetadataField() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder().startObject().field("_ttl", 0).endObject().bytes();
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_ttl", 0).endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertTrue(e.getMessage(), e.getMessage().contains("cannot be added inside a document"));
 
-        BytesReference bytes2 = XContentFactory.jsonBuilder().startObject().field("foo._ttl", 0).endObject().bytes();
+        BytesReference bytes2 = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("foo._ttl", 0).endObject());
         mapper.parse(SourceToParse.source("test", "type", "1", bytes2, XContentType.JSON)); // parses without error
     }
 
@@ -1094,17 +1095,17 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testNoLevel() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("test1", "value1")
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("test1", "value1")
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
@@ -1113,17 +1114,17 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testTypeLevel() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startObject("type")
-                .field("test1", "value1")
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject().endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startObject("type")
+                        .field("test1", "value1")
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject().endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
@@ -1132,18 +1133,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testNoLevelWithFieldTypeAsValue() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "value_type")
-                .field("test1", "value1")
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("type", "value_type")
+                        .field("test1", "value1")
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
@@ -1153,18 +1154,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testTypeLevelWithFieldTypeAsValue() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startObject("type")
-                .field("type", "value_type")
-                .field("test1", "value1")
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject().endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startObject("type")
+                        .field("type", "value_type")
+                        .field("test1", "value1")
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject().endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.type"), equalTo("value_type"));
@@ -1174,18 +1175,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testNoLevelWithFieldTypeAsObject() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type").field("type_field", "type_value").endObject()
-                .field("test1", "value1")
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("type").field("type_field", "type_value").endObject()
+                        .field("test1", "value1")
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject()),
                 XContentType.JSON));
 
         // in this case, we analyze the type object as the actual document, and ignore the other same level fields
@@ -1195,18 +1196,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testTypeLevelWithFieldTypeAsObject() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startObject("type")
-                .startObject("type").field("type_field", "type_value").endObject()
-                .field("test1", "value1")
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject().endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startObject("type")
+                        .startObject("type").field("type_field", "type_value").endObject()
+                        .field("test1", "value1")
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject().endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.type.type_field"), equalTo("type_value"));
@@ -1216,18 +1217,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testNoLevelWithFieldTypeAsValueNotFirst() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startObject("type")
-                .field("test1", "value1")
-                .field("test2", "value2")
-                .field("type", "value_type")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject().endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startObject("type")
+                        .field("test1", "value1")
+                        .field("test2", "value2")
+                        .field("type", "value_type")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject().endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.type"), equalTo("value_type"));
@@ -1237,18 +1238,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testTypeLevelWithFieldTypeAsValueNotFirst() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startObject("type")
-                .field("test1", "value1")
-                .field("type", "value_type")
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject().endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startObject("type")
+                        .field("test1", "value1")
+                        .field("type", "value_type")
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject().endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.type"), equalTo("value_type"));
@@ -1258,18 +1259,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testNoLevelWithFieldTypeAsObjectNotFirst() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("test1", "value1")
-                .startObject("type").field("type_field", "type_value").endObject()
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("test1", "value1")
+                        .startObject("type").field("type_field", "type_value").endObject()
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject()),
                 XContentType.JSON));
 
         // when the type is not the first one, we don't confuse it...
@@ -1280,18 +1281,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testTypeLevelWithFieldTypeAsObjectNotFirst() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startObject("type")
-                .field("test1", "value1")
-                .startObject("type").field("type_field", "type_value").endObject()
-                .field("test2", "value2")
-                .startObject("inner").field("inner_field", "inner_value").endObject()
-                .endObject().endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startObject("type")
+                        .field("test1", "value1")
+                        .startObject("type").field("type_field", "type_value").endObject()
+                        .field("test2", "value2")
+                        .startObject("inner").field("inner_field", "inner_value").endObject()
+                        .endObject().endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.type.type_field"), equalTo("type_value"));
@@ -1302,16 +1303,16 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDateDetectionDisabledOnNumbers() throws IOException {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("dynamic_date_formats")
                     .value("yyyy")
-                .endArray().endObject().endObject().string();
+                .endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
                 .field("foo", "2016")
-            .endObject().bytes();
+            .endObject());
 
         // Even though we matched the dynamic format, we do not match on numbers,
         // which are too likely to be false positives
@@ -1325,16 +1326,16 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDynamicDateDetectionEnabledWithNoSpecialCharacters() throws IOException {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("dynamic_date_formats")
                     .value("yyyy MM")
-                .endArray().endObject().endObject().string();
+                .endArray().endObject().endObject());
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
                 .field("foo", "2016 12")
-            .endObject().bytes();
+            .endObject());
 
         // We should have generated a date field
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON));
@@ -1346,17 +1347,17 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
-        BytesReference bytes = XContentFactory.jsonBuilder().startObject().startArray("top.")
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startArray("top.")
                 .startObject().startArray("foo.")
                 .startObject()
                 .field("thing", "bah")
                 .endObject().endArray()
                 .endObject().endArray()
-                .endObject().bytes();
+                .endObject());
 
         client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
 
-        bytes = XContentFactory.jsonBuilder().startObject().startArray("top.")
+        bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startArray("top.")
                 .startObject().startArray("foo.")
                 .startObject()
                 .startObject("bar.")
@@ -1366,7 +1367,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endArray().endObject().endArray()
-                .endObject().bytes();
+                .endObject());
 
         try {
             client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
@@ -1378,14 +1379,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testDynamicFieldsEmptyName() throws Exception {
-        BytesReference bytes = XContentFactory.jsonBuilder()
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startArray("top.")
                 .startObject()
                 .startObject("aoeu")
                 .field("a", 1).field(" ", 2)
                 .endObject()
                 .endObject().endArray()
-                .endObject().bytes();
+                .endObject());
 
         IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
@@ -1395,21 +1396,21 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testBlankFieldNames() throws Exception {
-        final BytesReference bytes = XContentFactory.jsonBuilder()
+        final BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("", "foo")
-                .endObject().bytes();
+                .endObject());
 
         MapperParsingException err = expectThrows(MapperParsingException.class, () ->
                 client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
         assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
 
-        final BytesReference bytes2 = XContentFactory.jsonBuilder()
+        final BytesReference bytes2 = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("foo")
                 .field("", "bar")
                 .endObject()
-                .endObject().bytes();
+                .endObject());
 
         err = expectThrows(MapperParsingException.class, () ->
                 client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -79,7 +80,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
         String errorMessage = "[_all] enabled is true now encountering false";
-        testConflict(mapping.string(), mappingUpdate.string(), Version.V_5_0_0, errorMessage);
+        testConflict(Strings.toString(mapping), Strings.toString(mappingUpdate), Version.V_5_0_0, errorMessage);
     }
 
     public void testUpdatingAllSettingsOnOlderIndexDisabledToEnabled() throws Exception {
@@ -98,7 +99,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
         String errorMessage = "[_all] enabled is false now encountering true";
-        testConflict(mapping.string(), mappingUpdate.string(), Version.V_5_0_0, errorMessage);
+        testConflict(Strings.toString(mapping), Strings.toString(mappingUpdate), Version.V_5_0_0, errorMessage);
     }
 
     private void compareMappingOnNodes(GetMappingsResponse previousMapping) {

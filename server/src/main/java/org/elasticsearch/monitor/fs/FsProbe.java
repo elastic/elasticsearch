@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.fs;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
@@ -123,8 +122,7 @@ public class FsProbe extends AbstractComponent {
         } catch (Exception e) {
             // do not fail Elasticsearch if something unexpected
             // happens here
-            logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
+            logger.debug(() -> new ParameterizedMessage(
                     "unexpected exception processing /proc/diskstats for devices {}", devicesNumbers), e);
             return null;
         }

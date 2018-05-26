@@ -93,24 +93,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         return 0;
     }
 
-    public void testUnassignedShardAndEmptyNodesInRoutingTable() throws Exception {
-        internalCluster().startNode();
-        createIndex("a");
-        ensureSearchable("a");
-        ClusterState current = clusterService().state();
-        GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
-
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
-        RoutingNodes routingNodes = new RoutingNodes(
-                ClusterState.builder(current)
-                        .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")).build())
-                        .nodes(DiscoveryNodes.EMPTY_NODES)
-                        .build(), false
-        );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current, ClusterInfo.EMPTY, System.nanoTime());
-        allocator.allocateUnassigned(routingAllocation);
-    }
-
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
         final String index = "index";
@@ -199,6 +181,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
         logger.info("--> letting cluster proceed");
         disruption.stopDisrupting();
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
+        // due to publish_timeout of 0, wait for data node to have cluster state fully applied
+        assertBusy(() -> {
+                long masterClusterStateVersion = internalCluster().clusterService(internalCluster().getMasterName()).state().version();
+                long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
+                assertThat(masterClusterStateVersion, equalTo(dataClusterStateVersion));
+            });
         assertHitCount(client().prepareSearch("test").get(), 0);
     }
 

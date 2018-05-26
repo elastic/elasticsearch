@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -64,7 +65,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
         xContentBuilder.startObject();
         settings.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
-        String filteredSettingsString = xContentBuilder.string();
+        String filteredSettingsString = Strings.toString(xContentBuilder);
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings.keySet(), contains("cloud.azure.storage.azure1.default"));
     }

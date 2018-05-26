@@ -85,6 +85,10 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
 
             assertThat(counter, equalTo(rejections));
             assertThat(stats(threadPool, threadPoolName).getRejected(), equalTo(rejections));
+
+            if (threadPoolName.equals(ThreadPool.Names.INDEX)) {
+                assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.index.queue_size", "thread_pool.index.size"});
+            }
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

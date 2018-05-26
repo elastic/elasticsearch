@@ -33,6 +33,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
 
@@ -94,7 +95,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     public void testIdsQueryWithInvalidValues() throws Exception {
         String query = "{ \"ids\": { \"values\": [[1]] } }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("[ids] failed to parse field [values]", e.getMessage());
+        assertThat(e.getMessage(), containsString("[ids] failed to parse field [values]"));
     }
 
     public void testFromJson() throws IOException {

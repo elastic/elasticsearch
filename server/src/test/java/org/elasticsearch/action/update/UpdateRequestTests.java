@@ -51,7 +51,6 @@ import org.elasticsearch.test.RandomObjects;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -476,7 +475,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = shuffleXContent(parser, randomBoolean()).bytes();
+                originalBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
             }
         }
 

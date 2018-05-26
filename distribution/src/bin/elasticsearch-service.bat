@@ -120,50 +120,26 @@ echo %ES_JAVA_OPTS%
 for %%a in ("%ES_JAVA_OPTS:;=","%") do (
   set var=%%a
   if "!var:~1,4!" == "-Xms" (
-    if not "!JVM_MS!" == "" (
-      echo duplicate min heap size settings found
-      goto:eof
-    )
     set XMS=!var:~5,-1!
     call:convertxm !XMS! JVM_MS
   )
   if "!var:~1,16!" == "-XX:MinHeapSize=" (
-    if not "!JVM_MS!" == "" (
-      echo duplicate min heap size settings found
-      goto:eof
-    )
     set XMS=!var:~17,-1!
     call:convertxm !XMS! JVM_MS
   )
   if "!var:~1,4!" == "-Xmx" (
-    if not "!JVM_MX!" == "" (
-      echo duplicate max heap size settings found
-      goto:eof
-    )
     set XMX=!var:~5,-1!
     call:convertxm !XMX! JVM_MX
   )
   if "!var:~1,16!" == "-XX:MaxHeapSize=" (
-    if not "!JVM_MX!" == "" (
-      echo duplicate max heap size settings found
-      goto:eof
-    )
     set XMX=!var:~17,-1!
     call:convertxm !XMX! JVM_MX
   )
   if "!var:~1,4!" == "-Xss" (
-    if not "!JVM_SS!" == "" (
-      echo duplicate thread stack size settings found
-      exit 1
-    )
     set XSS=!var:~5,-1!
     call:convertxk !XSS! JVM_SS
   )
   if "!var:~1,20!" == "-XX:ThreadStackSize=" (
-    if not "!JVM_SS!" == "" (
-      echo duplicate thread stack size settings found
-      goto:eof
-    )
     set XSS=!var:~21,-1!
     call:convertxk !XSS! JVM_SS
   )
@@ -183,7 +159,7 @@ if "%JVM_SS%" == "" (
   goto:eof
 )
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%";-Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%";-Des.distribution.type="%ES_DISTRIBUTION_TYPE%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0

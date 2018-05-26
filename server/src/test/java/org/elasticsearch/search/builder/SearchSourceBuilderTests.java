@@ -67,6 +67,20 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertParseSearchSource(testSearchSourceBuilder, createParser(builder));
     }
 
+    public void testFromXContentInvalid() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}}")) {
+            SearchSourceBuilder.fromXContent(parser);
+            assertWarnings("Found extra tokens after the _search request body, " +
+                "an error will be thrown in the next major version");
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}{}")) {
+            SearchSourceBuilder.fromXContent(parser);
+            assertWarnings("Found extra tokens after the _search request body, " +
+                "an error will be thrown in the next major version");
+        }
+    }
+
     private static void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to
@@ -332,7 +346,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         final int timeout = randomIntBetween(1, 1024);
         final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
-            final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> SearchSourceBuilder.fromXContent(
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(
                     parser));
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
         }
@@ -345,7 +359,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = builder.bytes();
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(0, sourceAsMap.size());
         }
@@ -354,7 +368,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             searchSourceBuilder.query(RandomQueryBuilder.createQuery(random()));
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = builder.bytes();
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());

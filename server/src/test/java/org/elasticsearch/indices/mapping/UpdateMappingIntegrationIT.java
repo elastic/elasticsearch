@@ -20,12 +20,14 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -37,6 +39,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -53,6 +56,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -67,6 +71,27 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
+    /**
+     * Asserts that the root cause of mapping conflicts is readable.
+     */
+    public void testMappingConflictRootCause() throws Exception {
+        CreateIndexRequestBuilder b = prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_6_9)));
+        b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
+            .startObject("text")
+            .field("type", "text")
+            .field("analyzer", "standard")
+            .field("search_analyzer", "whitespace")
+            .endObject().endObject().endObject());
+        b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
+            .startObject("text")
+            .field("type", "text")
+            .endObject().endObject().endObject());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
+        assertThat(e.getMessage(), containsString("mapper [text] is used by multiple types"));
     }
 
     public void testDynamicUpdates() throws Exception {

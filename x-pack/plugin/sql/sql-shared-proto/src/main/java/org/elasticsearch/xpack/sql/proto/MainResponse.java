@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,18 +20,16 @@ public class MainResponse {
     private String version;
     private String clusterName;
     private String clusterUuid;
-    // TODO: Add parser for Build
-    private Build build;
 
     private MainResponse() {
     }
 
-    public MainResponse(String nodeName, String version, String clusterName, String clusterUuid, Build build) {
+    public MainResponse(String nodeName, String version, String clusterName, String clusterUuid) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
-        this.build = build;
+
     }
 
     public String getNodeName() {
@@ -51,10 +48,6 @@ public class MainResponse {
         return clusterUuid;
     }
 
-    public Build getBuild() {
-        return build;
-    }
-
     private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
         MainResponse::new);
 
@@ -65,15 +58,6 @@ public class MainResponse {
         PARSER.declareString((response, value) -> {
         }, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
-            final String buildFlavor = (String) value.get("build_flavor");
-            final String buildType = (String) value.get("build_type");
-            response.build =
-                new Build(
-                    buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor),
-                    buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
-                    (String) value.get("build_hash"),
-                    (String) value.get("build_date"),
-                    (boolean) value.get("build_snapshot"));
             response.version = (String) value.get("number");
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
@@ -94,12 +78,11 @@ public class MainResponse {
         return Objects.equals(nodeName, other.nodeName) &&
             Objects.equals(version, other.version) &&
             Objects.equals(clusterUuid, other.clusterUuid) &&
-            Objects.equals(build, other.build) &&
             Objects.equals(clusterName, other.clusterName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeName, version, clusterUuid, build, clusterName);
+        return Objects.hash(nodeName, version, clusterUuid, clusterName);
     }
 }

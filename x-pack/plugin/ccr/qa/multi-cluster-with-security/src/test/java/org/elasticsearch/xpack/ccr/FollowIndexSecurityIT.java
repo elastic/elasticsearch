@@ -80,7 +80,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         } else {
             createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
-            assertThat(countCcrNodeTasks(), equalTo(1));
+            assertThat(countCcrNodeTasks(), equalTo(5));
             assertOK(client().performRequest("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow"));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {

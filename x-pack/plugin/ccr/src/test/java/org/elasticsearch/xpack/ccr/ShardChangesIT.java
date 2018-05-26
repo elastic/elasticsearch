@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -28,7 +27,8 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
+import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
@@ -143,21 +143,18 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards,
             Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("index1");
 
-        final String followerIndexSettings =
-                getIndexSettings(numberOfPrimaryShards, Collections.singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
-
-        ensureGreen("index1", "index2");
-
-        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowIndex("index2");
-        client().execute(FollowExistingIndexAction.INSTANCE, followRequest).get();
+
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
+        createAndFollowRequest.setFollowRequest(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final int firstBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < firstBatchNumDocs; i++) {
@@ -180,6 +177,8 @@ public class ShardChangesIT extends ESIntegTestCase {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
 
+        unfollowIndex("index2");
+        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
@@ -200,27 +199,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
-
-        final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
-        unfollowRequest.setFollowIndex("index2");
-        client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
-
-        assertBusy(() -> {
-            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(tasks.tasks().size(), equalTo(0));
-
-            ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setDetailed(true);
-            ListTasksResponse listTasksResponse = client().admin().cluster().listTasks(listTasksRequest).get();
-            int numNodeTasks = 0;
-            for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
-                    numNodeTasks++;
-                }
-            }
-            assertThat(numNodeTasks, equalTo(0));
-        });
+        unfollowIndex("index2");
     }
 
     public void testFollowIndexWithNestedField() throws Exception {
@@ -234,10 +213,10 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         ensureGreen("index1", "index2");
 
-        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowIndex("index2");
-        client().execute(FollowExistingIndexAction.INSTANCE, followRequest).get();
+        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         final int numDocs = randomIntBetween(2, 64);
         for (int i = 0; i < numDocs; i++) {
@@ -287,19 +266,19 @@ public class ShardChangesIT extends ESIntegTestCase {
     public void testFollowNonExistentIndex() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader").get());
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());
-        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         // Leader index does not exist.
         followRequest.setLeaderIndex("non-existent-leader");
         followRequest.setFollowIndex("test-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
         // Follower index does not exist.
         followRequest.setLeaderIndex("test-leader");
         followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
         // Both indices do not exist.
         followRequest.setLeaderIndex("non-existent-leader");
         followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
@@ -336,6 +315,28 @@ public class ShardChangesIT extends ESIntegTestCase {
                         equalTo(numDocsPerShard.get(shardFollowTask.getLeaderShardId())));
             }
         };
+    }
+
+    private void unfollowIndex(String index) throws Exception {
+        final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
+        unfollowRequest.setFollowIndex(index);
+        client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
+        assertBusy(() -> {
+            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            assertThat(tasks.tasks().size(), equalTo(0));
+
+            ListTasksRequest listTasksRequest = new ListTasksRequest();
+            listTasksRequest.setDetailed(true);
+            ListTasksResponse listTasksResponse = client().admin().cluster().listTasks(listTasksRequest).get();
+            int numNodeTasks = 0;
+            for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
+                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                    numNodeTasks++;
+                }
+            }
+            assertThat(numNodeTasks, equalTo(0));
+        });
     }
 
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int value) {

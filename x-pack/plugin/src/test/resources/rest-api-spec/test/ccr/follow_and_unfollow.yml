@@ -16,18 +16,20 @@
   - is_true: acknowledged
 
   - do:
-      indices.create:
+      xpack.ccr.create_and_follow_index:
+        leader_index: foo
         index: bar
-        body:
-          mappings:
-            doc:
-              properties:
-                field:
-                  type: keyword
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
+
+  - do:
+      xpack.ccr.unfollow_index:
+        index: bar
   - is_true: acknowledged
 
   - do:
-      xpack.ccr.follow_existing_index:
+      xpack.ccr.follow_index:
         leader_index: foo
         index: bar
   - is_true: acknowledged

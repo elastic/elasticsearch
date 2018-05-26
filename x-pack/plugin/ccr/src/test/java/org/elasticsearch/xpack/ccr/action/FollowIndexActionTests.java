@@ -14,41 +14,41 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FollowExistingIndexActionTests extends ESTestCase {
+public class FollowIndexActionTests extends ESTestCase {
 
     public void testValidation() {
-        FollowExistingIndexAction.Request request = new FollowExistingIndexAction.Request();
+        FollowIndexAction.Request request = new FollowIndexAction.Request();
         request.setLeaderIndex("index1");
         request.setFollowIndex("index2");
 
         {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowExistingIndexAction.validate(null, null, request));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(null, null, request));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not exist"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowExistingIndexAction.validate(leaderIMD, null, request));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(leaderIMD, null, request));
             assertThat(e.getMessage(), equalTo("follow index [index2] does not exist"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5);
             IndexMetaData followIMD = createIMD("index2", 5);
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> FollowExistingIndexAction.validate(leaderIMD, followIMD, request));
+                () -> FollowIndexAction.validate(leaderIMD, followIMD, request));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 4);
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> FollowExistingIndexAction.validate(leaderIMD, followIMD, request));
+                () -> FollowIndexAction.validate(leaderIMD, followIMD, request));
             assertThat(e.getMessage(),
                 equalTo("leader index primary shards [5] does not match with the number of shards of the follow index [4]"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 5);
-            FollowExistingIndexAction.validate(leaderIMD, followIMD, request);
+            FollowIndexAction.validate(leaderIMD, followIMD, request);
         }
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -145,6 +145,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(operation.id(), equalTo("5"));
     }
 
+//    @TestLogging("org.elasticsearch.xpack.ccr.action:DEBUG")
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards,
@@ -210,17 +211,15 @@ public class ShardChangesIT extends ESIntegTestCase {
         final String leaderIndexSettings = getIndexSettings(2,
             Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-
-        final String followerIndexSettings =
-                getIndexSettings(2, Collections.singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
-
-        ensureGreen("index1", "index2");
-
-        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        ensureGreen("index1");
+    
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowIndex("index2");
-        client().execute(FollowExistingIndexAction.INSTANCE, followRequest).get();
+    
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
+        createAndFollowRequest.setFollowRequest(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
@@ -409,7 +408,7 @@ public class ShardChangesIT extends ESIntegTestCase {
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int value) {
         return () -> {
             final GetResponse getResponse = client().prepareGet("index2", "doc", Integer.toString(value)).get();
-            assertTrue(getResponse.isExists());
+            assertTrue("doc with id [" + value + "] does not exist", getResponse.isExists());
             assertTrue((getResponse.getSource().containsKey("f")));
             assertThat(getResponse.getSource().get("f"), equalTo(value));
         };

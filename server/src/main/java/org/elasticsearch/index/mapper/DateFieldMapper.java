@@ -143,7 +143,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
+            Builder builder = createBuilder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -169,6 +169,10 @@ public class DateFieldMapper extends FieldMapper {
                 }
             }
             return builder;
+        }
+
+        protected Builder createBuilder(String name) {
+            return new Builder(name);
         }
     }
 

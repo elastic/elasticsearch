@@ -162,6 +162,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final int firstBatchNumDocs = randomIntBetween(2, 64);
+        logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
             client().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
@@ -185,6 +186,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         unfollowIndex("index2");
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
         final int secondBatchNumDocs = randomIntBetween(2, 64);
+        logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
             client().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
@@ -408,7 +410,7 @@ public class ShardChangesIT extends ESIntegTestCase {
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int value) {
         return () -> {
             final GetResponse getResponse = client().prepareGet("index2", "doc", Integer.toString(value)).get();
-            assertTrue("doc with id [" + value + "] does not exist", getResponse.isExists());
+            assertTrue("Doc with id [" + value + "] is missing", getResponse.isExists());
             assertTrue((getResponse.getSource().containsKey("f")));
             assertThat(getResponse.getSource().get("f"), equalTo(value));
         };

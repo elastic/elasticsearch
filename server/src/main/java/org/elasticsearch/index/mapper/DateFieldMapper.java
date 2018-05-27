@@ -447,7 +447,7 @@ public class DateFieldMapper extends FieldMapper {
 
         long timestamp;
         try {
-            timestamp = fieldType().parse(dateAsString);
+            timestamp = parse(dateAsString);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(fieldType.name());
@@ -468,6 +468,10 @@ public class DateFieldMapper extends FieldMapper {
         if (fieldType().stored()) {
             fields.add(new StoredField(fieldType().name(), timestamp));
         }
+    }
+
+    protected long parse(String dateAsString) {
+        return fieldType().parse(dateAsString);
     }
 
     @Override

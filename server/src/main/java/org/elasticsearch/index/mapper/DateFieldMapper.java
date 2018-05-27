@@ -392,7 +392,7 @@ public class DateFieldMapper extends FieldMapper {
 
     private Explicit<Boolean> ignoreMalformed;
 
-    private DateFieldMapper(
+    protected DateFieldMapper(
             String simpleName,
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,

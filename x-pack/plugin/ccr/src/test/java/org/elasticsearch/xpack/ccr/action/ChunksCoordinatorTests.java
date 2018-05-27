@@ -14,7 +14,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor.ChunkProcessor;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor.ChunkWorker;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor.ChunksCoordinator;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor.IndexMetadataVersionChecker;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
@@ -31,6 +31,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -122,7 +123,8 @@ public class ChunksCoordinatorTests extends ESTestCase {
         IndexMetadataVersionChecker checker = new IndexMetadataVersionChecker(leaderShardId.getIndex(),
                 followShardId.getIndex(), client, client);
         ChunksCoordinator coordinator = new ChunksCoordinator(client, client, threadPool, checker, batchSize,
-                concurrentProcessors, Long.MAX_VALUE, leaderShardId, followShardId, handler, () -> true, value -> {});
+            concurrentProcessors, Long.MAX_VALUE, leaderShardId, followShardId, handler,
+            () -> true, value -> {});
 
         int numberOfOps = randomIntBetween(batchSize, batchSize * 20);
         long from = randomInt(1000);
@@ -163,8 +165,9 @@ public class ChunksCoordinatorTests extends ESTestCase {
             assertThat(e, sameInstance(expectedException));
         };
         IndexMetadataVersionChecker checker = new IndexMetadataVersionChecker(leaderShardId.getIndex(),
-                followShardId.getIndex(), client, client);ChunksCoordinator coordinator =
-                new ChunksCoordinator(client, client, threadPool, checker,10, 1, Long.MAX_VALUE, leaderShardId, followShardId, handler, () -> true, value -> {});
+                followShardId.getIndex(), client, client);
+        ChunksCoordinator coordinator = new ChunksCoordinator(client, client, threadPool, checker,10, 1, Long.MAX_VALUE,
+            leaderShardId, followShardId, handler, () -> true, value -> {});
         coordinator.start(0, 20);
         
         assertThat(coordinator.getChunks().size(), equalTo(1));
@@ -209,7 +212,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
         assertThat(calledOnceChecker.get(), is(false));
     }
 
-    public void testChunkProcessor() {
+    public void testChunkWorker() {
         Client client = createClientMock();
         Queue<long[]> chunks = new LinkedList<>();
         mockShardChangesApiCall(client);
@@ -223,14 +226,14 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, client, chunks, ccrExecutor, checker, leaderShardId,
+        ChunkWorker chunkWorker = new ChunkWorker(client, client, chunks, ccrExecutor, checker, leaderShardId,
                 followShardId, handler);
-        chunkProcessor.start(0, 10, Long.MAX_VALUE);
+        chunkWorker.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], nullValue());
     }
 
-    public void testChunkProcessorRetry() {
+    public void testChunkWorkerRetry() {
         Client client = createClientMock();
         Queue<long[]> chunks = new LinkedList<>();
         mockBulkShardOperationsApiCall(client);
@@ -246,15 +249,15 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, client, chunks, ccrExecutor, checker, leaderShardId,
+        ChunkWorker chunkWorker = new ChunkWorker(client, client, chunks, ccrExecutor, checker, leaderShardId,
                 followShardId, handler);
-        chunkProcessor.start(0, 10, Long.MAX_VALUE);
+        chunkWorker.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], nullValue());
-        assertThat(chunkProcessor.retryCounter.get(), equalTo(testRetryLimit + 1));
+        assertThat(chunkWorker.retryCounter.get(), equalTo(testRetryLimit + 1));
     }
 
-    public void testChunkProcessorRetryTooManyTimes() {
+    public void testChunkWorkerRetryTooManyTimes() {
         Client client = createClientMock();
         Queue<long[]> chunks = new LinkedList<>();
         mockBulkShardOperationsApiCall(client);
@@ -270,17 +273,17 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, client, chunks, ccrExecutor, checker, leaderShardId,
+        ChunkWorker chunkWorker = new ChunkWorker(client, client, chunks, ccrExecutor, checker, leaderShardId,
                 followShardId, handler);
-        chunkProcessor.start(0, 10, Long.MAX_VALUE);
+        chunkWorker.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], notNullValue());
         assertThat(exception[0].getMessage(), equalTo("retrying failed [17] times, aborting..."));
         assertThat(exception[0].getCause().getMessage(), equalTo("connection exception"));
-        assertThat(chunkProcessor.retryCounter.get(), equalTo(testRetryLimit));
+        assertThat(chunkWorker.retryCounter.get(), equalTo(testRetryLimit));
     }
 
-    public void testChunkProcessorNoneRetryableError() {
+    public void testChunkWorkerNoneRetryableError() {
         Client client = createClientMock();
         Queue<long[]> chunks = new LinkedList<>();
         mockBulkShardOperationsApiCall(client);
@@ -295,16 +298,16 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, client, chunks, ccrExecutor, checker, leaderShardId,
+        ChunkWorker chunkWorker = new ChunkWorker(client, client, chunks, ccrExecutor, checker, leaderShardId,
                 followShardId, handler);
-        chunkProcessor.start(0, 10, Long.MAX_VALUE);
+        chunkWorker.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], notNullValue());
         assertThat(exception[0].getMessage(), equalTo("unexpected"));
-        assertThat(chunkProcessor.retryCounter.get(), equalTo(0));
+        assertThat(chunkWorker.retryCounter.get(), equalTo(0));
     }
 
-    public void testChunkProcessorExceedMaxTranslogsBytes() {
+    public void testChunkWorkerExceedMaxTranslogsBytes() {
         long from = 0;
         long to = 20;
         long actualTo = 10;
@@ -335,9 +338,9 @@ public class ChunksCoordinatorTests extends ESTestCase {
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
         BiConsumer<Long, Consumer<Exception>> versionChecker = (indexVersiuon, consumer) -> consumer.accept(null);
-        ChunkProcessor chunkProcessor =
-                new ChunkProcessor(client, client, chunks, ccrExecutor, versionChecker, leaderShardId, followShardId, handler);
-        chunkProcessor.start(from, to, Long.MAX_VALUE);
+        ChunkWorker chunkWorker = new ChunkWorker(client, client, chunks, ccrExecutor, versionChecker, leaderShardId,
+            followShardId, handler);
+        chunkWorker.start(from, to, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], nullValue());
         assertThat(chunks.size(), equalTo(1));

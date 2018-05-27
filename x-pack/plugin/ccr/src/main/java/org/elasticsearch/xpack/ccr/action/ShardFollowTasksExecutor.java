@@ -134,9 +134,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         fetchGlobalCheckpoint(leaderClient, leaderShard, leaderGlobalCheckPoint -> {
             logger.debug("{} fetching write operations, leaderGlobalCheckPoint={}, followGlobalCheckPoint={}", followerShard,
                 leaderGlobalCheckPoint, followGlobalCheckPoint);
-            ChunksCoordinator coordinator = new ChunksCoordinator(followerClient, leaderClient, threadPool, imdVersionChecker, params.getMaxChunkSize(),
-                params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard, followerShard, task::markAsFailed,
-                task::isRunning, task::updateProcessedGlobalCheckpoint);
+            ChunksCoordinator coordinator = new ChunksCoordinator(followerClient, leaderClient, threadPool, imdVersionChecker,
+                params.getMaxChunkSize(), params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard,
+                followerShard, task::markAsFailed, task::isRunning, task::updateProcessedGlobalCheckpoint);
             coordinator.start(followGlobalCheckPoint, leaderGlobalCheckPoint);
         }, task::markAsFailed);
     }
@@ -165,6 +165,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Client followerClient;
         private final Client leaderClient;
         private final ThreadPool threadPool;
+        private final Executor ccrExecutor;
         private final IndexMetadataVersionChecker imdVersionChecker;
 
         private final long batchSize;
@@ -178,7 +179,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     
         private final AtomicInteger activeWorkers;
         private final AtomicLong lastPolledGlobalCheckpoint;
-        private final AtomicLong lastProcessedGlobalCheckPoint;
         private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
 
         ChunksCoordinator(Client followerClient,
@@ -197,6 +197,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             this.leaderClient = leaderClient;
             this.threadPool = threadPool;
             this.imdVersionChecker = imdVersionChecker;
+            this.ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
             this.batchSize = batchSize;
             this.maxConcurrentWorker = maxConcurrentWorker;
             this.processorMaxTranslogBytes = processorMaxTranslogBytes;
@@ -207,7 +208,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             this.processedGlobalCheckpointUpdater = processedGlobalCheckpointUpdater;
             this.activeWorkers = new AtomicInteger();
             this.lastPolledGlobalCheckpoint = new AtomicLong();
-            this.lastProcessedGlobalCheckPoint = new AtomicLong();
         }
 
         void createChucks(long from, long to) {
@@ -218,8 +218,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
         }
 
-        void update() {
-            schedule(() -> {
+        void updateChunksQueue() {
+            schedule(CHECK_LEADER_GLOBAL_CHECKPOINT_INTERVAL, () -> {
                 if (stateSupplier.get() == false) {
                     return;
                 }
@@ -234,7 +234,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     } else {
                         LOGGER.debug("{} no write operations to fetch", followerShard);
                     }
-                    update();
+                    updateChunksQueue();
                 }, failureHandler);
             });
         }
@@ -245,7 +245,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             LOGGER.debug("{} Start coordination of [{}] chunks with [{}] concurrent processors",
                     leaderShard, chunks.size(), maxConcurrentWorker);
             initiateChunkWorkers();
-            update();
+            updateChunksQueue();
         }
         
         void initiateChunkWorkers() {
@@ -257,7 +257,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             
             LOGGER.debug("{} Starting [{}] new chunk workers", followerShard, workersToStart);
             for (int i = 0; i < workersToStart; i++) {
-                threadPool.executor(Ccr.CCR_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                ccrExecutor.execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
                         assert e != null;
@@ -299,14 +299,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     failureHandler.accept(e);
                 }
             };
-            Executor ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
-            ChunkProcessor processor = new ChunkProcessor(leaderClient, followerClient, chunks, ccrExecutor, imdVersionChecker,
+            ChunkWorker worker = new ChunkWorker(leaderClient, followerClient, chunks, ccrExecutor, imdVersionChecker,
                     leaderShard, followerShard, processorHandler);
-            processor.start(chunk[0], chunk[1], processorMaxTranslogBytes);
+            worker.start(chunk[0], chunk[1], processorMaxTranslogBytes);
         }
 
-        void schedule(Runnable runnable) {
-            threadPool.schedule(CHECK_LEADER_GLOBAL_CHECKPOINT_INTERVAL, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
+        void schedule(TimeValue delay, Runnable runnable) {
+            threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     failureHandler.accept(e);
@@ -325,7 +324,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     }
 
-    static class ChunkProcessor {
+    static class ChunkWorker {
 
         private final Client leaderClient;
         private final Client followerClient;
@@ -338,9 +337,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Consumer<Exception> handler;
         final AtomicInteger retryCounter = new AtomicInteger(0);
 
-        ChunkProcessor(Client leaderClient, Client followerClient, Queue<long[]> chunks, Executor ccrExecutor,
-                       BiConsumer<Long, Consumer<Exception>> indexVersionChecker,
-                       ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
+        ChunkWorker(Client leaderClient, Client followerClient, Queue<long[]> chunks, Executor ccrExecutor,
+                    BiConsumer<Long, Consumer<Exception>> indexVersionChecker, ShardId leaderShard, ShardId followerShard,
+                    Consumer<Exception> handler) {
             this.leaderClient = leaderClient;
             this.followerClient = followerClient;
             this.chunks = chunks;

@@ -11,9 +11,6 @@ setup:
 
 ---
 "Get snapshot status":
-  - skip:
-      version:     " - 6.99.99"
-      reason:      "backporting in progress: https://github.com/elastic/elasticsearch/pull/29602"
   - do:
       indices.create:
         index: test_index
@@ -39,37 +36,9 @@ setup:
   - gt: { snapshots.0.stats.incremental.file_count: 0 }
   - gt: { snapshots.0.stats.incremental.size_in_bytes: 0 }
   - gt: { snapshots.0.stats.total.file_count: 0 }
+  - gt: { snapshots.0.stats.total.size_in_bytes: 0 }
   - is_true: snapshots.0.stats.start_time_in_millis
   - is_true: snapshots.0.stats.time_in_millis
-
----
-"Get snapshot status with BWC fields":
-  - do:
-      indices.create:
-        index: test_index
-        body:
-          settings:
-            number_of_shards:   1
-            number_of_replicas: 0
-
-  - do:
-      snapshot.create:
-        repository: test_repo_status_1
-        snapshot: test_snapshot_bwc
-        wait_for_completion: true
-
-  - do:
-      snapshot.status:
-        repository: test_repo_status_1
-        snapshot: test_snapshot_bwc
-
-  - is_true: snapshots
-  - match: { snapshots.0.snapshot: test_snapshot_bwc }
-  - match: { snapshots.0.state: SUCCESS }
-  - gt: { snapshots.0.stats.number_of_files: 0 }
-  - gt: { snapshots.0.stats.processed_files: 0 }
-  - gt: { snapshots.0.stats.total_size_in_bytes: 0 }
-  - gt: { snapshots.0.stats.processed_size_in_bytes: 0 }
 
 ---
 "Get missing snapshot status throws an exception":

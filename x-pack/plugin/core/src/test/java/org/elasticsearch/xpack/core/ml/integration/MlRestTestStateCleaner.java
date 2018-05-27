@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.integration;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -35,8 +36,10 @@ public class MlRestTestStateCleaner {
 
     @SuppressWarnings("unchecked")
     private void deleteAllDatafeeds() throws IOException {
-        Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.ml.datafeeds")));
+        final Request datafeedsRequest = new Request("GET", "/_cluster/state/metadata,metadata_customs");
+        datafeedsRequest.addParameter("filter_path", "metadata.ml.datafeeds");
+        final Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest(datafeedsRequest));
+
         List<Map<String, Object>> datafeeds =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", clusterStateAsMap);
         if (datafeeds == null) {
@@ -75,8 +78,9 @@ public class MlRestTestStateCleaner {
     }
 
     private void deleteAllJobs() throws IOException {
-        Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.ml.jobs")));
+        final Request jobsRequest = new Request("GET", "/_cluster/state/metadata,metadata_customs");
+        jobsRequest.addParameter("filter_path", "metadata.ml.jobs");
+        final Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest(jobsRequest));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", clusterStateAsMap);

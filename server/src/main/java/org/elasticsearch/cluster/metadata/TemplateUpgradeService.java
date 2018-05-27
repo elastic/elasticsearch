@@ -196,17 +196,19 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
     private void tryFinishUpdate() {
         assert upgradesInProgress.get() > 0;
         if (upgradesInProgress.decrementAndGet() > 1) {
+            // there are other template changes in progress, upgrade is not complete
             return;
         }
+        // this is the last upgrade, the templates should now be in the desired state
         if (allUpgradesSuccessful) {
             logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
         } else {
             logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
         }
         allUpgradesSuccessful = true;
-        // Check upgraders are satisfied after the update. If they still report that
-        // changes are required it might be a bug or something else fiddled with the
-        // templates during the upgrade.
+        // Check upgraders are satisfied after the update completed. If they still
+        // report that changes are required, this might indicate a bug or that something
+        // else tinkering with the templates during the upgrade.
         final ImmutableOpenMap<String, IndexTemplateMetaData> upgradedTemplates = clusterService.state().getMetaData().getTemplates();
         final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
         if (changesRequired) {

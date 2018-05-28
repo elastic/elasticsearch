@@ -4798,8 +4798,8 @@ public class InternalEngineTests extends EngineTestCase {
         Set<Long> existingSeqNos = new HashSet<>();
         store = createStore();
         engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get));
-        assertThat(engine.getMaxExposedSeqNo(), equalTo(0L));
-        long lastSeqNoSeenByMP = engine.getMaxExposedSeqNo();
+        assertThat(engine.getMinRetainedSeqNo(), equalTo(0L));
+        long lastSeqNoSeenByMP = engine.getMinRetainedSeqNo();
         for (Engine.Operation op : operations) {
             final Engine.Result result;
             if (op instanceof Engine.Index) {
@@ -4822,13 +4822,13 @@ public class InternalEngineTests extends EngineTestCase {
             if (rarely()) {
                 engine.flush(true, true);
                 assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.MIN_RETAINED_SEQNO)),
-                    equalTo(engine.getMaxExposedSeqNo()));
+                    equalTo(engine.getMinRetainedSeqNo()));
             }
             if (rarely()) {
                 engine.forceMerge(randomBoolean());
             }
             try (Closeable ignored = engine.acquireRetentionLockForPeerRecovery()) {
-                long minRetainSeqNos = engine.getMaxExposedSeqNo();
+                long minRetainSeqNos = engine.getMinRetainedSeqNo();
                 assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
                 Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService("test")).stream()
@@ -4849,10 +4849,10 @@ public class InternalEngineTests extends EngineTestCase {
         }
         trimUnsafeCommits(engine.config());
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
-            assertThat(recoveringEngine.getMaxExposedSeqNo(), equalTo(lastSeqNoSeenByMP));
+            assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastSeqNoSeenByMP));
             recoveringEngine.recoverFromTranslog();
             try (Closeable ignored = recoveringEngine.acquireRetentionLockForPeerRecovery()) {
-                long minRetainSeqNos = recoveringEngine.getMaxExposedSeqNo();
+                long minRetainSeqNos = recoveringEngine.getMinRetainedSeqNo();
                 Set<Long> actualOps = readAllOperationsInLucene(recoveringEngine, createMapperService("test")).stream()
                     .map(Translog.Operation::seqNo).collect(Collectors.toSet());
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);

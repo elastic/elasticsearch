@@ -2226,7 +2226,7 @@ public class InternalEngine extends Engine {
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 if (softDeleteEnabled) {
-                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMaxExposedSeqNo()));
+                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
@@ -2374,7 +2374,7 @@ public class InternalEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long minSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return getMaxExposedSeqNo() <= minSeqNo;
+            return getMinRetainedSeqNo() <= minSeqNo;
         } else {
             final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(minSeqNo, minSeqNo - 1);
@@ -2391,13 +2391,12 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Returns the max seqno that has been exposed to the MergePolicy.
+     * Returns the minimum seqno that is retained in the Lucene index.
      * Operations whose seq# are at least this value should exist in the Lucene index.
-     * See {@link SoftDeletesPolicy#maxExposedSeqNo}
      */
-    final long getMaxExposedSeqNo() {
+    final long getMinRetainedSeqNo() {
         assert softDeleteEnabled : Thread.currentThread().getName();
-        return softDeletesPolicy.getMaxExposedSeqNo();
+        return softDeletesPolicy.getMinRetainedSeqNo();
     }
 
     @Override

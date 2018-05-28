@@ -34,19 +34,19 @@ import java.util.function.LongSupplier;
  */
 final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
-    private long checkpointOfSafeCommit;
-    // This lock count is used to prevent `maxExposedSeqNo` from advancing.
+    private long localCheckpointOfSafeCommit;
+    // This lock count is used to prevent `minRetainedSeqNo` from advancing.
     private int retentionLockCount;
     // The extra number of operations before the global checkpoint are retained
     private long retentionOperations;
-    // The max seq_no value that has been exposed to the MergePolicy. Ops after this seq# should exist in the Lucene index.
-    private long maxExposedSeqNo;
+    // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
+    private long minRetainedSeqNo;
 
-    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, long maxExposedSeqNo, long retentionOperations) {
+    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, long minRetainedSeqNo, long retentionOperations) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
-        this.maxExposedSeqNo = maxExposedSeqNo;
-        this.checkpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
+        this.minRetainedSeqNo = minRetainedSeqNo;
+        this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
     }
 
@@ -61,12 +61,12 @@ final class SoftDeletesPolicy {
     /**
      * Sets the local checkpoint of the current safe commit
      */
-    synchronized void setCheckpointOfSafeCommit(long newCheckpoint) {
-        if (newCheckpoint < this.checkpointOfSafeCommit) {
+    synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
+        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
             throw new IllegalArgumentException("Local checkpoint can't go backwards; " +
-                "new checkpoint [" + newCheckpoint + "]," + "current checkpoint [" + checkpointOfSafeCommit + "]");
+                "new checkpoint [" + newCheckpoint + "]," + "current checkpoint [" + localCheckpointOfSafeCommit + "]");
         }
-        this.checkpointOfSafeCommit = newCheckpoint;
+        this.localCheckpointOfSafeCommit = newCheckpoint;
     }
 
     /**
@@ -91,30 +91,30 @@ final class SoftDeletesPolicy {
     }
 
     /**
-     * Returns the max seqno that has been exposed to the merge policy.
+     * Returns the min seqno that is retained in the Lucene index.
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
-    synchronized long getMaxExposedSeqNo() {
-        return maxExposedSeqNo;
+    synchronized long getMinRetainedSeqNo() {
+        // Do not advance if the retention lock is held
+        if (retentionLockCount == 0) {
+            // This policy retains operations for two purposes: peer-recovery and querying changes history.
+            // - Peer-recovery is driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe commit,
+            // then sends ops after the local checkpoint of that commit. This requires keeping all ops after localCheckpointOfSafeCommit;
+            // - Changes APIs are driven the combination of the global checkpoint and retention ops. Here we prefer using the global
+            // checkpoint instead of max_seqno because only operations up to the global checkpoint are exposed in the the changes APIs.
+            final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOperations;
+            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, localCheckpointOfSafeCommit) + 1;
+            // This can go backward as the retentionOperations value can be changed in settings.
+            minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
+        }
+        return minRetainedSeqNo;
     }
 
     /**
      * Returns a soft-deletes retention query that will be used in {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy}
      * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
      */
-    synchronized Query getRetentionQuery() {
-        // Do not advance if the retention lock is held
-        if (retentionLockCount == 0) {
-            // This policy retains operations for two purposes: peer-recovery and querying changes history.
-            // - Peer-recovery is driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe commit,
-            // then sends ops after the local checkpoint of that commit. This requires keeping all ops after checkpointOfSafeCommit;
-            // - Changes APIs are driven the combination of the global checkpoint and retention ops. Here we prefer using the global
-            // checkpoint instead of max_seqno because only operations up to the global checkpoint are exposed in the the changes APIs.
-            final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOperations;
-            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, checkpointOfSafeCommit) + 1;
-            // This can go backward as the retentionOperations value can be changed in settings.
-            maxExposedSeqNo = Math.max(maxExposedSeqNo, minSeqNoToRetain);
-        }
-        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, maxExposedSeqNo, Long.MAX_VALUE);
+    Query getRetentionQuery() {
+        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE);
     }
 }

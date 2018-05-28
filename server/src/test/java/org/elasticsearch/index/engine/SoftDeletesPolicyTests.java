@@ -38,7 +38,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         long safeCommitCheckpoint = globalCheckpoint.get();
         SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 10000), retainedOps);
-        long lastExposedSeqNo = policy.getMaxExposedSeqNo();
+        long minRetainedSeqNo = policy.getMinRetainedSeqNo();
         List<Releasable> locks = new ArrayList<>();
         int iters = scaledRandomIntBetween(10, 1000);
         for (int i = 0; i < iters; i++) {
@@ -48,7 +48,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
             // Advances the global checkpoint and the local checkpoint of a safe commit
             globalCheckpoint.addAndGet(between(0, 1000));
             safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
-            policy.setCheckpointOfSafeCommit(safeCommitCheckpoint);
+            policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
             if (rarely()) {
                 retainedOps = between(0, 10000);
                 policy.setRetentionOperations(retainedOps);
@@ -61,16 +61,15 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
             // We only expose the seqno to the merge policy if the retention lock is not held.
             policy.getRetentionQuery();
             if (locks.isEmpty()) {
-                long minRetainedSeqNo = Math.min(safeCommitCheckpoint, globalCheckpoint.get() - retainedOps) + 1;
-                lastExposedSeqNo = Math.max(lastExposedSeqNo, minRetainedSeqNo);
+                long retainedSeqNo = Math.min(safeCommitCheckpoint, globalCheckpoint.get() - retainedOps) + 1;
+                minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
             }
-            assertThat(policy.getMaxExposedSeqNo(), equalTo(lastExposedSeqNo));
+            assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
         }
 
         locks.forEach(Releasable::close);
-        policy.getRetentionQuery();
-        long minRetainedSeqNo = Math.min(safeCommitCheckpoint, globalCheckpoint.get() - retainedOps) + 1;
-        lastExposedSeqNo = Math.max(lastExposedSeqNo, minRetainedSeqNo);
-        assertThat(policy.getMaxExposedSeqNo(), equalTo(lastExposedSeqNo));
+        long retainedSeqNo = Math.min(safeCommitCheckpoint, globalCheckpoint.get() - retainedOps) + 1;
+        minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
+        assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
     }
 }

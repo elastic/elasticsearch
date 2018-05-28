@@ -82,7 +82,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(final String clientName) throws Exception {
+    public Storage client(final String clientName) throws IOException {
         Storage storage = clientsCache.get(clientName);
         if (storage != null) {
             return storage;

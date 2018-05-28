@@ -80,11 +80,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     private Storage client() throws IOException {
-        try {
-            return storageService.client(clientName);
-        } catch (final Exception e) {
-            throw new IOException(e);
-        }
+        return storageService.client(clientName);
     }
 
     @Override
@@ -164,7 +160,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * Returns an {@link java.io.InputStream} for the given blob name
      *
      * @param blobName name of the blob
-     * @return the InputStream used to read blob's content
+     * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);

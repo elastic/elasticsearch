@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.NettyTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -214,7 +215,8 @@ public interface ServerTransportFilter {
             // TODO is ']' sufficient to mark as shard action?
             final boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction && TransportService.HANDSHAKE_ACTION_NAME.equals(action) == false) {
-                throw authenticationError("executing internal/shard actions is considered malicious and forbidden");
+                throw authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME,
+                        "executing internal/shard actions is considered malicious and forbidden");
             }
             super.inbound(action, request, transportChannel, listener);
         }

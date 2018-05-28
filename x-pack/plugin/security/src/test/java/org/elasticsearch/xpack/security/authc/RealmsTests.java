@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -55,6 +56,7 @@ public class RealmsTests extends ESTestCase {
         factories = new HashMap<>();
         factories.put(FileRealmSettings.TYPE, config -> new DummyRealm(FileRealmSettings.TYPE, config));
         factories.put(NativeRealmSettings.TYPE, config -> new DummyRealm(NativeRealmSettings.TYPE, config));
+        factories.put(KerberosRealmSettings.TYPE, config -> new DummyRealm(KerberosRealmSettings.TYPE, config));
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             String name = "type_" + i;
             factories.put(name, config -> new DummyRealm(name, config));
@@ -155,6 +157,23 @@ public class RealmsTests extends ESTestCase {
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("multiple [file] realms are configured"));
+        }
+    }
+
+    public void testWithSettingsWithMultipleKerberosRealms() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.authc.realms.realm_1.type", KerberosRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.realm_1.order", 0)
+                .put("xpack.security.authc.realms.realm_2.type", KerberosRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.realm_2.order", 1)
+                .put("path.home", createTempDir())
+                .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        try {
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("multiple [kerberos] realms are configured"));
         }
     }
 

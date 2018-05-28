@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -17,7 +16,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -109,9 +107,9 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -120,7 +118,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSe
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -130,6 +127,7 @@ import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.IndicesAliasesRequestInterceptor;
@@ -165,7 +163,6 @@ import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -176,6 +173,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -204,7 +202,6 @@ import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterce
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -233,9 +230,9 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
@@ -442,7 +439,18 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
-            failureHandler = new DefaultAuthenticationFailureHandler(realms);
+            final Map<String, String[]> defaultResponseHeaders = new HashMap<>();
+            String defaultAuthenticateHeaderValue = Realm.WWW_AUTHN_HEADER_DEFAULT_VALUE;
+            if (realms != null) {
+                final List<Realm> orderedListOfRealms = realms.asList();
+                if (orderedListOfRealms.isEmpty() == false) {
+                    // Last realm from ordered list determines the value for header
+                    // `WWW-Authenticate:` if not populated in the ElasticsearchSecurityException headers.
+                    defaultAuthenticateHeaderValue = orderedListOfRealms.get(orderedListOfRealms.size() - 1).getWWWAuthenticateHeaderValue();
+                }
+            }
+            defaultResponseHeaders.put(DefaultAuthenticationFailureHandler.HTTP_AUTH_HEADER, new String[] { defaultAuthenticateHeaderValue });
+            failureHandler = new DefaultAuthenticationFailureHandler(defaultResponseHeaders);
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }

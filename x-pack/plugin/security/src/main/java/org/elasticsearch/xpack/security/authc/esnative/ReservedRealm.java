@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -38,7 +39,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -129,7 +132,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     listener.onResponse(getUser(username, userInfo));
                 } else {
                     // this was a reserved username - don't allow this to go to another realm...
-                    listener.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
+                    listener.onFailure(Exceptions.authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "failed to lookup user [{}]", username));
                 }
             }, listener::onFailure));
         }

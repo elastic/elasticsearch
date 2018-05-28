@@ -12,13 +12,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -42,7 +44,6 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         realms = mock(Realms.class);
     }
 
-    @Test
     public void testDefaultAuthenticationFailureHandlerReturnsCorrectSchemeBasedOnOrder() {
 
         when(realmWithBasicAuthScheme.order()).thenReturn(randomIntBetween(0, 5));
@@ -51,8 +52,10 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
             return o1.order() - o2.order();
         });
         when(realms.asList()).thenReturn(listRealms);
-
-        DefaultAuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(realms);
+        final Map<String, String[]> defaultResponseHeaders = new HashMap<>();
+        defaultResponseHeaders.put(DefaultAuthenticationFailureHandler.HTTP_AUTH_HEADER,
+                new String[] { listRealms.get(listRealms.size() - 1).getWWWAuthenticateHeaderValue() });
+        DefaultAuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(defaultResponseHeaders);
         ElasticsearchSecurityException ese = failureHandler.failedAuthentication(new FakeRestRequest(), mock(AuthenticationToken.class),
                 new ThreadContext(Settings.builder().build()));
 

@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -89,7 +90,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessAuthenticationError() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        Exception exception = authenticationError("failed authc");
+        Exception exception = authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "failed authc");
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];

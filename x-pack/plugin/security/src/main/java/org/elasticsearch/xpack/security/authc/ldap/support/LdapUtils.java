@@ -36,6 +36,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import javax.naming.ldap.Rdn;
@@ -47,8 +48,10 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public final class LdapUtils {
@@ -441,7 +444,7 @@ public final class LdapUtils {
             super(ldapConnection, ignoreReferralErrors, ActionListener.wrap(searchResult -> {
                         final List<SearchResultEntry> entryList = searchResult.getSearchEntries();
                         if (entryList.size() > 1) {
-                            listener.onFailure(Exceptions.authenticationError(
+                            listener.onFailure(Exceptions.authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME,
                                     "multiple search results found for [{}]", filter));
                         } else if (entryList.size() == 1) {
                             listener.onResponse(entryList.get(0));

@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.Realm.Factory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -77,6 +78,7 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -188,7 +190,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(realms), threadPool, new AnonymousUser(settings), tokenService);
+                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
     }
 
     @After
@@ -455,7 +457,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         try {
             ThreadContext threadContext1 = threadPool1.getThreadContext();
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                    new DefaultAuthenticationFailureHandler(realms), threadPool1, new AnonymousUser(Settings.EMPTY), tokenService);
+                    new DefaultAuthenticationFailureHandler(), threadPool1, new AnonymousUser(Settings.EMPTY), tokenService);
 
 
             threadContext1.putTransient(AuthenticationField.AUTHENTICATION_KEY, authRef.get());
@@ -479,7 +481,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             final String header;
             try (ThreadContext.StoredContext ignore = threadContext2.stashContext()) {
                 service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                        new DefaultAuthenticationFailureHandler(realms), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
+                        new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
                 threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
 
                 BytesStreamOutput output = new BytesStreamOutput();
@@ -492,7 +494,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
             threadPool2.getThreadContext().putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                    new DefaultAuthenticationFailureHandler(realms), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
+                    new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
             service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getUser(), equalTo(user1));
@@ -527,7 +529,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         Settings settings = builder.build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(realms),
+        service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(),
                 threadPool, anonymousUser, tokenService);
         RestRequest request = new FakeRestRequest();
 
@@ -546,7 +548,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(realms), threadPool, anonymousUser, tokenService);
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService);
         InternalMessage message = new InternalMessage();
 
         Authentication result = authenticateBlocking("_action", message, null);
@@ -561,7 +563,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(realms), threadPool, anonymousUser, tokenService);
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService);
 
         InternalMessage message = new InternalMessage();
 
@@ -572,7 +574,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testRealmTokenThrowingException() throws Exception {
-        when(firstRealm.token(threadContext)).thenThrow(authenticationError("realm doesn't like tokens"));
+        when(firstRealm.token(threadContext))
+                .thenThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like tokens"));
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
@@ -583,7 +586,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testRealmTokenThrowingExceptionRest() throws Exception {
-        when(firstRealm.token(threadContext)).thenThrow(authenticationError("realm doesn't like tokens"));
+        when(firstRealm.token(threadContext))
+                .thenThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like tokens"));
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
@@ -596,7 +600,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testRealmSupportsMethodThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
-        when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
+        when(secondRealm.supports(token))
+                .thenThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like supports"));
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
@@ -609,7 +614,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testRealmSupportsMethodThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
-        when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
+        when(secondRealm.supports(token))
+                .thenThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like supports"));
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
@@ -623,8 +629,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        doThrow(authenticationError("realm doesn't like authenticate"))
-            .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
+        doThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like authenticate", null, (Object[]) null))
+                .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
@@ -638,7 +644,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        doThrow(authenticationError("realm doesn't like authenticate"))
+        doThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like authenticate"))
                 .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         try {
             authenticateBlocking(restRequest);
@@ -656,7 +662,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         mockRealmLookupReturnsNull(firstRealm, "run_as");
-        doThrow(authenticationError("realm doesn't want to lookup"))
+        doThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't want to lookup"))
             .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
 
         try {
@@ -675,8 +681,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         mockRealmLookupReturnsNull(firstRealm, "run_as");
-        doThrow(authenticationError("realm doesn't want to " + "lookup"))
-                .when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
+        doThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't want to " + "lookup")).when(secondRealm)
+                .lookupUser(eq("run_as"), any(ActionListener.class));
 
         try {
             authenticateBlocking(restRequest);

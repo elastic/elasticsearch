@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,7 +21,15 @@ import java.util.Map;
  * authentication mechanism supporting its own specific authentication token type.
  */
 public abstract class Realm implements Comparable<Realm> {
+    public static final String WWW_AUTHN_HEADER = "WWW-Authenticate";
     public static final String WWW_AUTHN_HEADER_DEFAULT_VALUE = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+    public static final Map<String, String[]> WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME;
+    static {
+        HashMap<String, String[]> defaultMap = new HashMap<>();
+        defaultMap.put(WWW_AUTHN_HEADER, new String[] { WWW_AUTHN_HEADER_DEFAULT_VALUE });
+        WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME = Collections.unmodifiableMap(defaultMap);
+    }
+
     protected final Logger logger;
     protected final String type;
 

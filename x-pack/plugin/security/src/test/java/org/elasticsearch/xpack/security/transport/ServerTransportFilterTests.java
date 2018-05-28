@@ -24,6 +24,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -122,7 +123,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testInboundAuthenticationException() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
-        Exception authE = authenticationError("authc failed");
+        Exception authE = authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "authc failed");
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[3];

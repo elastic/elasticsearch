@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestUtil;
+import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,13 +24,13 @@ public class KerberosRealmSettingsTests extends ESTestCase {
         if (Files.exists(configDir) == false) {
             configDir = Files.createDirectory(configDir);
         }
-        KerberosTestUtil.writeKeyTab(dir, "config" + dir.getFileSystem().getSeparator() + "http.keytab", null);
+        KerberosTestCase.writeKeyTab(dir, "config" + dir.getFileSystem().getSeparator() + "http.keytab", null);
         final Integer maxUsers = randomInt();
-        final String cacheTTL = randomLongBetween(10L,100L)+"m";
-        final Settings settings = KerberosTestUtil.buildKerberosRealmSettings("config"+dir.getFileSystem().getSeparator()+"http.keytab", maxUsers,
-                cacheTTL, true);
+        final String cacheTTL = randomLongBetween(10L, 100L) + "m";
+        final Settings settings = KerberosTestCase.buildKerberosRealmSettings("config" + dir.getFileSystem().getSeparator() + "http.keytab",
+                maxUsers, cacheTTL, true);
 
-        assertEquals("config"+dir.getFileSystem().getSeparator()+"http.keytab",
+        assertEquals("config" + dir.getFileSystem().getSeparator() + "http.keytab",
                 KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
         assertEquals(TimeValue.parseTimeValue(cacheTTL, KerberosRealmSettings.CACHE_TTL_SETTING.getKey()),
                 KerberosRealmSettings.CACHE_TTL_SETTING.get(settings));

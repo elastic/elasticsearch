@@ -6,11 +6,15 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestUtil;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -21,6 +25,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.List;
 
 public class KerberosAuthenticationTokenTests extends ESTestCase {
     private static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal Name>";
@@ -32,8 +37,8 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         final Path dir = createTempDir();
-        final Path ktab = KerberosTestUtil.writeKeyTab(dir, "http.keytab", null);
-        final Settings settings = KerberosTestUtil.buildKerberosRealmSettings(ktab.toString());
+        final Path ktab = KerberosTestCase.writeKeyTab(dir, "http.keytab", null);
+        final Settings settings = KerberosTestCase.buildKerberosRealmSettings(ktab.toString());
         threadContext = new ThreadContext(settings);
     }
 
@@ -56,9 +61,26 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
     public void testExtractTokenForInvalidAuthorizationHeaderThrowsException() throws IOException {
         threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER);
 
-        thrown.expect(IllegalArgumentException.class);
+        thrown.expect(ElasticsearchSecurityException.class);
         thrown.expectMessage(
                 Matchers.equalTo("invalid negotiate authentication header value, expected base64 encoded token but value is empty"));
+        thrown.expect(new BaseMatcher<ElasticsearchSecurityException>() {
+
+            @Override
+            public boolean matches(Object item) {
+                if (item instanceof ElasticsearchSecurityException) {
+                    List<String> authHeaderValue = ((ElasticsearchSecurityException) item).getHeader(Realm.WWW_AUTHN_HEADER);
+                    if (authHeaderValue.size() == 1 && KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.equals(authHeaderValue.get(0))) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+            }
+        });
         KerberosAuthenticationToken.extractToken(threadContext);
         fail("Expected exception not thrown");
     }
@@ -68,8 +90,26 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER,
                 KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + notBase64Token);
 
-        thrown.expect(IllegalArgumentException.class);
-        thrown.expectMessage(Matchers.equalTo("Illegal base64 character 5b"));
+        thrown.expect(ElasticsearchSecurityException.class);
+        thrown.expectMessage(
+                Matchers.equalTo("invalid negotiate authentication header value, could not decode base64 token " + notBase64Token));
+        thrown.expect(new BaseMatcher<ElasticsearchSecurityException>() {
+
+            @Override
+            public boolean matches(Object item) {
+                if (item instanceof ElasticsearchSecurityException) {
+                    List<String> authHeaderValue = ((ElasticsearchSecurityException) item).getHeader(Realm.WWW_AUTHN_HEADER);
+                    if (authHeaderValue.size() == 1 && KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.equals(authHeaderValue.get(0))) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+            }
+        });
         KerberosAuthenticationToken.extractToken(threadContext);
         fail("Expected exception not thrown");
     }

@@ -9,11 +9,16 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 
 /**
  * Holds on to base 64 encoded ticket, also helps extracting token from
@@ -53,17 +58,26 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
             return null;
         }
 
+        final Map<String, String[]> exceptionResponseHeader = new HashMap<>();
+        exceptionResponseHeader.put(Realm.WWW_AUTHN_HEADER, new String[] { NEGOTIATE_AUTH_HEADER });
         final String base64EncodedToken = authHeader.substring(NEGOTIATE_AUTH_HEADER.length()).trim();
         if (Strings.isEmpty(base64EncodedToken)) {
-            throw new IllegalArgumentException(
-                    "invalid negotiate authentication header value, expected base64 encoded token but value is empty");
+            throw authenticationError(exceptionResponseHeader,
+                    "invalid negotiate authentication header value, expected base64 encoded token but value is empty", null,
+                    (Object[]) null);
         }
         final byte[] base64Token = base64EncodedToken.getBytes(StandardCharsets.UTF_8);
-        final byte[] decodedKerberosTicket = Base64.getDecoder().decode(base64Token);
+        byte[] decodedKerberosTicket = null;
+        IllegalArgumentException rootCause = null;
+        try {
+            decodedKerberosTicket = Base64.getDecoder().decode(base64Token);
+        } catch (IllegalArgumentException iae) {
+            rootCause = iae;
+        }
 
         if (decodedKerberosTicket == null || decodedKerberosTicket.length == 0) {
-            throw new IllegalArgumentException(String.format(Locale.ENGLISH,
-                    "invalid negotiate authentication header value, could not decode base64 token %s", base64Token));
+            throw authenticationError(exceptionResponseHeader,
+                    "invalid negotiate authentication header value, could not decode base64 token {}", rootCause, base64EncodedToken);
         }
         return new KerberosAuthenticationToken(UNAUTHENTICATED_PRINCIPAL_NAME, base64EncodedToken);
     }

@@ -27,8 +27,8 @@ public class Exceptions {
      *            Error message arguments
      * @return {@link ElasticsearchSecurityException}
      */
-    public static ElasticsearchSecurityException authenticationError(String msg, Object... args) {
-        return authenticationError(new HashMap<>(), msg, null, args);
+    public static ElasticsearchSecurityException authenticationError(Map<String, String[]> responseHeaders, String msg, Object... args) {
+        return authenticationError(responseHeaders, msg, null, args);
     }
 
     /**

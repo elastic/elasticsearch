@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestUtil;
+import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
 import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTicketValidator;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -69,7 +69,7 @@ public class KerberosRealmTests extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         Path dir = createTempDir();
         globalSettings = Settings.builder().put("path.home", dir).build();
-        settings = KerberosTestUtil.buildKerberosRealmSettings(KerberosTestUtil.writeKeyTab(dir, "key.keytab", "asa").toString());
+        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.writeKeyTab(dir, "key.keytab", "asa").toString());
     }
 
     @After
@@ -97,8 +97,8 @@ public class KerberosRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateWithValidTicketAndAuthz() throws LoginException, GSSException {
-        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         final NativeRoleMappingStore roleMapper = mockRoleMappingStore("test@REALM");
         @SuppressWarnings("unchecked")
         final Cache<String, User> mockUsernameUserCache = mock(Cache.class);
@@ -125,8 +125,8 @@ public class KerberosRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateWithCache() throws LoginException, GSSException {
-        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         final NativeRoleMappingStore roleMapper = mockRoleMappingStore("test@REALM");
         @SuppressWarnings("unchecked")
         final Cache<String, User> mockUsernameUserCache = mock(Cache.class);
@@ -155,8 +155,8 @@ public class KerberosRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateDifferentFailureScenarios() throws LoginException, GSSException {
-        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         final NativeRoleMappingStore roleMapper = mockRoleMappingStore("test@REALM");
         @SuppressWarnings("unchecked")
         final Cache<String, User> mockUsernameUserCache = mock(Cache.class);
@@ -220,8 +220,8 @@ public class KerberosRealmTests extends ESTestCase {
     }
 
     public void testFailedAuthorization() throws LoginException, GSSException {
-        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         final NativeRoleMappingStore roleMapper = mockRoleMappingStore("test@REALM");
         @SuppressWarnings("unchecked")
         final Cache<String, User> mockUsernameUserCache = mock(Cache.class);
@@ -241,8 +241,8 @@ public class KerberosRealmTests extends ESTestCase {
     }
 
     public void testLookupUser() {
-        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         final NativeRoleMappingStore roleMapper = mockRoleMappingStore("test@REALM");
         @SuppressWarnings("unchecked")
         final Cache<String, User> mockUsernameUserCache = mock(Cache.class);

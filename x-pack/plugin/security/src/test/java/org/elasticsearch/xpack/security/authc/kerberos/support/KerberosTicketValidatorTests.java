@@ -47,7 +47,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         globalSettings = Settings.builder().put("path.home", dir).build();
         serviceUserName = "HTTP/" + randomAlphaOfLength(5);
         Path ktabPathForService = createPrincipalKeyTab(dir, serviceUserName);
-        settings = KerberosTestUtil.buildKerberosRealmSettings(ktabPathForService.toString());
+        settings = buildKerberosRealmSettings(ktabPathForService.toString());
         clientUserName = "client-" + randomAlphaOfLength(5);
         createPrincipal(clientUserName, "pwd".toCharArray());
     }
@@ -78,7 +78,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
     public void testWhenKeyTabDoesNotExistFailsValidation() throws LoginException, GSSException {
         final String base64KerbToken = Base64.getEncoder().encodeToString(randomByteArrayOfLength(5));
-        settings = KerberosTestUtil.buildKerberosRealmSettings("random-non-existing.keytab".toString());
+        settings = buildKerberosRealmSettings("random-non-existing.keytab".toString());
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         thrown.expect(IllegalArgumentException.class);
@@ -87,15 +87,16 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, base64KerbToken, config);
     }
 
-    public void testWhenKeyTabWithInvalidContentFailsValidation() throws LoginException, GSSException, IOException, PrivilegedActionException {
+    public void testWhenKeyTabWithInvalidContentFailsValidation()
+            throws LoginException, GSSException, IOException, PrivilegedActionException {
         // Client login and init token preparation
         final SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
                 principalName(serviceUserName), settings);
         final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
         assertNotNull(base64KerbToken);
 
-        final Path ktabPath = KerberosTestUtil.writeKeyTab(dir, "invalid.keytab", "not - a - valid - key - tab");
-        settings = KerberosTestUtil.buildKerberosRealmSettings(ktabPath.toString());
+        final Path ktabPath = writeKeyTab(dir, "invalid.keytab", "not - a - valid - key - tab");
+        settings = buildKerberosRealmSettings(ktabPath.toString());
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         thrown.expect(new GSSExceptionMatcher(GSSException.FAILURE));
@@ -111,7 +112,8 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        final Tuple<String, String> userNameOutToken = kerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, base64KerbToken, config);
+        final Tuple<String, String> userNameOutToken =
+                kerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, base64KerbToken, config);
         assertNotNull(userNameOutToken);
         assertEquals(principalName(clientUserName), userNameOutToken.v1());
         assertNotNull(userNameOutToken.v2());
@@ -123,9 +125,11 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
     class GSSExceptionMatcher extends BaseMatcher<GSSException> {
         private int expectedErrorCode;
+
         GSSExceptionMatcher(int expectedErrorCode) {
             this.expectedErrorCode = expectedErrorCode;
         }
+
         @Override
         public boolean matches(Object item) {
             if (item instanceof GSSException) {

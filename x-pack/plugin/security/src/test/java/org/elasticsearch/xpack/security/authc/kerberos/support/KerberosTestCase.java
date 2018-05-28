@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.kerberos.support;
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import org.ietf.jgss.GSSName;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -51,7 +53,7 @@ import javax.security.auth.login.LoginException;
 /**
  * Base Test class for Kerberos
  */
-public class KerberosTestCase extends ESTestCase {
+public abstract class KerberosTestCase extends ESTestCase {
 
     protected MiniKdc miniKdc;
     protected Path miniKdcWorkDir = null;
@@ -280,5 +282,27 @@ public class KerberosTestCase extends ESTestCase {
                 }
             }
         }
+    }
+
+    public static Path writeKeyTab(final Path dir, final String name, final String content) throws IOException {
+        final Path path = dir.resolve(name);
+        try (BufferedWriter bufferedWriter = Files.newBufferedWriter(path, StandardCharsets.US_ASCII)) {
+            bufferedWriter.write(Strings.isNullOrEmpty(content) ? "test-content" : content);
+        }
+        return path;
+    }
+
+    public static Settings buildKerberosRealmSettings(final String keytabPath) {
+        return buildKerberosRealmSettings(keytabPath, 100, "10m", true);
+    }
+
+    public static Settings buildKerberosRealmSettings(final String keytabPath, final int maxUsersInCache,
+            final String cacheTTL, final boolean enableDebugging) {
+        Settings.Builder builder = Settings.builder()
+                .put(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getKey(), keytabPath)
+                .put(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.getKey(), maxUsersInCache)
+                .put(KerberosRealmSettings.CACHE_TTL_SETTING.getKey(), cacheTTL)
+                .put(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.getKey(), enableDebugging);
+        return builder.build();
     }
 }

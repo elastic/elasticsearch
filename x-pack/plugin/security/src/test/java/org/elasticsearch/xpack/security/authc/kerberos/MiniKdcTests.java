@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestUtil;
 import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTicketValidator;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSName;
@@ -43,7 +42,7 @@ public class MiniKdcTests extends KerberosTestCase {
         globalSettings = Settings.builder().put("path.home", dir).build();
         serviceUserName = "HTTP/" + randomAlphaOfLength(5);
         Path ktabPathForService = createPrincipalKeyTab(dir, serviceUserName);
-        settings = KerberosTestUtil.buildKerberosRealmSettings(ktabPathForService.toString());
+        settings = buildKerberosRealmSettings(ktabPathForService.toString());
         clientUserName = "client-" + randomAlphaOfLength(5);
         createPrincipal(clientUserName, "pwd".toCharArray());
     }

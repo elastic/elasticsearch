@@ -132,7 +132,7 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         out.writeVLong(incrementalSize);
         out.writeVLong(processedSize);
 
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeVInt(totalFileCount);
             out.writeVLong(totalSize);
         }
@@ -149,7 +149,7 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         incrementalSize = in.readVLong();
         processedSize = in.readVLong();
 
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             totalFileCount = in.readVInt();
             totalSize = in.readVLong();
         } else {
@@ -172,15 +172,6 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
         static final String TIME_IN_MILLIS = "time_in_millis";
         static final String TIME = "time";
-
-        // BWC
-        static final String NUMBER_OF_FILES = "number_of_files";
-        static final String PROCESSED_FILES = "processed_files";
-        static final String TOTAL_SIZE = "total_size";
-        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
-        static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
-        static final String PROCESSED_SIZE = "processed_size";
-
     }
 
     @Override
@@ -211,13 +202,7 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
        builder.field(Fields.START_TIME_IN_MILLIS, getStartTime())
             .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
 
-        // BWC part
-        return builder.field(Fields.NUMBER_OF_FILES, getIncrementalFileCount())
-            .field(Fields.PROCESSED_FILES, getProcessedFileCount())
-            .humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getIncrementalSize()))
-            .humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()))
-            // BWC part ends
-            .endObject();
+        return builder.endObject();
     }
 
     void add(SnapshotStats stats) {

@@ -174,22 +174,8 @@ public class SSLService extends AbstractComponent {
     }
 
     /**
-     * Create a new {@link SSLSocketFactory} based on the provided settings. The settings are used to identify the ssl configuration that
-     * should be used to create the socket factory. The socket factory will also properly configure the ciphers and protocols on each
-     * socket that is created
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
-     *                 a factory created from the default configuration
-     * @return Never {@code null}.
-     */
-    public SSLSocketFactory sslSocketFactory(Settings settings) {
-        SSLConfiguration sslConfiguration = sslConfiguration(settings);
-        return sslSocketFactory(sslConfiguration);
-    }
-
-    /**
-     * Create a new {@link SSLSocketFactory} based on the provided settings. The settings are used to identify the ssl configuration that
-     * should be used to create the socket factory. The socket factory will also properly configure the ciphers and protocols on each
-     * socket that is created
+     * Create a new {@link SSLSocketFactory} based on the provided configuration.
+     * The socket factory will also properly configure the ciphers and protocols on each socket that is created
      * @param configuration The SSL configuration to use. Typically obtained from {@link #getSSLConfiguration(String)}
      * @return Never {@code null}.
      */
@@ -695,6 +681,10 @@ public class SSLService extends AbstractComponent {
             builder.put("client_authentication", XPackSettings.HTTP_CLIENT_AUTH_DEFAULT);
         }
         return builder.build();
+    }
+
+    public SSLConfiguration getHttpTransportSSLConfiguration() {
+        return getSSLConfiguration(XPackSettings.HTTP_SSL_PREFIX);
     }
 
     private static Map<String, Settings> getMonitoringExporterSettings(Settings settings) {

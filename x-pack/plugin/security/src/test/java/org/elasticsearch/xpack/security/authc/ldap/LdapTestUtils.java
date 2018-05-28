@@ -15,6 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
@@ -59,16 +60,13 @@ public class LdapTestUtils {
         options.setConnectTimeoutMillis(Math.toIntExact(SessionFactorySettings.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactorySettings.TIMEOUT_DEFAULT.millis());
 
-        Settings connectionSettings;
+        final SSLConfiguration sslConfiguration;
         if (useGlobalSSL) {
-            connectionSettings = Settings.EMPTY;
+            sslConfiguration = sslService.getSSLConfiguration("_global");
         } else {
-            MockSecureSettings connSecureSettings = new MockSecureSettings();
-            connSecureSettings.setString("truststore.secure_password", "changeit");
-            connectionSettings = Settings.builder().put("truststore.path", truststore)
-                        .setSecureSettings(connSecureSettings).build();
+            sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.foo.ssl");
         }
-        return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(connectionSettings), options,
+        return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(sslConfiguration), options,
                 ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
     }
 }

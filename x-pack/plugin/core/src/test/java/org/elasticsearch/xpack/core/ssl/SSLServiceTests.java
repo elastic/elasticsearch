@@ -375,8 +375,8 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        SSLSocketFactory factory = sslService.sslSocketFactory(Settings.EMPTY);
         SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLSocketFactory factory = sslService.sslSocketFactory(config);
         final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), config.cipherSuites(), false);
         assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 

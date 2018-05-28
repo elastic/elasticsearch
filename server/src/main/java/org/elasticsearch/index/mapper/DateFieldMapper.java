@@ -60,7 +60,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
-/** A {@link FieldMapper} for ip addresses. */
+/** A {@link FieldMapper} for datetime related values */
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";

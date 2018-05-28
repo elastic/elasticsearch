@@ -17,4 +17,5 @@ include::calendars.asciidoc[]
 There are a few concepts that are core to {ml} in {xpack}. Understanding these
 concepts from the outset will tremendously help ease the learning process.
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/architecture.asciidoc
 include::architecture.asciidoc[]

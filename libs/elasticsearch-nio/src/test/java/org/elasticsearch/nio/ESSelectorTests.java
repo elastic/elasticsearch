@@ -27,7 +27,6 @@ import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
 
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -81,7 +80,7 @@ public class ESSelectorTests extends ESTestCase {
 
         this.selector.singleLoop();
 
-        verify(handler).selectException(ioException);
+        verify(handler).selectorException(ioException);
     }
 
     public void testSelectorClosedIfOpenAndEventLoopNotRunning() throws IOException {

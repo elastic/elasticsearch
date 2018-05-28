@@ -1,0 +1,13 @@
+[[breaking_70_scripting_changes]]
+=== Scripting changes
+
+==== getDate() and getDates() removed
+
+Fields of type `long` and `date` had `getDate()` and `getDates()` methods
+(for multi valued fields) to get an object with date specific helper methods
+for the current doc value. In 5.3.0, `date` fields were changed to expose
+this same date object directly when calling `doc["myfield"].value`, and
+the getter methods for date objects were deprecated. These methods have
+now been removed. Instead, use `.value` on `date` fields, or explicitly
+parse `long` fields into a date object using
+`Instance.ofEpochMillis(doc["myfield"].value)`.

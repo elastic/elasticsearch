@@ -1145,7 +1145,7 @@ Path to the PEM encoded file containing the private key.
 The passphrase that is used to decrypt the private key. This value is
 optional as the key might not be encrypted.
 
-`xpack.ssl.secure_key_passphrase` ({<<secure-settings,Secure>>)::
+`xpack.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
 The passphrase that is used to decrypt the private key. This value is
 optional as the key might not be encrypted.
 

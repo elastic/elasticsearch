@@ -138,12 +138,12 @@ public class SocketSelector extends ESSelector {
      * @param listener to be executed
      * @param value to provide to listener
      */
-    public <V> void executeListener(BiConsumer<V, Throwable> listener, V value) {
+    public <V> void executeListener(BiConsumer<V, Exception> listener, V value) {
         assertOnSelectorThread();
         try {
             listener.accept(value, null);
         } catch (Exception e) {
-            eventHandler.listenerException(listener, e);
+            eventHandler.listenerException(e);
         }
     }
 
@@ -154,12 +154,12 @@ public class SocketSelector extends ESSelector {
      * @param listener to be executed
      * @param exception to provide to listener
      */
-    public <V> void executeFailedListener(BiConsumer<V, Throwable> listener, Exception exception) {
+    public <V> void executeFailedListener(BiConsumer<V, Exception> listener, Exception exception) {
         assertOnSelectorThread();
         try {
             listener.accept(null, exception);
         } catch (Exception e) {
-            eventHandler.listenerException(listener, e);
+            eventHandler.listenerException(e);
         }
     }
 

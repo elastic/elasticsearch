@@ -26,7 +26,6 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.FileAlreadyExistsException;
 import java.util.Map;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {

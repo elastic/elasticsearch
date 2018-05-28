@@ -30,8 +30,6 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.DestroyFailedException;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -50,6 +48,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -332,7 +331,7 @@ public class SSLService extends AbstractComponent {
      * @throws IllegalArgumentException if not found
      */
     SSLContextHolder sslContextHolder(SSLConfiguration sslConfiguration) {
-        SSLContextHolder holder = sslContexts.get(sslConfiguration);
+        SSLContextHolder holder = sslContexts.get(Objects.requireNonNull(sslConfiguration, "SSL Configuration cannot be null"));
         if (holder == null) {
             throw new IllegalArgumentException("did not find a SSLContext for [" + sslConfiguration.toString() + "]");
         }
@@ -714,7 +713,12 @@ public class SSLService extends AbstractComponent {
         if (contextName.endsWith(".")) {
             contextName = contextName.substring(0, contextName.length() - 1);
         }
-        return sslConfigurations.get(contextName);
+        final SSLConfiguration configuration = sslConfigurations.get(contextName);
+        if (configuration == null && logger.isTraceEnabled()) {
+            logger.trace("Cannot find SSL configuration for context {}. Known contexts are: {}", contextName,
+                Strings.collectionToCommaDelimitedString(sslConfigurations.keySet()));
+        }
+        return configuration;
     }
 
     /**

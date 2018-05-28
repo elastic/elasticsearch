@@ -25,7 +25,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -154,12 +157,17 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private TopDocs searchOperations(IndexSearcher searcher) throws IOException {
-        final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo);
+        final Query rangeQuery = new BooleanQuery.Builder()
+            .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+            .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.FILTER)
+            .build();
         final Sort sortedBySeqNoThenByTerm = new Sort(
             new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
             new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
         );
-        return searcher.search(rangeQuery, Integer.MAX_VALUE, sortedBySeqNoThenByTerm);
+        // nocommit - limits the number of hits
+        final long numHits = Math.min((toSeqNo + 1 - fromSeqNo) * 2, Integer.MAX_VALUE - 1);
+        return searcher.search(rangeQuery, Math.toIntExact(numHits), sortedBySeqNoThenByTerm);
     }
 
     private Translog.Operation readDocAsOp(int docID) throws IOException {

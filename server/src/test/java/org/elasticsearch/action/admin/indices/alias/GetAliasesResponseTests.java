@@ -24,8 +24,10 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
@@ -34,7 +36,9 @@ import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -44,6 +48,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.core.AnyOf.anyOf;
 
 public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<GetAliasesResponse> {
 
@@ -258,7 +263,7 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
             outResponse.writeTo(out);
 
             try (final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-                    final InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);) {
+                    final StreamInput in = new InputStreamStreamInput(inBuffer);) {
                 final GetAliasesResponse inResponse = new GetAliasesResponse(null);
                 in.setVersion(targetNodeVersion);
                 inResponse.readFrom(in);
@@ -273,6 +278,84 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
                     assertThat(inResponse.errorMessage(), equalTo(null));
                 }
             }
+        }
+    }
+
+    // testing that a response serialized by ES6.3 can be successfully deserialized on master
+    public void testSerializationFwd_6_3_0() throws IOException {
+
+//      The following response has been serialized on v6.3 and Base64 encoded
+//      "{" +
+//      "  \"index2\": {" +
+//      "    \"aliases\": {" +
+//      "      \"alias2\": {" +
+//      "        \"search_routing\": \"1,2\"" +
+//      "      }" +
+//      "    }" +
+//      "  }," +
+//      "  \"index1\": {" +
+//      "    \"aliases\": {" +
+//      "      \"alias1\": {}," +
+//      "      \"alias11\": {" +
+//      "        \"filter\": {" +
+//      "          \"term\": {" +
+//      "            \"year\": \"2018\"" +
+//      "          }" +
+//      "        }," +
+//      "        \"index_routing\": \"2\"," +
+//      "        \"search_routing\": \"1,2\"" +
+//      "      }" +
+//      "    }" +
+//      "  }," +
+//      "  \"index3\": {" +
+//      "    \"aliases\": {}" +
+//      "  }" +
+//      "}";
+        String out63 = "AwZpbmRleDECBmFsaWFzMQAAAAdhbGlhczExAS5VAaEbREZMAKpWqkxNLFKyUjIyMLRQqgUAAAD//wMAAQEyAQMxLDIGaW5kZXgyAQZhbGlhcz"
+                + "IAAAEDMSwyBmluZGV4MwA=";
+
+        byte[] decode = Base64.getDecoder().decode(out63);
+        GetAliasesResponse inResponse = new GetAliasesResponse(null);
+
+        try (InputStream inBytes = new ByteArrayInputStream(decode);
+                StreamInput in = new InputStreamStreamInput(inBytes);) {
+            in.setVersion(Version.V_6_3_0);
+            inResponse.readFrom(in);
+
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = inResponse.getAliases();
+            assertThat(aliases.size(), equalTo(3));
+
+            assertThat(aliases.containsKey("index1"), equalTo(true));
+            List<AliasMetaData> aliasesIndex1 = aliases.get("index1");
+            assertThat(aliasesIndex1.size(), equalTo(2));
+
+            for (int i = 0; i < aliasesIndex1.size(); i++) {
+                AliasMetaData aliasMetaData = aliasesIndex1.get(i);
+                assertThat(aliasMetaData.alias(), anyOf(equalTo("alias1"), equalTo("alias11")));
+                if (aliasMetaData.alias().equals("alias1")) {
+                    assertThat(aliasMetaData.filter(), equalTo(null));
+                    assertThat(aliasMetaData.searchRouting(), equalTo(null));
+                    assertThat(aliasMetaData.indexRouting(), equalTo(null));
+                } else if (aliasMetaData.alias().equals("alias11")) {
+                    assertThat(aliasMetaData.filter(), equalTo(new CompressedXContent("{\"year\":\"2018\"}")));
+                    assertThat(aliasMetaData.indexRouting(), equalTo("2"));
+                    assertThat(aliasMetaData.searchRouting(), equalTo("1,2"));
+                }
+            }
+
+            assertThat(aliases.containsKey("index2"), equalTo(true));
+            List<AliasMetaData> aliasesIndex2 = aliases.get("index2");
+            assertThat(aliasesIndex2.size(), equalTo(1));
+
+            AliasMetaData aliasMetaData = aliasesIndex2.get(0);
+            assertThat(aliasMetaData.alias(), equalTo("alias2"));
+            assertThat(aliasMetaData.filter(), equalTo(null));
+            assertThat(aliasMetaData.searchRouting(), equalTo("1,2"));
+            assertThat(aliasMetaData.indexRouting(), equalTo(null));
+
+            assertThat(aliases.containsKey("index3"), equalTo(true));
+            List<AliasMetaData> aliasesIndex3 = aliases.get("index3");
+            assertThat(aliasesIndex3.size(), equalTo(0));
         }
     }
 

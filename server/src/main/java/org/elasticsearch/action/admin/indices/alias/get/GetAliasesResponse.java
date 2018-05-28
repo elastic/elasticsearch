@@ -49,14 +49,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class GetAliasesResponse extends ActionResponse implements StatusToXContentObject {
 
     private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
-    private RestStatus status = RestStatus.OK;
+    private RestStatus status;
     private String errorMessage;
 
     public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases, RestStatus status, String errorMessage) {
         this.aliases = aliases;
-        if (status != null) {
-            this.status = status;
-        }
+        this.status = status;
         this.errorMessage = errorMessage;
     }
 
@@ -178,7 +176,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         
         builder.startObject();
         {
-            if (RestStatus.OK != status) {
+            if (null != status && RestStatus.OK != status) {
                 builder.field("error", errorMessage);
                 builder.field("status", status.getStatus());
             }
@@ -242,7 +240,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 }
             }
         }
-        return new GetAliasesResponse(aliasesBuilder.build(), status, exceptionMessage);
+        return new GetAliasesResponse(aliasesBuilder.build(), status == null ? RestStatus.OK : status , exceptionMessage);
     }
 
     private static List<AliasMetaData> parseAliases(XContentParser parser) throws IOException {

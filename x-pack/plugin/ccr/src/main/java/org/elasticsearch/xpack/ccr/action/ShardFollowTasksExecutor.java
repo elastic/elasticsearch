@@ -10,6 +10,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
@@ -20,6 +22,8 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -27,10 +31,14 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,8 +46,6 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -47,8 +53,11 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -101,16 +110,26 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         Client leaderClient = wrapClient(params.getLeaderClusterAlias() != null ?
                 this.client.getRemoteClusterClient(params.getLeaderClusterAlias()) : this.client, params);
         Client followerClient = wrapClient(this.client, params);
-        logger.info("Starting shard following [{}]", params);
-        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
-                followGlobalCheckPoint -> {
-                        shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint);
-                        prepare(leaderClient, followerClient,shardFollowNodeTask, params, followGlobalCheckPoint);
-                    }, task::markAsFailed);
+        IndexMetadataVersionChecker imdVersionChecker = new IndexMetadataVersionChecker(params.getLeaderShardId().getIndex(),
+                params.getFollowShardId().getIndex(), client, leaderClient);
+        logger.info("[{}] initial leader mapping with follower mapping syncing", params);
+        imdVersionChecker.updateMapping(1L /* Force update, version is initially 0L */, e -> {
+            if (e == null) {
+                logger.info("Starting shard following [{}]", params);
+                fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
+                        followGlobalCheckPoint -> {
+                            shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint);
+                            prepare(leaderClient, followerClient,shardFollowNodeTask, params, followGlobalCheckPoint, imdVersionChecker);
+                        }, task::markAsFailed);
+            } else {
+                shardFollowNodeTask.markAsFailed(e);
+            }
+        });
     }
 
     void prepare(Client leaderClient, Client followerClient, ShardFollowNodeTask task, ShardFollowTask params,
-                 long followGlobalCheckPoint) {
+                 long followGlobalCheckPoint,
+                 IndexMetadataVersionChecker imdVersionChecker) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -122,7 +141,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             // TODO: check if both indices have the same history uuid
             if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
                 logger.debug("{} no write operations to fetch", followerShard);
-                retry(leaderClient, followerClient, task, params, followGlobalCheckPoint);
+                retry(leaderClient, followerClient, task, params, followGlobalCheckPoint, imdVersionChecker);
             } else {
                 assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
                         "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
@@ -132,13 +151,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 Consumer<Exception> handler = e -> {
                     if (e == null) {
                         task.updateProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
-                        prepare(leaderClient, followerClient, task, params, leaderGlobalCheckPoint);
+                        prepare(leaderClient, followerClient, task, params, leaderGlobalCheckPoint, imdVersionChecker);
                     } else {
                         task.markAsFailed(e);
                     }
                 };
-                ChunksCoordinator coordinator = new ChunksCoordinator(followerClient, leaderClient, ccrExecutor, params.getMaxChunkSize(),
-                        params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard, followerShard, handler);
+                ChunksCoordinator coordinator = new ChunksCoordinator(followerClient, leaderClient, ccrExecutor, imdVersionChecker,
+                    params.getMaxChunkSize(), params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard,
+                    followerShard, handler);
                 coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
                 coordinator.start();
             }
@@ -146,7 +166,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     private void retry(Client leaderClient, Client followerClient, ShardFollowNodeTask task, ShardFollowTask params,
-                       long followGlobalCheckPoint) {
+                       long followGlobalCheckPoint,
+                       IndexMetadataVersionChecker imdVersionChecker) {
         threadPool.schedule(RETRY_TIMEOUT, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -155,7 +176,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void doRun() throws Exception {
-                prepare(leaderClient, followerClient, task, params, followGlobalCheckPoint);
+                prepare(leaderClient, followerClient, task, params, followGlobalCheckPoint, imdVersionChecker);
             }
         });
     }
@@ -184,6 +205,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Client followerClient;
         private final Client leaderClient;
         private final Executor ccrExecutor;
+        private final IndexMetadataVersionChecker imdVersionChecker;
 
         private final long batchSize;
         private final int concurrentProcessors;
@@ -196,11 +218,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
         private final AtomicReference<Exception> failureHolder = new AtomicReference<>();
 
-        ChunksCoordinator(Client followerClient, Client leaderClient, Executor ccrExecutor, long batchSize, int concurrentProcessors,
-                          long processorMaxTranslogBytes, ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
+        ChunksCoordinator(Client followerClient, Client leaderClient, Executor ccrExecutor, IndexMetadataVersionChecker imdVersionChecker,
+                          long batchSize, int concurrentProcessors, long processorMaxTranslogBytes, ShardId leaderShard,
+                          ShardId followerShard, Consumer<Exception> handler) {
             this.followerClient = followerClient;
             this.leaderClient = leaderClient;
             this.ccrExecutor = ccrExecutor;
+            this.imdVersionChecker = imdVersionChecker;
             this.batchSize = batchSize;
             this.concurrentProcessors = concurrentProcessors;
             this.processorMaxTranslogBytes = processorMaxTranslogBytes;
@@ -255,8 +279,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     postProcessChuck(e);
                 }
             };
-            ChunkProcessor processor = new ChunkProcessor(leaderClient, followerClient, chunks, ccrExecutor, leaderShard,
-                    followerShard, processorHandler);
+            ChunkProcessor processor = new ChunkProcessor(leaderClient, followerClient, chunks, ccrExecutor, imdVersionChecker,
+                    leaderShard, followerShard, processorHandler);
             processor.start(chunk[0], chunk[1], processorMaxTranslogBytes);
         }
 
@@ -282,18 +306,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Client followerClient;
         private final Queue<long[]> chunks;
         private final Executor ccrExecutor;
+        private final BiConsumer<Long, Consumer<Exception>> indexVersionChecker;
 
         private final ShardId leaderShard;
         private final ShardId followerShard;
         private final Consumer<Exception> handler;
         final AtomicInteger retryCounter = new AtomicInteger(0);
 
-        ChunkProcessor(Client leaderClient, Client followerClient, Queue<long[]> chunks, Executor ccrExecutor, ShardId leaderShard,
-                       ShardId followerShard, Consumer<Exception> handler) {
+        ChunkProcessor(Client leaderClient, Client followerClient, Queue<long[]> chunks, Executor ccrExecutor,
+                       BiConsumer<Long, Consumer<Exception>> indexVersionChecker,
+                       ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
             this.leaderClient = leaderClient;
             this.followerClient = followerClient;
             this.chunks = chunks;
             this.ccrExecutor = ccrExecutor;
+            this.indexVersionChecker = indexVersionChecker;
             this.leaderShard = leaderShard;
             this.followerShard = followerShard;
             this.handler = handler;
@@ -347,20 +374,33 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 @Override
                 protected void doRun() throws Exception {
-                    final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
-                    followerClient.execute(BulkShardOperationsAction.INSTANCE, request, new ActionListener<BulkShardOperationsResponse>() {
-                        @Override
-                        public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
-                            handler.accept(null);
+                    indexVersionChecker.accept(response.getIndexMetadataVersion(), e -> {
+                        if (e != null) {
+                            if (shouldRetry(e) && retryCounter.incrementAndGet() <= PROCESSOR_RETRY_LIMIT) {
+                                handleResponse(to, response);
+                            } else {
+                                handler.accept(new ElasticsearchException("retrying failed [" + retryCounter.get() +
+                                        "] times, aborting...", e));
+                            }
+                            return;
                         }
+                        final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
+                        followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
+                            new ActionListener<BulkShardOperationsResponse>() {
+                            @Override
+                            public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
+                                handler.accept(null);
+                            }
 
-                        @Override
-                        public void onFailure(final Exception e) {
-                            // No retry mechanism here, because if a failure is being redirected to this place it is considered
-                            // non recoverable.
-                            assert e != null;
-                            handler.accept(e);
-                        }
+                                @Override
+                                public void onFailure(final Exception e) {
+                                    // No retry mechanism here, because if a failure is being redirected to this place it is considered
+                                    // non recoverable.
+                                    assert e != null;
+                                    handler.accept(e);
+                                }
+                            }
+                        );
                     });
                 }
             });
@@ -402,6 +442,78 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         final ThreadContext.StoredContext storedContext = threadContext.stashContext();
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
+    }
+
+    static final class IndexMetadataVersionChecker implements BiConsumer<Long, Consumer<Exception>> {
+
+        private static final Logger LOGGER = Loggers.getLogger(IndexMetadataVersionChecker.class);
+
+        private final Client followClient;
+        private final Client leaderClient;
+        private final Index leaderIndex;
+        private final Index followIndex;
+        private final AtomicLong currentIndexMetadataVersion;
+        private final Semaphore updateMappingSemaphore = new Semaphore(1);
+
+        IndexMetadataVersionChecker(Index leaderIndex, Index followIndex, Client followClient, Client leaderClient) {
+            this.followClient = followClient;
+            this.leaderIndex = leaderIndex;
+            this.followIndex = followIndex;
+            this.leaderClient = leaderClient;
+            this.currentIndexMetadataVersion = new AtomicLong();
+        }
+
+        public void accept(Long minimumRequiredIndexMetadataVersion, Consumer<Exception> handler) {
+            if (currentIndexMetadataVersion.get() >= minimumRequiredIndexMetadataVersion) {
+                LOGGER.debug("Current index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
+                    currentIndexMetadataVersion.get(), minimumRequiredIndexMetadataVersion);
+                handler.accept(null);
+            } else {
+                updateMapping(minimumRequiredIndexMetadataVersion, handler);
+            }
+        }
+
+        void updateMapping(long minimumRequiredIndexMetadataVersion, Consumer<Exception> handler) {
+            try {
+                updateMappingSemaphore.acquire();
+            } catch (InterruptedException e) {
+                handler.accept(e);
+                return;
+            }
+            if (currentIndexMetadataVersion.get() >= minimumRequiredIndexMetadataVersion) {
+                updateMappingSemaphore.release();
+                LOGGER.debug("Current index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
+                    currentIndexMetadataVersion.get(), minimumRequiredIndexMetadataVersion);
+                handler.accept(null);
+                return;
+            }
+
+            ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+            clusterStateRequest.clear();
+            clusterStateRequest.metaData(true);
+            clusterStateRequest.indices(leaderIndex.getName());
+
+            leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
+                IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
+                assert indexMetaData.getMappings().size() == 1;
+                MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
+
+                PutMappingRequest putMappingRequest = new PutMappingRequest(followIndex.getName());
+                putMappingRequest.type(mappingMetaData.type());
+                putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
+                followClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(putMappingResponse -> {
+                    currentIndexMetadataVersion.set(indexMetaData.getVersion());
+                    updateMappingSemaphore.release();
+                    handler.accept(null);
+                }, e -> {
+                    updateMappingSemaphore.release();
+                    handler.accept(e);
+                }));
+            }, e -> {
+                updateMappingSemaphore.release();
+                handler.accept(e);
+            }));
+        }
     }
 
 }

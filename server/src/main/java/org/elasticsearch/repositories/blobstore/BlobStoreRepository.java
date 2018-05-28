@@ -818,7 +818,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
         Context context = new Context(snapshotId, version, indexId, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
-        return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(), snapshot.numberOfFiles(), snapshot.totalSize());
+        return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
+            snapshot.incrementalFileCount(), snapshot.totalFileCount(),
+            snapshot.incrementalSize(), snapshot.totalSize());
     }
 
     @Override
@@ -1139,9 +1141,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
 
             store.incRef();
+            int indexIncrementalFileCount = 0;
+            int indexTotalNumberOfFiles = 0;
+            long indexIncrementalSize = 0;
+            long indexTotalFileCount = 0;
             try {
-                int indexNumberOfFiles = 0;
-                long indexTotalFilesSize = 0;
                 ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
                 final Store.MetadataSnapshot metadata;
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
@@ -1182,9 +1186,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             }
                         }
                     }
+
+                    indexTotalFileCount += md.length();
+                    indexTotalNumberOfFiles++;
+
                     if (existingFileInfo == null) {
-                        indexNumberOfFiles++;
-                        indexTotalFilesSize += md.length();
+                        indexIncrementalFileCount++;
+                        indexIncrementalSize += md.length();
                         // create a new FileInfo
                         BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize());
                         indexCommitPointFiles.add(snapshotFileInfo);
@@ -1194,7 +1202,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
-                snapshotStatus.moveToStarted(startTime, indexNumberOfFiles, indexTotalFilesSize);
+                snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
+                    indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
 
                 for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                     try {
@@ -1217,8 +1226,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                                         // snapshotStatus.startTime() is assigned on the same machine,
                                                                         // so it's safe to use with VLong
                                                                         System.currentTimeMillis() - lastSnapshotStatus.getStartTime(),
-                                                                        lastSnapshotStatus.getNumberOfFiles(),
-                                                                        lastSnapshotStatus.getTotalSize());
+                                                                        lastSnapshotStatus.getIncrementalFileCount(),
+                                                                        lastSnapshotStatus.getIncrementalSize()
+            );
 
             //TODO: The time stored in snapshot doesn't include cleanup time.
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);

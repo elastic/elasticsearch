@@ -644,6 +644,9 @@ class ClusterFormationTasks {
             BuildPlugin.requireJavaHome(start, node.javaVersion)
         }
         start.doLast(elasticsearchRunner)
+        start.doFirst {
+            project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")
+        }
         return start
     }
 

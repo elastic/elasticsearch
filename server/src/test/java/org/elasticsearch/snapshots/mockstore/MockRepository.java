@@ -19,20 +19,6 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
-import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
-
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
@@ -49,10 +35,24 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MockRepository extends FsRepository {
 
@@ -326,6 +326,12 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
+            public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                super.deleteBlobIgnoringIfNotExists(blobName);
+            }
+
+            @Override
             public Map<String, BlobMetaData> listBlobs() throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs();
@@ -364,6 +370,12 @@ public class MockRepository extends FsRepository {
                     // get an error with the client connection, so an IOException here simulates this
                     maybeIOExceptionOrBlock(blobName);
                 }
+            }
+
+            @Override
+            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                super.writeBlobAtomic(blobName, inputStream, blobSize);
             }
         }
     }

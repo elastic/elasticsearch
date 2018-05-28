@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.BufferedInputStream;
@@ -129,6 +130,28 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
         IOUtils.fsync(file, false);
         IOUtils.fsync(path, true);
+    }
+
+    @Override
+    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
+        final Path tempBlobPath = path.resolve("pending-" + blobName + "-" + UUIDs.randomBase64UUID());
+        try {
+            try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+                Streams.copy(inputStream, outputStream);
+            }
+            IOUtils.fsync(tempBlobPath, false);
+
+            final Path blobPath = path.resolve(blobName);
+            // If the target file exists then Files.move() behaviour is implementation specific
+            // the existing file might be replaced or this method fails by throwing an IOException.
+            if (Files.exists(blobPath)) {
+                throw new FileAlreadyExistsException("blob [" + blobPath + "] already exists, cannot overwrite");
+            }
+            Files.move(tempBlobPath, blobPath, StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            IOUtils.deleteFilesIgnoringExceptions(tempBlobPath);
+            IOUtils.fsync(path, true);
+        }
     }
 
     @Override

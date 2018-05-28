@@ -161,12 +161,15 @@ if (project != rootProject) {
   namingConventions {
     testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
     integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
+    // this is a self test, so should the classes dir change from this, it will fail
+    dirsToCheck = files("$buildDir/classes/java/test")
   }
 
   task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
     checkForTestsInMain = true
     testClass = namingConventions.testClass
     integTestClass = namingConventions.integTestClass
+    dirsToCheck = files("$buildDir/classes/java/main")
   }
   precommit.dependsOn namingConventionsMain
 }

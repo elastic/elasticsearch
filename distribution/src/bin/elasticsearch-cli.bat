@@ -11,6 +11,12 @@ for /f "tokens=1*" %%a in ("%*") do (
   set arguments=%%b
 )
 
+if defined ES_ADDITIONAL_CLASSPATH_DIRECTORIES (
+  for %%a in ("%ES_ADDITIONAL_CLASSPATH_DIRECTORIES:;=","%") do (
+    set ES_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!/%%a/*
+  )
+)
+
 %JAVA% ^
   %ES_JAVA_OPTS% ^
   -Des.path.home="%ES_HOME%" ^

@@ -25,7 +25,6 @@ specify the appropriate port number (prefixed by a colon) after each host.
 <2> The remote cluster name.
 <3> A valid user and password, which must have authority to create the 
 `.security-audit` index on the remote cluster. 
-//TBD: Is there a secure version of this setting, so that password is hidden in the keystore?
 
 For more information about these settings, see
 {ref}/auditing-settings.html#remote-audit-settings[Remote audit log indexing configuration settings].
@@ -33,9 +32,10 @@ For more information about these settings, see
 --
 
 . If the remote cluster has Transport Layer Security (TLS/SSL) enabled, you 
-must specify extra security settings. 
+must specify extra security settings: 
 
-.. {ref}/configuring-tls.html#node-certificates[Generate a node certificate].
+.. {ref}/configuring-tls.html#node-certificates[Generate a node certificate on 
+the remote cluster], then copy that certificate to the client. 
 
 .. Enable TLS and specify the information required to access the node certificate.
 
@@ -93,7 +93,7 @@ bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.ssl.secur
 -----------------------------------------------------------
 --
 
-//TBD: Is this required?: . Restart {es}.
+. Restart {es}.
 
 When these steps are complete, your audit logs are stored in {es} rolling 
 indices on the remote cluster. 

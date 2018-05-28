@@ -30,6 +30,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -611,6 +613,32 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Executes a request using the Explain API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
+     * @param explainRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(explainRequest, RequestConverters::explain, options, ExplainResponse::fromXContent,
+                singleton(404));
+    }
+
+    /**
+     * Asynchronously executes a request using the Explain API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
+     * @param explainRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
+        performRequestAsyncAndParseEntity(explainRequest, RequestConverters::explain, options, ExplainResponse::fromXContent,listener,
+                singleton(404));
+    }
+
+    /**
      * Executes a request using the Ranking Evaluation API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
      * on elastic.co</a>
@@ -692,7 +720,7 @@ public class RestHighLevelClient implements Closeable {
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
-                    return responseConverter.apply(e.getResponse());
+                    return processResponse(responseConverter.apply(e.getResponse()), e.getResponse().getStatusLine().getStatusCode());
                 } catch (Exception innerException) {
                     // the exception is ignored as we now try to parse the response as an error.
                     // this covers cases like get where 404 can either be a valid document not found response,
@@ -705,7 +733,7 @@ public class RestHighLevelClient implements Closeable {
         }
 
         try {
-            return responseConverter.apply(response);
+            return processResponse(responseConverter.apply(response), response.getStatusLine().getStatusCode());
         } catch(Exception e) {
             throw new IOException("Unable to parse response body for " + response, e);
         }
@@ -749,7 +777,7 @@ public class RestHighLevelClient implements Closeable {
             @Override
             public void onSuccess(Response response) {
                 try {
-                    actionListener.onResponse(responseConverter.apply(response));
+                    actionListener.onResponse(processResponse(responseConverter.apply(response), response.getStatusLine().getStatusCode()));
                 } catch(Exception e) {
                     IOException ioe = new IOException("Unable to parse response body for " + response, e);
                     onFailure(ioe);
@@ -763,7 +791,8 @@ public class RestHighLevelClient implements Closeable {
                     Response response = responseException.getResponse();
                     if (ignores.contains(response.getStatusLine().getStatusCode())) {
                         try {
-                            actionListener.onResponse(responseConverter.apply(response));
+                            actionListener.onResponse(
+                                processResponse(responseConverter.apply(response), response.getStatusLine().getStatusCode()));
                         } catch (Exception innerException) {
                             // the exception is ignored as we now try to parse the response as an error.
                             // this covers cases like get where 404 can either be a valid document not found response,
@@ -825,6 +854,14 @@ public class RestHighLevelClient implements Closeable {
             return entityParser.apply(parser);
         }
     }
+
+    private <Resp> Resp processResponse(Resp resp, int statusCode) {
+        if (resp instanceof ExplainResponse) {
+            ((ExplainResponse) resp).setExists(statusCode == RestStatus.OK.getStatus() ? true : false);
+        }
+        return resp;
+    }
+
 
     private static RequestOptions optionsForHeaders(Header[] headers) {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();

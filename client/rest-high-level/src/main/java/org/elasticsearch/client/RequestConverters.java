@@ -60,6 +60,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -590,6 +591,19 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
+        return request;
+    }
+
+    static Request explain(ExplainRequest explainRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME,
+            endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain"));
+
+        Params params = new Params(request);
+        params.withStoredFields(explainRequest.storedFields());
+        params.withFetchSourceContext(explainRequest.fetchSourceContext());
+        params.withRouting(explainRequest.routing());
+        params.withPreference(explainRequest.preference());
+        request.setEntity(createEntity(explainRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

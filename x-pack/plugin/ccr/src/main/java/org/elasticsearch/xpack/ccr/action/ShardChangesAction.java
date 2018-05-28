@@ -156,13 +156,19 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     public static final class Response extends ActionResponse {
 
+        private long indexMetadataVersion;
         private Translog.Operation[] operations;
 
         Response() {
         }
 
-        Response(final Translog.Operation[] operations) {
+        Response(long indexMetadataVersion, final Translog.Operation[] operations) {
+            this.indexMetadataVersion = indexMetadataVersion;
             this.operations = operations;
+        }
+
+        public long getIndexMetadataVersion() {
+            return indexMetadataVersion;
         }
 
         public Translog.Operation[] getOperations() {
@@ -172,12 +178,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
+            indexMetadataVersion = in.readVLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeVLong(indexMetadataVersion);
             out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
@@ -186,12 +194,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Response response = (Response) o;
-            return Arrays.equals(operations, response.operations);
+            return indexMetadataVersion == response.indexMetadataVersion &&
+                    Arrays.equals(operations, response.operations);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(operations);
+            int result = 1;
+            result += Objects.hashCode(indexMetadataVersion);
+            result += Arrays.hashCode(operations);
+            return result;
         }
     }
 
@@ -224,8 +236,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
 
+            final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
             request.maxSeqNo = Math.min(request.maxSeqNo, indexShard.getGlobalCheckpoint());
-            return getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
+            final Translog.Operation[] operations =
+                getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
+            return new Response(indexMetaDataVersion, operations);
         }
 
         @Override
@@ -250,7 +265,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Response getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo, long byteLimit) throws IOException {
+    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo,
+                                                     long byteLimit) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
@@ -266,6 +282,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
                 }
             }
         }
-        return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+        return operations.toArray(EMPTY_OPERATIONS_ARRAY);
     }
 }

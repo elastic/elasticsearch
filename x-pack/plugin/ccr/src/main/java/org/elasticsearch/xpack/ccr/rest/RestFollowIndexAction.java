@@ -15,12 +15,12 @@ import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction.INSTANCE;
-import static org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction.Request;
+import static org.elasticsearch.xpack.ccr.action.FollowIndexAction.INSTANCE;
+import static org.elasticsearch.xpack.ccr.action.FollowIndexAction.Request;
 
-public class RestFollowExistingIndexAction extends BaseRestHandler {
+public class RestFollowIndexAction extends BaseRestHandler {
 
-    public RestFollowExistingIndexAction(Settings settings, RestController controller) {
+    public RestFollowIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_xpack/ccr/_follow", this);
     }
@@ -32,6 +32,11 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        Request request = createRequest(restRequest);
+        return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    static Request createRequest(RestRequest restRequest) {
         Request request = new Request();
         request.setLeaderIndex(restRequest.param("leader_index"));
         request.setFollowIndex(restRequest.param("index"));
@@ -45,6 +50,6 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
             long value = Long.valueOf(restRequest.param(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
             request.setProcessorMaxTranslogBytes(value);
         }
-        return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
+        return request;
     }
 }

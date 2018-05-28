@@ -57,23 +57,17 @@ public class FollowIndexIT extends ESRestTestCase {
         } else {
             logger.info("Running against follow cluster");
             final String followIndexName = "test_index2";
-            Settings indexSettings = Settings.builder()
-                    .put("index.xpack.ccr.following_index", true)
-                    .build();
-            // TODO: remove mapping here when ccr syncs mappings too
-            createIndex(followIndexName, indexSettings, "\"doc\": { \"properties\": { \"field\": { \"type\": \"integer\" }}}");
-            ensureYellow(followIndexName);
-
-            followIndex("leader_cluster:" + leaderIndexName, followIndexName);
+            createAndFollowIndex("leader_cluster:" + leaderIndexName, followIndexName);
             assertBusy(() -> verifyDocuments(followIndexName, numDocs));
-
+            // unfollow and then follow and then index a few docs in leader index:
+            unfollowIndex(followIndexName);
+            followIndex("leader_cluster:" + leaderIndexName, followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id);
                 index(leaderClient, leaderIndexName, Integer.toString(id + 1), "field", id + 1);
                 index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2);
             }
-
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
         }
     }
@@ -95,6 +89,15 @@ public class FollowIndexIT extends ESRestTestCase {
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
         assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_follow", params));
+    }
+
+    private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
+        Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow", params));
+    }
+
+    private static void unfollowIndex(String followIndex) throws IOException {
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_unfollow"));
     }
 
     private static void verifyDocuments(String index, int expectedNumDocs) throws IOException {

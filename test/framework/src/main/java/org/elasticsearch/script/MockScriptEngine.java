@@ -25,7 +25,6 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
 import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -36,7 +35,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 
@@ -113,6 +111,9 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
             MovingFunctionScript.Factory factory = mockCompiled::createMovingFunctionScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ScoreScript.class)) {
+            ScoreScript.Factory factory = new MockScoreScript(script);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
@@ -340,6 +341,46 @@ public class MockScriptEngine implements ScriptEngine {
         @Override
         public double execute(Map<String, Object> params, double[] values) {
             return MovingFunctions.unweightedAvg(values);
+        }
+    }
+    
+    public class MockScoreScript implements ScoreScript.Factory {
+    
+        private final Function<Map<String, Object>, Object> scripts;
+        
+        MockScoreScript(Function<Map<String, Object>, Object> scripts) {
+            this.scripts = scripts;
+        }
+        
+        @Override
+        public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+            return new ScoreScript.LeafFactory() {
+                @Override
+                public boolean needs_score() {
+                    return true;
+                }
+    
+                @Override
+                public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                    Scorer[] scorerHolder = new Scorer[1];
+                    return new ScoreScript(params, lookup, ctx) {
+                        @Override
+                        public double execute() {
+                            Map<String, Object> vars = new HashMap<>(getParams());
+                            vars.put("doc", getDoc());
+                            if (scorerHolder[0] != null) {
+                                vars.put("_score", new ScoreAccessor(scorerHolder[0]));
+                            }
+                            return ((Number) scripts.apply(vars)).doubleValue();
+                        }
+    
+                        @Override
+                        public void setScorer(Scorer scorer) {
+                            scorerHolder[0] = scorer;
+                        }
+                    };
+                }
+            };
         }
     }
 

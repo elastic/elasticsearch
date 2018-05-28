@@ -165,7 +165,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
             new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
         );
-        // nocommit - limits the number of hits
+        // norelease - limits the number of hits
         final long numHits = Math.min((toSeqNo + 1 - fromSeqNo) * 2, Integer.MAX_VALUE - 1);
         return searcher.search(rangeQuery, Math.toIntExact(numHits), sortedBySeqNoThenByTerm);
     }

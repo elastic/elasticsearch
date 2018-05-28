@@ -272,7 +272,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         }
         int seenBytes = 0;
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", minSeqNo, maxSeqNo, true)) {
+        try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", -1, minSeqNo, maxSeqNo, true)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);

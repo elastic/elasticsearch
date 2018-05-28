@@ -778,7 +778,8 @@ public abstract class EngineTestCase extends ESTestCase {
     public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
         long maxSeqNo = Math.max(0, engine.getLocalCheckpointTracker().getMaxSeqNo());
-        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, 0, maxSeqNo, false)) {
+        int batchSize = randomIntBetween(1, Engine.LUCENE_HISTORY_DEFAULT_SEARCH_BATCH_SIZE);
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, batchSize, 0, maxSeqNo, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null){
                 operations.add(op);

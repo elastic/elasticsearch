@@ -98,6 +98,8 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    // The default number of hits that one search should return when reading Lucene history
+    public static final int LUCENE_HISTORY_DEFAULT_SEARCH_BATCH_SIZE = 1024;
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -613,7 +615,7 @@ public abstract class Engine implements Closeable {
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seqno in the requesting seqno range
      */
-    public abstract Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
+    public abstract Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService, int preferredSearchBatchSize,
                                                                long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException;
 
     protected final void ensureOpen(Exception suppressed) {

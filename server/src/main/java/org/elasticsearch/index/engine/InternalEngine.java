@@ -2349,7 +2349,7 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
-    public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
+    public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService, int preferredSearchBatchSize,
                                                       long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
         ensureOpen();
@@ -2358,7 +2358,8 @@ public class InternalEngine extends Engine {
         }
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, minSeqNo, maxSeqNo, requiredFullRange);
+            final int batchSize = preferredSearchBatchSize <= 0 ? Engine.LUCENE_HISTORY_DEFAULT_SEARCH_BATCH_SIZE : preferredSearchBatchSize;
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, batchSize, minSeqNo, maxSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
         } finally {

@@ -1610,15 +1610,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The caller has to close the returned snapshot after finishing the reading.
      *
      * @param source            the source of the request
+     * @param searchBatchSize   the number of hits that each search should return.
+     *                          Pass -1 to use {@link Engine#LUCENE_HISTORY_DEFAULT_SEARCH_BATCH_SIZE}
      * @param minSeqNo          the min_seqno to read - inclusive
      * @param maxSeqNo          the max_seqno to read - inclusive
      * @param requiredFullRange if true then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
      *                          if any operation between minSeqNo and maxSeqNo is missing. This parameter should be only
      *                          enabled when the requesting range is below the global checkpoint.
      */
-    public Translog.Snapshot newLuceneChangesSnapshot(String source, long minSeqNo, long maxSeqNo,
+    public Translog.Snapshot newLuceneChangesSnapshot(String source, int searchBatchSize, long minSeqNo, long maxSeqNo,
                                                       boolean requiredFullRange) throws IOException {
-        return getEngine().newLuceneChangesSnapshot(source, mapperService, minSeqNo, maxSeqNo, requiredFullRange);
+        return getEngine().newLuceneChangesSnapshot(source, mapperService, searchBatchSize, minSeqNo, maxSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {

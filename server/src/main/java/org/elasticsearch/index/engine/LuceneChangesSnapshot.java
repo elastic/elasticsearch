@@ -53,7 +53,7 @@ import java.util.Objects;
  * A {@link Translog.Snapshot} from changes in a Lucene index
  */
 final class LuceneChangesSnapshot implements Translog.Snapshot {
-    static final int SEARCH_BATCH_SIZE = 100;
+    private final int searchBatchSize;
     private final long fromSeqNo, toSeqNo;
     private long lastSeenSeqNo;
     private int skippedOperations;
@@ -73,16 +73,21 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      *
      * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
      * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
+     * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      */
-    LuceneChangesSnapshot(Engine.Searcher engineSearcher, MapperService mapperService,
+    LuceneChangesSnapshot(Engine.Searcher engineSearcher, MapperService mapperService, int searchBatchSize,
                           long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
+        if (searchBatchSize <= 0) {
+            throw new IllegalArgumentException("Search_batch_size must be positive [" + searchBatchSize + "]");
+        }
         this.mapperService = mapperService;
+        this.searchBatchSize = searchBatchSize;
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
@@ -169,7 +174,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
             new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
         );
-        return indexSearcher.searchAfter(after, rangeQuery, SEARCH_BATCH_SIZE, sortedBySeqNoThenByTerm);
+        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNoThenByTerm);
     }
 
     private Translog.Operation readDocAsOp(int docID) throws IOException {

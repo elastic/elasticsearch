@@ -11,13 +11,13 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.sql.proto.ProtoUtils.parseFieldsValue;
 
 /**
  * Represent a strongly typed parameter value
@@ -33,7 +33,7 @@ public class SqlTypedParamValue implements ToXContentObject {
     private static final ParseField TYPE = new ParseField("type");
 
     static {
-        PARSER.declareField(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
         PARSER.declareString(constructorArg(), TYPE);
     }
 

@@ -6,16 +6,19 @@
 Authorization is the process of determining whether the user behind an incoming
 request is allowed to execute it. 
 
-This process takes place after the user behind a request is successfully 
-identified and <<setting-up-authentication,authenticated>>. 
+This process takes place after the user is successfully identified and <<setting-up-authentication,authenticated>>. 
 
 [[roles]]
 [float]
 === Roles, permissions, and privileges
 
-The authorization process revolves around the following constructs:
+{security} provides a role-based access control (RBAC) mechanism, which enables 
+you to authorize users by assigning privileges to roles and assigning roles to 
+users or groups. 
 
 //TO-DO: Add conceptual diagram
+
+The authorization process revolves around the following constructs:
 
 _Secured Resource_::
 A resource to which access is restricted. Indices, aliases, documents, fields,
@@ -46,14 +49,6 @@ The authenticated user.
 _Group_::
 One or more groups to which a user belongs. Groups are not supported in some 
 realms, such as native, file, or PKI realms. 
-
-[float]
-[[role-based-access-control]]
-=== Role-based access control
-
-{security} provides a role-based access control (RBAC) mechanism, which enables 
-you to authorize users by assigning privileges to roles and assigning roles to 
-users or groups. 
 
 A role has a unique name and identifies a set of permissions that translate to
 privileges on resources. You can associate a user or group with an arbitrary 

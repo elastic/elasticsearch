@@ -54,6 +54,8 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 
@@ -1058,5 +1060,29 @@ public final class IndicesClient {
                                  ActionListener<PutIndexTemplateResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate, options,
             PutIndexTemplateResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets index templates using the Index Templates API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     */
+    public GetIndexTemplatesResponse getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest,
+                                                  RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest, RequestConverters::getTemplates,
+            options, GetIndexTemplatesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets index templates using the Index Templates API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     */
+    public void getTemplatesAsync(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options,
+                                  ActionListener<GetIndexTemplatesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest, RequestConverters::getTemplates,
+            options, GetIndexTemplatesResponse::fromXContent, listener, emptySet());
     }
 }

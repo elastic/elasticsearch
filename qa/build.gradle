@@ -5,6 +5,9 @@ subprojects { Project subproj ->
   subproj.tasks.withType(RestIntegTestTask) {
     subproj.extensions.configure("${it.name}Cluster") { cluster ->
       cluster.distribution = System.getProperty('tests.distribution', 'oss-zip')
+      if (cluster.distribution == 'integ-test-zip') {
+        throw new Exception("tests.distribution=integ.-test-zip is not supported")
+      }
     }
   }
 }

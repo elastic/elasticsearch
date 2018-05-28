@@ -98,7 +98,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             if (Double.isInfinite(from)) {
                 return null;
             } else {
-                return format.format(from);
+                return format.format(from).toString();
             }
         }
 
@@ -107,7 +107,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             if (Double.isInfinite(to)) {
                 return null;
             } else {
-                return format.format(to);
+                return format.format(to).toString();
             }
         }
 

@@ -22,6 +22,7 @@ the primary (or sole) authentication method for users of that {kib} instance.
 Once you enable SAML authentication in {kib} it will affect all users who try
 to login. The <<saml-kibana>> section provides more detail about how this works.
 
+[[saml-guide-idp]]
 === The identity provider
 
 The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
@@ -70,6 +71,7 @@ For `<LogoutRequest>` messages, the message itself must be signed, and the
 signature should be provided as a URL parameter, as required by the HTTP-Redirect
 binding.
 
+[[saml-guide-authentication]]
 === Configure {es} for SAML authentication
 
 There are five configuration steps to enable SAML authentication in {es}:

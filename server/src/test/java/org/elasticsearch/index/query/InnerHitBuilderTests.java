@@ -32,6 +32,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -147,7 +149,9 @@ public class InnerHitBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
-        innerHits.setDocValueFields(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
+        innerHits.setDocValueFields(randomListStuff(16,
+                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
+                        randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -187,9 +191,9 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {
             if (randomBoolean()) {
-                copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(), () -> {
-                    return randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16));
-                }));
+                copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(),
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
+                                randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT))));
             } else {
                 copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
             }

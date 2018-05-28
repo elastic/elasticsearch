@@ -271,7 +271,7 @@ a `ContentType` of `application/json`.
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-body-shorter]
 --------------------------------------------------
 
-And you can set a list of headers to send with the request:
+And you can add one or more headers to send with the request:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

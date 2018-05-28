@@ -563,6 +563,62 @@ GET /_snapshot/my_backup/snapshot_1/_status
 // CONSOLE
 // TEST[continued]
 
+The output looks similar to the following:
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_1",
+      "repository": "my_backup",
+      "uuid": "XuBo4l4ISYiVg0nYUen9zg",
+      "state": "SUCCESS",
+      "include_global_state": true,
+      "shards_stats": {
+        "initializing": 0,
+        "started": 0,
+        "finalizing": 0,
+        "done": 5,
+        "failed": 0,
+        "total": 5
+      },
+      "stats": {
+        "incremental": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "processed": {
+          "file_count": 7,
+          "size_in_bytes": 4254
+        },
+        "total": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "start_time_in_millis": 1526280280355,
+        "time_in_millis": 358,
+
+        "number_of_files": 8,
+        "processed_files": 8,
+        "total_size_in_bytes": 4704,
+        "processed_size_in_bytes": 4704
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
+snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,
+the `stats` object contains a `total` section for all the files that are referenced by the snapshot, as well as an `incremental` section
+for those files that actually needed to be copied over as part of the incremental snapshotting. In case of a snapshot that's still
+in progress, there's also a `processed` section that contains information about the files that are in the process of being copied.
+
+_Note_: Properties `number_of_files`, `processed_files`, `total_size_in_bytes` and `processed_size_in_bytes` are used for
+backward compatibility reasons with older 5.x and 6.x versions. These fields will be removed in Elasticsearch v7.0.0.
+
 Multiple ids are also supported:
 
 [source,sh]

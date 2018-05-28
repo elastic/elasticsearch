@@ -427,16 +427,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().restartNode(replicaNode, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                // Create a fully deleted segment so that its operations can be claimed by merges to force file-based recovery
-                if (softDeleteEnabled) {
-                    int deleteDocs = randomIntBetween(1, 5);
-                    for (int i = 0; i < deleteDocs; i++) {
-                        client(primaryNode).prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").get();
-                        client(primaryNode).prepareDelete("test", "type", Integer.toString(i)).get();
-                    }
-                    client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
-                }
-
                 // index some more documents; we expect to reuse the files that already exist on the replica
                 for (int i = 0; i < moreDocs; i++) {
                     client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
@@ -449,6 +439,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                 ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
+                    client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                }
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -488,6 +481,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(), equalTo(filesReused));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
+                // both cases will be zero once we start sending only ops after local checkpoint of the safe commit
                 int expectedTranslogOps = softDeleteEnabled ? numDocs + moreDocs : 0;
                 assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(expectedTranslogOps));
             }

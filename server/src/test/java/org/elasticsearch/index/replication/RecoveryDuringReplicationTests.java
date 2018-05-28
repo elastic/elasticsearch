@@ -216,7 +216,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.indices.recovery:TRACE")
     public void testRecoveryAfterPrimaryPromotion() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         try (ReplicationGroup shards = createGroup(2, settings)) {
             shards.startAll();
             int totalDocs = shards.indexDocs(randomInt(10));
@@ -254,10 +254,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 equalTo(totalDocs - 1L));
 
             // index some more
-            int moreDocs = randomIntBetween(0, 5);
-            for (int i = 0; i < moreDocs; i++) {
-                shards.index(new IndexRequest(index.getName(), "type", "extra_" + i).source("{}", XContentType.JSON));
-            }
+            int moreDocs = shards.indexDocs(randomIntBetween(0, 5));
             totalDocs += moreDocs;
 
             // As a replica keeps a safe commit, the file-based recovery only happens if the required translog
@@ -265,14 +262,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             boolean expectSeqNoRecovery = (moreDocs == 0 || randomBoolean());
             int uncommittedOpsOnPrimary = 0;
             if (expectSeqNoRecovery == false) {
-                // To prevent sequence-based recovery with soft-deletes, we need to make a segment that will be claimed by merges.
-                if (moreDocs > 0 && softDeleteEnabled) {
-                    for (int i = 0; i < moreDocs; i++) {
-                        shards.delete(new DeleteRequest(index.getName(), "type", "extra_" + i));
-                    }
-                    totalDocs -= moreDocs;
-                    flushShard(newPrimary); // Don't flush replicas - we don't have Lucene rollback yet.
-                }
                 IndexMetaData.Builder builder = IndexMetaData.builder(newPrimary.indexSettings().getIndexMetaData());
                 builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
@@ -290,6 +279,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 newPrimary.flush(new FlushRequest().force(true));
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
                 totalDocs += uncommittedOpsOnPrimary;
+                // we need an extra flush or refresh to advance the min_retained_seqno on the new primary so that ops-based won't happen
+                if (softDeleteEnabled) {
+                    newPrimary.flush(new FlushRequest().force(true));
+                }
             }
 
             if (randomBoolean()) {

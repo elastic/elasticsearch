@@ -549,7 +549,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
-        metric: [ metadata ]
+        metric: [ metadata,metadata_customs ]
         filter_path: metadata.persistent_tasks
   - match: {"metadata.persistent_tasks.tasks.0.task.xpack/ml/job.status.state": opened}
 
@@ -562,7 +562,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
-        metric: [ metadata ]
+        metric: [ metadata,metadata_customs ]
         filter_path: metadata.persistent_tasks
   - match:
       metadata.persistent_tasks.tasks: []
@@ -790,7 +790,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
-        metric: [ metadata ]
+        metric: [ metadata,metadata_customs ]
         filter_path: metadata.persistent_tasks
   - match: {"metadata.persistent_tasks.tasks.0.task.xpack/ml/job.status.state": opened}
 
@@ -804,7 +804,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.state:
-        metric: [ metadata ]
+        metric: [ metadata,metadata_customs ]
         filter_path: metadata.persistent_tasks
   - match:
       metadata.persistent_tasks.tasks: []

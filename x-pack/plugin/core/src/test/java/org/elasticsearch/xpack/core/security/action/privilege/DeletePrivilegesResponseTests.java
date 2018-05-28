@@ -27,6 +27,5 @@ public class DeletePrivilegesResponseTests extends ESTestCase {
         final DeletePrivilegesResponse copy = new DeletePrivilegesResponse();
         copy.readFrom(output.bytes().streamInput());
         assertThat(copy.found(), equalTo(original.found()));
-        assertThat(Strings.toString(copy), equalTo(Strings.toString(original)));
     }
 }

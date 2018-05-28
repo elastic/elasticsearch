@@ -78,7 +78,11 @@ public class DateFieldMapper extends FieldMapper {
         private boolean dateTimeFormatterSet = false;
 
         public Builder(String name) {
-            super(name, new DateFieldType(), new DateFieldType());
+            this(name, new DateFieldType());
+        }
+
+        public Builder(String name, DateFieldType dateFieldType) {
+            super(name, dateFieldType, dateFieldType);
             builder = this;
             locale = Locale.ROOT;
         }

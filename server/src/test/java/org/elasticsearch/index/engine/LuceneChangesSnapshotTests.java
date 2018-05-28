@@ -261,6 +261,28 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
+    public void testMultipleBatches() throws Exception {
+        int numOps = scaledRandomIntBetween(LuceneChangesSnapshot.SEARCH_BATCH_SIZE, LuceneChangesSnapshot.SEARCH_BATCH_SIZE * 10);
+        for (int i = 0; i < numOps; i++) {
+            String id = Integer.toString(randomIntBetween(i, i + 5));
+            ParsedDocument doc = createParsedDoc(id, null);
+            if (randomBoolean()) {
+                engine.index(indexForDoc(doc));
+            } else {
+                engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+            }
+            if (rarely()) {
+                engine.refresh("test");
+            }
+        }
+        long fromSeqNo = randomLongBetween(0, LuceneChangesSnapshot.SEARCH_BATCH_SIZE - 1);
+        long toSeqNo = randomLongBetween(fromSeqNo, numOps - 1);
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
+            int expectedSize = Math.toIntExact(toSeqNo + 1 - fromSeqNo);
+            assertThat(snapshot, SnapshotMatchers.size(expectedSize));
+        }
+    }
+
     private List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
         List<Translog.Operation> operations = new ArrayList<>();
         Translog.Operation op;

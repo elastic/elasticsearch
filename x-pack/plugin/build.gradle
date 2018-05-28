@@ -152,3 +152,7 @@ integTestCluster {
       return tmpFile.exists()
   }
 }
+if (integTestCluster.distribution.startsWith("oss-") == false) {
+  integTest.enabled = false
+}
+

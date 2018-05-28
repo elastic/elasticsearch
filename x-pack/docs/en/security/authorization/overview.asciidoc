@@ -6,9 +6,8 @@
 Authorization is the process of determining whether the user behind an incoming
 request is allowed to execute it. 
 
-This process takes place after a request is successfully 
-<<setting-up-authentication,authenticated>> and the user behind the request is 
-identified.
+This process takes place after the user behind a request is successfully 
+identified and <<setting-up-authentication,authenticated>>. 
 
 [[roles]]
 [float]

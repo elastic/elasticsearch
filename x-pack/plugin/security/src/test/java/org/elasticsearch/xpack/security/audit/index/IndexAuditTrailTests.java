@@ -43,7 +43,6 @@ import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -52,6 +51,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.joda.time.DateTime;
@@ -214,7 +214,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             mockPlugins.add(getTestTransportPlugin());
         }
         remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, true, numNodes, numNodes, cluster2Name,
-                cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
+                cluster2SettingsSource, 0, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
                 useSecurity ? getClientWrapper() : Function.identity());
         remoteCluster.beforeTest(random(), 0.5);
 
@@ -254,7 +254,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return Sets.newHashSet(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        return Sets.newHashSet(SecurityIndexManager.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
     @Override

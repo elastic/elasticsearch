@@ -18,6 +18,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
@@ -31,15 +33,15 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     public RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, SqlQueryAction.REST_ENDPOINT, this);
-        controller.registerHandler(POST, SqlQueryAction.REST_ENDPOINT, this);
+        controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
+        controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlQueryRequest.fromXContent(parser, AbstractSqlRequest.Mode.fromString(request.param("mode")));
+            sqlRequest = SqlQueryRequest.fromXContent(parser,Mode.fromString(request.param("mode")));
         }
 
         /*

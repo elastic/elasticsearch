@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
@@ -63,11 +64,27 @@ public class TransportClientTests extends ESTestCase {
         }
     }
 
+    public void testDefaultHeaderContainsPlugins() {
+        Settings baseSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .build();
+        try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
+            ThreadContext threadContext = client.threadPool().getThreadContext();
+            assertEquals("true", threadContext.getHeader("transport_client"));
+            assertEquals("true", threadContext.getHeader("test"));
+        }
+    }
+
     public static class MockPlugin extends Plugin {
 
         @Override
         public List<Entry> getNamedWriteables() {
             return Arrays.asList(new Entry[]{ new Entry(MockNamedWriteable.class, MockNamedWriteable.NAME, MockNamedWriteable::new)});
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put(ThreadContext.PREFIX + "." + "test", true).build();
         }
 
         public class MockNamedWriteable implements NamedWriteable {

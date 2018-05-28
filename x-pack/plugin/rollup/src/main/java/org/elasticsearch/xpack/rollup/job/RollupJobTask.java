@@ -23,6 +23,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
@@ -103,12 +104,14 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         @Override
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
-            RollupClientHelper.executeAsync(client, job, SearchAction.INSTANCE, request, nextPhase);
+            ClientHelper.executeWithHeadersAsync(job.getHeaders(), ClientHelper.ROLLUP_ORIGIN, client, SearchAction.INSTANCE, request,
+                    nextPhase);
         }
 
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
-            RollupClientHelper.executeAsync(client, job, BulkAction.INSTANCE, request, nextPhase);
+            ClientHelper.executeWithHeadersAsync(job.getHeaders(), ClientHelper.ROLLUP_ORIGIN, client, BulkAction.INSTANCE, request,
+                    nextPhase);
         }
 
         @Override

@@ -72,9 +72,20 @@ significant changes to the system. You can alternatively assign the
 
 For more information, see <<built-in-roles>> and <<privileges-list-cluster>>.
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/getting-started-data.asciidoc
 include::getting-started-data.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/getting-started-wizards.asciidoc
 include::getting-started-wizards.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/getting-started-single.asciidoc
 include::getting-started-single.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/getting-started-multi.asciidoc
 include::getting-started-multi.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/getting-started-forecast.asciidoc
 include::getting-started-forecast.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/getting-started-next.asciidoc
 include::getting-started-next.asciidoc[]

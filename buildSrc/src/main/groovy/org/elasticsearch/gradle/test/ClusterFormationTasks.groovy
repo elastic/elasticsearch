@@ -532,6 +532,10 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
+        if (node.config.distribution != 'integ-test-zip') {
+            project.logger.lifecycle("Not installing modules for $name, ${node.config.distribution} already has them")
+            return setup
+        }
         if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
         }

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 

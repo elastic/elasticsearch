@@ -159,7 +159,7 @@ public final class Request {
         if (entity != null) {
             b.append(", entity=").append(entity);
         }
-        // TODO options
+        b.append(", options=").append(options);
         return b.append('}').toString();
     }
 

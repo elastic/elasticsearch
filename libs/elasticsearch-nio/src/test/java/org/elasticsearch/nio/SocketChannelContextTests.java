@@ -50,7 +50,7 @@ public class SocketChannelContextTests extends ESTestCase {
     private TestSocketChannelContext context;
     private Consumer<Exception> exceptionHandler;
     private NioSocketChannel channel;
-    private BiConsumer<Void, Throwable> listener;
+    private BiConsumer<Void, Exception> listener;
     private SocketSelector selector;
     private ReadWriteHandler readWriteHandler;
 
@@ -125,7 +125,7 @@ public class SocketChannelContextTests extends ESTestCase {
             if (t == null) {
                 throw new AssertionError("Connection should not succeed");
             } else {
-                exception.set((Exception) t);
+                exception.set(t);
             }
         });
 
@@ -206,7 +206,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
             WriteOperation writeOperation = mock(WriteOperation.class);
-            BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
+            BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
             when(readWriteHandler.writeToBytes(writeOperation)).thenReturn(Arrays.asList(new FlushOperation(buffer, listener),
                 new FlushOperation(buffer, listener2)));
             context.queueWriteOperation(writeOperation);
@@ -232,7 +232,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-            BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
+            BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
 
             assertFalse(context.readyForFlush());
             when(channel.isOpen()).thenReturn(true);

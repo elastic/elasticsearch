@@ -23,7 +23,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
@@ -72,9 +71,9 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
 
                             @Override
                             public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier,
-                                                          ClusterStateTaskListener listener) {
+                                                          ClusterApplyListener listener) {
                                 clusterState.set(clusterStateSupplier.get());
-                                listener.clusterStateProcessed(source, clusterState.get(), clusterState.get());
+                                listener.onSuccess(source);
                             }
                         });
             discovery.start();

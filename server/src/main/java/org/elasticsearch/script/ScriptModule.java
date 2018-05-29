@@ -42,7 +42,7 @@ public class ScriptModule {
         CORE_CONTEXTS = Stream.of(
             SearchScript.CONTEXT,
             SearchScript.AGGS_CONTEXT,
-            SearchScript.SCRIPT_SCORE_CONTEXT,
+            ScoreScript.CONTEXT,
             SearchScript.SCRIPT_SORT_CONTEXT,
             SearchScript.TERMS_SET_QUERY_CONTEXT,
             ExecutableScript.CONTEXT,

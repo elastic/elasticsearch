@@ -86,8 +86,7 @@ public class ShrinkAction implements LifecycleAction {
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
         AllocationRoutedStep allocationStep = new AllocationRoutedStep(allocationRoutedKey, shrinkKey, false);
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, SHRUNKEN_INDEX_PREFIX);
-        ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, aliasKey, numberOfShards,
-                SHRUNKEN_INDEX_PREFIX);
+        ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, aliasKey, SHRUNKEN_INDEX_PREFIX);
         ShrinkSetAliasStep aliasSwapAndDelete = new ShrinkSetAliasStep(aliasKey, isShrunkIndexKey, client, SHRUNKEN_INDEX_PREFIX);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey, SHRUNKEN_INDEX_PREFIX);
         return Arrays.asList(setSingleNodeStep, allocationStep, shrink, allocated, aliasSwapAndDelete, waitOnShrinkTakeover);

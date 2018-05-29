@@ -178,15 +178,19 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         // add steps for each phase, in reverse
         while (phaseIterator.hasPrevious()) {
 
+            Phase previousPhase = phaseIterator.previous();
+
             // add `after` step for phase before next
             if (phase != null) {
-                Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), "pre-" + lastStepKey.getAction(), "after");
+                // after step should have the name of the previous phase since the index is still in the 
+                // previous phase until the after condition is reached
+                Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseAfterStep.NAME, PhaseAfterStep.NAME);
                 Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
                 steps.add(phaseAfterStep);
                 lastStepKey = phaseAfterStep.getKey();
             }
 
-            phase = phaseIterator.previous();
+            phase = previousPhase;
             List<LifecycleAction> orderedActions = type.getOrderedActions(phase);
             ListIterator<LifecycleAction> actionIterator = orderedActions.listIterator(orderedActions.size());
             // add steps for each action, in reverse
@@ -203,7 +207,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
 
         if (phase != null) {
-            Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), "pre-" + lastStepKey.getAction(), "after");
+            // The very first after step is in a phase before the hot phase so call this "new"
+            Step.StepKey afterStepKey = new Step.StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
             Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
             steps.add(phaseAfterStep);
             lastStepKey = phaseAfterStep.getKey();

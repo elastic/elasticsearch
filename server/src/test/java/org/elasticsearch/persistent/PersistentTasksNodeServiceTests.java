@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
@@ -72,7 +73,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
     }
-
 
     @Override
     @After
@@ -95,7 +95,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         return state.build();
     }
 
-    public void testStartTask() throws Exception {
+    public void testStartTask() {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
@@ -131,8 +131,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         if (added == false) {
             logger.info("No local node action was added");
-
         }
+
         MetaData.Builder metaData = MetaData.builder(state.metaData());
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
         ClusterState newClusterState = ClusterState.builder(state).metaData(metaData).build();
@@ -149,6 +149,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
             // Make sure action wasn't called again
             assertThat(executor.executions.size(), equalTo(1));
+            assertThat(executor.get(0).task.isCompleted(), is(false));
 
             // Start another task on this node
             state = newClusterState;
@@ -157,10 +158,15 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
             // Make sure action was called this time
             assertThat(executor.size(), equalTo(2));
+            assertThat(executor.get(1).task.isCompleted(), is(false));
 
             // Finish both tasks
             executor.get(0).task.markAsFailed(new RuntimeException());
             executor.get(1).task.markAsCompleted();
+
+            assertThat(executor.get(0).task.isCompleted(), is(true));
+            assertThat(executor.get(1).task.isCompleted(), is(true));
+
             String failedTaskId = executor.get(0).task.getPersistentTaskId();
             String finishedTaskId = executor.get(1).task.getPersistentTaskId();
             executor.clear();
@@ -186,7 +192,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             // Make sure action was only allocated on this node once
             assertThat(executor.size(), equalTo(1));
         }
-
     }
 
     public void testParamsStatusAndNodeTaskAreDelegated() throws Exception {
@@ -300,7 +305,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         // Check the the task is now removed from task manager
         assertThat(taskManager.getTasks().values(), empty());
-
     }
 
     private <Params extends PersistentTaskParams> ClusterState addTask(ClusterState state, String action, Params params,

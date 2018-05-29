@@ -84,7 +84,8 @@ public final class CreateTokenRequest extends ActionRequest {
                         addValidationError("refresh_token is not supported with the kerberos grant_type", validationException);
             }
         } else {
-            validationException = addValidationError("grant_type only supports the values: [password, refresh_token]", validationException);
+            validationException =
+                    addValidationError("grant_type only supports the values: [kerberos, password, refresh_token]", validationException);
         }
 
         return validationException;

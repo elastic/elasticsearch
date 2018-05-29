@@ -132,7 +132,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     listener.onResponse(getUser(username, userInfo));
                 } else {
                     // this was a reserved username - don't allow this to go to another realm...
-                    listener.onFailure(Exceptions.authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "failed to lookup user [{}]", username));
+                    listener.onFailure(Exceptions.authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME,
+                            "failed to lookup user [{}]", username));
                 }
             }, listener::onFailure));
         }

@@ -95,7 +95,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         // if there is nothing after the prefix, the header is bad
         if (headerValue.length() == BASIC_AUTH_PREFIX.length()) {
-            throw authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "invalid basic authentication header value", null, (Object[])null);
+            throw authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "invalid basic authentication header value");
         }
 
         char[] userpasswd;
@@ -107,7 +107,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         int i = CharArrays.indexOf(userpasswd, ':');
         if (i < 0) {
-            throw authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "invalid basic authentication header value", null, (Object[])null);
+            throw authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "invalid basic authentication header value");
         }
 
         return new UsernamePasswordToken(

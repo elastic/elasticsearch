@@ -432,7 +432,9 @@ public class RequestConvertersTests extends ESTestCase {
             endpoint.add(index);
         }
         endpoint.add("_mapping");
-        endpoint.add(type);
+        if (type != null) {
+            endpoint.add(type);
+        }
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
 
         assertThat(expectedParams, equalTo(request.getParameters()));

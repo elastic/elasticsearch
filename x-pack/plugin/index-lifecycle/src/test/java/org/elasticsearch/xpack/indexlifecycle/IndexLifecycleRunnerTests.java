@@ -746,7 +746,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexLifecycleRunner runner = new IndexLifecycleRunner(policyRegistry, null, () -> now);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> runner.moveClusterStateToFailedStep(clusterState, indices));
-        assertThat(exception.getMessage(), equalTo("cannot re-run an action for an index [" + indices[0]
+        assertThat(exception.getMessage(), equalTo("cannot retry an action for an index [" + indices[0]
             + "] that has not encountered an error when running a Lifecycle Policy"));
     }
 

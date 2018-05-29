@@ -46,8 +46,8 @@ to the `elasticsearch.yml` file:
 [source,yaml]
 -----------------------------------------------------------
 xpack.security.audit.index.client.xpack.security.transport.ssl.enabled: true
-xpack.security.audit.index.client.xpack.ssl.keystore.path: certs/elastic-certificates.p12 
-xpack.security.audit.index.client.xpack.ssl.truststore.path: certs/elastic-certificates.p12
+xpack.security.audit.index.client.xpack.ssl.keystore.path: certs/remote-elastic-certificates.p12 
+xpack.security.audit.index.client.xpack.ssl.truststore.path: certs/remote-elastic-certificates.p12
 -----------------------------------------------------------
 
 For more information about these settings, see 
@@ -61,9 +61,9 @@ For more information about these settings, see
 [source, yaml]
 --------------------------------------------------
 xpack.security.audit.index.client.xpack.security.transport.ssl.enabled: true
-xpack.security.audit.index.client.xpack.ssl.key: /home/es/config/node01.key 
-xpack.security.audit.index.client.xpack.ssl.certificate: /home/es/config/node01.crt 
-xpack.security.audit.index.client.xpack.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] 
+xpack.security.audit.index.client.xpack.ssl.key: /home/es/config/audit-client.key 
+xpack.security.audit.index.client.xpack.ssl.certificate: /home/es/config/audit-client.crt 
+xpack.security.audit.index.client.xpack.ssl.certificate_authorities: [ "/home/es/config/remote-ca.crt" ] 
 --------------------------------------------------
     
 For more information about these settings, see 

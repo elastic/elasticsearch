@@ -650,11 +650,11 @@ public class RequestConvertersTests extends ESTestCase {
         String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
         SyncedFlushRequest syncedFlushRequest;
         if (randomBoolean()) {
-                syncedFlushRequest = new SyncedFlushRequest(indices);
-            } else {
-                syncedFlushRequest = new SyncedFlushRequest();
-                syncedFlushRequest.indices(indices);
-            }
+            syncedFlushRequest = new SyncedFlushRequest(indices);
+        } else {
+            syncedFlushRequest = new SyncedFlushRequest();
+            syncedFlushRequest.indices(indices);
+        }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(syncedFlushRequest::indicesOptions, syncedFlushRequest::indicesOptions, expectedParams);
         Request request = RequestConverters.flushSynced(syncedFlushRequest);

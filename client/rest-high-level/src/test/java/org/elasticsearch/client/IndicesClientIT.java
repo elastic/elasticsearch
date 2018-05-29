@@ -63,7 +63,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.client.response.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
@@ -567,7 +566,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     public void testSyncedFlush() throws IOException {
         {
-                String index = "index";
+            String index = "index";
             Settings settings = Settings.builder()
                     .put("number_of_shards", 1)
                     .put("number_of_replicas", 0)

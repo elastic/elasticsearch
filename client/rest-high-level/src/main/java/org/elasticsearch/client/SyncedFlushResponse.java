@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.response.indices.flush;
+package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;

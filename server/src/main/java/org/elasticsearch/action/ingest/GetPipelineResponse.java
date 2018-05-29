@@ -137,8 +137,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                 }
                 for (PipelineConfiguration pipeline: pipelines) {
                     PipelineConfiguration otherPipeline = otherPipelineMap.get(pipeline.getId());
-                    if (otherPipeline == null ||
-                        !pipeline.getConfigAsMap().equals(otherPipeline.getConfigAsMap())) {
+                    if (!pipeline.equals(otherPipeline)) {
                         return false;
                     }
                 }
@@ -154,7 +153,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         int result = 1;
         for (PipelineConfiguration pipeline: pipelines) {
             // We only take the sum here to ensure that the order does not matter.
-            result += (pipeline == null ? 0 : pipeline.getConfigAsMap().hashCode());
+            result += (pipeline == null ? 0 : pipeline.hashCode());
         }
         return result;
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -108,9 +109,7 @@ public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase
         try {
             return new GetPipelineResponse(new ArrayList<>(createPipelineConfigMap().values()));
         } catch (IOException e) {
-            // If we fail to construct an instance we return `null` which would make the user of this method
-            // fail the test.
-            return null;
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -122,11 +121,11 @@ public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase
     @Override
     protected GetPipelineResponse mutateInstance(GetPipelineResponse response) {
         try {
-            ArrayList<PipelineConfiguration> clonePipelines = new ArrayList<>(response.pipelines());
+            List<PipelineConfiguration> clonePipelines = new ArrayList<>(response.pipelines());
             clonePipelines.add(createRandomPipeline("pipeline_" + clonePipelines.size() + 1));
             return new GetPipelineResponse(clonePipelines);
         } catch (IOException e) {
-            return null;
+            throw new UncheckedIOException(e);
         }
     }
 }

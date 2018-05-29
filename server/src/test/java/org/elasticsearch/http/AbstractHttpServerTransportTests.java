@@ -17,13 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.http;
 
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.UnknownHostException;
@@ -32,11 +30,11 @@ import java.util.List;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.http.netty4.Netty4HttpServerTransport.resolvePublishPort;
+import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class Netty4HttpPublishPortTests extends ESTestCase {
+public class AbstractHttpServerTransportTests extends ESTestCase {
 
     public void testHttpPublishPort() throws Exception {
         int boundPort = randomIntBetween(9000, 9100);
@@ -88,5 +86,4 @@ public class Netty4HttpPublishPortTests extends ESTestCase {
         }
         return addresses;
     }
-
 }

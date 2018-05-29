@@ -116,10 +116,10 @@ public class PersistentTasksService extends AbstractComponent {
      * Persistent task implementers shouldn't call this method directly and use
      * {@link AllocatedPersistentTask#updatePersistentStatus} instead
      */
-    void sendUpdateStateRequest(final String taskId,
-                                final long taskAllocationID,
-                                final Task.Status status,
-                                final ActionListener<PersistentTask<?>> listener) {
+    void updateStatus(final String taskId,
+                      final long taskAllocationID,
+                      final Task.Status status,
+                      final ActionListener<PersistentTask<?>> listener) {
         UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(taskId, taskAllocationID, status);
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
     }

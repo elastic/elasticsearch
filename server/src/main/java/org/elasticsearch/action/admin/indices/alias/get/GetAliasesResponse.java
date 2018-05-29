@@ -109,9 +109,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             // if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             status = RestStatus.readFrom(in);
-            if (in.readBoolean()) {
-                errorMessage = in.readString();
-            }
+            errorMessage = in.readOptionalString();
         }
     }
 

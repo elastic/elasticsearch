@@ -78,7 +78,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
 
         String message = null;
-        RestStatus status = null;
+        RestStatus status = RestStatus.OK;
         if (false == Strings.isAllOrWildcard(request.aliases())) {
             String[] aliasesNames = Strings.EMPTY_ARRAY;
 
@@ -114,23 +114,13 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             if (false == difference.isEmpty()) {
                 status = RestStatus.NOT_FOUND;
                 if (difference.size() == 1) {
-                    message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
+                    message = String.format(Locale.ROOT, "alias [%s] missing", Strings.collectionToCommaDelimitedString(difference));
                 } else {
-                    message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
+                    message = String.format(Locale.ROOT, "aliases [%s] missing", Strings.collectionToCommaDelimitedString(difference));
                 }
             }
         }
         listener.onResponse(new GetAliasesResponse(result, status, message));
-    }
-
-    private static String toNamesString(final String... names) {
-        if (names == null || names.length == 0) {
-            return "";
-        } else if (names.length == 1) {
-            return names[0];
-        } else {
-            return Arrays.stream(names).collect(Collectors.joining(","));
-        }
     }
 
 }

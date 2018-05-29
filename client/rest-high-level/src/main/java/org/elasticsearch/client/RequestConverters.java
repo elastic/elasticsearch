@@ -193,8 +193,10 @@ final class RequestConverters {
     }
 
     static Request getMappings(GetMappingsRequest getMappingsRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(getMappingsRequest.indices(),
-            "_mapping", getMappingsRequest.types()));
+        String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
+        String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(indices, "_mapping", types));
 
         Params parameters = new Params(request);
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());

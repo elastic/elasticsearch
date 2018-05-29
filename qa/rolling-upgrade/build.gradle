@@ -30,6 +30,26 @@ task bwcTest {
 }
 
 for (Version version : bwcVersions.wireCompatible) {
+  /*
+   * The goal here is to:
+   * <ul>
+   *  <li>start three nodes on the old version
+   *  <li>run tests with systemProperty 'tests.rest.suite', 'old_cluster'
+   *  <li>shut down one node
+   *  <li>start a node with the new version
+   *  <li>run tests with systemProperty 'tests.rest.suite', 'mixed_cluster'
+   *  <li>shut down one node on the old version
+   *  <li>start a node with the new version
+   *  <li>run tests with systemProperty 'tests.rest.suite', 'mixed_cluster' again
+   *  <li>shut down the last node with the old version
+   *  <li>start a node with the new version
+   *  <li>run tests with systemProperty 'tests.rest.suite', 'upgraded_cluster'
+   *  <li>shut down the entire cluster
+   * </ul>
+   *
+   * Be careful: gradle dry run spits out tasks in the wrong order but,
+   * strangely, running the tasks works properly.
+   */
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -39,8 +59,8 @@ for (Version version : bwcVersions.wireCompatible) {
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
     bwcVersion = version
-    numBwcNodes = 2
-    numNodes = 2
+    numBwcNodes = 3
+    numNodes = 3
     clusterName = 'rolling-upgrade'
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     if (version.onOrAfter('5.3.0')) {
@@ -53,43 +73,57 @@ for (Version version : bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'old_cluster'
   }
 
-  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
-
-  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
-    dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-    minimumMasterNodes = { 2 }
-    /* Override the data directory so the new node always gets the node we
-     * just stopped's data directory. */
-    dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+  Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
+    configure(extensions.findByName("${baseName}#${name}")) {
+      dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
+      clusterName = 'rolling-upgrade'
+      unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
+      minimumMasterNodes = { 3 }
+      /* Override the data directory so the new node always gets the node we
+      * just stopped's data directory. */
+      dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
+      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    }
   }
 
-  Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
-  mixedClusterTestRunner.configure {
+  Task oneThirdUpgradedTest = tasks.create(name: "${baseName}#oneThirdUpgradedTest", type: RestIntegTestTask)
+
+  configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner,
+      0, { oldClusterTest.nodes.get(1).transportUri() })
+
+  Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
+  oneThirdUpgradedTestRunner.configure {
     systemProperty 'tests.rest.suite', 'mixed_cluster'
-    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+    systemProperty 'tests.first_round', 'true'
+    finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
+  }
+
+  Task twoThirdsUpgradedTest = tasks.create(name: "${baseName}#twoThirdsUpgradedTest", type: RestIntegTestTask)
+
+  configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner,
+      1, { oneThirdUpgradedTest.nodes.get(0).transportUri() })
+
+  Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
+  twoThirdsUpgradedTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.first_round', 'false'
+    finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
   }
 
   Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
-  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
-    dependsOn mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop"
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-    minimumMasterNodes = { 2 }
-    /* Override the data directory so the new node always gets the node we
-     * just stopped's data directory. */
-    dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir}
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-  }
+  configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner,
+      2, { twoThirdsUpgradedTest.nodes.get(0).transportUri() })
 
   Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
   upgradedClusterTestRunner.configure {
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-    finalizedBy "${baseName}#mixedClusterTestCluster#stop"
+    /*
+     * Force stopping all the upgraded nodes after the test runner
+     * so they are alive during the test.
+     */
+    finalizedBy "${baseName}#oneThirdUpgradedTestCluster#stop"
+    finalizedBy "${baseName}#twoThirdsUpgradedTestCluster#stop"
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

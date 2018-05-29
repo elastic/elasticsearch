@@ -118,7 +118,7 @@ the `logstash.yml` configuration file:
 xpack.monitoring.elasticsearch.password: logstashpassword
 ----------------------------------------------------------
 
-If you have upgraded from an older version of elasticsearch/x-pack,
+If you have upgraded from an older version of Elasticsearch,
 the `logstash_system` user may have defaulted to _disabled_ for security reasons.
 Once the password has been changed, you can enable the user via the following API call:
 

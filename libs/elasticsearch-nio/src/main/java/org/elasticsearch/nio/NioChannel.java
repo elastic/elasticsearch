@@ -53,7 +53,7 @@ public abstract class NioChannel {
      *
      * @param listener to be called at close
      */
-    public void addCloseListener(BiConsumer<Void, Throwable> listener) {
+    public void addCloseListener(BiConsumer<Void, Exception> listener) {
         getContext().addCloseListener(listener);
     }
 

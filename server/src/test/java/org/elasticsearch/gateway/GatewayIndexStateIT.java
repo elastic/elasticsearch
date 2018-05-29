@@ -432,7 +432,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> starting one node");
         internalCluster().startNode();
         prepareCreate("test").setSettings(Settings.builder()
-            .put("index.analysis.analyzer.test.tokenizer", "keyword")
+            .put("index.analysis.analyzer.test.tokenizer", "standard")
             .put("index.number_of_shards", "1"))
             .addMapping("type1", "{\n" +
                 "    \"type1\": {\n" +

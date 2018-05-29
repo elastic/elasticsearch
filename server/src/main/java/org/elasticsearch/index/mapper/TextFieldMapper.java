@@ -184,6 +184,14 @@ public class TextFieldMapper extends FieldMapper {
                 prefixFieldType.setAnalyzer(fieldType.indexAnalyzer());
                 prefixMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
             }
+            if (fieldType().indexPhrases) {
+                if (fieldType().isSearchable() == false) {
+                    throw new IllegalArgumentException("Cannot set index_phrases on unindexed field [" + name() + "]");
+                }
+                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                    throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
+                }
+            }
             return new TextFieldMapper(
                     name, fieldType(), defaultFieldType, positionIncrementGap, prefixMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);

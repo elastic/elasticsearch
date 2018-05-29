@@ -750,6 +750,34 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             assertTrue(ts.incrementToken());
             assertEquals("some english", termAtt.toString());
         }
+
+        {
+            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("index", "false")
+                .field("index_phrases", true)
+                .endObject().endObject()
+                .endObject().endObject());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
+            );
+            assertThat(e.getMessage(), containsString("Cannot set index_phrases on unindexed field [field]"));
+        }
+
+        {
+            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("index_options", "freqs")
+                .field("index_phrases", true)
+                .endObject().endObject()
+                .endObject().endObject());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
+            );
+            assertThat(e.getMessage(), containsString("Cannot set index_phrases on field [field] if positions are not enabled"));
+        }
     }
 
     public void testIndexPrefixMapping() throws IOException {

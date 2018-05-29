@@ -123,7 +123,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
             for (Long id : notVisitedTasks) {
                 AllocatedPersistentTask task = runningTasks.get(id);
-                if (task.getState() == AllocatedPersistentTask.State.COMPLETED) {
+                if (task.isCompleted()) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
                     logger.trace("Found completed persistent task [{}] with id [{}] and allocation id [{}] - removing",
                             task.getAction(), task.getPersistentTaskId(), task.getAllocationId());

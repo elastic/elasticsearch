@@ -31,8 +31,7 @@ import org.elasticsearch.packaging.util.Installation;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Tests that apply to the archive distributions (tar, zip). To add a case for a distribution, subclass and
@@ -54,7 +53,7 @@ public abstract class ArchiveTestCase {
 
     @Before
     public void onlyCompatibleDistributions() {
-        assumeThat(distribution().packaging.compatible, is(true));
+        assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
     @Test

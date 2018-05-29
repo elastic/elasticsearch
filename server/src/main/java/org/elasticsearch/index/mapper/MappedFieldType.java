@@ -362,8 +362,12 @@ public abstract class MappedFieldType extends FieldType {
 
     public abstract Query existsQuery(QueryShardContext context);
 
-    public Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
     /**

@@ -34,6 +34,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -49,7 +50,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,7 +94,6 @@ public class TextFieldMapper extends FieldMapper {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
         private PrefixFieldType prefixFieldType;
-        private boolean indexPhrases = false;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -120,7 +119,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder indexPhrases(boolean indexPhrases) {
-            this.indexPhrases = indexPhrases;
+            fieldType().setIndexPhrases(indexPhrases);
             return builder;
         }
 
@@ -185,7 +184,6 @@ public class TextFieldMapper extends FieldMapper {
                 prefixFieldType.setAnalyzer(fieldType.indexAnalyzer());
                 prefixMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
             }
-            fieldType().indexPhrases(indexPhrases);
             return new TextFieldMapper(
                     name, fieldType(), defaultFieldType, positionIncrementGap, prefixMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
@@ -296,6 +294,8 @@ public class TextFieldMapper extends FieldMapper {
                 setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
             }
             if (parent.storeTermVectorOffsets()) {
+                setStoreTermVectors(true);
+                setStoreTermVectorPositions(true);
                 setStoreTermVectorOffsets(true);
             }
             setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
@@ -520,7 +520,7 @@ public class TextFieldMapper extends FieldMapper {
             this.prefixFieldType = prefixFieldType;
         }
 
-        void indexPhrases(boolean indexPhrases) {
+        void setIndexPhrases(boolean indexPhrases) {
             checkIfFrozen();
             this.indexPhrases = indexPhrases;
         }
@@ -561,9 +561,9 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
+        public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
 
-            if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
+            if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
@@ -576,20 +576,73 @@ public class TextFieldMapper extends FieldMapper {
 
             stream.reset();
             while (stream.incrementToken()) {
-                position += posIncrAtt.getPositionIncrement();
+                if (enablePosIncrements) {
+                    position += posIncrAtt.getPositionIncrement();
+                }
+                else {
+                    position += 1;
+                }
                 builder.add(new Term(field, termAtt.getBytesRef()), position);
             }
 
             return builder.build();
         }
 
-        private static boolean hasGaps(TokenStream stream) throws IOException {
-            assert stream instanceof CachingTokenFilter;
+        @Override
+        public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+
+            if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
+                stream = new FixedShingleFilter(stream, 2);
+                field = field + FAST_PHRASE_SUFFIX;
+            }
+
+            MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
+            mpqb.setSlop(slop);
+
+            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+
+            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+            int position = -1;
+
+            List<Term> multiTerms = new ArrayList<>();
+            stream.reset();
+            while (stream.incrementToken()) {
+                int positionIncrement = posIncrAtt.getPositionIncrement();
+
+                if (positionIncrement > 0 && multiTerms.size() > 0) {
+                    if (enablePositionIncrements) {
+                        mpqb.add(multiTerms.toArray(new Term[0]), position);
+                    } else {
+                        mpqb.add(multiTerms.toArray(new Term[0]));
+                    }
+                    multiTerms.clear();
+                }
+                position += positionIncrement;
+                multiTerms.add(new Term(field, termAtt.getBytesRef()));
+            }
+
+            if (enablePositionIncrements) {
+                mpqb.add(multiTerms.toArray(new Term[0]), position);
+            } else {
+                mpqb.add(multiTerms.toArray(new Term[0]));
+            }
+            return mpqb.build();
+        }
+
+        private static CachingTokenFilter cache(TokenStream in) {
+            if (in instanceof CachingTokenFilter) {
+                return (CachingTokenFilter) in;
+            }
+            return new CachingTokenFilter(in);
+        }
+
+        private static boolean hasGaps(CachingTokenFilter stream) throws IOException {
             PositionIncrementAttribute posIncAtt = stream.getAttribute(PositionIncrementAttribute.class);
             stream.reset();
             while (stream.incrementToken()) {
-                if (posIncAtt.getPositionIncrement() > 1)
+                if (posIncAtt.getPositionIncrement() > 1) {
                     return true;
+                }
             }
             return false;
         }
@@ -692,7 +745,7 @@ public class TextFieldMapper extends FieldMapper {
                 + this.prefixFieldMapper + "], merged [" + mw.prefixFieldMapper + "]");
         }
         else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
-            throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrase settings, current ["
+            throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrases settings, current ["
                 + this.fieldType().indexPhrases + "], merged [" + mw.fieldType().indexPhrases + "]");
         }
     }
@@ -735,6 +788,8 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType().prefixFieldType != null) {
             fieldType().prefixFieldType.doXContent(builder);
         }
-        builder.field("index_phrases", fieldType().indexPhrases);
+        if (fieldType().indexPhrases) {
+            builder.field("index_phrases", fieldType().indexPhrases);
+        }
     }
 }

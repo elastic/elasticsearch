@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermInSetQuery;
@@ -31,8 +30,6 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.junit.Before;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
@@ -75,7 +72,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             @Override
             public void modify(MappedFieldType ft) {
                 TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.indexPhrases(true);
+                tft.setIndexPhrases(true);
             }
         });
     }

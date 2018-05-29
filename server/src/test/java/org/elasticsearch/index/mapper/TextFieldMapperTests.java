@@ -31,6 +31,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -79,7 +81,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        indexService = createIndex("test");
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.mySynonyms.type", "synonym")
+            .putList("index.analysis.filter.mySynonyms.synonyms", Collections.singletonList("car, auto"))
+            .put("index.analysis.analyzer.synonym.tokenizer", "standard")
+            .put("index.analysis.analyzer.synonym.filter", "mySynonyms")
+            .build();
+        indexService = createIndex("test", settings);
         parser = indexService.mapperService().documentMapperParser();
     }
 
@@ -684,11 +692,18 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             }, null);
 
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
+            .startObject("properties")
+            .startObject("field")
             .field("type", "text")
             .field("analyzer", "english")
             .field("index_phrases", true)
-            .endObject().endObject()
+            .endObject()
+            .startObject("synfield")
+            .field("type", "text")
+            .field("analyzer", "synonym")
+            .field("index_phrases", true)
+            .endObject()
+            .endObject()
             .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -711,6 +726,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
         assertThat(q5,
             is(new PhraseQuery.Builder().add(new Term("field", "sparkl")).add(new Term("field", "stopword"), 2).build()));
+
+        Query q6 = new MatchPhraseQueryBuilder("synfield", "motor car").toQuery(queryShardContext);
+        assertThat(q6, is(new MultiPhraseQuery.Builder()
+            .add(new Term[]{
+                new Term("synfield._index_phrase", "motor car"),
+                new Term("synfield._index_phrase", "motor auto")})
+            .build()));
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()

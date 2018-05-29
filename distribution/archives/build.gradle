@@ -49,7 +49,9 @@ task createPluginsDir(type: EmptyDirTask) {
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean oss) {
   return copySpec {
     into("elasticsearch-${version}") {
-      with libFiles
+      into('lib') {
+        with libFiles
+      }
       into('config') {
         dirMode 0750
         fileMode 0660

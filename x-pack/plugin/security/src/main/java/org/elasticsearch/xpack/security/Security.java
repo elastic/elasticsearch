@@ -449,7 +449,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     defaultAuthenticateHeaderValue = orderedListOfRealms.get(orderedListOfRealms.size() - 1).getWWWAuthenticateHeaderValue();
                 }
             }
-            defaultResponseHeaders.put(DefaultAuthenticationFailureHandler.HTTP_AUTH_HEADER, new String[] { defaultAuthenticateHeaderValue });
+            defaultResponseHeaders.put(Realm.WWW_AUTHN_HEADER, new String[] { defaultAuthenticateHeaderValue });
             failureHandler = new DefaultAuthenticationFailureHandler(defaultResponseHeaders);
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");

@@ -134,9 +134,9 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken("princName", "base64EncodedToken");
+        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken("base64EncodedToken");
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
-            return new KerberosAuthenticationToken(original.principal(), (String) original.credentials());
+            return new KerberosAuthenticationToken((String) original.credentials());
         });
     }
 }

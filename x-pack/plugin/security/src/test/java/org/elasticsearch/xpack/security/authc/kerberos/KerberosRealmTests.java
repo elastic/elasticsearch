@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -35,9 +36,7 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import javax.security.auth.login.LoginException;
@@ -102,23 +101,23 @@ public class KerberosRealmTests extends ESTestCase {
         final NativeRoleMappingStore roleMapper = mockRoleMappingStore("test@REALM");
         @SuppressWarnings("unchecked")
         final Cache<String, User> mockUsernameUserCache = mock(Cache.class);
+        final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, null, true);
         final KerberosTicketValidator mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final KerberosRealm kerberosRealm = new KerberosRealm(config, roleMapper, mockUsernameUserCache, mockKerberosTicketValidator);
         when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
                 .thenReturn(new Tuple<>("test@REALM", "out-token"));
 
-        final KerberosAuthenticationToken kerberosAuthenticationToken =
-                new KerberosAuthenticationToken(KerberosAuthenticationToken.UNAUTHENTICATED_PRINCIPAL_NAME, "base64encodedticket");
+        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken("base64encodedticket");
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
         final AuthenticationResult result = future.actionGet();
-        assertNotNull(result);
 
+        assertNotNull(result);
         assertEquals(AuthenticationResult.Status.SUCCESS, result.getStatus());
-        final Map<String, Object> userMetadata = new HashMap<>();
-        userMetadata.put("_www-authenticate", "out-token");
-        final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, userMetadata, true);
         assertEquals(expectedUser, result.getUser());
+        assertNotNull(result.responseHeaders());
+        assertEquals(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + "out-token", result.responseHeaders().get(Realm.WWW_AUTHN_HEADER));
+
         Mockito.verify(mockUsernameUserCache).put(Mockito.eq("test@REALM"), Mockito.eq(expectedUser));
         Mockito.verify(mockKerberosTicketValidator).validateTicket(Mockito.eq("*"), Mockito.eq(GSSName.NT_HOSTBASED_SERVICE),
                 Mockito.eq("base64encodedticket"), Mockito.eq(config));
@@ -130,24 +129,24 @@ public class KerberosRealmTests extends ESTestCase {
         final NativeRoleMappingStore roleMapper = mockRoleMappingStore("test@REALM");
         @SuppressWarnings("unchecked")
         final Cache<String, User> mockUsernameUserCache = mock(Cache.class);
-        final Map<String, Object> userMetadata = new HashMap<>();
-        userMetadata.put("_www-authenticate", "out-token");
-        final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, userMetadata, true);
+        final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, null, true);
         when(mockUsernameUserCache.get("test@REALM")).thenReturn(expectedUser);
         final KerberosTicketValidator mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final KerberosRealm kerberosRealm = new KerberosRealm(config, roleMapper, mockUsernameUserCache, mockKerberosTicketValidator);
         when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
                 .thenReturn(new Tuple<>("test@REALM", "out-token"));
 
-        final KerberosAuthenticationToken kerberosAuthenticationToken =
-                new KerberosAuthenticationToken(KerberosAuthenticationToken.UNAUTHENTICATED_PRINCIPAL_NAME, "base64encodedticket");
+        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken("base64encodedticket");
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
         final AuthenticationResult result = future.actionGet();
-        assertNotNull(result);
 
+        assertNotNull(result);
         assertEquals(AuthenticationResult.Status.SUCCESS, result.getStatus());
         assertEquals(expectedUser, result.getUser());
+        assertNotNull(result.responseHeaders());
+        assertEquals(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + "out-token", result.responseHeaders().get(Realm.WWW_AUTHN_HEADER));
+
         Mockito.verify(mockUsernameUserCache).get(Mockito.eq("test@REALM"));
         Mockito.verify(mockUsernameUserCache, Mockito.times(0)).put(Mockito.eq("test@REALM"), Mockito.eq(expectedUser));
         Mockito.verify(mockKerberosTicketValidator).validateTicket(Mockito.eq("*"), Mockito.eq(GSSName.NT_HOSTBASED_SERVICE),
@@ -164,6 +163,7 @@ public class KerberosRealmTests extends ESTestCase {
         final KerberosRealm kerberosRealm = new KerberosRealm(config, roleMapper, mockUsernameUserCache, mockKerberosTicketValidator);
         final boolean validTicket = rarely();
         final boolean throwExceptionForInvalidTicket = validTicket ? false : randomBoolean();
+        final boolean returnOutToken = randomBoolean();
         final boolean throwLoginException = randomBoolean();
         if (validTicket) {
             when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
@@ -172,20 +172,25 @@ public class KerberosRealmTests extends ESTestCase {
             if (throwExceptionForInvalidTicket) {
                 if (throwLoginException) {
                     when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
-                            .thenThrow(new LoginException());
+                            .thenThrow(new LoginException("Login Exception"));
                 } else {
                     when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
                             .thenThrow(new GSSException(GSSException.FAILURE));
                 }
             } else {
-                when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
-                        .thenReturn(null);
+                if (returnOutToken) {
+                    when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
+                            .thenReturn(new Tuple<>(null, "out-token"));
+                } else {
+                    when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
+                            .thenReturn(null);
+                }
             }
         }
 
         final boolean nullKerberosAuthnToken = rarely();
-        final KerberosAuthenticationToken kerberosAuthenticationToken = nullKerberosAuthnToken ? null
-                : new KerberosAuthenticationToken(KerberosAuthenticationToken.UNAUTHENTICATED_PRINCIPAL_NAME, "base64encodedticket");
+        final KerberosAuthenticationToken kerberosAuthenticationToken =
+                nullKerberosAuthnToken ? null : new KerberosAuthenticationToken("base64encodedticket");
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
         AuthenticationResult result = future.actionGet();
@@ -196,15 +201,21 @@ public class KerberosRealmTests extends ESTestCase {
         } else {
             if (validTicket) {
                 assertEquals(AuthenticationResult.Status.SUCCESS, result.getStatus());
-                final Map<String, Object> userMetadata = new HashMap<>();
-                userMetadata.put("_www-authenticate", "out-token");
-                final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, userMetadata, true);
+                final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, null, true);
                 assertEquals(expectedUser, result.getUser());
+                assertNotNull(result.responseHeaders());
+                assertEquals(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + "out-token",
+                        result.responseHeaders().get(Realm.WWW_AUTHN_HEADER));
                 Mockito.verify(mockUsernameUserCache).put(Mockito.eq("test@REALM"), Mockito.eq(expectedUser));
             } else {
                 assertEquals(AuthenticationResult.Status.TERMINATE, result.getStatus());
                 if (throwExceptionForInvalidTicket == false) {
                     assertEquals("Could not validate kerberos ticket", result.getMessage());
+                    if (returnOutToken) {
+                        assertNotNull(result.responseHeaders());
+                        assertEquals(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + "out-token",
+                                result.responseHeaders().get(Realm.WWW_AUTHN_HEADER));
+                    }
                 } else {
                     if (throwLoginException) {
                         assertEquals("Internal server error: Exception occurred in service login", result.getMessage());
@@ -229,8 +240,7 @@ public class KerberosRealmTests extends ESTestCase {
         final KerberosRealm kerberosRealm = new KerberosRealm(config, roleMapper, mockUsernameUserCache, mockKerberosTicketValidator);
         when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, "base64encodedticket", config))
                 .thenReturn(new Tuple<>("does-not-exist@REALM", "out-token"));
-        final KerberosAuthenticationToken kerberosAuthenticationToken =
-                new KerberosAuthenticationToken(KerberosAuthenticationToken.UNAUTHENTICATED_PRINCIPAL_NAME, "base64encodedticket");
+        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken("base64encodedticket");
 
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);

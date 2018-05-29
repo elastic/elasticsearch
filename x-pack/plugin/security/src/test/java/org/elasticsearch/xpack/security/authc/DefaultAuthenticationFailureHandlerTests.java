@@ -53,16 +53,16 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         });
         when(realms.asList()).thenReturn(listRealms);
         final Map<String, String[]> defaultResponseHeaders = new HashMap<>();
-        defaultResponseHeaders.put(DefaultAuthenticationFailureHandler.HTTP_AUTH_HEADER,
+        defaultResponseHeaders.put(Realm.WWW_AUTHN_HEADER,
                 new String[] { listRealms.get(listRealms.size() - 1).getWWWAuthenticateHeaderValue() });
         DefaultAuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(defaultResponseHeaders);
         ElasticsearchSecurityException ese = failureHandler.failedAuthentication(new FakeRestRequest(), mock(AuthenticationToken.class),
                 new ThreadContext(Settings.builder().build()));
 
         assertNotNull(ese);
-        assertNotNull(ese.getHeader(DefaultAuthenticationFailureHandler.HTTP_AUTH_HEADER));
+        assertNotNull(ese.getHeader(Realm.WWW_AUTHN_HEADER));
         assertEquals(listRealms.get(listRealms.size() - 1).getWWWAuthenticateHeaderValue(),
-                ese.getHeader(DefaultAuthenticationFailureHandler.HTTP_AUTH_HEADER).get(0));
+                ese.getHeader(Realm.WWW_AUTHN_HEADER).get(0));
     }
 
 }

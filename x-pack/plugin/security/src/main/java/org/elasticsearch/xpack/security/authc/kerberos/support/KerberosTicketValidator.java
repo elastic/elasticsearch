@@ -64,7 +64,7 @@ public class KerberosTicketValidator {
      * @param config
      *            {@link RealmConfig}
      * @return {@link Tuple} of user name {@link GSSContext#getSrcName()} and out
-     *         token base64 encoded if any.
+     *         token base64 encoded if any. When context is not yet established user name is {@code null}.
      * @throws LoginException
      *             thrown when service authentication fails
      *             {@link LoginContext#login()}
@@ -90,11 +90,12 @@ public class KerberosTicketValidator {
             gssContext = gssManager.createContext(serviceCreds);
             final byte[] outToken = acceptSecContext(base64Ticket, gssContext, loginContext);
 
-            Tuple<String, String> output = null;
-            if (outToken != null && outToken.length > 0 && gssContext.isEstablished()) {
-                output = new Tuple<>(gssContext.getSrcName().toString(), Base64.getEncoder().encodeToString(outToken));
+            String base64OutToken = null;
+            if (outToken != null && outToken.length > 0) {
+                base64OutToken = Base64.getEncoder().encodeToString(outToken);
             }
-            return output;
+
+            return new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken);
         } catch (PrivilegedActionException pve) {
             if (pve.getException() instanceof LoginException) {
                 throw (LoginException) pve.getCause();

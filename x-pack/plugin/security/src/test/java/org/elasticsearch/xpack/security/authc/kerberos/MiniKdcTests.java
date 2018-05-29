@@ -58,7 +58,7 @@ public class MiniKdcTests extends KerberosTestCase {
         final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
         assertNotNull(base64KerbToken);
         final KerberosAuthenticationToken kerbAuthnToken =
-                new KerberosAuthenticationToken(KerberosAuthenticationToken.UNAUTHENTICATED_PRINCIPAL_NAME, base64KerbToken);
+                new KerberosAuthenticationToken(base64KerbToken);
 
         // Service Login
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,

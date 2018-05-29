@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -33,6 +37,7 @@ public final class AuthenticationResult {
     private final User user;
     private final String message;
     private final Exception exception;
+    private final Map<String, String> responseHeaders = new HashMap<>();
 
     private AuthenticationResult(Status status, @Nullable User user, @Nullable String message, @Nullable Exception exception) {
         this.status = status;
@@ -57,6 +62,10 @@ public final class AuthenticationResult {
         return exception;
     }
 
+    public Map<String, String> responseHeaders() {
+        return responseHeaders;
+    }
+
     /**
      * Creates an {@code AuthenticationResult} that indicates that the supplied {@link User}
      * has been successfully authenticated.
@@ -68,8 +77,33 @@ public final class AuthenticationResult {
      * @param user The user that was authenticated. Cannot be {@code null}.
      */
     public static AuthenticationResult success(User user) {
+        return success(user, null);
+    }
+
+    /**
+     * Creates an {@code AuthenticationResult} that indicates that the supplied
+     * {@link User} has been successfully authenticated.
+     * <p>
+     * The {@link #getStatus() status} is set to {@link Status#SUCCESS}.
+     * </p>
+     * <p>
+     * Neither the {@link #getMessage() message} nor {@link #getException()
+     * exception} are populated.
+     * </p>
+     * @param user
+     *            The user that was authenticated. Cannot be {@code null}.
+     * @param responseHeaders
+     *            Additional response headers, can be {@code null}. If specified
+     *            these will be used to add headers on ThreadContext
+     *            {@link ThreadContext#addResponseHeader(String, String)}
+     */
+    public static AuthenticationResult success(User user, @Nullable Map<String, String> responseHeaders) {
         Objects.requireNonNull(user);
-        return new AuthenticationResult(Status.SUCCESS, user, null, null);
+        AuthenticationResult authnResult = new AuthenticationResult(Status.SUCCESS, user, null, null);
+        if (responseHeaders != null) {
+            authnResult.responseHeaders().putAll(responseHeaders);
+        }
+        return authnResult;
     }
 
     /**
@@ -111,6 +145,36 @@ public final class AuthenticationResult {
      */
     public static AuthenticationResult terminate(String message, @Nullable Exception cause) {
         return new AuthenticationResult(Status.TERMINATE, null, message, cause);
+    }
+
+    /**
+     * Creates an {@code AuthenticationResult} that indicates that the realm
+     * attempted to handle the authentication request, was unsuccessful and wants to
+     * terminate this authentication request. The reason for the failure is given in
+     * the supplied message and optional exception.
+     * <p>
+     * The {@link #getStatus() status} is set to {@link Status#TERMINATE}.
+     * </p>
+     * <p>
+     * The {@link #getUser() user} is not populated.
+     * </p>
+     * @param message
+     *            terminate error message
+     * @param cause
+     *            root cause to terminate authentication request, can be
+     *            {@code null}
+     * @param responseHeaders
+     *            Additional response headers, can be {@code null}. If specified
+     *            these will be used to add headers on
+     *            ElasticsearchSecurityException
+     *            {@link ElasticsearchSecurityException#addHeader(String, String...)}
+     */
+    public static AuthenticationResult terminate(String message, @Nullable Exception cause, @Nullable Map<String, String> responseHeaders) {
+        AuthenticationResult authnResult = new AuthenticationResult(Status.TERMINATE, null, message, cause);
+        if (responseHeaders != null) {
+            authnResult.responseHeaders().putAll(responseHeaders);
+        }
+        return authnResult;
     }
 
     public boolean isAuthenticated() {

@@ -108,23 +108,22 @@ public final class KerberosRealm extends Realm implements CachingRealm {
                 final Tuple<String, String> userPrincipalNameOutToken = kerberosTicketValidator.validateTicket("*",
                         GSSName.NT_HOSTBASED_SERVICE, (String) kerbAuthnToken.credentials(), config);
 
-                if (userPrincipalNameOutToken != null) {
+                if (userPrincipalNameOutToken != null && userPrincipalNameOutToken.v1() != null) {
                     final String username = userPrincipalNameOutToken.v1();
+                    final Map<String, String> responseHeader = new HashMap<>();
+                    responseHeader.put(Realm.WWW_AUTHN_HEADER, KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + userPrincipalNameOutToken.v2());
 
                     User user = userPrincipalNameToUserCache.get(username);
                     if (user != null) {
-                        listener.onResponse(AuthenticationResult.success(user));
+                        listener.onResponse(AuthenticationResult.success(user, responseHeader));
                     } else {
-                        final Map<String, Object> userMetadata = new HashMap<>();
-                        // TODO how do we return this as Rest Response header "WWW-Authenticate: <token> ?"
-                        userMetadata.put("_www-authenticate", userPrincipalNameOutToken.v2());
                         final UserRoleMapper.UserData userData =
                                 new UserRoleMapper.UserData(username, null, Collections.emptySet(), null, this.config);
                         userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
                             final User computedUser =
-                                    new User(username, roles.toArray(new String[roles.size()]), null, null, userMetadata, true);
+                                    new User(username, roles.toArray(new String[roles.size()]), null, null, null, true);
                             userPrincipalNameToUserCache.put(username, computedUser);
-                            listener.onResponse(AuthenticationResult.success(computedUser));
+                            listener.onResponse(AuthenticationResult.success(computedUser, responseHeader));
                         }, listener::onFailure));
 
                         /**
@@ -136,7 +135,16 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
                     return;
                 } else {
-                    authenticationResult = AuthenticationResult.terminate("Could not validate kerberos ticket", null);
+                    String outToken = "";
+                    if (userPrincipalNameOutToken != null) {
+                        // Ongoing sec context establishment, return UNAUTHORIZED with out token if any
+                        outToken = userPrincipalNameOutToken.v2();
+                    } else {
+                        authenticationResult = AuthenticationResult.terminate("Could not validate kerberos ticket", null);
+                    }
+                    final Map<String, String> responseHeader = new HashMap<>();
+                    responseHeader.put(Realm.WWW_AUTHN_HEADER, KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + outToken);
+                    authenticationResult = AuthenticationResult.terminate("Could not validate kerberos ticket", null, responseHeader);
                 }
             } catch (LoginException e) {
                 logger.log(Level.ERROR, "Exception occurred in service login", e);

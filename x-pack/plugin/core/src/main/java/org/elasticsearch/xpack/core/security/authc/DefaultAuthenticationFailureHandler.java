@@ -23,11 +23,10 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  * the order.
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
-    public static final String HTTP_AUTH_HEADER = "WWW-Authenticate";
     private final Map<String, String[]> defaultResponseHeaders = new HashMap<>();
 
     public DefaultAuthenticationFailureHandler() {
-        defaultResponseHeaders.put(HTTP_AUTH_HEADER, new String[] { Realm.WWW_AUTHN_HEADER_DEFAULT_VALUE });
+        defaultResponseHeaders.putAll(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME);
     }
 
     public DefaultAuthenticationFailureHandler(final Map<String, String[]> defaultResponseHeaders) {
@@ -51,8 +50,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
         if (e instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) e).status() == RestStatus.UNAUTHORIZED;
-            assert ((ElasticsearchSecurityException) e).getHeader(HTTP_AUTH_HEADER) != null
-                    && ((ElasticsearchSecurityException) e).getHeader(HTTP_AUTH_HEADER).size() == 1;
+            assert ((ElasticsearchSecurityException) e).getHeader(Realm.WWW_AUTHN_HEADER) != null
+                    && ((ElasticsearchSecurityException) e).getHeader(Realm.WWW_AUTHN_HEADER).size() == 1;
             return (ElasticsearchSecurityException) e;
         }
         return authenticationError(defaultResponseHeaders, "error attempting to authenticate request", e);
@@ -63,8 +62,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             ThreadContext context) {
         if (e instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) e).status() == RestStatus.UNAUTHORIZED;
-            assert ((ElasticsearchSecurityException) e).getHeader(HTTP_AUTH_HEADER) != null
-                    && ((ElasticsearchSecurityException) e).getHeader(HTTP_AUTH_HEADER).size() == 1;
+            assert ((ElasticsearchSecurityException) e).getHeader(Realm.WWW_AUTHN_HEADER) != null
+                    && ((ElasticsearchSecurityException) e).getHeader(Realm.WWW_AUTHN_HEADER).size() == 1;
             return (ElasticsearchSecurityException) e;
         }
         return authenticationError(defaultResponseHeaders, "error attempting to authenticate request", e);

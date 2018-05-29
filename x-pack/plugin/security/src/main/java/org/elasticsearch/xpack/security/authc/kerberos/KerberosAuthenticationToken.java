@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,8 +32,8 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     private final String principalName;
     private String base64EncodedTicket;
 
-    public KerberosAuthenticationToken(final String principalName, final String base64EncodedToken) {
-        this.principalName = principalName;
+    public KerberosAuthenticationToken(final String base64EncodedToken) {
+        this.principalName = UNAUTHENTICATED_PRINCIPAL_NAME;
         this.base64EncodedTicket = base64EncodedToken;
     }
 
@@ -79,7 +78,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
             throw authenticationError(exceptionResponseHeader,
                     "invalid negotiate authentication header value, could not decode base64 token {}", rootCause, base64EncodedToken);
         }
-        return new KerberosAuthenticationToken(UNAUTHENTICATED_PRINCIPAL_NAME, base64EncodedToken);
+        return new KerberosAuthenticationToken(base64EncodedToken);
     }
 
     @Override

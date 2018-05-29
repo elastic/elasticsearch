@@ -55,8 +55,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             final AuthenticationToken authToken;
             // TODO bizybot Temp support till we decide how to handle oauth2 token + kerberos
             if ("kerberos".equals(request.getGrantType())) {
-                authToken = new KerberosAuthenticationToken(KerberosAuthenticationToken.UNAUTHENTICATED_PRINCIPAL_NAME,
-                        request.getPassword().toString());
+                authToken = new KerberosAuthenticationToken(request.getPassword().toString());
             } else {
                 authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
             }

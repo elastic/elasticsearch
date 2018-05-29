@@ -265,20 +265,21 @@ public class AuthenticationService extends AbstractComponent {
                             if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                                 // user was authenticated, populate the authenticated by information
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                                if (result.responseHeaders() != null) {
+                                    result.responseHeaders()
+                                            .forEach((key, value) -> threadContext.addResponseHeader(key, value));
+                                }
                                 userListener.onResponse(result.getUser());
                             } else {
+                                // the user was not authenticated, call this so we can audit the correct event
+                                request.realmAuthenticationFailed(authenticationToken, realm.name());
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                     logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
                                             authenticationToken.principal(), realm.name(), result.getMessage());
-                                    final Map<String, String[]> authnErrorResponseHeader = new HashMap<>();
-                                    authnErrorResponseHeader.put(Realm.WWW_AUTHN_HEADER,
-                                            new String[] { realm.getWWWAuthenticateHeaderValue() });
-                                    userListener.onFailure(Exceptions.authenticationError(authnErrorResponseHeader, result.getMessage(),
+                                    final Map<String, String[]> authnErrorResponseHeaders = extractErrorResponseHeaders(realm, result);
+                                    userListener.onFailure(Exceptions.authenticationError(authnErrorResponseHeaders, result.getMessage(),
                                             result.getException()));
-                                    userListener.onFailure(request.exceptionProcessingRequest(result.getException(), token));
                                 } else {
-                                    // the user was not authenticated, call this so we can audit the correct event
-                                    request.realmAuthenticationFailed(authenticationToken, realm.name());
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
                                     }
@@ -306,6 +307,19 @@ public class AuthenticationService extends AbstractComponent {
                     listener.onFailure(request.exceptionProcessingRequest(e, token));
                 }
             }
+        }
+
+        private Map<String, String[]> extractErrorResponseHeaders(Realm realm, AuthenticationResult result) {
+            final Map<String, String[]> authnErrorResponseHeaders = new HashMap<>();
+            if (result.responseHeaders() != null) {
+                result.responseHeaders()
+                        .forEach((key, value) -> authnErrorResponseHeaders.put(key, new String[] { value }));
+            }
+            if (authnErrorResponseHeaders.containsKey(Realm.WWW_AUTHN_HEADER) == false) {
+                authnErrorResponseHeaders.put(Realm.WWW_AUTHN_HEADER,
+                        new String[] { realm.getWWWAuthenticateHeaderValue() });
+            }
+            return authnErrorResponseHeaders;
         }
 
         /**

@@ -629,7 +629,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        doThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like authenticate", null, (Object[]) null))
+        doThrow(authenticationError(Realm.WWW_AUTH_RESPONSE_HEADER_BASIC_SCHEME, "realm doesn't like authenticate"))
                 .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         try {
             authenticateBlocking("_action", message, null);

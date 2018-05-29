@@ -413,6 +413,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         setRandomIndicesOptions(getMappingRequest::indicesOptions, getMappingRequest::indicesOptions, expectedParams);
         setRandomMasterTimeout(getMappingRequest, expectedParams);
+        setRandomLocal(getMappingRequest, expectedParams);
 
         Request request = RequestConverters.getMappings(getMappingRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");

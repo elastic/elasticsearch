@@ -199,6 +199,7 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
+        parameters.withLocal(getMappingsRequest.local());
         return request;
     }
 

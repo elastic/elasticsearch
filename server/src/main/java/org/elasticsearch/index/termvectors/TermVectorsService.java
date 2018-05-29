@@ -85,8 +85,6 @@ public class TermVectorsService  {
             termVectorsResponse.setExists(false);
             return termVectorsResponse;
         }
-        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(), request.id(), uidTerm)
-                .version(request.version()).versionType(request.versionType()));
 
         Fields termVectorsByField = null;
         AggregatedDfs dfs = null;
@@ -97,8 +95,9 @@ public class TermVectorsService  {
             handleFieldWildcards(indexShard, request);
         }
 
-        final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
-        try {
+        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(), request.id(), uidTerm)
+                .version(request.version()).versionType(request.versionType()));
+                Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
             Fields topLevelFields = MultiFields.getFields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
@@ -143,14 +142,12 @@ public class TermVectorsService  {
                     }
                 }
                 // write term vectors
-                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
+                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs,
+                        termVectorsFilter);
             }
             termVectorsResponse.setTookInMillis(TimeUnit.NANOSECONDS.toMillis(nanoTimeSupplier.getAsLong() - startTime));
         } catch (Exception ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
-        } finally {
-            searcher.close();
-            get.release();
         }
         return termVectorsResponse;
     }

@@ -41,6 +41,7 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
                         .indexRouting("indexRouting")
                         .routing("routing")
                         .searchRouting("trim,tw , ltw , lw")
+                        .writeIndex(false)
                         .build();
 
         assertThat(before.searchRoutingValues(), equalTo(Sets.newHashSet("trim", "tw ", " ltw ", " lw")));

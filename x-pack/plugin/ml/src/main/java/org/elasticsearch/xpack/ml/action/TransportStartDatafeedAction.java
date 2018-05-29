@@ -156,7 +156,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private void waitForDatafeedStarted(String taskId, StartDatafeedAction.DatafeedParams params,
                                         ActionListener<StartDatafeedAction.Response> listener) {
         DatafeedPredicate predicate = new DatafeedPredicate();
-        persistentTasksService.waitForPersistentTask(taskId, predicate, params.getTimeout(),
+        persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, params.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {

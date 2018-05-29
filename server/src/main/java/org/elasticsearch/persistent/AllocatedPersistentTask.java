@@ -112,7 +112,7 @@ public class AllocatedPersistentTask extends CancellableTask {
     public void waitForPersistentTask(final Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> predicate,
                                       final @Nullable TimeValue timeout,
                                       final PersistentTasksService.WaitForPersistentTaskListener<?> listener) {
-        persistentTasksService.waitForPersistentTask(persistentTaskId, predicate, timeout, listener);
+        persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, predicate, timeout, listener);
     }
 
     final boolean isCompleted() {

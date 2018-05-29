@@ -275,7 +275,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     void waitForDatafeedStopped(List<String> datafeedPersistentTaskIds, StopDatafeedAction.Request request,
                                 StopDatafeedAction.Response response,
                                 ActionListener<StopDatafeedAction.Response> listener) {
-        persistentTasksService.waitForPersistentTasks(persistentTasksCustomMetaData -> {
+        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetaData -> {
             for (String persistentTaskId: datafeedPersistentTaskIds) {
                 if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
                     return false;

@@ -201,7 +201,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
             int finalI = i;
             WaitForPersistentTaskFuture<?> future1 = new WaitForPersistentTaskFuture<>();
-            persistentTasksService.waitForPersistentTask(taskId,
+            persistentTasksService.waitForPersistentTaskCondition(taskId,
                     task -> task != null && task.getStatus() != null && task.getStatus().toString() != null &&
                             task.getStatus().toString().equals("{\"phase\":\"phase " + (finalI + 1) + "\"}"),
                     TimeValue.timeValueSeconds(10), future1);
@@ -209,7 +209,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         }
 
         WaitForPersistentTaskFuture<?> future1 = new WaitForPersistentTaskFuture<>();
-        persistentTasksService.waitForPersistentTask(taskId,
+        persistentTasksService.waitForPersistentTaskCondition(taskId,
                 task -> false, TimeValue.timeValueMillis(10), future1);
 
         assertThrows(future1, IllegalStateException.class, "timed out after 10ms");
@@ -221,7 +221,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         // Wait for the task to disappear
         WaitForPersistentTaskFuture<?> future2 = new WaitForPersistentTaskFuture<>();
-        persistentTasksService.waitForPersistentTask(taskId, Objects::isNull, TimeValue.timeValueSeconds(10), future2);
+        persistentTasksService.waitForPersistentTaskCondition(taskId, Objects::isNull, TimeValue.timeValueSeconds(10), future2);
 
         logger.info("Completing the running task");
         // Complete the running task and make sure it finishes properly

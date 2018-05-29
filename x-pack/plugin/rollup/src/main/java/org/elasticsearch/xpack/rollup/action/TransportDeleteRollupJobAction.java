@@ -65,7 +65,7 @@ public class TransportDeleteRollupJobAction
                 logger.debug("Request to cancel Task for Rollup job [" + jobId + "] successful.");
 
                 // Step 2. Wait for the task to finish cancellation internally
-                persistentTasksService.waitForPersistentTask(jobId, Objects::isNull, timeout,
+                persistentTasksService.waitForPersistentTaskCondition(jobId, Objects::isNull, timeout,
                         new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {

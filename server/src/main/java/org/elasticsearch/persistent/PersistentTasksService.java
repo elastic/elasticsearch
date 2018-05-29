@@ -161,10 +161,10 @@ public class PersistentTasksService extends AbstractComponent {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTask(final String taskId,
-                                      final Predicate<PersistentTask<?>> predicate,
-                                      final @Nullable TimeValue timeout,
-                                      final WaitForPersistentTaskListener<?> listener) {
+    public void waitForPersistentTaskCondition(final String taskId,
+                                               final Predicate<PersistentTask<?>> predicate,
+                                               final @Nullable TimeValue timeout,
+                                               final WaitForPersistentTaskListener<?> listener) {
         final Predicate<ClusterState> clusterStatePredicate = clusterState ->
             predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId));
 
@@ -199,9 +199,9 @@ public class PersistentTasksService extends AbstractComponent {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTasks(final Predicate<PersistentTasksCustomMetaData> predicate,
-                                       final @Nullable TimeValue timeout,
-                                       final ActionListener<Boolean> listener) {
+    public void waitForPersistentTasksCondition(final Predicate<PersistentTasksCustomMetaData> predicate,
+                                                final @Nullable TimeValue timeout,
+                                                final ActionListener<Boolean> listener) {
         final Predicate<ClusterState> clusterStatePredicate = clusterState ->
             predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE));
 

@@ -518,7 +518,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<OpenJobAction.Response> listener) {
         JobPredicate predicate = new JobPredicate();
-        persistentTasksService.waitForPersistentTask(taskId, predicate, jobParams.getTimeout(),
+        persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, jobParams.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<OpenJobAction.JobParams>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {

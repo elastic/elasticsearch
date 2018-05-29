@@ -334,10 +334,10 @@ public class PutJobStateMachineTests extends ESTestCase {
             // Bail here with an error, further testing will happen through tests of #startPersistentTask
             requestCaptor2.getValue().onFailure(new RuntimeException("Ending"));
             return null;
-        }).when(tasksService).waitForPersistentTask(eq(job.getConfig().getId()), any(), any(), requestCaptor2.capture());
+        }).when(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), requestCaptor2.capture());
 
         TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
         verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
-        verify(tasksService).waitForPersistentTask(eq(job.getConfig().getId()), any(), any(), any());
+        verify(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), any());
     }
 }

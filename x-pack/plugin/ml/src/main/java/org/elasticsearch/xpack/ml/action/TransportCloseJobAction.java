@@ -400,7 +400,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     // so wait for that to happen here.
     void waitForJobClosed(CloseJobAction.Request request, WaitForCloseRequest waitForCloseRequest, CloseJobAction.Response response,
                           ActionListener<CloseJobAction.Response> listener) {
-        persistentTasksService.waitForPersistentTasks(persistentTasksCustomMetaData -> {
+        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetaData -> {
             for (String persistentTaskId : waitForCloseRequest.persistentTaskIds) {
                 if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
                     return false;

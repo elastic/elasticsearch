@@ -75,8 +75,8 @@ teardown:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_lifecycle" }
   - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "pre-pre-readonly" }
-  - match: { my_index.settings.index.lifecycle.phase: "hot" }
+  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 
 ---

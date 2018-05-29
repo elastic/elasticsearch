@@ -67,22 +67,17 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         // We register the primary client if any
         if (primaryStorageSettings != null) {
-            logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
             createClient(primaryStorageSettings);
         }
 
         // We register all secondary clients
         for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
-            logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
             createClient(azureStorageSettingsEntry.getValue());
         }
     }
 
     void createClient(AzureStorageSettings azureStorageSettings) {
         try {
-            logger.trace("creating new Azure storage client using account [{}], key [{}]",
-                    azureStorageSettings.getAccount(), azureStorageSettings.getKey());
-
             String storageConnectionString =
                     "DefaultEndpointsProtocol=https;"
                             + "AccountName="+ azureStorageSettings.getAccount() +";"
@@ -97,12 +92,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             // Register the client
             this.clients.put(azureStorageSettings.getAccount(), client);
         } catch (Exception e) {
-            logger.error("can not create azure storage client: {}", e.getMessage());
+            logger.error("Can not create azure storage client", e);
         }
     }
 
     CloudBlobClient getSelectedClient(String account, LocationMode mode) {
-        logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = null;
 
         if (this.primaryStorageSettings == null) {
@@ -122,13 +116,13 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         if (azureStorageSettings == null) {
             // We did not get an account. That's bad.
-            throw new IllegalArgumentException("Can not find azure account [" + account + "]. Check your elasticsearch.yml.");
+            throw new IllegalArgumentException("Can not find azure account. Check your elasticsearch.yml.");
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
 
         if (client == null) {
-            throw new IllegalArgumentException("Can not find an azure client for account [" + account + "]");
+            throw new IllegalArgumentException("Can not find an azure client");
         }
 
         // NOTE: for now, just set the location mode in case it is different;

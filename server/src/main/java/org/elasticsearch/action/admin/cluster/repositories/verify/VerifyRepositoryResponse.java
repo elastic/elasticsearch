@@ -174,7 +174,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         return clusterName;
     }
 
-    void setNodes(List<NodeView> nodes) {
+    private void setNodes(List<NodeView> nodes) {
         this.nodes = nodes.stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
     }
 

@@ -43,7 +43,7 @@ environment variable.
 === Examples
 
 The following command generates a `system_key` file in the
-default `$ES_HOME/config/x-pack` directory:
+default `$ES_HOME/config` directory:
 
 [source, sh]
 --------------------------------------------------

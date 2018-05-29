@@ -21,13 +21,17 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -37,6 +41,7 @@ import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -93,38 +98,31 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         this.testCandidate = testCandidate;
     }
 
+    private static boolean useDefaultNumberOfShards;
+
+    @BeforeClass
+    public static void initializeUseDefaultNumberOfShards() {
+        useDefaultNumberOfShards = usually();
+    }
+
     @Before
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
+            final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
-            List<HttpHost> hosts = getClusterHosts();
-            RestClient restClient = client();
-            Version infoVersion = readVersionsFromInfo(restClient, hosts.size());
-            Version esVersion;
-            try {
-                Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
-                esVersion = versionVersionTuple.v1();
-                Version masterVersion = versionVersionTuple.v2();
-                logger.info("initializing yaml client, minimum es version: [{}] master version: [{}] hosts: {}",
-                        esVersion, masterVersion, hosts);
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
-                    logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                    esVersion = infoVersion;
-                    logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
-                } else {
-                    throw ex;
-                }
-            }
-            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            final List<HttpHost> hosts = getClusterHosts();
+            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
+            final Version esVersion = versionVersionTuple.v1();
+            final Version masterVersion = versionVersionTuple.v2();
+            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
+            final ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
-            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
-            for (String entry : blacklist) {
+            for (final String entry : blacklist) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
         }
@@ -138,12 +136,28 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
-    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
-                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+    protected ClientYamlTestClient initClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion);
     }
 
+    /**
+     * Create parameters for this parameterized test. Uses the
+     * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
+     * defined in {@link ExecutableSection}.
+     */
     public static Iterable<Object[]> createParameters() throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         List<Object[]> tests = new ArrayList<>();
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
@@ -151,7 +165,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
+                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile);
                 for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
                     tests.add(new Object[]{ new ClientYamlTestCandidate(restTestSuite, testSection) });
                 }
@@ -303,6 +317,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
+        }
+
+        if (useDefaultNumberOfShards == false
+                && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+            final Request request = new Request("PUT", "/_template/global");
+            request.addHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters());
+            request.setEntity(new StringEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}"));
+            adminClient().performRequest(request);
         }
 
         if (!testCandidate.getSetupSection().isEmpty()) {

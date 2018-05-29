@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.util.Arrays;
 import java.util.BitSet;

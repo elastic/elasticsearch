@@ -290,9 +290,19 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      *
      * @param name The field to get from the docvalue
      */
-    public SearchRequestBuilder addDocValueField(String name) {
-        sourceBuilder().docValueField(name);
+    public SearchRequestBuilder addDocValueField(String name, String format) {
+        sourceBuilder().docValueField(name, format);
         return this;
+    }
+
+    /**
+     * Adds a docvalue based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name The field to get from the docvalue
+     */
+    public SearchRequestBuilder addDocValueField(String name) {
+        return addDocValueField(name, null);
     }
 
     /**

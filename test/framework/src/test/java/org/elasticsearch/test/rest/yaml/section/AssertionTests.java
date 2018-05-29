@@ -135,6 +135,22 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     @SuppressWarnings("unchecked")
+    public void testParseMatchArrayObject() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "{test: { someKey: someValue } }"
+        );
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+        assertThat(matchAssertion, notNullValue());
+        assertThat(matchAssertion.getField(), equalTo("test"));
+        assertThat(matchAssertion.getExpectedValue(), instanceOf(Map.class));
+        assertThat(
+            ((Map<String, String>) matchAssertion.getExpectedValue()).get("someKey"),
+            equalTo("someValue")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
     public void testParseMatchSourceValues() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                 "{ _source: { responses.0.hits.total: 3, foo: bar  }}"

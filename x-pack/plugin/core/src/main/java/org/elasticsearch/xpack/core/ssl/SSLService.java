@@ -195,27 +195,12 @@ public class SSLService extends AbstractComponent {
      * @param fallbackSettings the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
      *                         results in a fallback to the global configuration
      * @return {@link SSLEngine}
+     * @deprecated Use {@link #createSSLEngine(SSLConfiguration, String, int)} and {@link #getSSLConfiguration(String)}
      */
+    @Deprecated
     public SSLEngine createSSLEngine(Settings settings, Settings fallbackSettings) {
-        return createSSLEngine(settings, fallbackSettings, null, -1);
-    }
-
-    /**
-     * Creates an {@link SSLEngine} based on the provided settings. The settings are used to identify the ssl configuration that should be
-     * used to create the engine. This SSLEngine can be used for a connection that requires hostname verification assuming the provided
-     * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
-     *                 a SSLEngine created from the default configuration
-     * @param fallbackSettings the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
-     *                         results in a fallback to the global configuration
-     * @param host the host of the remote endpoint. If using hostname verification, this should match what is in the remote endpoint's
-     *             certificate
-     * @param port the port of the remote endpoint
-     * @return {@link SSLEngine}
-     */
-    public SSLEngine createSSLEngine(Settings settings, Settings fallbackSettings, String host, int port) {
         SSLConfiguration configuration = sslConfiguration(settings, fallbackSettings);
-        return createSSLEngine(configuration, host, port);
+        return createSSLEngine(configuration, null, -1);
     }
 
     /**

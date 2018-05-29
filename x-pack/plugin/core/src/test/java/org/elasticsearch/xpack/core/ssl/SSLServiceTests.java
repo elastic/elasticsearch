@@ -32,23 +32,17 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 
-import java.net.Socket;
 import java.nio.file.Path;
 import java.security.AccessController;
-import java.security.KeyStore;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -117,10 +111,12 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureCustomSettings)
                 .build();
 
-        SSLEngine sslEngineWithTruststore = sslService.createSSLEngine(customTruststoreSettings, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.sslConfiguration(customTruststoreSettings, Settings.EMPTY);
+        SSLEngine sslEngineWithTruststore = sslService.createSSLEngine(configuration, null, -1);
         assertThat(sslEngineWithTruststore, is(not(nullValue())));
 
-        SSLEngine sslEngine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration1 = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLEngine sslEngine = sslService.createSSLEngine(configuration1, null, -1);
         assertThat(sslEngineWithTruststore, is(not(sameInstance(sslEngine))));
     }
 
@@ -150,7 +146,9 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.path", differentPasswordsStore)
                 .setSecureSettings(secureSettings)
                 .build();
-        new SSLService(settings, env).createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        final SSLService sslService = new SSLService(settings, env);
+        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        sslService.createSSLEngine(configuration, null, -1);
     }
 
     public void testIncorrectKeyPasswordThrowsException() throws Exception {
@@ -163,7 +161,9 @@ public class SSLServiceTests extends ESTestCase {
                     .put("xpack.ssl.keystore.path", differentPasswordsStore)
                     .setSecureSettings(secureSettings)
                     .build();
-            new SSLService(settings, env).createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+            final SSLService sslService = new SSLService(settings, env);
+            SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+            sslService.createSSLEngine(configuration, null, -1);
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to initialize a KeyManagerFactory"));
@@ -179,13 +179,15 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        SSLEngine engine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
     }
 
     public void testThatCreateClientSSLEngineWithoutAnySettingsWorks() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
-        SSLEngine sslEngine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLEngine sslEngine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(sslEngine, notNullValue());
     }
 
@@ -197,7 +199,8 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        SSLEngine sslEngine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLEngine sslEngine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(sslEngine, notNullValue());
     }
 
@@ -331,7 +334,8 @@ public class SSLServiceTests extends ESTestCase {
                 .putList("xpack.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        SSLEngine engine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(engine, is(notNullValue()));
         String[] enabledCiphers = engine.getEnabledCipherSuites();
         assertThat(Arrays.asList(enabledCiphers), not(contains("foo", "bar")));
@@ -361,7 +365,8 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        SSLEngine engine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(engine, is(notNullValue()));
         assertTrue(engine.getSSLParameters().getUseCipherSuitesOrder());
     }
@@ -400,7 +405,8 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        SSLEngine engine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
         final String[] ciphers = sslService.supportedCiphers(engine.getSupportedCipherSuites(), config.cipherSuites(), false);
         final String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
@@ -589,7 +595,9 @@ public class SSLServiceTests extends ESTestCase {
     @Network
     public void testThatSSLIOSessionStrategyWithoutSettingsWorks() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
-        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(Settings.EMPTY);
+        SSLConfiguration sslConfiguration = sslService.sslConfiguration(Settings.EMPTY);
+        logger.info("SSL Configuration: {}", sslConfiguration);
+        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 
@@ -601,7 +609,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     @Network
-    public void testThatSSLIOSessionStrategytTrustsJDKTrustedCAs() throws Exception {
+    public void testThatSSLIOSessionStrategyTrustsJDKTrustedCAs() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testclient");
         Settings settings = Settings.builder()

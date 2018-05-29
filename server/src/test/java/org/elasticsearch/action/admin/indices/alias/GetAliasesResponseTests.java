@@ -257,13 +257,13 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
         final Version targetNodeVersion = randomVersion(random());
         final GetAliasesResponse outResponse = createTestInstance();
 
-        try (final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-                final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);) {
+        try (ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+                OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);) {
             out.setVersion(targetNodeVersion);
             outResponse.writeTo(out);
 
-            try (final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-                    final StreamInput in = new InputStreamStreamInput(inBuffer);) {
+            try (ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+                    StreamInput in = new InputStreamStreamInput(inBuffer);) {
                 final GetAliasesResponse inResponse = new GetAliasesResponse(null);
                 in.setVersion(targetNodeVersion);
                 inResponse.readFrom(in);
@@ -274,7 +274,7 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
                     assertThat(outResponse.status(), equalTo(inResponse.status()));
                     assertThat(outResponse.errorMessage(), equalTo(inResponse.errorMessage()));
                 } else {
-                    assertThat(inResponse.status(), equalTo(RestStatus.OK));
+                    assertThat(inResponse.status(), equalTo(null));
                     assertThat(inResponse.errorMessage(), equalTo(null));
                 }
             }

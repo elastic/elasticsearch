@@ -123,13 +123,15 @@ public class XPackInfoResponse extends ActionResponse {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field("uid", uid)
-                    .field("type", type)
-                    .field("mode", mode)
-                    .field("status", status.label())
-                    .timeField("expiry_date_in_millis", "expiry_date", expiryDate)
-                    .endObject();
+            builder.startObject()
+                .field("uid", uid)
+                .field("type", type)
+                .field("mode", mode)
+                .field("status", status.label());
+            if (expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+                builder.timeField("expiry_date_in_millis", "expiry_date", expiryDate);
+            }
+            return builder.endObject();
         }
 
         public void writeTo(StreamOutput out) throws IOException {

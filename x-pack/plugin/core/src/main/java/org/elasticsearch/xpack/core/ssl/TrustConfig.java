@@ -79,7 +79,7 @@ abstract class TrustConfig {
             }
 
             try {
-                return CertUtils.trustManager(trustConfigs.stream()
+                return CertParsingUtils.trustManager(trustConfigs.stream()
                         .flatMap((tc) -> Arrays.stream(tc.createTrustManager(environment).getAcceptedIssuers()))
                         .collect(Collectors.toList())
                         .toArray(new X509Certificate[0]));

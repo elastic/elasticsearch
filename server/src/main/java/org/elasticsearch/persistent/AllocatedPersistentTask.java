@@ -26,7 +26,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -38,17 +37,15 @@ import java.util.function.Predicate;
  * Represents a executor node operation that corresponds to a persistent task
  */
 public class AllocatedPersistentTask extends CancellableTask {
-    private volatile String persistentTaskId;
-    private volatile long allocationId;
 
     private final AtomicReference<State> state;
-    @Nullable
-    private volatile Exception failure;
 
+    private volatile String persistentTaskId;
+    private volatile long allocationId;
+    private volatile @Nullable Exception failure;
     private volatile PersistentTasksService persistentTasksService;
     private volatile Logger logger;
     private volatile TaskManager taskManager;
-
 
     public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask,
                                    Map<String, String> headers) {
@@ -101,22 +98,8 @@ public class AllocatedPersistentTask extends CancellableTask {
         return failure;
     }
 
-    boolean markAsCancelled() {
-        return state.compareAndSet(AllocatedPersistentTask.State.STARTED, AllocatedPersistentTask.State.PENDING_CANCEL);
-    }
-
-    public State getState() {
-        return state.get();
-    }
-
     public long getAllocationId() {
         return allocationId;
-    }
-
-    public enum State {
-        STARTED,  // the task is currently running
-        PENDING_CANCEL, // the task is cancelled on master, cancelling it locally
-        COMPLETED     // the task is done running and trying to notify caller
     }
 
     /**
@@ -126,6 +109,14 @@ public class AllocatedPersistentTask extends CancellableTask {
                                             @Nullable TimeValue timeout,
                                             PersistentTasksService.WaitForPersistentTaskStatusListener<?> listener) {
         persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, predicate, timeout, listener);
+    }
+
+    final boolean isCompleted() {
+        return state.get() ==  State.COMPLETED;
+    }
+
+    boolean markAsCancelled() {
+        return state.compareAndSet(State.STARTED, State.PENDING_CANCEL);
     }
 
     public void markAsCompleted() {
@@ -138,11 +129,10 @@ public class AllocatedPersistentTask extends CancellableTask {
         } else {
             completeAndNotifyIfNeeded(e);
         }
-
     }
 
     private void completeAndNotifyIfNeeded(@Nullable Exception failure) {
-        State prevState = state.getAndSet(AllocatedPersistentTask.State.COMPLETED);
+        final State prevState = state.getAndSet(State.COMPLETED);
         if (prevState == State.COMPLETED) {
             logger.warn("attempt to complete task [{}] with id [{}] in the [{}] state", getAction(), getPersistentTaskId(), prevState);
         } else {
@@ -172,5 +162,11 @@ public class AllocatedPersistentTask extends CancellableTask {
                 taskManager.unregister(this);
             }
         }
+    }
+
+    public enum State {
+        STARTED,  // the task is currently running
+        PENDING_CANCEL, // the task is cancelled on master, cancelling it locally
+        COMPLETED     // the task is done running and trying to notify caller
     }
 }

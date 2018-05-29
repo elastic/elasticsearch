@@ -120,7 +120,7 @@ public class NioHttpChannel extends AbstractRestChannel {
                 toClose.add(nioChannel::close);
             }
 
-            BiConsumer<Void, Throwable> listener = (aVoid, throwable) -> Releasables.close(toClose);
+            BiConsumer<Void, Exception> listener = (aVoid, ex) -> Releasables.close(toClose);
             nioChannel.getContext().sendMessage(new NioHttpResponse(sequence, resp), listener);
             success = true;
         } finally {

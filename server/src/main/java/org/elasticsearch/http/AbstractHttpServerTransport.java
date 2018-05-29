@@ -30,8 +30,6 @@ import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,7 +59,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
 
-    private volatile BoundTransportAddress boundAddress;
+    protected volatile BoundTransportAddress boundAddress;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, ThreadPool threadPool, Dispatcher dispatcher) {
         super(settings);

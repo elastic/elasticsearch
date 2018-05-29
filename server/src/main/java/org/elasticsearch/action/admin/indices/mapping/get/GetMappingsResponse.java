@@ -160,16 +160,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            builder.startObject();
-            this.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchException("exception encountered building GetMappingsResponse", e);
-        }
+        return Strings.toString(this);
     }
 
     @Override

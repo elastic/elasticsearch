@@ -53,8 +53,6 @@ import java.util.Locale;
  */
 public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreFormat<T> {
 
-    private static final String TEMP_FILE_PREFIX = "pending-";
-
     private static final XContentType DEFAULT_X_CONTENT_TYPE = XContentType.SMILE;
 
     // The format version
@@ -177,15 +175,6 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
             }
             consumer.accept(new BytesArray(outputStream.toByteArray()));
         }
-    }
-
-    /**
-     * Returns true if the blob is a leftover temporary blob.
-     *
-     * The temporary blobs might be left after failed atomic write operation.
-     */
-    public boolean isTempBlobName(String blobName) {
-        return blobName.startsWith(ChecksumBlobStoreFormat.TEMP_FILE_PREFIX);
     }
 
     protected BytesReference write(T obj) throws IOException {

@@ -57,8 +57,9 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class FsBlobContainer extends AbstractBlobContainer {
 
-    protected final FsBlobStore blobStore;
+    private static final String TEMP_FILE_PREFIX = "pending-";
 
+    protected final FsBlobStore blobStore;
     protected final Path path;
 
     public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
@@ -134,7 +135,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
-        final Path tempBlobPath = path.resolve("pending-" + blobName + "-" + UUIDs.randomBase64UUID());
+        final Path tempBlobPath = path.resolve(tempBlobName(blobName));
         try {
             try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
                 Streams.copy(inputStream, outputStream);
@@ -152,6 +153,20 @@ public class FsBlobContainer extends AbstractBlobContainer {
             IOUtils.deleteFilesIgnoringExceptions(tempBlobPath);
             IOUtils.fsync(path, true);
         }
+    }
+
+    // package private for testing
+    static String tempBlobName(final String blobName) {
+        return "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
+    }
+
+    /**
+     * Returns true if the blob is a leftover temporary blob.
+     *
+     * The temporary blobs might be left after failed atomic write operation.
+     */
+    public static boolean isTempBlobName(final String blobName) {
+        return blobName.startsWith(TEMP_FILE_PREFIX);
     }
 
     @Override

@@ -94,7 +94,7 @@ public final class ClusterClient {
      * Get an existing pipeline
      * <p>
      * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Get Pipeline API on elastic.co</a>
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
      */
     public GetPipelineResponse getPipeline(GetPipelineRequest request, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline,

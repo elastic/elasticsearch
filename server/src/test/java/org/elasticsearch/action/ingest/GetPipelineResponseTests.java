@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,34 +34,37 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GetPipelineResponseTests extends ESTestCase {
+public class GetPipelineResponseTests extends AbstractStreamableXContentTestCase<GetPipelineResponse> {
 
     private XContentBuilder getRandomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         return XContentBuilder.builder(xContentType.xContent());
     }
 
+    private PipelineConfiguration createRandomPipeline(String pipelineId) throws IOException {
+        String field = "field_" + randomInt();
+        String value = "value_" + randomInt();
+        XContentBuilder builder = getRandomXContentBuilder();
+        builder.startObject();
+        // We only use a single SetProcessor here in each pipeline to test.
+        // Since the contents are returned as a configMap anyway this does not matter for fromXContent
+        builder.startObject("set");
+        builder.field("field", field);
+        builder.field("value", value);
+        builder.endObject();
+        builder.endObject();
+        return
+            new PipelineConfiguration(
+                pipelineId, BytesReference.bytes(builder), builder.contentType()
+            );
+    }
+
     private Map<String, PipelineConfiguration> createPipelineConfigMap() throws IOException {
         int numPipelines = randomInt(5);
         Map<String, PipelineConfiguration> pipelinesMap = new HashMap<>();
         for (int i=0; i<numPipelines; i++) {
-            // We only use a single SetProcessor here in each pipeline to test.
-            // Since the contents are returned as a configMap anyway this does not matter for fromXContent
             String pipelineId = "pipeline_" + i;
-            String field = "field_" + i;
-            String value = "value_" + i;
-            XContentBuilder builder = getRandomXContentBuilder();
-            builder.startObject();
-            builder.startObject("set");
-            builder.field("field", field);
-            builder.field("value", value);
-            builder.endObject();
-            builder.endObject();
-            PipelineConfiguration pipeline =
-                new PipelineConfiguration(
-                    pipelineId, BytesReference.bytes(builder), builder.contentType()
-                );
-            pipelinesMap.put(pipelineId, pipeline);
+            pipelinesMap.put(pipelineId, createRandomPipeline(pipelineId));
         }
         return pipelinesMap;
     }
@@ -87,6 +90,43 @@ public class GetPipelineResponseTests extends ESTestCase {
         for (PipelineConfiguration pipeline: parsedPipelines) {
             assertTrue(pipelinesMap.containsKey(pipeline.getId()));
             assertEquals(pipelinesMap.get(pipeline.getId()).getConfigAsMap(), pipeline.getConfigAsMap());
+        }
+    }
+
+    @Override
+    protected GetPipelineResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetPipelineResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected GetPipelineResponse createBlankInstance() {
+        return new GetPipelineResponse();
+    }
+
+    @Override
+    protected GetPipelineResponse createTestInstance() {
+        try {
+            return new GetPipelineResponse(new ArrayList<>(createPipelineConfigMap().values()));
+        } catch (IOException e) {
+            // If we fail to construct an instance we return `null` which would make the user of this method
+            // fail the test.
+            return null;
+        }
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected GetPipelineResponse mutateInstance(GetPipelineResponse response) {
+        try {
+            ArrayList<PipelineConfiguration> clonePipelines = new ArrayList<>(response.pipelines());
+            clonePipelines.add(createRandomPipeline("pipeline_" + clonePipelines.size() + 1));
+            return new GetPipelineResponse(clonePipelines);
+        } catch (IOException e) {
+            return null;
         }
     }
 }

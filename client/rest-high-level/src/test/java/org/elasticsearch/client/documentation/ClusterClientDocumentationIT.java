@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -284,7 +285,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::get-pipeline-response
             boolean successful = response.isFound(); // <1>
-            List<PipelineConfiguration> pipelines = response.getPipelineConfigs(); // <2>
+            List<PipelineConfiguration> pipelines = response.pipelines(); // <2>
             for(PipelineConfiguration pipeline: pipelines) {
                 Map<String, Object> config = pipeline.getConfigAsMap(); // <3>
             }

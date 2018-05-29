@@ -127,7 +127,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetPipeline() throws IOException {
-        String id = "get_pipeline_id";
+        String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
         {
             PutPipelineRequest request = new PutPipelineRequest(
@@ -143,9 +143,9 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         GetPipelineResponse response =
             execute(request, highLevelClient().cluster()::getPipeline, highLevelClient().cluster()::getPipelineAsync);
         assertTrue(response.isFound());
-        assertEquals(response.getPipelineConfigs().get(0).getId(), id);
+        assertEquals(response.pipelines().get(0).getId(), id);
         PipelineConfiguration expectedConfig =
             new PipelineConfiguration(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
-        assertEquals(expectedConfig.getConfigAsMap(), response.getPipelineConfigs().get(0).getConfigAsMap());
+        assertEquals(expectedConfig.getConfigAsMap(), response.pipelines().get(0).getConfigAsMap());
     }
 }

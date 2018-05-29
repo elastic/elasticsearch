@@ -45,7 +45,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * This class is used to generate the Java Cluster API documentation.
+ * This class is used to generate the Java Snapshot API documentation.
  * You need to wrap your code between two tags like:
  * // tag::example
  * // end::example

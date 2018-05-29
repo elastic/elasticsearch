@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -50,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -374,8 +376,27 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                super.writeBlobAtomic(blobName, inputStream, blobSize);
+                final Random random = RandomizedContext.current().getRandom();
+                if (random.nextBoolean()) {
+                    if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
+                        // Simulate a failure between the write and move operation in FsBlobContainer
+                        final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
+                        super.writeBlob(tempBlobName, inputStream, blobSize);
+                        maybeIOExceptionOrBlock(blobName);
+                        final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
+                        fsBlobContainer.move(tempBlobName, blobName);
+                    } else {
+                        // Atomic write since it is potentially supported
+                        // by the delegating blob container
+                        maybeIOExceptionOrBlock(blobName);
+                        super.writeBlobAtomic(blobName, inputStream, blobSize);
+                    }
+                } else {
+                    // Simulate a non-atomic write since many blob container
+                    // implementations does not support atomic write
+                    maybeIOExceptionOrBlock(blobName);
+                    super.writeBlob(blobName, inputStream, blobSize);
+                }
             }
         }
     }

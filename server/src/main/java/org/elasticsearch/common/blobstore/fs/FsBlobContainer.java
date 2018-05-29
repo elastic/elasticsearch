@@ -155,8 +155,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    // package private for testing
-    static String tempBlobName(final String blobName) {
+    public static String tempBlobName(final String blobName) {
         return "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
     }
 

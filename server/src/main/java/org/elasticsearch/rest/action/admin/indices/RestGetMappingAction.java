@@ -144,9 +144,4 @@ public class RestGetMappingAction extends BaseRestHandler {
             }
         });
     }
-
-    private static String toNamesString(final String... names) {
-        return Arrays.stream(names).collect(Collectors.joining(","));
-    }
-
 }

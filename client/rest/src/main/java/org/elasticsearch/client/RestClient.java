@@ -898,7 +898,7 @@ public class RestClient implements Closeable {
             options.addHeader(header.getName(), header.getValue());
         }
         options.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
-        request.setOptions(options.build());
+        request.setOptions(options);
     }
 
     /**

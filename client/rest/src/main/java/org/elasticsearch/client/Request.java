@@ -124,8 +124,18 @@ public final class Request {
      * Elasticsearch's behavior.
      */
     public void setOptions(RequestOptions options) {
-        Objects.requireNonNull(options, "options must not be null");
+        Objects.requireNonNull(options, "options cannot be null");
         this.options = options;
+    }
+
+    /**
+     * Set the portion the configuration of an HTTP request to
+     * Elasticsearch that can be manipulated without changing
+     * Elasticsearch's behavior.
+     */
+    public void setOptions(RequestOptions.Builder options) {
+        Objects.requireNonNull(options, "options cannot be null");
+        this.options = options.build();
     }
 
     /**

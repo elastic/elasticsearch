@@ -185,8 +185,6 @@ import static java.util.stream.Collectors.toList;
  * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
  */
 public class RestHighLevelClient implements Closeable {
-    private static final Consumer<SafeRequest> NOT_CUSTOMIZED = r -> {};
-
     private final RestClient client;
     private final NamedXContentRegistry registry;
     private final CheckedConsumer<RestClient, IOException> doClose;
@@ -271,26 +269,15 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
-    public final BulkResponse bulk(BulkRequest bulkRequest) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, NOT_CUSTOMIZED,
-                BulkResponse::fromXContent, emptySet());
+    public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
     }
 
     /**
      * Executes a bulk request using the Bulk API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
-     */
-    public final BulkResponse bulk(BulkRequest bulkRequest, Consumer<SafeRequest> customizer) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, customizer,
-                BulkResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Executes a bulk request using the Bulk API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
-     * @deprecated Prefer {@link #bulk(BulkRequest, Consumer)}
+     * @deprecated Prefer {@link #bulk(BulkRequest, RequestOptions)}
      */
     @Deprecated
     public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
@@ -302,25 +289,15 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
-    public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, listener, emptySet());
+    public final void bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
+        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener, emptySet());
     }
 
     /**
      * Asynchronously executes a bulk request using the Bulk API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
-     */
-    public final void bulkAsync(BulkRequest bulkRequest, Consumer<SafeRequest> customizer, ActionListener<BulkResponse> listener) {
-        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, customizer,
-                BulkResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Asynchronously executes a bulk request using the Bulk API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
-     * @deprecated Prefer {@link #bulkAsync(BulkRequest, Consumer, ActionListener)}
+     * @deprecated Prefer {@link #bulkAsync(BulkRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
     public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
@@ -631,10 +608,10 @@ public class RestHighLevelClient implements Closeable {
     @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                            Consumer<SafeRequest> requestCustomizer,
+                                                                            RequestOptions options,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                             Set<Integer> ignores) throws IOException {
-        return performRequest(request, requestConverter, requestCustomizer,
+        return performRequest(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), ignores);
     }
 
@@ -644,13 +621,13 @@ public class RestHighLevelClient implements Closeable {
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
-        return performRequest(request, requestConverter, r -> r.setHeaders(headers), responseConverter, ignores);
+        return performRequest(request, requestConverter, optionsForHeaders(headers), responseConverter, ignores);
     }
 
     @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
-                                                          Consumer<SafeRequest> requestCustomizer,
+                                                          RequestOptions options,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
@@ -658,7 +635,7 @@ public class RestHighLevelClient implements Closeable {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
-        addHeaders(req, headers);
+        req.setOptions(options);
         Response response;
         try {
             response = client.performRequest(req);
@@ -697,10 +674,10 @@ public class RestHighLevelClient implements Closeable {
     @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                 Consumer<SafeRequest> requestCustomizer,
+                                                                 RequestOptions options,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                  ActionListener<Resp> listener, Set<Integer> ignores) {
-        performRequestAsync(request, requestConverter, requestCustomizer,
+        performRequestAsync(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
     }
 
@@ -710,13 +687,13 @@ public class RestHighLevelClient implements Closeable {
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
-        performRequestAsync(request, requestConverter, r -> r.setHeaders(headers), responseConverter, listener, ignores);
+        performRequestAsync(request, requestConverter, optionsForHeaders(headers), responseConverter, listener, ignores);
     }
 
     @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
-                                                               Consumer<SafeRequest> requestCustomizer,
+                                                               RequestOptions options,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
@@ -731,17 +708,10 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return;
         }
-        addHeaders(req, headers);
+        req.setOptions(options);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);
-    }
-
-    private static void addHeaders(Request request, Header... headers) {
-        Objects.requireNonNull(headers, "headers cannot be null");
-        for (Header header : headers) {
-            request.addHeader(header.getName(), header.getValue());
-        }
     }
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -825,6 +795,15 @@ public class RestHighLevelClient implements Closeable {
             LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
             return entityParser.apply(parser);
         }
+    }
+
+    private RequestOptions optionsForHeaders(Header[] headers) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        for (Header header : headers) {
+            Objects.requireNonNull(header, "header cannot be null");
+            options.addHeader(header.getName(), header.getValue());
+        }
+        return options.build();
     }
 
     static boolean convertExistsResponse(Response response) {

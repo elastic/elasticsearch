@@ -26,7 +26,6 @@ import org.apache.http.RequestLine;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.lucene.util.BytesRef;
@@ -48,15 +47,13 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -91,26 +88,32 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
 
     public void testCustomEndpoint() throws IOException {
         final MainRequest request = new MainRequest();
-        final Header header = new BasicHeader("node_name", randomAlphaOfLengthBetween(1, 10));
+        String nodeName = randomAlphaOfLengthBetween(1, 10);
 
-        MainResponse response = restHighLevelClient.custom(request, r -> r.setHeaders(header));
-        assertEquals(header.getValue(), response.getNodeName());
+        MainResponse response = restHighLevelClient.custom(request, optionsForNodeName(nodeName));
+        assertEquals(nodeName, response.getNodeName());
 
-        response = restHighLevelClient.customAndParse(request, r -> r.setHeaders(header));
-        assertEquals(header.getValue(), response.getNodeName());
+        response = restHighLevelClient.customAndParse(request, optionsForNodeName(nodeName));
+        assertEquals(nodeName, response.getNodeName());
     }
 
     public void testCustomEndpointAsync() throws Exception {
         final MainRequest request = new MainRequest();
-        final Header header = new BasicHeader("node_name", randomAlphaOfLengthBetween(1, 10));
+        String nodeName = randomAlphaOfLengthBetween(1, 10);
 
         PlainActionFuture<MainResponse> future = PlainActionFuture.newFuture();
-        restHighLevelClient.customAsync(request, r -> r.setHeaders(header), future);
-        assertEquals(header.getValue(), future.get().getNodeName());
+        restHighLevelClient.customAsync(request, optionsForNodeName(nodeName), future);
+        assertEquals(nodeName, future.get().getNodeName());
 
         future = PlainActionFuture.newFuture();
-        restHighLevelClient.customAndParseAsync(request, r -> r.setHeaders(header), future);
-        assertEquals(header.getValue(), future.get().getNodeName());
+        restHighLevelClient.customAndParseAsync(request, optionsForNodeName(nodeName), future);
+        assertEquals(nodeName, future.get().getNodeName());
+    }
+
+    private RequestOptions optionsForNodeName(String nodeName) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.addHeader("node_name", nodeName);
+        return options.build();
     }
 
     /**
@@ -150,8 +153,8 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      * Mocks the synchronous request execution like if it was executed by Elasticsearch.
      */
     private Response mockPerformRequest(Request request) throws IOException {
-        assertThat(request.getHeaders(), arrayWithSize(1));
-        Header httpHeader = request.getHeaders()[0];
+        assertThat(request.getOptions().getHeaders(), hasSize(1));
+        Header httpHeader = request.getOptions().getHeaders().get(0);
         final Response mockResponse = mock(Response.class);
         when(mockResponse.getHost()).thenReturn(new HttpHost("localhost", 9200));
 
@@ -177,20 +180,20 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             super(restClient, RestClient::close, Collections.emptyList());
         }
 
-        MainResponse custom(MainRequest mainRequest, Consumer<SafeRequest> customizer) throws IOException {
-            return performRequest(mainRequest, this::toRequest, customizer, this::toResponse, emptySet());
+        MainResponse custom(MainRequest mainRequest, RequestOptions options) throws IOException {
+            return performRequest(mainRequest, this::toRequest, options, this::toResponse, emptySet());
         }
 
-        MainResponse customAndParse(MainRequest mainRequest, Consumer<SafeRequest> customizer) throws IOException {
-            return performRequestAndParseEntity(mainRequest, this::toRequest, customizer, MainResponse::fromXContent, emptySet());
+        MainResponse customAndParse(MainRequest mainRequest, RequestOptions options) throws IOException {
+            return performRequestAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent, emptySet());
         }
 
-        void customAsync(MainRequest mainRequest, Consumer<SafeRequest> customizer, ActionListener<MainResponse> listener) {
-            performRequestAsync(mainRequest, this::toRequest, customizer, this::toResponse, listener, emptySet());
+        void customAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
+            performRequestAsync(mainRequest, this::toRequest, options, this::toResponse, listener, emptySet());
         }
 
-        void customAndParseAsync(MainRequest mainRequest, Consumer<SafeRequest> customizer, ActionListener<MainResponse> listener) {
-            performRequestAsyncAndParseEntity(mainRequest, this::toRequest, customizer, MainResponse::fromXContent, listener, emptySet());
+        void customAndParseAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
+            performRequestAsyncAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent, listener, emptySet());
         }
 
         Request toRequest(MainRequest mainRequest) throws IOException {

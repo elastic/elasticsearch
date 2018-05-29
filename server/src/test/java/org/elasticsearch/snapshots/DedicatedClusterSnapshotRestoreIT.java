@@ -23,10 +23,12 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -83,7 +85,12 @@ import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -102,6 +109,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1017,6 +1025,129 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         List<SnapshotStatus> snapshots = response.getSnapshots();
         assertThat(snapshots, hasSize(1));
         assertThat(snapshots.get(0).getState().completed(), equalTo(true));
+    }
+
+    public void testSnapshotTotalAndIncrementalSizes() throws IOException {
+        Client client = client();
+        final String indexName = "test-blocks-1";
+        final String repositoryName = "repo-" + indexName;
+        final String snapshot0 = "snapshot-0";
+        final String snapshot1 = "snapshot-1";
+
+        createIndex(indexName);
+
+        int docs = between(10, 100);
+        for (int i = 0; i < docs; i++) {
+            client.prepareIndex(indexName, "type").setSource("test", "init").execute().actionGet();
+        }
+
+        logger.info("--> register a repository");
+
+        final Path repoPath = randomRepoPath();
+        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", repoPath)));
+
+        logger.info("--> create a snapshot");
+        client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot0)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshot0)
+            .get();
+
+        List<SnapshotStatus> snapshots = response.getSnapshots();
+
+        List<Path> snapshot0Files = scanSnapshotFolder(repoPath);
+        assertThat(snapshots, hasSize(1));
+
+        final int snapshot0FileCount = snapshot0Files.size();
+        final long snapshot0FileSize = calculateTotalFilesSize(snapshot0Files);
+
+        SnapshotStats stats = snapshots.get(0).getStats();
+
+        assertThat(stats.getTotalFileCount(), is(snapshot0FileCount));
+        assertThat(stats.getTotalSize(), is(snapshot0FileSize));
+
+        assertThat(stats.getIncrementalFileCount(), equalTo(snapshot0FileCount));
+        assertThat(stats.getIncrementalSize(), equalTo(snapshot0FileSize));
+
+        assertThat(stats.getIncrementalFileCount(), equalTo(stats.getProcessedFileCount()));
+        assertThat(stats.getIncrementalSize(), equalTo(stats.getProcessedSize()));
+
+        // add few docs - less than initially
+        docs = between(1, 5);
+        for (int i = 0; i < docs; i++) {
+            client.prepareIndex(indexName, "type").setSource("test", "test" + i).execute().actionGet();
+        }
+
+        // create another snapshot
+        // total size has to grow and has to be equal to files on fs
+        assertThat(client.admin().cluster()
+                .prepareCreateSnapshot(repositoryName, snapshot1)
+                .setWaitForCompletion(true).get().status(),
+            equalTo(RestStatus.OK));
+
+        //  drop 1st one to avoid miscalculation as snapshot reuses some files of prev snapshot
+        assertTrue(client.admin().cluster()
+            .prepareDeleteSnapshot(repositoryName, snapshot0)
+            .get().isAcknowledged());
+
+        response = client.admin().cluster().prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshot1)
+            .get();
+
+        final List<Path> snapshot1Files = scanSnapshotFolder(repoPath);
+
+        final int snapshot1FileCount = snapshot1Files.size();
+        final long snapshot1FileSize = calculateTotalFilesSize(snapshot1Files);
+
+        snapshots = response.getSnapshots();
+
+        SnapshotStats anotherStats = snapshots.get(0).getStats();
+
+        ArrayList<Path> snapshotFilesDiff = new ArrayList<>(snapshot1Files);
+        snapshotFilesDiff.removeAll(snapshot0Files);
+
+        assertThat(anotherStats.getIncrementalFileCount(), equalTo(snapshotFilesDiff.size()));
+        assertThat(anotherStats.getIncrementalSize(), equalTo(calculateTotalFilesSize(snapshotFilesDiff)));
+
+        assertThat(anotherStats.getIncrementalFileCount(), equalTo(anotherStats.getProcessedFileCount()));
+        assertThat(anotherStats.getIncrementalSize(), equalTo(anotherStats.getProcessedSize()));
+
+        assertThat(stats.getTotalSize(), lessThan(anotherStats.getTotalSize()));
+        assertThat(stats.getTotalFileCount(), lessThan(anotherStats.getTotalFileCount()));
+
+        assertThat(anotherStats.getTotalFileCount(), is(snapshot1FileCount));
+        assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
+    }
+
+    private long calculateTotalFilesSize(List<Path> files) {
+        return files.stream().mapToLong(f -> {
+            try {
+                return Files.size(f);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).sum();
+    }
+
+
+    private List<Path> scanSnapshotFolder(Path repoPath) throws IOException {
+        List<Path> files = new ArrayList<>();
+        Files.walkFileTree(repoPath, new SimpleFileVisitor<Path>(){
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().toString().startsWith("__")){
+                        files.add(file);
+                    }
+                    return super.visitFile(file, attrs);
+                }
+            }
+        );
+        return files;
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {

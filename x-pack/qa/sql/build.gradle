@@ -96,6 +96,9 @@ subprojects {
 
     // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
+    testRuntime (xpackProject('plugin:sql:sql-proto')) {
+      transitive = false
+    }
     testRuntime "org.jline:jline:3.6.0"
   }
 

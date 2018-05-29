@@ -1,0 +1,24 @@
+[role="xpack"]
+[float]
+[[forwarding-audit-logfiles]]
+==== Forwarding audit logs to a remote cluster
+
+To index audit events to a remote Elasticsearch cluster, you configure
+the following `xpack.security.audit.index.client` settings:
+
+* `xpack.security.audit.index.client.hosts`
+* `xpack.security.audit.index.client.cluster.name`
+* `xpack.security.audit.index.client.xpack.security.user`
+
+For more information about these settings, see
+{ref}/auditing-settings.html#remote-audit-settings[Remote Audit Log Indexing Configuration Settings].
+
+You can pass additional settings to the remote client by specifying them in the
+`xpack.security.audit.index.client` namespace. For example, to allow the remote
+client to discover all of the nodes in the remote cluster you can specify the
+`client.transport.sniff` setting:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.index.client.transport.sniff: true
+----------------------------

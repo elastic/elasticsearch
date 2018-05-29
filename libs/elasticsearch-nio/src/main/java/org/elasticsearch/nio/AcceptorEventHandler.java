@@ -19,11 +19,9 @@
 
 package org.elasticsearch.nio;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -33,8 +31,8 @@ public class AcceptorEventHandler extends EventHandler {
 
     private final Supplier<SocketSelector> selectorSupplier;
 
-    public AcceptorEventHandler(Logger logger, Supplier<SocketSelector> selectorSupplier) {
-        super(logger);
+    public AcceptorEventHandler(Supplier<SocketSelector> selectorSupplier, Consumer<Exception> exceptionHandler) {
+        super(exceptionHandler);
         this.selectorSupplier = selectorSupplier;
     }
 
@@ -58,7 +56,7 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void registrationException(ServerChannelContext context, Exception exception) {
-        logger.error(new ParameterizedMessage("failed to register server channel: {}", context.getChannel()), exception);
+        context.handleException(exception);
     }
 
     /**
@@ -78,7 +76,6 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that occurred
      */
     protected void acceptException(ServerChannelContext context, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while accepting new channel from server channel: {}",
-            context.getChannel()), exception);
+        context.handleException(exception);
     }
 }

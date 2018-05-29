@@ -52,7 +52,7 @@ setup:
 ---
 "Verify created repository":
   - skip:
-      version:     " - 6.99.99"
+      version:     "all"
       reason:      AwaitsFix for https://github.com/elastic/elasticsearch/issues/30807
   - do:
       snapshot.verify_repository:

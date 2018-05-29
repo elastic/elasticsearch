@@ -1,16 +1,39 @@
 [[indices-create-index]]
 == Create Index
 
-The create index API allows to instantiate an index. Elasticsearch
-provides support for multiple indices, including executing operations
-across several indices.
+The Create Index API is used to manually create an index in Elasticsearch.  All documents in Elasticsearch
+are stored inside of one index or another.
+
+The most basic command is the following:
+
+[source,js]
+--------------------------------------------------
+PUT twitter
+--------------------------------------------------
+// CONSOLE
+
+This create an index named `twitter` with all default setting.
+
+[NOTE]
+.Index name limitations
+======================================================
+There are several limitations to what you can name your index.  The complete list of limitations are:
+
+- Lowercase only
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character), `,`, `#`
+- Indices prior to 7.0 could contain a colon (`:`), but that's been deprecated and won't be supported in 7.0+
+- Cannot start with `-`, `_`, `+`
+- Cannot be `.` or ``..`
+- Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+
+======================================================
 
 [float]
 [[create-index-settings]]
 === Index Settings
 
 Each index created can have specific settings
-associated with it.
+associated with it, defined in the body:
 
 [source,js]
 --------------------------------------------------
@@ -27,25 +50,6 @@ PUT twitter
 // CONSOLE
 <1> Default for `number_of_shards` is 1
 <2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
-
-The above second curl example shows how an index called `twitter` can be
-created with specific settings for it using http://www.yaml.org[YAML].
-In this case, creating an index with 3 shards, each with 2 replicas. The
-index settings can also be defined with http://www.json.org[JSON]:
-
-[source,js]
---------------------------------------------------
-PUT twitter
-{
-    "settings" : {
-        "index" : {
-            "number_of_shards" : 3,
-            "number_of_replicas" : 2
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
 
 or more simplified
 

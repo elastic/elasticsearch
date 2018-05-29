@@ -184,6 +184,7 @@ import static java.util.stream.Collectors.toList;
  * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
  */
 public class RestHighLevelClient implements Closeable {
+
     private final RestClient client;
     private final NamedXContentRegistry registry;
     private final CheckedConsumer<RestClient, IOException> doClose;

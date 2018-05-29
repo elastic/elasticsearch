@@ -24,11 +24,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 
 import java.io.IOException;
 
@@ -76,9 +75,9 @@ public final class ClusterClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      */
-    public PutPipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
+    public WritePipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline,
-            PutPipelineResponse::fromXContent, emptySet(), headers);
+            WritePipelineResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -87,9 +86,9 @@ public final class ClusterClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      */
-    public void putPipelineAsync(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener, Header... headers) {
+    public void putPipelineAsync(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
-            PutPipelineResponse::fromXContent, listener, emptySet(), headers);
+            WritePipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**
@@ -121,9 +120,9 @@ public final class ClusterClient {
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
      *     Delete Pipeline API on elastic.co</a>
      */
-    public DeletePipelineResponse deletePipeline(DeletePipelineRequest request, Header... headers) throws IOException {
+    public WritePipelineResponse deletePipeline(DeletePipelineRequest request, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::deletePipeline,
-            DeletePipelineResponse::fromXContent, emptySet(), headers);
+            WritePipelineResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -133,8 +132,8 @@ public final class ClusterClient {
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
      *     Delete Pipeline API on elastic.co</a>
      */
-    public void deletePipelineAsync(DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener, Header... headers) {
+    public void deletePipelineAsync(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline,
-            DeletePipelineResponse::fromXContent, listener, emptySet(), headers);
+            WritePipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 }

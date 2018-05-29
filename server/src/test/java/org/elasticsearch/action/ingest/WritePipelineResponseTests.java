@@ -19,15 +19,17 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class WritePipelineResponseTests extends ESTestCase {
+public class WritePipelineResponseTests extends AbstractStreamableXContentTestCase<WritePipelineResponse> {
 
     public void testSerializationWithoutError() throws IOException {
         boolean isAcknowledged = randomBoolean();
@@ -51,5 +53,31 @@ public class WritePipelineResponseTests extends ESTestCase {
         otherResponse.readFrom(streamInput);
 
         assertThat(otherResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
+    }
+
+    public void testToXContent() {
+        WritePipelineResponse response = new WritePipelineResponse(true);
+        String output = Strings.toString(response);
+        assertEquals("{\"acknowledged\":true}", output);
+    }
+
+    @Override
+    protected WritePipelineResponse doParseInstance(XContentParser parser) {
+        return WritePipelineResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected WritePipelineResponse createTestInstance() {
+        return new WritePipelineResponse(randomBoolean());
+    }
+
+    @Override
+    protected WritePipelineResponse createBlankInstance() {
+        return new WritePipelineResponse();
+    }
+
+    @Override
+    protected WritePipelineResponse mutateInstance(WritePipelineResponse response) {
+        return new WritePipelineResponse(response.isAcknowledged() == false);
     }
 }

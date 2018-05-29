@@ -26,9 +26,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineResponse;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -214,7 +213,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::put-pipeline-request-masterTimeout
 
             // tag::put-pipeline-execute
-            PutPipelineResponse response = client.cluster().putPipeline(request); // <1>
+            WritePipelineResponse response = client.cluster().putPipeline(request); // <1>
             // end::put-pipeline-execute
 
             // tag::put-pipeline-response
@@ -238,10 +237,10 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             );
 
             // tag::put-pipeline-execute-listener
-            ActionListener<PutPipelineResponse> listener =
-                new ActionListener<PutPipelineResponse>() {
+            ActionListener<WritePipelineResponse> listener =
+                new ActionListener<WritePipelineResponse>() {
                     @Override
-                    public void onResponse(PutPipelineResponse response) {
+                    public void onResponse(WritePipelineResponse response) {
                         // <1>
                     }
 
@@ -338,6 +337,10 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
             // tag::delete-pipeline-request
             DeletePipelineRequest request = new DeletePipelineRequest("my-pipeline-id"); // <1>
             // end::delete-pipeline-request
@@ -353,7 +356,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::delete-pipeline-request-masterTimeout
 
             // tag::delete-pipeline-execute
-            DeletePipelineResponse response = client.cluster().deletePipeline(request); // <1>
+            WritePipelineResponse response = client.cluster().deletePipeline(request); // <1>
             // end::delete-pipeline-execute
 
             // tag::delete-pipeline-response
@@ -367,13 +370,17 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
             DeletePipelineRequest request = new DeletePipelineRequest("my-pipeline-id");
 
             // tag::delete-pipeline-execute-listener
-            ActionListener<DeletePipelineResponse> listener =
-                new ActionListener<DeletePipelineResponse>() {
+            ActionListener<WritePipelineResponse> listener =
+                new ActionListener<WritePipelineResponse>() {
                     @Override
-                    public void onResponse(DeletePipelineResponse response) {
+                    public void onResponse(WritePipelineResponse response) {
                         // <1>
                     }
 

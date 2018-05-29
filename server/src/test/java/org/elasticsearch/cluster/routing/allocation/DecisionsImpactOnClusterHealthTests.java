@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -153,7 +152,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> assert cluster health");
-        ClusterStateHealth health = TransportClusterHealthAction.calculateStateHealth(clusterState);
+        ClusterStateHealth health = new ClusterStateHealth(clusterState);
         assertThat(health.getStatus(), equalTo(expectedStatus));
 
         return clusterState;

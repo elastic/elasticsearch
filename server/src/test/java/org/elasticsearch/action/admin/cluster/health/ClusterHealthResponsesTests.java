@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterIndexHealthTests;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -68,9 +69,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
-        ClusterStateHealth stateHealth = TransportClusterHealthAction.calculateStateHealth(clusterState);
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", pendingTasks, inFlight,
-                delayedUnassigned, pendingTaskInQueueTime, false, stateHealth);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {MetaData.ALL}, clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth);
         assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));

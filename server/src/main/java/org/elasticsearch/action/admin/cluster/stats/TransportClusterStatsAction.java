@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -30,6 +29,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -112,7 +112,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
         ClusterHealthStatus clusterStatus = null;
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            clusterStatus = TransportClusterHealthAction.calculateStateHealth(clusterService.state()).getStatus();
+            clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
         return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));

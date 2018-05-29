@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction.calculateStateHealth;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -145,8 +144,27 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     ClusterHealthResponse() {
     }
 
-    public ClusterHealthResponse(String clusterName, int numberOfPendingTasks, int numberOfInFlightFetch, int delayedUnassignedShards,
-            TimeValue taskMaxWaitingTime, boolean timedOut, ClusterStateHealth clusterStateHealth) {
+    /** needed for plugins BWC */
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
+    }
+
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks,
+        int numberOfInFlightFetch, int delayedUnassignedShards, TimeValue taskMaxWaitingTime) {
+        this.clusterName = clusterName;
+        this.numberOfPendingTasks = numberOfPendingTasks;
+        this.numberOfInFlightFetch = numberOfInFlightFetch;
+        this.delayedUnassignedShards = delayedUnassignedShards;
+        this.taskMaxWaitingTime = taskMaxWaitingTime;
+        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        this.clusterHealthStatus = clusterStateHealth.getStatus();
+    }
+
+    /**
+     * For XContent Parser and serialization tests
+     */
+    ClusterHealthResponse(String clusterName, int numberOfPendingTasks, int numberOfInFlightFetch, int delayedUnassignedShards,
+        TimeValue taskMaxWaitingTime, boolean timedOut, ClusterStateHealth clusterStateHealth) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
@@ -154,20 +172,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         this.taskMaxWaitingTime = taskMaxWaitingTime;
         this.timedOut = timedOut;
         this.clusterStateHealth = clusterStateHealth;
-        this.clusterHealthStatus = clusterStateHealth.getStatus();
-    }
-
-    /**
-     * needed for plugins BWC
-     * Do not use for other purposes
-     */
-    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
-        this.clusterName = clusterName;
-        this.numberOfPendingTasks = -1;
-        this.numberOfInFlightFetch = -1;
-        this.delayedUnassignedShards = -1;
-        this.taskMaxWaitingTime = TimeValue.timeValueHours(0);
-        this.clusterStateHealth = calculateStateHealth(clusterState, concreteIndices);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,19 +111,50 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private final ClusterHealthStatus status;
     private final Map<Integer, ClusterShardHealth> shards;
 
-    public ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas, int activeShards, int relocatingShards,
-            int initializingShards, int unassignedShards, int activePrimaryShards, ClusterHealthStatus status,
-            Map<Integer, ClusterShardHealth> shards) {
-        this.index = index;
-        this.numberOfShards = numberOfShards;
-        this.numberOfReplicas = numberOfReplicas;
-        this.activeShards = activeShards;
-        this.relocatingShards = relocatingShards;
-        this.initializingShards = initializingShards;
-        this.unassignedShards = unassignedShards;
-        this.activePrimaryShards = activePrimaryShards;
-        this.status = status;
-        this.shards = shards;
+    public ClusterIndexHealth(final IndexMetaData indexMetaData, final IndexRoutingTable indexRoutingTable) {
+        this.index = indexMetaData.getIndex().getName();
+        this.numberOfShards = indexMetaData.getNumberOfShards();
+        this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
+
+        shards = new HashMap<>();
+        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            int shardId = shardRoutingTable.shardId().id();
+            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
+        }
+
+        // update the index status
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+        for (ClusterShardHealth shardHealth : shards.values()) {
+            if (shardHealth.isPrimaryActive()) {
+                computeActivePrimaryShards++;
+            }
+            computeActiveShards += shardHealth.getActiveShards();
+            computeRelocatingShards += shardHealth.getRelocatingShards();
+            computeInitializingShards += shardHealth.getInitializingShards();
+            computeUnassignedShards += shardHealth.getUnassignedShards();
+
+            if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
+                computeStatus = ClusterHealthStatus.RED;
+            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
+                // do not override an existing red
+                computeStatus = ClusterHealthStatus.YELLOW;
+            }
+        }
+        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
+            computeStatus = ClusterHealthStatus.RED;
+        }
+
+        this.status = computeStatus;
+        this.activePrimaryShards = computeActivePrimaryShards;
+        this.activeShards = computeActiveShards;
+        this.relocatingShards = computeRelocatingShards;
+        this.initializingShards = computeInitializingShards;
+        this.unassignedShards = computeUnassignedShards;
     }
 
     public ClusterIndexHealth(final StreamInput in) throws IOException {
@@ -140,6 +174,24 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             ClusterShardHealth shardHealth = new ClusterShardHealth(in);
             shards.put(shardHealth.getShardId(), shardHealth);
         }
+    }
+
+    /**
+     * For XContent Parser and serialization tests
+     */
+    ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas, int activeShards, int relocatingShards,
+            int initializingShards, int unassignedShards, int activePrimaryShards, ClusterHealthStatus status,
+            Map<Integer, ClusterShardHealth> shards) {
+        this.index = index;
+        this.numberOfShards = numberOfShards;
+        this.numberOfReplicas = numberOfReplicas;
+        this.activeShards = activeShards;
+        this.relocatingShards = relocatingShards;
+        this.initializingShards = initializingShards;
+        this.unassignedShards = unassignedShards;
+        this.activePrimaryShards = activePrimaryShards;
+        this.status = status;
+        this.shards = shards;
     }
 
     public String getIndex() {

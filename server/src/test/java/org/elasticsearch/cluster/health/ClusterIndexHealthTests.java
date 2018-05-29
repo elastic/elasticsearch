@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
@@ -50,7 +49,7 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
         RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
 
-        ClusterIndexHealth indexHealth = TransportClusterHealthAction.calculateIndexHealth(indexMetaData, indexRoutingTable);
+        ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
         assertIndexHealth(indexHealth, counter, indexMetaData);
     }
 

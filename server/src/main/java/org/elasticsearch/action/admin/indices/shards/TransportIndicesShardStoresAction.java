@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -100,7 +99,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
             for (IndexShardRoutingTable routing : indexShardRoutingTables) {
                 final int shardId = routing.shardId().id();
-                ClusterShardHealth shardHealth = TransportClusterHealthAction.calculateShardHealth(shardId, routing);
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing);
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {
                     shardIdsToFetch.add(routing.shardId());
                 }

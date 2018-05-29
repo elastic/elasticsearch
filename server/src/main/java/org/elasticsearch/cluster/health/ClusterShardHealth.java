@@ -19,6 +19,11 @@
 
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -78,15 +83,42 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private final int unassignedShards;
     private final boolean primaryActive;
 
-    public ClusterShardHealth(int shardId, ClusterHealthStatus status, int activeShards, int relocatingShards, int initializingShards,
-            int unassignedShards, boolean primaryActive) {
+    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
         this.shardId = shardId;
-        this.status = status;
-        this.activeShards = activeShards;
-        this.relocatingShards = relocatingShards;
-        this.initializingShards = initializingShards;
-        this.unassignedShards = unassignedShards;
-        this.primaryActive = primaryActive;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+        for (ShardRouting shardRouting : shardRoutingTable) {
+            if (shardRouting.active()) {
+                computeActiveShards++;
+                if (shardRouting.relocating()) {
+                    // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
+                    computeRelocatingShards++;
+                }
+            } else if (shardRouting.initializing()) {
+                computeInitializingShards++;
+            } else if (shardRouting.unassigned()) {
+                computeUnassignedShards++;
+            }
+        }
+        ClusterHealthStatus computeStatus;
+        final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+        if (primaryRouting.active()) {
+            if (computeActiveShards == shardRoutingTable.size()) {
+                computeStatus = ClusterHealthStatus.GREEN;
+            } else {
+                computeStatus = ClusterHealthStatus.YELLOW;
+            }
+        } else {
+            computeStatus = getInactivePrimaryHealth(primaryRouting);
+        }
+        this.status = computeStatus;
+        this.activeShards = computeActiveShards;
+        this.relocatingShards = computeRelocatingShards;
+        this.initializingShards = computeInitializingShards;
+        this.unassignedShards = computeUnassignedShards;
+        this.primaryActive = primaryRouting.active();
     }
 
     public ClusterShardHealth(final StreamInput in) throws IOException {
@@ -97,6 +129,20 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         primaryActive = in.readBoolean();
+    }
+
+    /**
+     * For XContent Parser and serialization tests
+     */
+    ClusterShardHealth(int shardId, ClusterHealthStatus status, int activeShards, int relocatingShards, int initializingShards,
+        int unassignedShards, boolean primaryActive) {
+        this.shardId = shardId;
+        this.status = status;
+        this.activeShards = activeShards;
+        this.relocatingShards = relocatingShards;
+        this.initializingShards = initializingShards;
+        this.unassignedShards = unassignedShards;
+        this.primaryActive = primaryActive;
     }
 
     public int getShardId() {
@@ -136,6 +182,34 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
+    }
+
+    /**
+     * Checks if an inactive primary shard should cause the cluster health to go RED.
+     *
+     * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
+     * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
+     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
+     * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
+     * some point, cluster health should still turn RED.
+     *
+     * NB: this method should *not* be called on active shards nor on non-primary shards.
+     */
+    public static ClusterHealthStatus getInactivePrimaryHealth(final ShardRouting shardRouting) {
+        assert shardRouting.primary() : "cannot invoke on a replica shard: " + shardRouting;
+        assert shardRouting.active() == false : "cannot invoke on an active shard: " + shardRouting;
+        assert shardRouting.unassignedInfo() != null : "cannot invoke on a shard with no UnassignedInfo: " + shardRouting;
+        assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
+        final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
+        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO && unassignedInfo.getNumFailedAllocations() == 0
+                && (recoveryType == RecoverySource.Type.EMPTY_STORE
+                    || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+                    || recoveryType == RecoverySource.Type.SNAPSHOT)) {
+            return ClusterHealthStatus.YELLOW;
+        } else {
+            return ClusterHealthStatus.RED;
+        }
     }
 
     @Override

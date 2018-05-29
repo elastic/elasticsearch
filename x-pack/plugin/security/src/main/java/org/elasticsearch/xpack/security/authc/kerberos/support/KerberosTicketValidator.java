@@ -58,7 +58,7 @@ public class KerberosTicketValidator {
      * @param servicePrincipalName
      *            Service principal name
      * @param nameType
-     *            {@link GSSName}
+     *            {@link GSSName} type depending on GSS API principal entity
      * @param base64Ticket
      *            base64 encoded kerberos ticket
      * @param config
@@ -66,8 +66,10 @@ public class KerberosTicketValidator {
      * @return {@link Tuple} of user name {@link GSSContext#getSrcName()} and out
      *         token base64 encoded if any.
      * @throws LoginException
-     * @throws PrivilegedActionException
+     *             thrown when service authentication fails
+     *             {@link LoginContext#login()}
      * @throws GSSException
+     *             thrown when GSS Context negotiation fails {@link GSSException}
      */
     public Tuple<String, String> validateTicket(final String servicePrincipalName, Oid nameType, final String base64Ticket,
             final RealmConfig config) throws LoginException, GSSException {
@@ -201,7 +203,6 @@ public class KerberosTicketValidator {
      * @return authenticated {@link LoginContext} instance. Note: This needs to be
      *         closed {@link LoginContext#logout()} after usage.
      * @throws PrivilegedActionException 
-     * @throws LoginException
      */
     private static LoginContext serviceLogin(final String principal, final String keytabFilePath, final Settings settings)
             throws PrivilegedActionException {

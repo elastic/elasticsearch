@@ -38,17 +38,17 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ReRunAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
-import org.elasticsearch.xpack.indexlifecycle.action.RestReRunAction;
+import org.elasticsearch.xpack.indexlifecycle.action.RestRetryAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifcycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportPutLifecycleAction;
-import org.elasticsearch.xpack.indexlifecycle.action.TransportReRunAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportRetryAction;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -143,7 +143,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestGetLifecycleAction(settings, restController),
                 new RestDeleteLifecycleAction(settings, restController),
                 new RestMoveToStepAction(settings, restController),
-                new RestReRunAction(settings, restController)
+                new RestRetryAction(settings, restController)
             );
     }
 
@@ -157,7 +157,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
                 new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifcycleAction.class),
                 new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),
-                new ActionHandler<>(ReRunAction.INSTANCE, TransportReRunAction.class));
+                new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class));
     }
 
     @Override

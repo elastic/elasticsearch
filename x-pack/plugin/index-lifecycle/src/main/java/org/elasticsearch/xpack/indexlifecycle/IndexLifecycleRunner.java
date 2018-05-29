@@ -209,7 +209,7 @@ public class IndexLifecycleRunner {
                 StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
                 newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry);
             } else {
-                throw new IllegalArgumentException("cannot re-run an action for an index ["
+                throw new IllegalArgumentException("cannot retry an action for an index ["
                     + index + "] that has not encountered an error when running a Lifecycle Policy");
             }
         }

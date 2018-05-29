@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ReRunAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction.Response;
 
 public class ReRunResponseTests extends AbstractStreamableTestCase<Response> {
 

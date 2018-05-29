@@ -13,33 +13,27 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ReRunAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ReRunAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ReRunAction.Response;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
 
-public class TransportReRunAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportRetryAction extends TransportMasterNodeAction<Request, Response> {
 
     IndexLifecycleService indexLifecycleService;
 
     @Inject
-    public TransportReRunAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportRetryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                 ThreadPool threadPool, ActionFilters actionFilters,
                                 IndexNameExpressionResolver indexNameExpressionResolver,
                                 IndexLifecycleService indexLifecycleService) {
-        super(settings, ReRunAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(settings, RetryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 Request::new);
         this.indexLifecycleService = indexLifecycleService;
     }

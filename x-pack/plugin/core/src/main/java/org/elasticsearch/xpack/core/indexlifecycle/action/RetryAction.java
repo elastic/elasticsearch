@@ -26,11 +26,11 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Objects;
 
-public class ReRunAction extends Action<ReRunAction.Request, ReRunAction.Response, ReRunAction.RequestBuilder> {
-    public static final ReRunAction INSTANCE = new ReRunAction();
-    public static final String NAME = "indices:admin/xpack/index_lifecycle/_rerun/post";
+public class RetryAction extends Action<RetryAction.Request, RetryAction.Response, RetryAction.RequestBuilder> {
+    public static final RetryAction INSTANCE = new RetryAction();
+    public static final String NAME = "indices:admin/xpack/index_lifecycle/_retry/post";
 
-    protected ReRunAction() {
+    protected RetryAction() {
         super(NAME);
     }
 

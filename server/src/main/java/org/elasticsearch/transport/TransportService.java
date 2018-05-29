@@ -21,6 +21,8 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
@@ -124,6 +126,8 @@ public class TransportService extends AbstractLifecycleComponent {
 
     private final RemoteClusterService remoteClusterService;
 
+    private final boolean validateConnections;
+
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
     private final Transport.Connection localNodeConnection = new Transport.Connection() {
@@ -153,6 +157,9 @@ public class TransportService extends AbstractLifecycleComponent {
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders) {
         super(settings);
+        // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
+        this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
+            TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
@@ -330,25 +337,13 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
-        connectToNode(node, connectionProfile, true);
-    }
-
-    /**
-     * Connect to the specified node with the given connection profile. This method allows the caller to
-     * specify whether the node connection should be validated against the specified node.
-     *
-     * @param node the node to connect to
-     * @param connectionProfile the connection profile to use when connecting to this node
-     * @param validateNodeConnection boolean indicating if the node connection should be validated
-     */
-    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, boolean validateNodeConnection) {
         if (isLocalNode(node)) {
             return;
         }
         transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true);
-            if (validateNodeConnection && node.equals(remote) == false) {
+            if (validateConnections && node.equals(remote) == false) {
                 throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
             }
         });

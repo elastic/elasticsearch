@@ -372,7 +372,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 if (!transportService.nodeConnected(node)) {
                     try {
                         logger.trace("connecting to node [{}]", node);
-                        transportService.connectToNode(node, null, validateInHandshake);
+                        transportService.connectToNode(node);
                     } catch (Exception e) {
                         it.remove();
                         logger.debug(() -> new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);

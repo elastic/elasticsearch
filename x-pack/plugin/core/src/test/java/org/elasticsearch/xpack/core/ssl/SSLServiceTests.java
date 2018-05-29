@@ -445,6 +445,7 @@ public class SSLServiceTests extends ESTestCase {
 
         // ensure it actually goes through and calls the real method
         when(sslService.sslIOSessionStrategy(settings)).thenCallRealMethod();
+        when(sslService.sslIOSessionStrategy(sslConfig)).thenCallRealMethod();
 
         assertThat(sslService.sslIOSessionStrategy(settings), sameInstance(sslStrategy));
 

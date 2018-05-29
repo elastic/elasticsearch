@@ -186,24 +186,6 @@ public class SSLService extends AbstractComponent {
     }
 
     /**
-     * Creates an {@link SSLEngine} based on the provided settings. The settings are used to identify the ssl configuration that should be
-     * used to create the engine. This SSLEngine cannot be used for hostname verification since the engine will not be created with the
-     * host and port. This method is useful to obtain an SSLEngine that will be used for server connections or client connections that
-     * will not use hostname verification.
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
-     *                 a SSLEngine created from the default configuration
-     * @param fallbackSettings the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
-     *                         results in a fallback to the global configuration
-     * @return {@link SSLEngine}
-     * @deprecated Use {@link #createSSLEngine(SSLConfiguration, String, int)} and {@link #getSSLConfiguration(String)}
-     */
-    @Deprecated
-    public SSLEngine createSSLEngine(Settings settings, Settings fallbackSettings) {
-        SSLConfiguration configuration = sslConfiguration(settings, fallbackSettings);
-        return createSSLEngine(configuration, null, -1);
-    }
-
-    /**
      * Creates an {@link SSLEngine} based on the provided configuration. This SSLEngine can be used for a connection that requires
      * hostname verification assuming the provided
      * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled

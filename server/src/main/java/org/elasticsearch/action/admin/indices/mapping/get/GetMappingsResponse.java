@@ -41,6 +41,8 @@ import java.util.Map;
 
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
+    private static final ParseField MAPPINGS = new ParseField("mappings");
+
     private static final ObjectParser<GetMappingsResponse, Void> PARSER =
         new ObjectParser<GetMappingsResponse, Void>("get-mappings", false, GetMappingsResponse::new);
 
@@ -103,7 +105,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         for (Map.Entry<String, Object> entry : parts.entrySet()) {
             final String indexName = entry.getKey();
             assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
-            final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get(Fields.MAPPINGS.getPreferredName());
+            final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get(MAPPINGS.getPreferredName());
 
             ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = new ImmutableOpenMap.Builder<>();
             for (Map.Entry<String, Object> typeEntry : mapping.entrySet()) {
@@ -139,12 +141,12 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                     }
                     if (mappings == null) {
                         // no mappings yet
-                        builder.startObject(Fields.MAPPINGS.getPreferredName()).endObject();
+                        builder.startObject(MAPPINGS.getPreferredName()).endObject();
                     } else {
-                        builder.field(Fields.MAPPINGS.getPreferredName(), mappings.sourceAsMap());
+                        builder.field(MAPPINGS.getPreferredName(), mappings.sourceAsMap());
                     }
                 } else {
-                    builder.startObject(Fields.MAPPINGS.getPreferredName());
+                    builder.startObject(MAPPINGS.getPreferredName());
                     {
                         for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
                             builder.field(typeEntry.key, typeEntry.value.sourceAsMap());
@@ -180,9 +182,5 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
         GetMappingsResponse other = (GetMappingsResponse) obj;
         return this.mappings.equals(other.mappings);
-    }
-
-    private static final class Fields {
-        private static final ParseField MAPPINGS = new ParseField("mappings");
     }
 }

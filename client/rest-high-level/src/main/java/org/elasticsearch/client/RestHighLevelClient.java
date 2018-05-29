@@ -597,7 +597,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     @Deprecated
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -605,7 +604,6 @@ public class RestHighLevelClient implements Closeable {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             RequestOptions options,
@@ -616,7 +614,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     @Deprecated
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -624,7 +621,6 @@ public class RestHighLevelClient implements Closeable {
         return performRequest(request, requestConverter, optionsForHeaders(headers), responseConverter, ignores);
     }
 
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           RequestOptions options,
@@ -662,7 +658,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     @Deprecated
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -671,7 +666,6 @@ public class RestHighLevelClient implements Closeable {
                 listener, ignores, headers);
     }
 
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  RequestOptions options,
@@ -682,7 +676,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     @Deprecated
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -690,7 +683,6 @@ public class RestHighLevelClient implements Closeable {
         performRequestAsync(request, requestConverter, optionsForHeaders(headers), responseConverter, listener, ignores);
     }
 
-    @SuppressWarnings("overloads") // The overload *should* be ok. And one of them is deprecated.
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                RequestOptions options,

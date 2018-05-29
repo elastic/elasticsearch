@@ -51,6 +51,9 @@ setup:
 
 ---
 "Verify created repository":
+  - skip:
+      version:     "all"
+      reason:      AwaitsFix for https://github.com/elastic/elasticsearch/issues/30807
   - do:
       snapshot.verify_repository:
         repository: test_repo_get_2

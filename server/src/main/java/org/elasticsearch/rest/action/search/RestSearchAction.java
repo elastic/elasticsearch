@@ -214,7 +214,7 @@ public class RestSearchAction extends BaseRestHandler {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
                 for (String field : sFields) {
-                    searchSourceBuilder.docValueField(field);
+                    searchSourceBuilder.docValueField(field, null);
                 }
             }
         }

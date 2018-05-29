@@ -184,6 +184,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
+        tokenizers.put("char_group", CharGroupTokenizerFactory::new);
         tokenizers.put("classic", ClassicTokenizerFactory::new);
         tokenizers.put("letter", LetterTokenizerFactory::new);
         tokenizers.put("lowercase", LowerCaseTokenizerFactory::new);
@@ -192,6 +193,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         tokenizers.put("pattern", PatternTokenizerFactory::new);
         tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
         tokenizers.put("whitespace", WhitespaceTokenizerFactory::new);
+        tokenizers.put("keyword", KeywordTokenizerFactory::new);
         return tokenizers;
     }
 

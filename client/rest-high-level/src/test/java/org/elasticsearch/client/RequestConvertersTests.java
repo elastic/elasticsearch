@@ -32,6 +32,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -62,6 +63,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -92,6 +94,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -120,6 +123,7 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1403,6 +1407,26 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
+    public void testPutPipeline() throws IOException {
+        String pipelineId = "some_pipeline_id";
+        PutPipelineRequest request = new PutPipelineRequest(
+            "some_pipeline_id",
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(request, expectedParams);
+        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request expectedRequest = RequestConverters.putPipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        endpoint.add(pipelineId);
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -1562,7 +1586,7 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testCreateRepository() throws IOException {
-        String repository = "repo";
+        String repository = randomIndicesNames(1, 1)[0];
         String endpoint = "/_snapshot/" + repository;
         Path repositoryLocation = PathUtils.get(".");
         PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
@@ -1571,15 +1595,33 @@ public class RequestConvertersTests extends ESTestCase {
 
         putRepositoryRequest.settings(
             Settings.builder()
-            .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
-            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-            .build());
+                .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
+                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .build());
 
         Request request = RequestConverters.createRepository(putRepositoryRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertToXContentBody(putRepositoryRequest, request.getEntity());
+    }
+
+    public void testDeleteRepository() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+
+        StringBuilder endpoint = new StringBuilder("/_snapshot/" + repository);
+
+        DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest();
+        deleteRepositoryRequest.name(repository);
+        setRandomMasterTimeout(deleteRepositoryRequest, expectedParams);
+        setRandomTimeout(deleteRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.deleteRepository(deleteRepositoryRequest);
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
     }
 
     public void testPutTemplateRequest() throws Exception {

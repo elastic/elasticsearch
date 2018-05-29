@@ -46,7 +46,6 @@ Java Cryptography Architecture documentation]. Defaults to the value of
 
 The following settings are used to specify a private key, certificate, and the
 trusted certificates that should be used when communicating over an SSL/TLS connection.
-If none of the settings below are specified, the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
 ifdef::server[]
 A private key and certificate must be configured.
 endif::server[]

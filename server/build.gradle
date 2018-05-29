@@ -338,3 +338,7 @@ if (isEclipse == false || project.path == ":server-tests") {
   check.dependsOn integTest
   integTest.mustRunAfter test
 }
+
+test.configure {
+  systemProperty 'es.script.exception_for_missing_value', 'true'
+}

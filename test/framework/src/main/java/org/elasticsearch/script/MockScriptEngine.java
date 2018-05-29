@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
@@ -114,6 +115,12 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = new MockScoreScript(script);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SortScript.class)) {
+            SortScript.Factory factory = new MockSortScript(script);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(TermsSetQueryBuilder.TermsSetScript.class)) {
+            TermsSetQueryBuilder.TermsSetScript.Factory factory = new MockTermsSetScript(script);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
@@ -368,6 +375,7 @@ public class MockScriptEngine implements ScriptEngine {
                         public double execute() {
                             Map<String, Object> vars = new HashMap<>(getParams());
                             vars.put("doc", getDoc());
+                            vars.put("params", params);
                             if (scorerHolder[0] != null) {
                                 vars.put("_score", new ScoreAccessor(scorerHolder[0]));
                             }
@@ -380,6 +388,70 @@ public class MockScriptEngine implements ScriptEngine {
                         }
                     };
                 }
+            };
+        }
+    }
+    
+    public class MockSortScript implements SortScript.Factory {
+        
+        private final Function<Map<String, Object>, Object> scripts;
+    
+        MockSortScript(Function<Map<String, Object>, Object> scripts) {
+            this.scripts = scripts;
+        }
+        
+        @Override
+        public SortScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> {
+                Scorer[] scorerHolder = new Scorer[1];
+                return new SortScript(params, lookup, ctx) {
+    
+                    @Override
+                    public Object execute() {
+                        Map<String, Object> vars = new HashMap<>(getParams());
+                        vars.put("doc", getDoc());
+                        vars.put("params", params);
+                        if (scorerHolder[0] != null) {
+                            vars.put("_score", new ScoreAccessor(scorerHolder[0]));
+                        }
+                        return scripts.apply(vars);
+                    }
+    
+                    @Override
+                    public double executeAsDouble() {
+                        return (double) execute();
+                    }
+                    
+                    @Override
+                    public void setScorer(Scorer scorer) {
+                        scorerHolder[0] = scorer;
+                    }
+                };
+            };
+        }
+    }
+    
+    public class MockTermsSetScript implements TermsSetQueryBuilder.TermsSetScript.Factory {
+        
+        private final Function<Map<String, Object>, Object> scripts;
+    
+        MockTermsSetScript(Function<Map<String, Object>, Object> scripts) {
+            this.scripts = scripts;
+        }
+        
+        @Override
+        public TermsSetQueryBuilder.TermsSetScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> {
+                return new TermsSetQueryBuilder.TermsSetScript(params, lookup, ctx) {
+                    
+                    @Override
+                    public double execute() {
+                        Map<String, Object> vars = new HashMap<>(getParams());
+                        vars.put("doc", getDoc());
+                        vars.put("params", params);
+                        return ((Number) scripts.apply(vars)).doubleValue();
+                    }
+                };
             };
         }
     }

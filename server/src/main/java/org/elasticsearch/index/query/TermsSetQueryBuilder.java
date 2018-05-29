@@ -38,9 +38,12 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -249,12 +252,11 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             IndexNumericFieldData fieldData = context.getForField(msmFieldType);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
-            SearchScript.Factory factory = context.getScriptService().compile(minimumShouldMatchScript,
-                SearchScript.TERMS_SET_QUERY_CONTEXT);
+            TermsSetScript.Factory factory = context.getScriptService().compile(minimumShouldMatchScript, TermsSetScript.CONTEXT);
             Map<String, Object> params = new HashMap<>();
             params.putAll(minimumShouldMatchScript.getParams());
             params.put("num_terms", queries.size());
-            SearchScript.LeafFactory leafFactory = factory.newFactory(params, context.lookup());
+            TermsSetScript.LeafFactory leafFactory = factory.newFactory(params, context.lookup());
             longValuesSource = new ScriptLongValueSource(minimumShouldMatchScript, leafFactory);
         } else {
             throw new IllegalStateException("No minimum should match has been specified");
@@ -262,29 +264,71 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         return new CoveringQuery(queries, longValuesSource);
     }
 
+    public abstract static class TermsSetScript {
+    
+        public static final String[] PARAMETERS = {};
+        
+        private final Map<String, Object> params;
+        private final LeafSearchLookup leafLookup;
+    
+        public TermsSetScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+            this.params = params;
+            this.leafLookup = lookup.getLeafSearchLookup(leafContext);
+        }
+    
+        // Ideally a long should be returned here, because that is what the CoveringQuery needs, but
+        // a lot of whitelisted methods don't accept long (only double). This has to do with that
+        // painless' whitelisting does not support method overloading.
+        public abstract double execute();
+        
+        public Map<String, Object> getParams() {
+            return params;
+        }
+    
+        public Map<String, ScriptDocValues<?>> getDoc() {
+            return leafLookup.doc();
+        }
+    
+        public void setDocument(int docid) {
+            leafLookup.setDocument(docid);
+        }
+    
+        public interface LeafFactory {
+            TermsSetScript newInstance(LeafReaderContext ctx) throws IOException;
+        }
+    
+        public interface Factory {
+            TermsSetScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
+        }
+    
+        public static final ScriptContext<TermsSetScript.Factory> CONTEXT = new ScriptContext<>("terms_set", TermsSetScript.Factory.class);
+        
+    }
+    
     static final class ScriptLongValueSource extends LongValuesSource {
 
         private final Script script;
-        private final SearchScript.LeafFactory leafFactory;
+        private final TermsSetScript.LeafFactory leafFactory;
 
-        ScriptLongValueSource(Script script, SearchScript.LeafFactory leafFactory) {
+        ScriptLongValueSource(Script script, TermsSetScript.LeafFactory leafFactory) {
             this.script = script;
             this.leafFactory = leafFactory;
         }
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-            SearchScript searchScript = leafFactory.newInstance(ctx);
+            TermsSetScript termsSetScript = leafFactory.newInstance(ctx);
             return new LongValues() {
                 @Override
                 public long longValue() throws IOException {
-                    return searchScript.runAsLong();
+                    return (long) termsSetScript.execute();
                 }
 
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
-                    searchScript.setDocument(doc);
-                    return searchScript.run() != null;
+                    termsSetScript.setDocument(doc);
+                    // Long.MAX_VALUE is considered no match in CoveringScorer
+                    return termsSetScript.execute() != Long.MAX_VALUE;
                 }
             };
         }

@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
 
@@ -43,8 +44,8 @@ public class ScriptModule {
             SearchScript.CONTEXT,
             SearchScript.AGGS_CONTEXT,
             ScoreScript.CONTEXT,
-            SearchScript.SCRIPT_SORT_CONTEXT,
-            SearchScript.TERMS_SET_QUERY_CONTEXT,
+            SortScript.CONTEXT,
+            TermsSetQueryBuilder.TermsSetScript.CONTEXT,
             ExecutableScript.CONTEXT,
             ExecutableScript.AGGS_CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,

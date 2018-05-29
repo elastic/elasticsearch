@@ -35,6 +35,7 @@ import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -45,6 +46,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,66 +54,59 @@ import java.util.Map;
 public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
     final Map<String, AzureStorageSettings> storageSettings;
-
-    final Map<String, CloudBlobClient> clients = new HashMap<>();
+    final Map<String, CloudBlobClient> clients;
 
     public AzureStorageServiceImpl(Settings settings, Map<String, AzureStorageSettings> storageSettings) {
         super(settings);
-
-        this.storageSettings = storageSettings;
-
         if (storageSettings.isEmpty()) {
             // If someone did not register any settings, they basically can't use the plugin
             throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
         }
-
-        logger.debug("starting azure storage client instance");
-
-        // We register all regular azure clients
-        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.storageSettings.entrySet()) {
-            logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
-            createClient(azureStorageSettingsEntry.getValue());
-        }
+        this.storageSettings = storageSettings;
+        this.clients = createClients(storageSettings);
     }
 
-    void createClient(AzureStorageSettings azureStorageSettings) {
-        try {
-            logger.trace("creating new Azure storage client using account [{}], key [{}], endpoint suffix [{}]",
-                azureStorageSettings.getAccount(), azureStorageSettings.getKey(), azureStorageSettings.getEndpointSuffix());
+    private Map<String, CloudBlobClient> createClients(final Map<String, AzureStorageSettings> storageSettings) {
+        final Map<String, CloudBlobClient> clients = new HashMap<>();
+        for (Map.Entry<String, AzureStorageSettings> azureStorageEntry : storageSettings.entrySet()) {
+            final String clientName = azureStorageEntry.getKey();
+            final AzureStorageSettings clientSettings = azureStorageEntry.getValue();
+            try {
+                logger.trace("creating new Azure storage client with name [{}]", clientName);
+                String storageConnectionString =
+                    "DefaultEndpointsProtocol=https;"
+                        + "AccountName=" + clientSettings.getAccount() + ";"
+                        + "AccountKey=" + clientSettings.getKey();
 
-            String storageConnectionString =
-                "DefaultEndpointsProtocol=https;"
-                    + "AccountName=" + azureStorageSettings.getAccount() + ";"
-                    + "AccountKey=" + azureStorageSettings.getKey();
+                final String endpointSuffix = clientSettings.getEndpointSuffix();
+                if (Strings.hasLength(endpointSuffix)) {
+                    storageConnectionString += ";EndpointSuffix=" + endpointSuffix;
+                }
+                // Retrieve storage account from connection-string.
+                CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
 
-            String endpointSuffix = azureStorageSettings.getEndpointSuffix();
-            if (endpointSuffix != null && !endpointSuffix.isEmpty()) {
-                storageConnectionString += ";EndpointSuffix=" + endpointSuffix;
+                // Create the blob client.
+                CloudBlobClient client = storageAccount.createCloudBlobClient();
+
+                // Register the client
+                clients.put(clientSettings.getAccount(), client);
+            } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Can not create azure storage client [{}]", clientName), e);
             }
-            // Retrieve storage account from connection-string.
-            CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
-
-            // Create the blob client.
-            CloudBlobClient client = storageAccount.createCloudBlobClient();
-
-            // Register the client
-            this.clients.put(azureStorageSettings.getAccount(), client);
-        } catch (Exception e) {
-            logger.error("can not create azure storage client: {}", e.getMessage());
         }
+        return Collections.unmodifiableMap(clients);
     }
 
     CloudBlobClient getSelectedClient(String clientName, LocationMode mode) {
         logger.trace("selecting a client named [{}], mode [{}]", clientName, mode.name());
         AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
-            throw new IllegalArgumentException("Can not find named azure client [" + clientName + "]. Check your settings.");
+            throw new IllegalArgumentException("Unable to find client with name [" + clientName + "]");
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
-
         if (client == null) {
-            throw new IllegalArgumentException("Can not find an azure client named [" + azureStorageSettings.getAccount() + "]");
+            throw new IllegalArgumentException("No account defined for client with name [" + clientName + "]");
         }
 
         // NOTE: for now, just set the location mode in case it is different;

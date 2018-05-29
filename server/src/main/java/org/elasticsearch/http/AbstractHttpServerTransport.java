@@ -61,7 +61,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
 
-    protected volatile BoundTransportAddress boundAddress;
+    private volatile BoundTransportAddress boundAddress;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, ThreadPool threadPool, Dispatcher dispatcher) {
         super(settings);

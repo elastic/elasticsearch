@@ -556,10 +556,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 String blobName = "master.dat";
                 BytesArray bytes = new BytesArray(testBytes);
                 try (InputStream stream = bytes.streamInput()) {
-                    testContainer.writeBlob(blobName + "-temp", stream, bytes.length());
+                    testContainer.writeBlobAtomic(blobName, stream, bytes.length());
                 }
-                // Make sure that move is supported
-                testContainer.move(blobName + "-temp", blobName);
                 return seed;
             }
         } catch (IOException exp) {

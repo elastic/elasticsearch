@@ -403,11 +403,21 @@ public class RequestConvertersTests extends ESTestCase {
     public void testGetMapping() throws IOException {
         GetMappingsRequest getMappingRequest = new GetMappingsRequest();
 
-        String[] indices = randomIndicesNames(0, 5);
-        getMappingRequest.indices(indices);
+        String[] indices = Strings.EMPTY_ARRAY;
+        if (randomBoolean()) {
+            indices = randomIndicesNames(0, 5);
+            getMappingRequest.indices(indices);
+        } else if (randomBoolean()) {
+            getMappingRequest.indices(null);
+        }
 
-        String type = randomAlphaOfLengthBetween(3, 10);
-        getMappingRequest.types(type);
+        String type = null;
+        if (randomBoolean()) {
+            type = randomAlphaOfLengthBetween(3, 10);
+            getMappingRequest.types(type);
+        } else if (randomBoolean()) {
+            getMappingRequest.types(null);
+        }
 
         Map<String, String> expectedParams = new HashMap<>();
 

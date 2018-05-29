@@ -408,7 +408,7 @@ public class RequestConvertersTests extends ESTestCase {
             indices = randomIndicesNames(0, 5);
             getMappingRequest.indices(indices);
         } else if (randomBoolean()) {
-            getMappingRequest.indices(null);
+            getMappingRequest.indices((String[]) null);
         }
 
         String type = null;
@@ -416,7 +416,7 @@ public class RequestConvertersTests extends ESTestCase {
             type = randomAlphaOfLengthBetween(3, 10);
             getMappingRequest.types(type);
         } else if (randomBoolean()) {
-            getMappingRequest.types(null);
+            getMappingRequest.types((String[]) null);
         }
 
         Map<String, String> expectedParams = new HashMap<>();

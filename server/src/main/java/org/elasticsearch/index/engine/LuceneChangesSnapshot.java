@@ -53,6 +53,8 @@ import java.util.Objects;
  * A {@link Translog.Snapshot} from changes in a Lucene index
  */
 final class LuceneChangesSnapshot implements Translog.Snapshot {
+    static final int DEFAULT_BATCH_SIZE = 1024;
+
     private final int searchBatchSize;
     private final long fromSeqNo, toSeqNo;
     private long lastSeenSeqNo;
@@ -83,8 +85,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
-        if (searchBatchSize <= 0) {
-            throw new IllegalArgumentException("Search_batch_size must be positive [" + searchBatchSize + "]");
+        if (searchBatchSize < 0) {
+            throw new IllegalArgumentException("Search_batch_size must not be negative [" + searchBatchSize + "]");
         }
         this.mapperService = mapperService;
         this.searchBatchSize = searchBatchSize;
@@ -154,7 +156,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private int nextDocId() throws IOException {
-        // we have processed all docs in the current search - fetch the next window
+        // we have processed all docs in the current search - fetch the next batch
         if (docIndex == scoreDocs.length && docIndex > 0) {
             final ScoreDoc prev = scoreDocs[scoreDocs.length - 1];
             scoreDocs = searchOperations(prev).scoreDocs;

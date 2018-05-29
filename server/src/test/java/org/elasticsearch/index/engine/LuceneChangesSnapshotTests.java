@@ -53,14 +53,12 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         long fromSeqNo = randomNonNegativeLong();
         long toSeqNo = randomLongBetween(fromSeqNo, Long.MAX_VALUE);
         // Empty engine
-        try (Translog.Snapshot snapshot =
-                 engine.newLuceneChangesSnapshot("test", mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, true)) {
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
             assertThat(error.getMessage(),
                 containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
         }
-        try (Translog.Snapshot snapshot =
-                 engine.newLuceneChangesSnapshot("test", mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, false)) {
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, false)) {
             assertThat(snapshot, SnapshotMatchers.size(0));
         }
         int numOps = between(1, 100);
@@ -88,7 +86,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, false)) {
+                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.size(0));
             } finally {
@@ -97,7 +95,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, true)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
                 searcher = null;
                 IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
                 assertThat(error.getMessage(),
@@ -110,7 +108,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             toSeqNo = randomLongBetween(refreshedSeqNo + 1, numOps * 2);
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, false)) {
+                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, refreshedSeqNo));
             }finally {
@@ -118,7 +116,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             }
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, true)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
                 searcher = null;
                 IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
                 assertThat(error.getMessage(),
@@ -129,7 +127,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             toSeqNo = randomLongBetween(fromSeqNo, refreshedSeqNo);
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, true)) {
+                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
             }finally {
@@ -139,8 +137,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         // Get snapshot via engine will auto refresh
         fromSeqNo = randomLongBetween(0, numOps - 1);
         toSeqNo = randomLongBetween(fromSeqNo, numOps - 1);
-        try (Translog.Snapshot snapshot =
-                 engine.newLuceneChangesSnapshot("test", mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, randomBoolean())) {
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, randomBoolean())) {
             assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
         }
     }
@@ -176,8 +173,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             }
         }
         long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
-        try (Translog.Snapshot snapshot =
-                 engine.newLuceneChangesSnapshot("test", mapperService, randomSearchBatchSize(), 0, maxSeqNo, false)) {
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, 0, maxSeqNo, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
@@ -246,8 +242,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 long fromSeqNo = followerCheckpoint + 1;
                 long batchSize = randomLongBetween(0, 100);
                 long toSeqNo = Math.min(fromSeqNo + batchSize, leaderCheckpoint);
-                try (Translog.Snapshot snapshot =
-                         leader.newLuceneChangesSnapshot("test", mapperService, randomSearchBatchSize(), fromSeqNo, toSeqNo, true)) {
+                try (Translog.Snapshot snapshot = leader.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
                     translogHandler.run(follower, snapshot);
                 }
             }
@@ -271,34 +266,6 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
-    public void testSearchMultipleBatches() throws Exception {
-        int batchSize = between(1, 10);
-        int numOps = scaledRandomIntBetween(10, 100);
-        for (int i = 0; i < numOps; i++) {
-            String id = Integer.toString(randomIntBetween(i, i + 5));
-            ParsedDocument doc = createParsedDoc(id, null);
-            if (randomBoolean()) {
-                engine.index(indexForDoc(doc));
-            } else {
-                engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
-            }
-            if (rarely()) {
-                engine.refresh("test");
-            }
-        }
-        engine.refresh("test");
-        long fromSeqNo = randomLongBetween(0, batchSize);
-        long toSeqNo = randomLongBetween(fromSeqNo, numOps - 1);
-        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-        try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, batchSize, fromSeqNo, toSeqNo, true)) {
-            searcher = null;
-            int expectedSize = Math.toIntExact(toSeqNo + 1 - fromSeqNo);
-            assertThat(snapshot, SnapshotMatchers.size(expectedSize));
-        } finally {
-            IOUtils.close(searcher);
-        }
-    }
-
     private List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
         List<Translog.Operation> operations = new ArrayList<>();
         Translog.Operation op;
@@ -309,9 +276,5 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             operations.add(newOp);
         }
         return operations;
-    }
-
-    private int randomSearchBatchSize() {
-        return between(1, Engine.LUCENE_HISTORY_DEFAULT_SEARCH_BATCH_SIZE);
     }
 }

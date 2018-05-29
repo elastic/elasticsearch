@@ -137,7 +137,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                             @Override
                             public int read(char[] cbuf, int off, int len) throws IOException {
                                 int result = reader.read(cbuf, off, len);
-                                for (int i = off; i < result; i++) {
+                                for (int i = off; i < off + len; i++) {
                                     if (cbuf[i] == 'a') {
                                         cbuf[i] = 'z';
                                     }

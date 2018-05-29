@@ -19,13 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
-
 import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -40,6 +33,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
+
+import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.IntroSorter;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {

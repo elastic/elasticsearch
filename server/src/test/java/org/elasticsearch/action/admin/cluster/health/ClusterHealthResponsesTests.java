@@ -51,19 +51,19 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestCase<ClusterHealthResponse> {
     private final String level = randomFrom("shards", "indices", "cluster");
 
-    public void testIsTimeout() {
-        ClusterHealthResponse responseTimeout = new ClusterHealthResponse();
-        responseTimeout.setTimedOut(true);
-        assertEquals(RestStatus.REQUEST_TIMEOUT, responseTimeout.status());
+    public void testIsTimeout() throws IOException {
+        ClusterHealthResponse res = new ClusterHealthResponse();
+        for (int i = 0; i < 5; i++) {
+            res.setTimedOut(randomBoolean());
+            if (res.isTimedOut()) {
+                assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
+            } else {
+                assertEquals(RestStatus.OK, res.status());
+            }
+        }
     }
 
-    public void testIsNotTimeout() {
-        ClusterHealthResponse responseOk = new ClusterHealthResponse();
-        responseOk.setTimedOut(false);
-        assertEquals(RestStatus.OK, responseOk.status());
-    }
-
-    public void testClusterHealth() {
+    public void testClusterHealth() throws IOException {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
@@ -91,16 +91,12 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
         assertThat(clusterHealth.getNumberOfDataNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfDataNodes()));
     }
 
-    ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) {
+    ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
         if (randomBoolean()) {
-            try {
-                BytesStreamOutput out = new BytesStreamOutput();
-                clusterHealth.writeTo(out);
-                StreamInput in = out.bytes().streamInput();
-                clusterHealth = ClusterHealthResponse.readResponseFrom(in);
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
+            BytesStreamOutput out = new BytesStreamOutput();
+            clusterHealth.writeTo(out);
+            StreamInput in = out.bytes().streamInput();
+            clusterHealth = ClusterHealthResponse.readResponseFrom(in);
         }
         return clusterHealth;
     }

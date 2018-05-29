@@ -24,7 +24,7 @@ Indices which should be checked can be passed in the constructor:
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-indices-ctr]
 --------------------------------------------------
 
-Or using the method:
+Or using the corresponding setter method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -33,7 +33,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-ind
 
 ==== Other parameters
 
-Other parameters can be passed only through methods:
+Other parameters can be passed only through setters methods:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -109,7 +109,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-execute]
 [[java-rest-high-cluster-health-async]]
 ==== Asynchronous Execution
 
-The asynchronous execution of a cluster update settings requires both the
+The asynchronous execution of a cluster health request requires both the
 `ClusterHealthRequest` instance and an `ActionListener` instance to be
 passed to the asynchronous method:
 

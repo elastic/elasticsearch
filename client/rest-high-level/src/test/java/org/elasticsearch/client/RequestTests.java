@@ -1345,7 +1345,7 @@ public class RequestTests extends ESTestCase {
                 break;
             case "masterTimeout":
                 expectedParams.put("timeout", "30s");
-                healthRequest.timeout(masterTimeout);
+                healthRequest.masterNodeTimeout(masterTimeout);
                 expectedParams.put("master_timeout", masterTimeout);
                 break;
             case "both":

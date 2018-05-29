@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -309,16 +310,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public String toString() {
-        return "ClusterHealthResponse{" +
-                "clusterName='" + clusterName + '\'' +
-                ", numberOfPendingTasks=" + numberOfPendingTasks +
-                ", numberOfInFlightFetch=" + numberOfInFlightFetch +
-                ", delayedUnassignedShards=" + delayedUnassignedShards +
-                ", taskMaxWaitingTime=" + taskMaxWaitingTime +
-                ", timedOut=" + timedOut +
-                ", clusterStateHealth=" + clusterStateHealth +
-                ", clusterHealthStatus=" + clusterHealthStatus +
-                '}';
+        return Strings.toString(this);
     }
 
     @Override

@@ -296,7 +296,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        ClusterClientIT.emptyClusterAssertion(response);
+        ClusterClientIT.assertNoIndices(response);
     }
 
     public void testClusterHealthAsync() throws Exception {

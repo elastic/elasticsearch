@@ -121,7 +121,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        emptyClusterAssertion(response);
+        assertNoIndices(response);
     }
 
     public void testClusterHealthYellowClusterLevel() throws IOException {
@@ -132,7 +132,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.level("cluster");
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
-        yellowTenShardsClusterAssertion(response);
+        assertTenYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
@@ -144,14 +144,14 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.level("indices");
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
-        yellowTenShardsClusterAssertion(response);
+        assertTenYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(2));
         for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {
-            indexAssertion(entry.getKey(), entry.getValue(), true);
+            assertYellowIndex(entry.getKey(), entry.getValue(), true);
         }
     }
 
-    private void yellowTenShardsClusterAssertion(ClusterHealthResponse response) {
+    private static void assertTenYellowShards(ClusterHealthResponse response) {
         assertThat(response, notNullValue());
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
@@ -188,10 +188,10 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getActiveShardsPercent(), equalTo(50d));
         assertThat(response.getIndices().size(), equalTo(1));
         Map.Entry<String, ClusterIndexHealth> index = response.getIndices().entrySet().iterator().next();
-        indexAssertion(index.getKey(), index.getValue(), false);
+        assertYellowIndex(index.getKey(), index.getValue(), false);
     }
 
-    private void indexAssertion(String indexName, ClusterIndexHealth indexHealth, boolean emptyShards) {
+    private static void assertYellowIndex(String indexName, ClusterIndexHealth indexHealth, boolean emptyShards) {
         assertThat(indexHealth, notNullValue());
         assertThat(indexHealth.getIndex(),equalTo(indexName));
         assertThat(indexHealth.getActivePrimaryShards(),equalTo(5));
@@ -206,12 +206,12 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         } else {
             assertThat(indexHealth.getShards().size(), equalTo(5));
             for (Map.Entry<Integer, ClusterShardHealth> entry : indexHealth.getShards().entrySet()) {
-                shardAssertion(entry.getKey(), entry.getValue());
+                assertYellowShard(entry.getKey(), entry.getValue());
             }
         }
     }
 
-    private void shardAssertion(int shardId, ClusterShardHealth shardHealth) {
+    private static void assertYellowShard(int shardId, ClusterShardHealth shardHealth) {
         assertThat(shardHealth, notNullValue());
         assertThat(shardHealth.getShardId(), equalTo(shardId));
         assertThat(shardHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -230,10 +230,10 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(true));
         assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
-        emptyClusterAssertion(response);
+        assertNoIndices(response);
     }
 
-    public static void emptyClusterAssertion(ClusterHealthResponse response) {
+    public static void assertNoIndices(ClusterHealthResponse response) {
         assertThat(response.getIndices(), equalTo(emptyMap()));
         assertThat(response.getActivePrimaryShards(), equalTo(0));
         assertThat(response.getNumberOfDataNodes(), equalTo(1));

@@ -28,12 +28,14 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -268,6 +270,11 @@ public class AuthenticationService extends AbstractComponent {
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                     logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
                                             authenticationToken.principal(), realm.name(), result.getMessage());
+                                    final Map<String, String[]> authnErrorResponseHeader = new HashMap<>();
+                                    authnErrorResponseHeader.put(Realm.WWW_AUTHN_HEADER,
+                                            new String[] { realm.getWWWAuthenticateHeaderValue() });
+                                    userListener.onFailure(Exceptions.authenticationError(authnErrorResponseHeader, result.getMessage(),
+                                            result.getException()));
                                     userListener.onFailure(request.exceptionProcessingRequest(result.getException(), token));
                                 } else {
                                     // the user was not authenticated, call this so we can audit the correct event

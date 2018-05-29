@@ -14,7 +14,9 @@ grant {
   // needed for Kerberos login
   permission javax.security.auth.AuthPermission "modifyPrincipals";
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
-  permission javax.security.auth.PrivateCredentialPermission "* * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosKey * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KeyTab * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
   permission javax.security.auth.AuthPermission "doAs";
   permission javax.security.auth.kerberos.ServicePermission "*","initiate,accept";
 

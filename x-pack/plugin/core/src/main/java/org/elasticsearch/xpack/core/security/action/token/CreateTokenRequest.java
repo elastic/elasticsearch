@@ -15,7 +15,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,6 +73,15 @@ public final class CreateTokenRequest extends ActionRequest {
             }
             if (refreshToken == null) {
                 validationException = addValidationError("refresh_token is missing", validationException);
+            }
+        } else if ("kerberos".equals(grantType)) {
+            // TODO bizybot Temp support till we decide how to handle oauth2 token + kerberos
+            if (password == null || password.getChars() == null || password.getChars().length == 0) {
+                validationException = addValidationError("kerberos ticket is missing", validationException);
+            }
+            if (refreshToken != null) {
+                validationException =
+                        addValidationError("refresh_token is not supported with the kerberos grant_type", validationException);
             }
         } else {
             validationException = addValidationError("grant_type only supports the values: [password, refresh_token]", validationException);

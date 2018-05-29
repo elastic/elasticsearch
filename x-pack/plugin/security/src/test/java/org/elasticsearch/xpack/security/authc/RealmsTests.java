@@ -50,6 +50,7 @@ public class RealmsTests extends ESTestCase {
     private XPackLicenseState licenseState;
     private ThreadContext threadContext;
     private ReservedRealm reservedRealm;
+    private int dummyRealmTypeCount;
 
     @Before
     public void init() throws Exception {
@@ -57,7 +58,8 @@ public class RealmsTests extends ESTestCase {
         factories.put(FileRealmSettings.TYPE, config -> new DummyRealm(FileRealmSettings.TYPE, config));
         factories.put(NativeRealmSettings.TYPE, config -> new DummyRealm(NativeRealmSettings.TYPE, config));
         factories.put(KerberosRealmSettings.TYPE, config -> new DummyRealm(KerberosRealmSettings.TYPE, config));
-        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+        dummyRealmTypeCount = randomIntBetween(1, 5);
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             String name = "type_" + i;
             factories.put(name, config -> new DummyRealm(name, config));
         }
@@ -73,13 +75,13 @@ public class RealmsTests extends ESTestCase {
     public void testWithSettings() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> orders = new ArrayList<>(dummyRealmTypeCount);
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
@@ -107,14 +109,14 @@ public class RealmsTests extends ESTestCase {
     public void testWithSettingsWhereDifferentRealmsHaveSameOrder() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> randomSeq = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> randomSeq = new ArrayList<>(dummyRealmTypeCount);
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             randomSeq.add(i);
         }
         Collections.shuffle(randomSeq, random());
 
         TreeMap<String, Integer> nameToRealmId = new TreeMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             int randomizedRealmId = randomSeq.get(i);
             String randomizedRealmName = randomAlphaOfLengthBetween(12,32);
             nameToRealmId.put("realm_" + randomizedRealmName, randomizedRealmId);
@@ -198,13 +200,13 @@ public class RealmsTests extends ESTestCase {
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> orders = new ArrayList<>(dummyRealmTypeCount);
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
@@ -400,13 +402,13 @@ public class RealmsTests extends ESTestCase {
     public void testDisabledRealmsAreNotAdded() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> orders = new ArrayList<>(dummyRealmTypeCount);
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < dummyRealmTypeCount; i++) {
             builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             boolean enabled = randomBoolean();

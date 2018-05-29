@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Collections;
@@ -50,7 +52,14 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     protected void doExecute(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         Authentication originatingAuthentication = Authentication.getAuthentication(threadPool.getThreadContext());
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            final UsernamePasswordToken authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
+            final AuthenticationToken authToken;
+            // TODO bizybot Temp support till we decide how to handle oauth2 token + kerberos
+            if ("kerberos".equals(request.getGrantType())) {
+                authToken = new KerberosAuthenticationToken(KerberosAuthenticationToken.UNAUTHENTICATED_PRINCIPAL_NAME,
+                        request.getPassword().toString());
+            } else {
+                authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
+            }
             authenticationService.authenticate(CreateTokenAction.NAME, request, authToken,
                     ActionListener.wrap(authentication -> {
                             request.getPassword().close();

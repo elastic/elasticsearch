@@ -91,6 +91,11 @@ public class XPackIT extends AbstractRollingTestCase {
             expectedTemplates.add(".ml-meta");
             expectedTemplates.add(".ml-notifications");
             expectedTemplates.add(".ml-state");
+            expectedTemplates.add(".monitoring-alerts");
+            expectedTemplates.add(".monitoring-beats");
+            expectedTemplates.add(".monitoring-es");
+            expectedTemplates.add(".monitoring-kibana");
+            expectedTemplates.add(".monitoring-logstash");
             expectedTemplates.add("logstash-index-template");
             expectedTemplates.add("security-index-template");
             expectedTemplates.add("security_audit_log");

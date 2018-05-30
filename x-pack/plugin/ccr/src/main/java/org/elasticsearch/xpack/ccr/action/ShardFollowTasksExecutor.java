@@ -130,7 +130,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     void prepare(Client leaderClient, Client followerClient, ShardFollowNodeTask task, ShardFollowTask params,
                  long followGlobalCheckPoint,
                  IndexMetadataVersionChecker imdVersionChecker) {
-        if (task.getState() != AllocatedPersistentTask.State.STARTED) {
+        if (task.isRunning() == false) {
             // TODO: need better cancellation control
             return;
         }

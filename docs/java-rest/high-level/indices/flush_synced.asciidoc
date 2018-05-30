@@ -1,0 +1,91 @@
+[[java-rest-high-flush]]
+=== Flush Synced API
+
+[[java-rest-high-flush-synced-request]]
+==== Flush Synced Request
+
+A `SyncedFlushRequest` can be applied to one or more indices, or even on `_all` the indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-request]
+--------------------------------------------------
+<1> Flush synced one index
+<2> Flush synced multiple indices
+<3> Flush synced all the indices
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+[[java-rest-high-flush-synced-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-execute]
+--------------------------------------------------
+
+[[java-rest-high-flush-synced-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a flush request requires both the `SyncedFlushRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-execute-async]
+--------------------------------------------------
+<1> The `SyncedFlushRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `SyncedFlushResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-flush-response]]
+==== Flush Synced Response
+
+The returned `SyncedFlushResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-response]
+--------------------------------------------------
+<1> Total number of shards hit by the flush request
+<2> Number of shards where the flush has succeeded
+<3> Number of shards where the flush has failed
+<4> Name of the index whose results we are about to calculate.
+<5> Total number of shards for index mentioned in 4.
+<6> Successful shards for index mentioned in 4.
+<7> Failed shards for index mentioned in 4.
+<8> One of the failed shard ids of the failed index mentioned in 4.
+<9> Reason for failure of copies of the shard mentioned in 8.
+<10> JSON represented by a Map<String, Object>. Contains shard related information like id, state, version etc.
+for the failed shard copies. If the entire shard failed then this returns an empty map.
+
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-notfound]
+--------------------------------------------------
+<1> Do something if the indices to be flushed were not found

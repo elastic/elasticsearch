@@ -32,8 +32,8 @@ import java.util.Objects;
 import java.util.ArrayList;
 
 /**
- * Portion the configuration of an HTTP request to Elasticsearch that
- * can be manipulated without changing Elasticsearch's behavior.
+ * The portion of an HTTP request to Elasticsearch that can be
+ * manipulated without changing Elasticsearch's behavior.
  */
 public final class RequestOptions {
     public static final RequestOptions DEFAULT = new Builder(
@@ -145,9 +145,9 @@ public final class RequestOptions {
     }
 
     /**
-     * Custom implementation of {@link BasicHeader} that overrides equals and hashCode.
+     * Custom implementation of {@link BasicHeader} that overrides equals and
+     * hashCode so it is easier to test equality of {@link RequestOptions}.
      */
-    @SuppressWarnings("serial")
     static final class ReqHeader extends BasicHeader {
 
         ReqHeader(String name, String value) {

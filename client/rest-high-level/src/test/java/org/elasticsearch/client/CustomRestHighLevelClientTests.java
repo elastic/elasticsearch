@@ -110,7 +110,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         assertEquals(nodeName, future.get().getNodeName());
     }
 
-    private RequestOptions optionsForNodeName(String nodeName) {
+    private static RequestOptions optionsForNodeName(String nodeName) {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader("node_name", nodeName);
         return options.build();
@@ -138,7 +138,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     }
 
     /**
-     * Mocks the asynchronous request execution by calling the {@link #mockPerformRequest(Header)} method.
+     * Mocks the asynchronous request execution by calling the {@link #mockPerformRequest(Request)} method.
      */
     private Void mockPerformRequestAsync(Request request, ResponseListener responseListener) {
         try {

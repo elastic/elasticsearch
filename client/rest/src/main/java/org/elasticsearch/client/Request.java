@@ -119,9 +119,8 @@ public final class Request {
     }
 
     /**
-     * Set the portion the configuration of an HTTP request to
-     * Elasticsearch that can be manipulated without changing
-     * Elasticsearch's behavior.
+     * Set the portion of an HTTP request to Elasticsearch that can be
+     * manipulated without changing Elasticsearch's behavior.
      */
     public void setOptions(RequestOptions options) {
         Objects.requireNonNull(options, "options cannot be null");
@@ -129,9 +128,8 @@ public final class Request {
     }
 
     /**
-     * Set the portion the configuration of an HTTP request to
-     * Elasticsearch that can be manipulated without changing
-     * Elasticsearch's behavior.
+     * Set the portion of an HTTP request to Elasticsearch that can be
+     * manipulated without changing Elasticsearch's behavior.
      */
     public void setOptions(RequestOptions.Builder options) {
         Objects.requireNonNull(options, "options cannot be null");
@@ -139,9 +137,8 @@ public final class Request {
     }
 
     /**
-     * gET the portion the configuration of an HTTP request to
-     * Elasticsearch that can be manipulated without changing
-     * Elasticsearch's behavior.
+     * Get the portion of an HTTP request to Elasticsearch that can be
+     * manipulated without changing Elasticsearch's behavior.
      */
     public RequestOptions getOptions() {
         return options;

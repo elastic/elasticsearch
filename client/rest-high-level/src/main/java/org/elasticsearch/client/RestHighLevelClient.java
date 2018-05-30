@@ -799,7 +799,7 @@ public class RestHighLevelClient implements Closeable {
         }
     }
 
-    private RequestOptions optionsForHeaders(Header[] headers) {
+    private static RequestOptions optionsForHeaders(Header[] headers) {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         for (Header header : headers) {
             Objects.requireNonNull(header, "header cannot be null");

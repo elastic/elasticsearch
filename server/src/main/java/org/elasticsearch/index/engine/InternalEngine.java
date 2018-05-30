@@ -174,7 +174,8 @@ public class InternalEngine extends Engine {
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
 
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(),
+                    engineConfig.getIndexSettings(), engineConfig.getThreadPool()::absoluteTimeInMillis);
             throttle = new IndexThrottle();
             try {
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
@@ -1996,8 +1997,8 @@ public class InternalEngine extends Engine {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
-            super(shardId, indexSettings);
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, LongSupplier timeSupplier) {
+            super(shardId, indexSettings, timeSupplier);
         }
 
         @Override
@@ -2243,5 +2244,10 @@ public class InternalEngine extends Engine {
             commitData.put(entry.getKey(), entry.getValue());
         }
         return commitData;
+    }
+
+    @Override
+    public long getLastMergeMillis(long now) {
+        return mergeScheduler.lastMergeMillis(now);
     }
 }

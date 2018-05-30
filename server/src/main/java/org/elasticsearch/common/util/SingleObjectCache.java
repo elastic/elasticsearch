@@ -65,6 +65,13 @@ public abstract class SingleObjectCache<T>{
     }
 
     /**
+     * Return the (potentially stale) cache entry.
+     */
+    protected final T getCached() {
+        return cached;
+    }
+
+    /**
      * Returns a new instance to cache
      */
     protected abstract T refresh();

@@ -68,6 +68,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -1570,6 +1571,14 @@ public abstract class Engine implements Closeable {
     public long getLastWriteNanos() {
         return this.lastWriteNanos;
     }
+
+    /**
+     * Return the last time in millis since Epoch when a merge finished, or
+     * {@code now} if there are ongoing merges.
+     * @param now the current timestamp
+     * @see ThreadPool#absoluteTimeInMillis()
+     */
+    public abstract long getLastMergeMillis(long now);
 
     /**
      * Called for each new opened engine searcher to warm new segments

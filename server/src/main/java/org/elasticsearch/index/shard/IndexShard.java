@@ -59,9 +59,12 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -136,6 +139,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -162,6 +166,9 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
+
+    public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
+            Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
     private final ThreadPool threadPool;
     private final MapperService mapperService;
@@ -240,6 +247,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
 
+    private final SingleObjectCache<long[]> storeStatsCache;
+
     public IndexShard(
             ShardRouting shardRouting,
             IndexSettings indexSettings,
@@ -309,6 +318,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
+
+        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
+        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
+        storeStatsCache = new SingleObjectCache<long[]>(refreshInterval, new long[] { -1, -1 }) {
+
+            @Override
+            protected long[] refresh() {
+                try {
+                    return new long[] { store.sizeInBytes(), threadPool.absoluteTimeInMillis() };
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            protected boolean needsRefresh() {
+                long[] cached = getCached();
+                if (cached[1] == -1) {
+                    // not initialized
+                    return true;
+                }
+                if (super.needsRefresh() == false) {
+                    // prevent callers from hammering the FS
+                    return false;
+                }
+                if (isActive()) {
+                    // the shard is actively indexing, don't cache
+                    return true;
+                }
+                // Now we compare the last modification of the store with
+                final long now = threadPool.absoluteTimeInMillis();
+                return getEngine().getLastMergeMillis(now) >= cached[1];
+            }
+        };
+
         persistMetadata(path, indexSettings, shardRouting, null, logger);
     }
 
@@ -899,12 +943,45 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getService.stats();
     }
 
+    private static class StoreStatsCache extends SingleObjectCache<Long> {
+        private final Store store;
+
+        StoreStatsCache(TimeValue refreshInterval, Store store) throws IOException {
+            super(refreshInterval, store.sizeInBytes());
+            this.store = store;
+        }
+
+        @Override
+        protected Long refresh() {
+            try {
+                return store.sizeInBytes();
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to refresh store stats", ex);
+            }
+        }
+    }
+
+    /**
+     * Return the store size in bytes.
+     * NOTE: this method caches its results for some time so that repeated
+     * calls may not put too much load on the local node.
+     */
+    private long storeSizeInBytes() throws IOException {
+        try {
+            return storeStatsCache.getOrRefresh()[0];
+        } catch (UncheckedIOException e) {
+            // unwrap the original IOException
+            throw e.getCause();
+        }
+    }
+
     public StoreStats storeStats() {
         try {
-            return store.stats();
+            final long storeSizeInBytes = storeSizeInBytes();
+            return new StoreStats(storeSizeInBytes);
         } catch (IOException e) {
             throw new ElasticsearchException("io exception while building 'store stats'", e);
-        } catch (AlreadyClosedException ex) {
+        } catch (AlreadyClosedException e) {
             return null; // already closed
         }
     }
@@ -1484,6 +1561,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void checkIdle(long inactiveTimeNS) {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
+            if (active.get() == false) {
+                // We refresh when transitioning to an inactive state to make
+                // it easier to cache the store size.
+                refresh("transition to inactive");
+            }
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 logger.debug("shard is now inactive");

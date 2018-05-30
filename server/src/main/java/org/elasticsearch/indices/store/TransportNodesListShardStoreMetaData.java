@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -139,20 +141,23 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 logger.trace("{} node doesn't have meta data for the requests index, responding with empty", shardId);
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }
-            final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings);
-            final ShardPath shardPath;
-            try (ShardLock ignored = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5))) {
-                shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
-            }
-            if (shardPath == null) {
-                return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
-            }
+            final IndexSettings indexSettings
+                = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings);
+
             // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
-            // 1) a shard is being constructed, which means the master will not use a copy of this replica
-            // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
+            // 1) a shard is being constructed, which means the master will not use a copy of this replica.
+            // 2) a shard is shutting down and has not cleared its content within the lock timeout. In this case the master may not
             //    reuse local resources.
-            return new StoreFilesMetaData(shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId,
-                nodeEnv::shardLock, logger));
+            try (ShardLock shardLock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5))) {
+                final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                if (shardPath != null) {
+                    return new StoreFilesMetaData(shardId,
+                        Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId, logger, shardLock));
+                }
+            } catch (ShardLockObtainFailedException ex) {
+                logger.info(() -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
+            }
+            return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {

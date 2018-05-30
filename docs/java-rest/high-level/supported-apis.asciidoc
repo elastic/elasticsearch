@@ -104,13 +104,9 @@ include::indices/put_template.asciidoc[]
 The Java High Level REST Client supports the following Cluster APIs:
 
 * <<java-rest-high-cluster-put-settings>>
-* <<java-rest-high-cluster-list-tasks>>
-* <<java-rest-high-cluster-cancel-tasks>>
 * <<java-rest-high-cluster-put-pipeline>>
 
 include::cluster/put_settings.asciidoc[]
-include::cluster/list_tasks.asciidoc[]
-include::cluster/cancel_tasks.asciidoc[]
 include::cluster/put_pipeline.asciidoc[]
 
 == Snapshot APIs
@@ -130,5 +126,7 @@ include::snapshot/delete_repository.asciidoc[]
 The Java High Level REST Client supports the following Tasks APIs:
 
 * <<java-rest-high-tasks-list>>
+* <<java-rest-high-cluster-cancel-tasks>>
 
 include::tasks/list_tasks.asciidoc[]
+include::tasks/cancel_tasks.asciidoc[]

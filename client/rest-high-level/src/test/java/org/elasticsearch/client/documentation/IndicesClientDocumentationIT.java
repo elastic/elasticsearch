@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -55,8 +56,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -64,6 +63,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.SyncedFlushResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -80,8 +80,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -781,6 +779,89 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             }
             // end::flush-notfound
+        }
+    }
+
+    public void testSyncedFlushIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::flush-synced-request
+            SyncedFlushRequest request = new SyncedFlushRequest("index1"); // <1>
+            SyncedFlushRequest requestMultiple = new SyncedFlushRequest("index1", "index2"); // <2>
+            SyncedFlushRequest requestAll = new SyncedFlushRequest(); // <3>
+            // end::flush-synced-request
+
+            // tag::flush-synced-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::flush-synced-request-indicesOptions
+
+            // tag::flush-synced-execute
+            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request);
+            // end::flush-synced-execute
+
+            // tag::flush-synced-response
+            int totalShards = flushSyncedResponse.totalShards(); // <1>
+            int successfulShards = flushSyncedResponse.successfulShards(); // <2>
+            int failedShards = flushSyncedResponse.failedShards(); // <3>
+
+            for (Map.Entry<String, SyncedFlushResponse.IndexResult> responsePerIndexEntry:
+                flushSyncedResponse.getIndexResults().entrySet()) {
+                String indexName = responsePerIndexEntry.getKey(); // <4>
+                SyncedFlushResponse.IndexResult indexResult = responsePerIndexEntry.getValue();
+                int totalShardsForIndex = indexResult.totalShards(); // <5>
+                int successfulShardsForIndex = indexResult.successfulShards(); // <6>
+                int failedShardsForIndex = indexResult.failedShards(); // <7>
+                if (failedShardsForIndex > 0) {
+                    for (SyncedFlushResponse.ShardFailure failureEntry: indexResult.failures()) {
+                        int shardId = failureEntry.getShardId(); // <8>
+                        String failureReason = failureEntry.getFailureReason(); // <9>
+                        Map<String, Object> routing = failureEntry.getRouting(); // <10>
+                    }
+                }
+            }
+            // end::flush-synced-response
+
+            // tag::flush-synced-execute-listener
+            ActionListener<SyncedFlushResponse> listener = new ActionListener<SyncedFlushResponse>() {
+                @Override
+                public void onResponse(SyncedFlushResponse refreshResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::flush-synced-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::flush-synced-execute-async
+            client.indices().flushSyncedAsync(request, listener); // <1>
+            // end::flush-synced-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::flush-synced-notfound
+            try {
+                SyncedFlushRequest request = new SyncedFlushRequest("does_not_exist");
+                client.indices().flushSynced(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::flush-synced-notfound
         }
     }
 

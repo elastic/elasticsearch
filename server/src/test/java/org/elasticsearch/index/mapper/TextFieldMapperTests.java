@@ -607,7 +607,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix").endObject()
+                .startObject("index_prefixes").endObject()
                 .field("index_options", "offsets")
                 .endObject().endObject().endObject().endObject());
 
@@ -623,7 +623,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix").endObject()
+                .startObject("index_prefixes").endObject()
                 .field("index_options", "positions")
                 .endObject().endObject().endObject().endObject());
 
@@ -640,7 +640,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix").endObject()
+                .startObject("index_prefixes").endObject()
                 .field("term_vector", "with_positions_offsets")
                 .endObject().endObject().endObject().endObject());
 
@@ -657,7 +657,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix").endObject()
+                .startObject("index_prefixes").endObject()
                 .field("term_vector", "with_positions")
                 .endObject().endObject().endObject().endObject());
 
@@ -682,7 +682,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix")
+                .startObject("index_prefixes")
                 .field("min_chars", 1)
                 .field("max_chars", 10)
                 .endObject()
@@ -716,7 +716,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix").endObject()
+                .startObject("index_prefixes").endObject()
                 .endObject().endObject()
                 .endObject().endObject());
             CompressedXContent json = new CompressedXContent(mapping);
@@ -734,25 +734,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             Query q6 = mapper.mappers().getMapper("field").fieldType().prefixQuery("goings",
                 CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q6, instanceOf(PrefixQuery.class));
-
-            indexService.mapperService().merge("type", json, MergeReason.MAPPING_UPDATE, true);
-
-            String badUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                .field("type", "text")
-                .field("analyzer", "english")
-                .startObject("index_prefix")
-                .field("min_chars", 1)
-                .field("max_chars", 10)
-                .endObject()
-                .endObject().endObject()
-                .endObject().endObject());
-
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-                indexService.mapperService()
-                    .merge("type", new CompressedXContent(badUpdate), MergeReason.MAPPING_UPDATE, true);
-            });
-            assertThat(e.getMessage(), containsString("mapper [field._index_prefix] has different min_chars values"));
         }
 
         {
@@ -760,7 +741,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix")
+                .startObject("index_prefixes")
                 .field("min_chars", 1)
                 .field("max_chars", 10)
                 .endObject()
@@ -783,7 +764,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix")
+                .startObject("index_prefixes")
                 .field("min_chars", 11)
                 .field("max_chars", 10)
                 .endObject()
@@ -800,7 +781,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix")
+                .startObject("index_prefixes")
                 .field("min_chars", 0)
                 .field("max_chars", 10)
                 .endObject()
@@ -817,7 +798,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .startObject("index_prefix")
+                .startObject("index_prefixes")
                 .field("min_chars", 1)
                 .field("max_chars", 25)
                 .endObject()
@@ -834,13 +815,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
-                .field("index_prefix", (String) null)
+                .field("index_prefixes", (String) null)
                 .endObject().endObject()
                 .endObject().endObject());
             MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> parser.parse("type", new CompressedXContent(badConfigMapping))
             );
-            assertThat(e.getMessage(), containsString("[index_prefix] must not have a [null] value"));
+            assertThat(e.getMessage(), containsString("[index_prefixes] must not have a [null] value"));
         }
 
         {
@@ -848,13 +829,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("index", "false")
-                .startObject("index_prefix").endObject()
+                .startObject("index_prefixes").endObject()
                 .endObject().endObject()
                 .endObject().endObject());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse("type", new CompressedXContent(badConfigMapping))
             );
-            assertThat(e.getMessage(), containsString("Cannot set index_prefix on unindexed field [field]"));
+            assertThat(e.getMessage(), containsString("Cannot set index_prefixes on unindexed field [field]"));
         }
     }
 }

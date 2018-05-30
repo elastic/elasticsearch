@@ -64,3 +64,8 @@ If the `format` in the mappings is not compatible with the numeric input value, 
 The execution hints `global_ordinals_hash` and `global_ordinals_low_cardinality` are deprecated and should be replaced
 by `global_ordinals` which now internally choose whether it should remap global ordinals to dense ordinals or directly use the
 segment ordinals.
+
+==== `missing` is deprecated in the `composite` aggregation
+
+The `missing` option of the `composite` aggregation is deprecated, `missing_bucket`
+should be used instead.

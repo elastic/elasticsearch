@@ -17,26 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.reinit;
+package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-
 /**
- * Builder for a cluster update settings request
+ * Builder for the reload secure settings nodes request
  */
-public class NodesReInitRequestBuilder
-        extends NodesOperationRequestBuilder<NodesReInitRequest, NodesReInitResponse, NodesReInitRequestBuilder> {
+public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationRequestBuilder<NodesReloadSecureSettingsRequest,
+        NodesReloadSecureSettingsResponse, NodesReloadSecureSettingsRequestBuilder> {
 
-    public NodesReInitRequestBuilder(ElasticsearchClient client, NodesReInitAction action) {
-        super(client, action, new NodesReInitRequest());
+    public NodesReloadSecureSettingsRequestBuilder(ElasticsearchClient client, NodesReloadSecureSettingsAction action) {
+        super(client, action, new NodesReloadSecureSettingsRequest());
     }
 
-    /**
-     * Sets the transient settings to be updated. They will not survive a full cluster restart
-     */
-    public NodesReInitRequestBuilder setSecureStorePassword(String secureStorePassword) {
+    public NodesReloadSecureSettingsRequestBuilder setSecureStorePassword(String secureStorePassword) {
         request.secureStorePassword(secureStorePassword);
         return this;
     }

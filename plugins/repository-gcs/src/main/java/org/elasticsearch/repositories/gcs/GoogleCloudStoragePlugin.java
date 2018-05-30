@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ReInitializablePlugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReInitializablePlugin {
+public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     // package-private for tests
     final GoogleCloudStorageService storageService;
@@ -40,7 +40,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     public GoogleCloudStoragePlugin(final Settings settings) {
         this.storageService = createStorageService(settings);
         // eagerly load client settings so that secure settings are readable (not closed)
-        reinit(settings);
+        reload(settings);
     }
 
     // overridable for tests
@@ -67,7 +67,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     }
 
     @Override
-    public boolean reinit(Settings settings) {
+    public void reload(Settings settings) {
         // Secure settings should be readable inside this method. Duplicate client
         // settings in a format (`GoogleCloudStorageClientSettings`) that does not
         // require for the `SecureSettings` to be open. Pass that around (the
@@ -75,6 +75,5 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
         this.storageService.updateClientsSettings(clientsSettings);
-        return true;
     }
 }

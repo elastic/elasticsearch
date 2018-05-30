@@ -135,7 +135,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 assertThat(((AmazonEc2Mock) clientReference.client()).configuration.getProxyPort(), is(881));
                 assertThat(((AmazonEc2Mock) clientReference.client()).endpoint, is("ec2_endpoint_1"));
                 // reload secure settings2
-                plugin.reinit(settings2);
+                plugin.reload(settings2);
                 // client is not released, it is still using the old settings
                 assertThat(((AmazonEc2Mock) clientReference.client()).credentials.getCredentials().getAWSAccessKeyId(), is("ec2_access_1"));
                 assertThat(((AmazonEc2Mock) clientReference.client()).credentials.getCredentials().getAWSSecretKey(), is("ec2_secret_1"));

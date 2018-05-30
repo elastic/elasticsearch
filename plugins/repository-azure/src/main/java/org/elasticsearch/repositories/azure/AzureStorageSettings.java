@@ -185,7 +185,7 @@ final class AzureStorageSettings {
     }
 
     /**
-     * Parses settings and read all settings available under azure.client.*
+     * Parse and read all settings available under the azure.client.* namespace
      * @param settings settings to parse
      * @return All the named configurations
      */

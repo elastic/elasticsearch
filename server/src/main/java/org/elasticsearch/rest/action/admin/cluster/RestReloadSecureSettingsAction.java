@@ -19,9 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.reinit.NodesReInitAction;
-import org.elasticsearch.action.admin.cluster.reinit.NodesReInitRequest;
-import org.elasticsearch.action.admin.cluster.reinit.NodesReInitResponse;
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,31 +37,32 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public final class RestReInitAction extends BaseRestHandler {
+public final class RestReloadSecureSettingsAction extends BaseRestHandler {
 
-    public RestReInitAction(Settings settings, RestController controller) {
+    public RestReloadSecureSettingsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, "/_nodes/reinit", this);
-        controller.registerHandler(POST, "/_nodes/{nodeId}/reinit", this);
+        controller.registerHandler(POST, "/_nodes/reload_secure_settings", this);
+        controller.registerHandler(POST, "/_nodes/{nodeId}/reload_secure_settings", this);
     }
 
     @Override
     public String getName() {
-        return "nodes_reinit_action";
+        return "nodes_reload_action";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        final NodesReInitRequest nodesReInitRequest = new NodesReInitRequest(nodesIds);
-        nodesReInitRequest.timeout(request.param("timeout"));
-        nodesReInitRequest.secureStorePassword(request.param("secureStorePassword", ""));
-
-        return channel -> client.admin().cluster().execute(NodesReInitAction.INSTANCE, nodesReInitRequest,
-                new RestBuilderListener<NodesReInitResponse>(channel) {
-
+        return channel -> client.admin()
+                .cluster()
+                .prepareReloadSecureSettings()
+                .setTimeout(request.param("timeout"))
+                .setNodesIds(nodesIds)
+                .setSecureStorePassword(request.param("secure_settings_password", ""))
+                .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(NodesReInitResponse response, XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
+                            throws Exception {
                         builder.startObject();
                         RestActions.buildNodesHeader(builder, channel.request(), response);
                         builder.field("cluster_name", response.getClusterName().value());
@@ -73,7 +72,6 @@ public final class RestReInitAction extends BaseRestHandler {
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });
-
     }
 
     @Override

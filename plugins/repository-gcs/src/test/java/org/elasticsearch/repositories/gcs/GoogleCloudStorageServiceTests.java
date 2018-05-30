@@ -100,7 +100,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs3"));
             assertThat(e1.getMessage(), containsString("Unknown client name [gcs3]."));
             // update client settings
-            plugin.reinit(settings2);
+            plugin.reload(settings2);
             // old client 1 not changed
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             // new client 1 is changed

@@ -17,62 +17,69 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.reinit;
+package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Request for an update cluster settings action
+ * Request for a reload secure settings action
  */
-public class NodesReInitRequest extends BaseNodesRequest<NodesReInitRequest> {
+public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> {
 
-    private String secureStorePassword;
+    /**
+     * The password which is broadcasted to all nodes, but is never stored on
+     * persistent storage. The password is used to reread and decrypt the contents
+     * of the node's keystore (backing the implementation of
+     * {@code SecureSettings}).
+     */
+    private String secureSettingsPassword;
 
-    public NodesReInitRequest() {
+    public NodesReloadSecureSettingsRequest() {
     }
 
     /**
-     * Get usage from nodes based on the nodes ids specified. If none are
-     * passed, usage for all nodes will be returned.
+     * Reload secure settings only on certain nodes, based on the nodes ids
+     * specified. If none are passed, secure settings will be reloaded on all the
+     * nodes.
      */
-    public NodesReInitRequest(String... nodesIds) {
+    public NodesReloadSecureSettingsRequest(String... nodesIds) {
         super(nodesIds);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (secureStorePassword == null) {
-            validationException = addValidationError("secure store password cannot be null (use empty string).", validationException);
+        if (secureSettingsPassword == null) {
+            validationException = addValidationError("secure settings password cannot be null (use empty string instead)",
+                    validationException);
         }
         return validationException;
     }
 
-    public String secureStorePassword() {
-        return secureStorePassword;
+    public String secureSettingsPassword() {
+        return secureSettingsPassword;
     }
 
-    public NodesReInitRequest secureStorePassword(String secureStorePassword) {
-        this.secureStorePassword = secureStorePassword;
+    public NodesReloadSecureSettingsRequest secureStorePassword(String secureStorePassword) {
+        this.secureSettingsPassword = secureStorePassword;
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        secureStorePassword = in.readString();
+        secureSettingsPassword = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(secureStorePassword);
+        out.writeString(secureSettingsPassword);
     }
 }

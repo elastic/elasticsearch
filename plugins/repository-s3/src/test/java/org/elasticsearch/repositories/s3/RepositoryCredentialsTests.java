@@ -179,7 +179,7 @@ public class RepositoryCredentialsTests extends ESTestCase {
                 newSecureSettings.setString("s3.client." + clientName + ".secret_key", "new_secret_aws_secret");
                 final Settings newSettings = Settings.builder().setSecureSettings(newSecureSettings).build();
                 // reload S3 plugin settings
-                s3Plugin.reinit(newSettings);
+                s3Plugin.reload(newSettings);
                 // check the not-yet-closed client reference still has the same credentials
                 if (repositorySettings) {
                     assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));

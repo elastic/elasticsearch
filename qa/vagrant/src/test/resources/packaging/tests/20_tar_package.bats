@@ -68,6 +68,7 @@ setup() {
 @test "[TAR] install archive" {
     # Install the archive
     install_archive
+    set_debug_logging
 
     count=$(find /tmp -type d -name 'elasticsearch*' | wc -l)
     [ "$count" -eq 1 ]

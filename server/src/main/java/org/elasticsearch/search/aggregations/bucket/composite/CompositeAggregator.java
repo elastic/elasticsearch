@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.DocValueFormat;
@@ -50,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
 final class CompositeAggregator extends BucketsAggregator {
@@ -59,9 +61,10 @@ final class CompositeAggregator extends BucketsAggregator {
     private final int[] reverseMuls;
     private final List<DocValueFormat> formats;
 
+    private final SingleDimensionValuesSource<?>[] sources;
     private final CompositeValuesCollectorQueue queue;
 
-    private final List<Entry> entries;
+    private final List<Entry> entries = new ArrayList<>();
     private LeafReaderContext currentLeaf;
     private RoaringDocIdSet.Builder docIdSetBuilder;
     private BucketCollector deferredCollectors;
@@ -74,19 +77,19 @@ final class CompositeAggregator extends BucketsAggregator {
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        final SingleDimensionValuesSource<?>[] sources =
-            createValuesSources(context.bigArrays(), context.searcher().getIndexReader(), context.query(), sourceConfigs, size);
-        this.queue = new CompositeValuesCollectorQueue(sources, size);
-        this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
-        if (rawAfterKey != null) {
-            queue.setAfter(rawAfterKey.values());
+        this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
+        for (int i = 0; i < sourceConfigs.length; i++) {
+            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(),
+                context.query(), sourceConfigs[i], size, i);
         }
-        this.entries = new ArrayList<>();
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
     }
 
     @Override
     protected void doClose() {
         Releasables.close(queue);
+        Releasables.close(sources);
     }
 
     @Override
@@ -256,94 +259,93 @@ final class CompositeAggregator extends BucketsAggregator {
         };
     }
 
-    private static SingleDimensionValuesSource<?>[] createValuesSources(BigArrays bigArrays, IndexReader reader, Query query,
-                                                                        CompositeValuesSourceConfig[] configs, int size) {
-        final SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource[configs.length];
-        for (int i = 0; i < sources.length; i++) {
-            final int reverseMul = configs[i].reverseMul();
-            if (configs[i].valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
-                ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) configs[i].valuesSource();
-                sources[i] = new GlobalOrdinalValuesSource(
+    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader, Query query,
+                                                              CompositeValuesSourceConfig config, int sortRank, int size) {
+
+        final int reverseMul = config.reverseMul();
+        if (config.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
+            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) config.valuesSource();
+            SingleDimensionValuesSource<?> source = new GlobalOrdinalValuesSource(
+                bigArrays,
+                config.fieldType(),
+                vs::globalOrdinalsValues,
+                config.format(),
+                config.missingBucket(),
+                config.missing(),
+                size,
+                reverseMul
+            );
+
+            if (sortRank == 0 && source.createSortedDocsProducerOrNull(reader, query) != null) {
+                // this the leading source and we can optimize it with the sorted docs producer but
+                // we don't want to use global ordinals because the number of visited documents
+                // should be low and global ordinals need one lookup per visited term.
+                Releasables.close(source);
+                return new BinaryValuesSource(
                     bigArrays,
-                    configs[i].fieldType(),
-                    vs::globalOrdinalsValues,
-                    configs[i].format(),
-                    configs[i].missing(),
-                    size,
-                    reverseMul
-                );
-
-                if (i == 0 && sources[i].createSortedDocsProducerOrNull(reader, query) != null) {
-                    // this the leading source and we can optimize it with the sorted docs producer but
-                    // we don't want to use global ordinals because the number of visited documents
-                    // should be low and global ordinals need one lookup per visited term.
-                    Releasables.close(sources[i]);
-                    sources[i] = new BinaryValuesSource(
-                        configs[i].fieldType(),
-                        vs::bytesValues,
-                        configs[i].format(),
-                        configs[i].missing(),
-                        size,
-                        reverseMul
-                    );
-                }
-            } else if (configs[i].valuesSource() instanceof ValuesSource.Bytes) {
-                ValuesSource.Bytes vs = (ValuesSource.Bytes) configs[i].valuesSource();
-                sources[i] = new BinaryValuesSource(
-                    configs[i].fieldType(),
+                    this::addRequestCircuitBreakerBytes,
+                    config.fieldType(),
                     vs::bytesValues,
-                    configs[i].format(),
-                    configs[i].missing(),
+                    config.format(),
+                    config.missingBucket(),
+                    config.missing(),
+                    size,
+                    reverseMul
+                );
+            } else {
+                return source;
+            }
+        } else if (config.valuesSource() instanceof ValuesSource.Bytes) {
+            ValuesSource.Bytes vs = (ValuesSource.Bytes) config.valuesSource();
+            return new BinaryValuesSource(
+                bigArrays,
+                this::addRequestCircuitBreakerBytes,
+                config.fieldType(),
+                vs::bytesValues,
+                config.format(),
+                config.missingBucket(),
+                config.missing(),
+                size,
+                reverseMul
+            );
+
+        } else if (config.valuesSource() instanceof ValuesSource.Numeric) {
+            final ValuesSource.Numeric vs = (ValuesSource.Numeric) config.valuesSource();
+            if (vs.isFloatingPoint()) {
+                return new DoubleValuesSource(
+                    bigArrays,
+                    config.fieldType(),
+                    vs::doubleValues,
+                    config.format(),
+                    config.missingBucket(),
+                    config.missing(),
                     size,
                     reverseMul
                 );
 
-            } else if (configs[i].valuesSource() instanceof ValuesSource.Numeric) {
-                final ValuesSource.Numeric vs = (ValuesSource.Numeric) configs[i].valuesSource();
-                if (vs.isFloatingPoint()) {
-                    sources[i] = new DoubleValuesSource(
-                        bigArrays,
-                        configs[i].fieldType(),
-                        vs::doubleValues,
-                        configs[i].format(),
-                        configs[i].missing(),
-                        size,
-                        reverseMul
-                    );
-
-                } else {
-                    if (vs instanceof RoundingValuesSource) {
-                        sources[i] = new LongValuesSource(
-                            bigArrays,
-                            configs[i].fieldType(),
-                            vs::longValues,
-                            ((RoundingValuesSource) vs)::round,
-                            configs[i].format(),
-                            configs[i].missing(),
-                            size,
-                            reverseMul
-                        );
-
-                    } else {
-                        sources[i] = new LongValuesSource(
-                            bigArrays,
-                            configs[i].fieldType(),
-                            vs::longValues,
-                            (value) -> value,
-                            configs[i].format(),
-                            configs[i].missing(),
-                            size,
-                            reverseMul
-                        );
-
-                    }
-                }
             } else {
-                throw new IllegalArgumentException("Unknown value source: " + configs[i].valuesSource().getClass().getName() +
-                    " for field: " + sources[i].fieldType.name());
+                final LongUnaryOperator rounding;
+                if (vs instanceof RoundingValuesSource) {
+                    rounding = ((RoundingValuesSource) vs)::round;
+                } else {
+                    rounding = LongUnaryOperator.identity();
+                }
+                return new LongValuesSource(
+                    bigArrays,
+                    config.fieldType(),
+                    vs::longValues,
+                    rounding,
+                    config.format(),
+                    config.missingBucket(),
+                    config.missing(),
+                    size,
+                    reverseMul
+                );
             }
+        } else {
+            throw new IllegalArgumentException("Unknown values source type: " + config.valuesSource().getClass().getName() +
+                " for source: " + config.name());
         }
-        return sources;
     }
 
     private static class Entry {

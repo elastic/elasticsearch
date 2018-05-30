@@ -182,7 +182,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.cancelPersistentTask(jobTask.getId(),
+            persistentTasksService.sendRemoveRequest(jobTask.getId(),
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                         @Override
                         public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {

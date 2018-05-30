@@ -21,7 +21,10 @@ import java.nio.file.Files
 
 import org.gradle.util.GradleVersion
 
-apply plugin: 'groovy'
+plugins {
+  id 'java-gradle-plugin'
+  id 'groovy'
+}
 
 group = 'org.elasticsearch.gradle'
 
@@ -83,7 +86,6 @@ repositories {
 }
 
 dependencies {
-  compile gradleApi()
   compile localGroovy()
   compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
   compile("junit:junit:${props.getProperty('junit')}") {
@@ -97,7 +99,9 @@ dependencies {
   compile 'de.thetaphi:forbiddenapis:2.5'
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
+  testCompile "junit:junit:${props.getProperty('junit')}"
 }
+
 
 // Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
 // Use logging dependency instead
@@ -114,14 +118,12 @@ dependencies {
  *****************************************************************************/
 // this will only happen when buildSrc is built on its own during build init
 if (project == rootProject) {
-
   repositories {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
     }
     mavenCentral()
   }
-  test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
 }
 
 /*****************************************************************************
@@ -159,17 +161,7 @@ if (project != rootProject) {
   }
 
   namingConventions {
-    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
-    integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
-    // this is a self test, so should the classes dir change from this, it will fail
-    dirsToCheck = files("$buildDir/classes/java/test")
+    testClass = 'org.elasticsearch.gradle.GradleUnitTestCase'
+    integTestClass = 'org.elasticsearch.gradle.GradleIntegrationTests'
   }
-
-  task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
-    checkForTestsInMain = true
-    testClass = namingConventions.testClass
-    integTestClass = namingConventions.integTestClass
-    dirsToCheck = files("$buildDir/classes/java/main")
-  }
-  precommit.dependsOn namingConventionsMain
 }

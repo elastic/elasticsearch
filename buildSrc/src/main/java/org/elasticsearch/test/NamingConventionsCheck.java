@@ -39,11 +39,6 @@ import java.util.regex.Pattern;
  * a class with a main method so gradle can call it for each project. This has the advantage of allowing gradle to calculate when it is
  * {@code UP-TO-DATE} so it can be skipped if the compiled classes haven't changed. This is useful on large modules for which checking all
  * the modules can be slow.
- *
- * Annoyingly, this cannot be tested using standard unit tests because to do so you'd have to declare classes that violate the rules. That
- * would cause the test fail which would prevent the build from passing. So we have to make a mechanism for removing those test classes. Now
- * that we have such a mechanism it isn't much work to fail the process if we don't detect the offending classes. Thus, the funky
- * {@code --self-test} that is only run in the test:framework project.
  */
 public class NamingConventionsCheck {
     public static void main(String[] args) throws IOException {
@@ -51,7 +46,6 @@ public class NamingConventionsCheck {
         Class<?> integTestClass = null;
         String rootPathList = null;
         boolean skipIntegTestsInDisguise = false;
-        boolean selfTest = false;
         boolean checkMainClasses = false;
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
@@ -64,9 +58,6 @@ public class NamingConventionsCheck {
                     break;
                 case "--skip-integ-tests-in-disguise":
                     skipIntegTestsInDisguise = true;
-                    break;
-                case "--self-test":
-                    selfTest = true;
                     break;
                 case "--main":
                     checkMainClasses = true;
@@ -86,21 +77,6 @@ public class NamingConventionsCheck {
                 check.checkMain(rootPath);
             } else {
                 check.checkTests(rootPath, skipIntegTestsInDisguise);
-            }
-        }
-
-        if (selfTest) {
-            if (checkMainClasses) {
-                assertViolation(NamingConventionsCheckInMainTests.class.getName(), check.testsInMain);
-                assertViolation(NamingConventionsCheckInMainIT.class.getName(), check.testsInMain);
-            } else {
-                assertViolation("WrongName", check.missingSuffix);
-                assertViolation("WrongNameTheSecond", check.missingSuffix);
-                assertViolation("DummyAbstractTests", check.notRunnable);
-                assertViolation("DummyInterfaceTests", check.notRunnable);
-                assertViolation("InnerTests", check.innerClasses);
-                assertViolation("NotImplementingTests", check.notImplementing);
-                assertViolation("PlainUnit", check.pureUnitTest);
             }
         }
 
@@ -143,7 +119,9 @@ public class NamingConventionsCheck {
         Files.walkFileTree(rootPath, new TestClassVisitor() {
             @Override
             protected void visitTestClass(Class<?> clazz) {
-                if (skipTestsInDisguised == false && integTestClass.isAssignableFrom(clazz)) {
+                if (skipTestsInDisguised == false &&
+                    integTestClass.isAssignableFrom(clazz) &&
+                    clazz != integTestClass) {
                     integTestsInDisguise.add(clazz);
                 }
                 if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
@@ -259,15 +237,16 @@ public class NamingConventionsCheck {
          * Visit classes named like a test.
          */
         protected abstract void visitTestClass(Class<?> clazz);
+
         /**
          * Visit classes named like an integration test.
          */
         protected abstract void visitIntegrationTestClass(Class<?> clazz);
+
         /**
          * Visit classes not named like a test at all.
          */
         protected abstract void visitOtherClass(Class<?> clazz);
-
         @Override
         public final FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
             // First we visit the root directory
@@ -315,5 +294,7 @@ public class NamingConventionsCheck {
         public final FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
             throw exc;
         }
+
     }
+
 }

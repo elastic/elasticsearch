@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package namingConventionsSelfTest.src.test.java.org.elasticsearch.test;
 
 /**
  * This class should fail the naming conventions self test.

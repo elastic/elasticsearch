@@ -78,6 +78,18 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
     }
 
     @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        readAcknowledged(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeAcknowledged(out);
+    }
+
+    @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ACKNOWLEDGED.getPreferredName(), isAcknowledged());

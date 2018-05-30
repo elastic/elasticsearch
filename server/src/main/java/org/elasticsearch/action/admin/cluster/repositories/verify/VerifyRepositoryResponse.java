@@ -174,7 +174,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         return clusterName;
     }
 
-    private void setNodes(List<NodeView> nodes) {
+    protected void setNodes(List<NodeView> nodes) {
         this.nodes = nodes.stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
     }
 
@@ -205,5 +205,22 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        VerifyRepositoryResponse other = (VerifyRepositoryResponse) obj;
+        return nodes.equals(other.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return nodes.hashCode();
     }
 }

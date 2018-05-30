@@ -68,6 +68,77 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
+A <<query-dsl-function-score-query,Function-score-query>> changes the score of the results.  
+Your results would come back like this:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 11,
+    "max_score": 87,
+    "hits": [
+      {
+        "_index": "hockey",
+        "_type": "player",
+        "_id": "2",
+        "_score": 87,
+        "_source": {
+          "first": "sean",
+          "last": "monohan",
+          "goals": [
+            7,
+            54,
+            26
+          ],
+          "assists": [
+            11,
+            26,
+            13
+          ],
+          "gp": [
+            26,
+            82,
+            82
+          ],
+          "born": "1994/10/12"
+        }
+      },
+      {
+        "_index": "hockey",
+        "_type": "player",
+        "_id": "3",
+        "_score": 75,
+        "_source": {
+          "first": "jiri",
+          "last": "hudler",
+          "goals": [
+            5,
+            34,
+            36
+          ],
+          "assists": [
+            11,
+            62,
+            42
+          ],
+          "gp": [
+            24,
+            80,
+            79
+          ],
+          "born": "1984/01/04"
+        }
+      }
+----------------------------------------------------------------
 Alternatively, you could do the same thing using a script field instead of a function score:
 
 [source,js]

@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -208,6 +209,14 @@ final class RequestConverters {
         parameters.withIndicesOptions(flushRequest.indicesOptions());
         parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
         parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return request;
+    }
+
+    static Request flushSynced(SyncedFlushRequest syncedFlushRequest) {
+        String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_flush/synced"));
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
         return request;
     }
 

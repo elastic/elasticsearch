@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
@@ -125,7 +124,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
 
     public XPackPlugin(
             final Settings settings,
-            final Path configPath) throws IOException, DestroyFailedException, OperatorCreationException, GeneralSecurityException {
+            final Path configPath) {
         super(settings);
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);

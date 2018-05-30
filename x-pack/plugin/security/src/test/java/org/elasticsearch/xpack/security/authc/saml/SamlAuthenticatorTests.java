@@ -153,9 +153,9 @@ public class SamlAuthenticatorTests extends SamlTestCase {
      */
     @BeforeClass
     public static void initCredentials() throws Exception {
-        idpSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
-        spSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
-        spEncryptionCertificatePairs = Arrays.asList(createKeyPair("RSA"), createKeyPair("RSA"));
+        idpSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
+        spSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
+        spEncryptionCertificatePairs = Arrays.asList(readKeyPair("RSA_2048"), readKeyPair("RSA_4096"));
     }
 
     private static String randomSigningAlgorithm() {
@@ -374,7 +374,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final String xml = getSimpleResponse(now);
 
         // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
-        final String encrypted = encryptAssertions(xml, createKeyPair("RSA"));
+        final String encrypted = encryptAssertions(xml, readKeyPair("RSA_1024"));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -391,7 +391,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final String xml = getSimpleResponse(now);
 
         // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
-        final String encrypted = encryptAttributes(xml, createKeyPair("RSA"));
+        final String encrypted = encryptAttributes(xml, readKeyPair("RSA_4096_updated"));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -937,7 +937,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         // check is rejected when signed by a different key-pair
-        final Tuple<X509Certificate, PrivateKey> wrongKey = createKeyPair(randomSigningAlgorithm());
+        final Tuple<X509Certificate, PrivateKey> wrongKey = readRandomKeyPair(randomSigningAlgorithm());
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
                 () -> authenticator.authenticate(token(signer.transform(xml, wrongKey))));
         assertThat(exception.getMessage(), containsString("SAML Signature"));
@@ -953,7 +953,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         final Tuple<X509Certificate, PrivateKey> oldKeyPair = idpSigningCertificatePair;
-        idpSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
+        //Ensure we won't read any of the ones we could have picked randomly before
+        idpSigningCertificatePair = readKeyPair("RSA_4096_updated");
         assertThat(idpSigningCertificatePair.v2(), not(equalTo(oldKeyPair.v2())));
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
     }
@@ -1013,7 +1014,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final List<Tuple<X509Certificate, PrivateKey>> keys = new ArrayList<>(numberOfKeys);
         final List<Credential> credentials = new ArrayList<>(numberOfKeys);
         for (int i = 0; i < numberOfKeys; i++) {
-            final Tuple<X509Certificate, PrivateKey> key = createKeyPair(randomSigningAlgorithm());
+            final Tuple<X509Certificate, PrivateKey> key = readRandomKeyPair(randomSigningAlgorithm());
             keys.add(key);
             credentials.addAll(buildOpenSamlCredential(key));
         }

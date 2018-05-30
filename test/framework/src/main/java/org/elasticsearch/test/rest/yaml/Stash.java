@@ -101,7 +101,7 @@ public class Stash implements ToXContentFragment {
          * String*Buffer* because that is what the Matcher API takes. In modern versions of java the uncontended synchronization is very,
          * very cheap so that should not be a problem.
          */
-        StringBuilder result = new StringBuilder(key.length());
+        StringBuffer result = new StringBuffer(key.length());
         if (false == matcher.find()) {
             throw new IllegalArgumentException("Doesn't contain any stash keys [" + key + "]");
         }
@@ -191,7 +191,7 @@ public class Stash implements ToXContentFragment {
             }
         }
         String builtPath = Matcher.quoteReplacement(pathBuilder.toString());
-        StringBuilder newKey = new StringBuilder(key.length());
+        StringBuffer newKey = new StringBuffer(key.length());
         do {
             matcher.appendReplacement(newKey, builtPath);
         } while (matcher.find());

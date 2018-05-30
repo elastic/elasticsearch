@@ -272,7 +272,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::get-pipeline-request
             GetPipelineRequest request = new GetPipelineRequest("my-pipeline-id"); // <1>
-            // end::end-pipeline-request
+            // end::get-pipeline-request
 
             // tag::get-pipeline-request-masterTimeout
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>

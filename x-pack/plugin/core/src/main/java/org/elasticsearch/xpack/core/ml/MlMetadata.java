@@ -124,7 +124,19 @@ public class MlMetadata implements MetaData.Custom {
 
     @Override
     public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+        /*
+         * We generally can not expose ML custom metadata because we might be communicating with a client that does not understand such
+         * custom metadata. This can happen, for example, when a transport client without the X-Pack plugin is connected to a 6.3.0 cluster
+         * running the default distribution. To avoid sending such a client a metadata custom that it can not understand, we do not return
+         * ML custom metadata in response to cluster state requests. However, this a breaking change from previous versions where we assumed
+         * that any client would have X-Pack installed. To reinstate the previous behavior (e.g., for debugging) we provide the following
+         * undocumented system property. This system property could be removed at any time.
+         */
+        if (Boolean.parseBoolean(System.getProperty("es.xpack.ml.api_metadata_context", "false"))) {
+            return MetaData.ALL_CONTEXTS;
+        } else {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
+        }
     }
 
     @Override

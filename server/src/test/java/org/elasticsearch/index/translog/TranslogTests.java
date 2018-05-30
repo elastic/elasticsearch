@@ -97,7 +97,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -109,6 +108,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -1544,7 +1544,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testSnapshotTrimmedOperations() throws Exception {
-        final TestingTranslog testingTranslog = new TestingTranslog(translog);
+        final InMemoryTranslog inMemoryTranslog = new InMemoryTranslog();
         final List<Translog.Operation> allOperations = new ArrayList<>();
 
         for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
@@ -1552,36 +1552,42 @@ public class TranslogTests extends ESTestCase {
                 .boxed().collect(Collectors.toList());
             Randomness.shuffle(ops);
 
+            AtomicReference<String> source = new AtomicReference<>();
             for (final long op : ops) {
-                String source = randomAlphaOfLengthBetween(1, 50);
+                source.set(randomAlphaOfLengthBetween(1, 50));
 
                 // have to use exactly the same source for same seq# if primaryTerm is not changed
                 if (primaryTerm.get() == translog.getCurrent().getPrimaryTerm()) {
-                    for (Translog.Operation allOp : allOperations) {
-                        if (allOp instanceof Translog.Index && allOp.seqNo() == op) {
-                            // use the latest source of op with the same seq# - therefore no break
-                            source = ((Translog.Index)allOp).source().utf8ToString();
-                        }
-                    }
+                    // use the latest source of op with the same seq# - therefore no break
+                    allOperations
+                        .stream()
+                        .filter(allOp -> allOp instanceof Translog.Index && allOp.seqNo() == op)
+                        .map(allOp -> ((Translog.Index)allOp).source().utf8ToString())
+                        .reduce((a, b) -> b)
+                        .ifPresent(source::set);
                 }
 
                 // use ongoing primaryTerms - or the same as it was
                 Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(),
-                    source.getBytes("UTF-8"));
-                testingTranslog.add(operation);
+                    source.get().getBytes("UTF-8"));
+                translog.add(operation);
+                inMemoryTranslog.add(operation);
                 allOperations.add(operation);
             }
 
             if (randomBoolean()) {
                 primaryTerm.incrementAndGet();
-                testingTranslog.rollGeneration();
+                translog.rollGeneration();
+                inMemoryTranslog.rollGeneration();
             }
 
             long maxTrimmedSeqNo = randomInt(allOperations.size());
 
-            testingTranslog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            inMemoryTranslog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            translog.sync();
 
-            List<Translog.Operation> effectiveOperations = testingTranslog.operations();
+            List<Translog.Operation> effectiveOperations = inMemoryTranslog.operations();
 
             try (Translog.Snapshot snapshot = translog.newSnapshot()) {
                 assertThat(snapshot, containsOperationsInAnyOrder(effectiveOperations));
@@ -1592,63 +1598,49 @@ public class TranslogTests extends ESTestCase {
     }
 
     /**
-     * this class mimic behaviour of original {@link Translog} and delegated to the original as well
+     * this class mimic behaviour of original {@link Translog}
      */
-    static class TestingTranslog {
+    static class InMemoryTranslog {
         private final List<List<Translog.Operation>> operationsList = new ArrayList<>();
-        private final Translog translog;
 
-        TestingTranslog(Translog translog) {
-            this.translog = translog;
+        InMemoryTranslog() {
             this.operationsList.add(new LinkedList<>());
         }
 
-        void add(Translog.Operation operation) throws IOException {
-            translog.add(operation);
+        void add(Translog.Operation operation) {
             operationsList.get(operationsList.size() - 1).add(operation);
         }
 
-        void rollGeneration() throws IOException {
-            translog.rollGeneration();
+        void rollGeneration() {
             operationsList.add(new LinkedList<>());
         }
 
-        void trimOperations(long belowTerm, long aboveSeqNo) throws IOException {
-            translog.trimOperations(belowTerm, aboveSeqNo);
-            translog.sync();
-
-            for (Iterator<List<Translog.Operation>> opListIt = operationsList.iterator();opListIt.hasNext();) {
-                if (!opListIt.hasNext()) {
-                    // ignore the last one
-                    break;
-                }
-                List<Translog.Operation> operations = opListIt.next();
-                for (Iterator<Translog.Operation> it = operations.iterator(); it.hasNext(); ) {
-                    Translog.Operation op = it.next();
-                    boolean drop = op.primaryTerm() < belowTerm && op.seqNo() > aboveSeqNo;
-                    if (drop) {
-                        it.remove();
+        void trimOperations(long belowTerm, long aboveSeqNo) {
+            operationsList
+                .stream()
+                // handle all expect last one - it has `current` ops
+                .limit(operationsList.size() - 1)
+                .forEach(operations -> {
+                    for (Iterator<Translog.Operation> it = operations.iterator(); it.hasNext(); ) {
+                        Translog.Operation op = it.next();
+                        boolean drop = op.primaryTerm() < belowTerm && op.seqNo() > aboveSeqNo;
+                        if (drop) {
+                            it.remove();
+                        }
                     }
-                }
-            }
+                });
         }
 
         List<Translog.Operation> operations() {
-            final List<Translog.Operation> actualOperations = new ArrayList<>();
-
             final Set<Long> seenSeqNo = new HashSet<>();
-            for(ListIterator<List<Translog.Operation>> listIt = operationsList.listIterator(operationsList.size()); listIt.hasPrevious();){
-                List<Translog.Operation> operations = listIt.previous();
-                for (Translog.Operation operation : operations) {
-                    if (seenSeqNo.add(operation.seqNo())) {
-                        actualOperations.add(operation);
-                    }
-                }
-            }
 
-            Collections.sort(actualOperations, Comparator.comparing(Translog.Operation::seqNo));
-
-            return actualOperations;
+            // reverse traverse of operations
+            int size = operationsList.size();
+            return IntStream.range(0, size).mapToObj(i -> operationsList.get(size - 1 - i))
+                .flatMap(operations -> operations.stream())
+                // latest ops override firsts
+                .filter(operation -> seenSeqNo.add(operation.seqNo()))
+                .collect(Collectors.toList());
         }
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
@@ -127,7 +128,7 @@ public class IndexLifecycleRunner {
      * @param indexSettings
      *            the index settings to extract the {@link StepKey} from.
      */
-    static StepKey getCurrentStepKey(Settings indexSettings) {
+    public static StepKey getCurrentStepKey(Settings indexSettings) {
         String currentPhase = LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(indexSettings);
         String currentAction = LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(indexSettings);
         String currentStep = LifecycleSettings.LIFECYCLE_STEP_SETTING.get(indexSettings);
@@ -199,13 +200,35 @@ public class IndexLifecycleRunner {
         return newClusterStateBuilder.build();
     }
 
+    ClusterState moveClusterStateToFailedStep(ClusterState currentState, String[] indices) {
+        ClusterState newState = currentState;
+        for (String index : indices) {
+            IndexMetaData indexMetaData = currentState.metaData().index(index);
+            if (indexMetaData == null) {
+                throw new IllegalArgumentException("index [" + index + "] does not exist");
+            }
+            StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(indexMetaData.getSettings());
+            String failedStep = LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(indexMetaData.getSettings());
+            if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
+                && Strings.isNullOrEmpty(failedStep) == false) {
+                StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
+                newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry);
+            } else {
+                throw new IllegalArgumentException("cannot retry an action for an index ["
+                    + index + "] that has not encountered an error when running a Lifecycle Policy");
+            }
+        }
+        return newState;
+    }
+
     private static Settings.Builder moveIndexSettingsToNextStep(Settings existingSettings, StepKey currentStep, StepKey nextStep,
             LongSupplier nowSupplier) {
         long nowAsMillis = nowSupplier.getAsLong();
         Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
                 .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
                 .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis)
-                // clear any step info from the current step
+                // clear any step info or error-related settings from the current step
+                .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, (String) null)
                 .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);

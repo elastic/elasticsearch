@@ -24,49 +24,93 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
+import java.util.function.LongConsumer;
 
 /**
  * A {@link SingleDimensionValuesSource} for binary source ({@link BytesRef}).
  */
 class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
+    private final LongConsumer breakerConsumer;
     private final CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc;
-    private final BytesRef[] values;
+    private ObjectArray<BytesRef> values;
+    private ObjectArray<BytesRefBuilder> valueBuilders;
     private BytesRef currentValue;
 
-    BinaryValuesSource(MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
-                       DocValueFormat format, Object missing, int size, int reverseMul) {
-        super(format, fieldType, missing, size, reverseMul);
+    BinaryValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
+                       MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
+                       DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
+        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
+        this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
-        this.values = new BytesRef[size];
+        this.values = bigArrays.newObjectArray(Math.min(size, 100));
+        this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
     }
 
     @Override
-    public void copyCurrent(int slot) {
-        values[slot] = BytesRef.deepCopyOf(currentValue);
+    void copyCurrent(int slot) {
+        values =  bigArrays.grow(values, slot+1);
+        valueBuilders = bigArrays.grow(valueBuilders, slot+1);
+        BytesRefBuilder builder = valueBuilders.get(slot);
+        int byteSize = builder == null ? 0 : builder.bytes().length;
+        if (builder == null) {
+            builder = new BytesRefBuilder();
+            valueBuilders.set(slot, builder);
+        }
+        if (missingBucket && currentValue == null) {
+            values.set(slot, null);
+        } else {
+            assert currentValue != null;
+            builder.copyBytes(currentValue);
+            breakerConsumer.accept(builder.bytes().length - byteSize);
+            values.set(slot, builder.get());
+        }
     }
 
     @Override
-    public int compare(int from, int to) {
-        return compareValues(values[from], values[to]);
+    int compare(int from, int to) {
+        if (missingBucket) {
+            if (values.get(from) == null) {
+                return values.get(to) == null ? 0 : -1 * reverseMul;
+            } else if (values.get(to) == null) {
+                return reverseMul;
+            }
+        }
+        return compareValues(values.get(from), values.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
-        return compareValues(currentValue, values[slot]);
+        if (missingBucket) {
+            if (currentValue == null) {
+                return values.get(slot) == null ? 0 : -1 * reverseMul;
+            } else if (values.get(slot) == null) {
+                return reverseMul;
+            }
+        }
+        return compareValues(currentValue, values.get(slot));
     }
 
     @Override
     int compareCurrentWithAfter() {
+        if (missingBucket) {
+            if (currentValue == null) {
+                return afterValue == null ? 0 : -1 * reverseMul;
+            } else if (afterValue == null) {
+                return reverseMul;
+            }
+        }
         return compareValues(currentValue, afterValue);
     }
 
@@ -76,7 +120,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void setAfter(Comparable<?> value) {
-        if (value.getClass() == String.class) {
+        if (missingBucket && value == null) {
+            afterValue = null;
+        } else if (value.getClass() == String.class) {
             afterValue = format.parseBytesRef(value.toString());
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
@@ -85,7 +131,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     BytesRef toComparable(int slot) {
-        return values[slot];
+       return values.get(slot);
     }
 
     @Override
@@ -100,6 +146,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
                         currentValue = dvs.nextValue();
                         next.collect(doc, bucket);
                     }
+                } else if (missingBucket) {
+                    currentValue = null;
+                    next.collect(doc, bucket);
                 }
             }
         };
@@ -130,5 +179,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.close(values, valueBuilders);
+    }
 }

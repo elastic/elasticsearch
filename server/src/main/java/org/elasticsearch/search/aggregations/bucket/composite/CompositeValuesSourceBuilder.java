@@ -23,6 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardException;
@@ -40,10 +42,14 @@ import java.util.Objects;
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
  */
 public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSourceBuilder<AB>> implements Writeable, ToXContentFragment {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(CompositeValuesSourceBuilder.class));
+
     protected final String name;
     private String field = null;
     private Script script = null;
     private ValueType valueType = null;
+    private boolean missingBucket = false;
     private Object missing = null;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
@@ -65,6 +71,11 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         }
         if (in.readBoolean()) {
             this.valueType = ValueType.readFromStream(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            this.missingBucket = in.readBoolean();
+        } else {
+            this.missingBucket = false;
         }
         this.missing = in.readGenericValue();
         this.order = SortOrder.readFromStream(in);
@@ -89,6 +100,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             valueType.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(missingBucket);
+        }
         out.writeGenericValue(missing);
         order.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
@@ -110,6 +124,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (script != null) {
             builder.field("script", script);
         }
+        builder.field("missing_bucket", missingBucket);
         if (missing != null) {
             builder.field("missing", missing);
         }
@@ -127,7 +142,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public final int hashCode() {
-        return Objects.hash(field, missing, script, valueType, order, format, innerHashCode());
+        return Objects.hash(field, missingBucket, missing, script, valueType, order, format, innerHashCode());
     }
 
     protected abstract int innerHashCode();
@@ -142,6 +157,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         return Objects.equals(field, that.field()) &&
             Objects.equals(script, that.script()) &&
             Objects.equals(valueType, that.valueType()) &&
+            Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(missing, that.missing()) &&
             Objects.equals(order, that.order()) &&
             Objects.equals(format, that.format()) &&
@@ -215,19 +231,41 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     /**
      * Sets the value to use when the source finds a missing value in a
-     * document
+     * document.
+     *
+     * @deprecated Use {@link #missingBucket(boolean)} instead.
      */
     @SuppressWarnings("unchecked")
+    @Deprecated
     public AB missing(Object missing) {
         if (missing == null) {
             throw new IllegalArgumentException("[missing] must not be null");
         }
+        DEPRECATION_LOGGER.deprecated("[missing] is deprecated. Please use [missing_bucket] instead.");
         this.missing = missing;
         return (AB) this;
     }
 
+    @Deprecated
     public Object missing() {
         return missing;
+    }
+
+    /**
+     * If true an explicit `null bucket will represent documents with missing values.
+     */
+    @SuppressWarnings("unchecked")
+    public AB missingBucket(boolean missingBucket) {
+        this.missingBucket = missingBucket;
+        return (AB) this;
+    }
+
+    /**
+     * False if documents with missing values are ignored, otherwise missing values are
+     * represented by an explicit `null` value.
+     */
+    public boolean missingBucket() {
+        return missingBucket;
     }
 
     /**
@@ -292,11 +330,15 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
             valueType, field, script, missing, null, format);
 
-        if (config.unmapped() && field != null && config.missing() == null) {
+        if (config.unmapped() && field != null && missing == null && missingBucket == false) {
             // this source cannot produce any values so we refuse to build
-            // since composite buckets are not created on null values
+            // since composite buckets are not created on null values by default.
             throw new QueryShardException(context.getQueryShardContext(),
-                "failed to find field [" + field + "] and [missing] is not provided");
+                "failed to find field [" + field + "] and [missing_bucket] is not set");
+        }
+        if (missingBucket && missing != null) {
+            throw new QueryShardException(context.getQueryShardContext(),
+                "cannot use [missing] option in conjunction with [missing_bucket]");
         }
         return innerBuild(context, config);
     }

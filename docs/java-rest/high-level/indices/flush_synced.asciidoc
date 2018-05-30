@@ -1,4 +1,4 @@
-[[java-rest-high-flush]]
+[[java-rest-high-flush-synced]]
 === Flush Synced API
 
 [[java-rest-high-flush-synced-request]]
@@ -60,7 +60,7 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-execu
 provided as an argument
 <2> Called in case of failure. The raised exception is provided as an argument
 
-[[java-rest-high-flush-response]]
+[[java-rest-high-flush-synced-response]]
 ==== Flush Synced Response
 
 The returned `SyncedFlushResponse` allows to retrieve information about the

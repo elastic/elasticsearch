@@ -471,17 +471,17 @@ public class SnifferTests extends RestClientTestCase {
                     future = executor.submit(wrapper);
                 }
                 Sniffer.ScheduledTask scheduledTask = new Sniffer.ScheduledTask(task, future);
-                boolean cancelOrSKip = scheduledTask.cancelOrSKip();
+                boolean skip = scheduledTask.skip();
                 try {
                     assertNull(future.get());
                 } catch(CancellationException ignore) {
                     assertTrue(future.isCancelled());
                 }
 
-                if (cancelOrSKip) {
+                if (skip) {
                     //the task was either cancelled before starting, in which case it will never start (thanks to Future#cancel),
                     //or skipped, in which case it will run but do nothing (thanks to Task#skip).
-                    //Here we want to make sure that whenever cancelOrSkip returns true, the task either won't run or it won't do anything,
+                    //Here we want to make sure that whenever skip returns true, the task either won't run or it won't do anything,
                     //otherwise we may end up with parallel sniffing tracks given that each task schedules the following one. We need to
                     // make sure that onFailure takes scheduling over while at the same time ordinary rounds don't go on.
                     assertFalse(task.hasStarted());
@@ -491,7 +491,7 @@ public class SnifferTests extends RestClientTestCase {
                 } else {
                     //if a future is cancelled when its execution has already started, future#get throws CancellationException before
                     //completion. The execution continues though so we use a latch to try and wait for the task to be completed.
-                    //Here we want to make sure that whenever cancelOrSkip returns false, the task will be completed, otherwise we may be
+                    //Here we want to make sure that whenever skip returns false, the task will be completed, otherwise we may be
                     //missing to schedule the following round, which means no sniffing will ever happen again besides on failure sniffing.
                     assertTrue(wrapper.await());
                     //the future may or may not be cancelled but the task has for sure started and completed
@@ -502,7 +502,7 @@ public class SnifferTests extends RestClientTestCase {
                 //subsequent cancel calls return false for sure
                 int cancelCalls = randomIntBetween(1, 10);
                 for (int j = 0; j < cancelCalls; j++) {
-                    assertFalse(scheduledTask.cancelOrSKip());
+                    assertFalse(scheduledTask.skip());
                 }
             }
         } finally {

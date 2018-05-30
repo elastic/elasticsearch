@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -292,6 +294,66 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             // tag::delete-repository-execute-async
             client.snapshot().deleteRepositoryAsync(request, listener); // <1>
             // end::delete-repository-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSnapshotVerifyRepository() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        createTestRepositories();
+
+        // tag::verify-repository-request
+        VerifyRepositoryRequest request = new VerifyRepositoryRequest(repositoryName);
+        // end::verify-repository-request
+
+        // tag::verify-repository-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::verify-repository-request-masterTimeout
+        // tag::verify-repository-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.timeout("1m"); // <2>
+        // end::verify-repository-request-timeout
+
+        // tag::verify-repository-execute
+        VerifyRepositoryResponse response = client.snapshot().verifyRepository(request);
+        // end::verify-repository-execute
+
+        // tag::verify-repository-response
+        List<VerifyRepositoryResponse.NodeView> repositoryMetaDataResponse = response.getNodes();
+        // end::verify-repository-response
+        assertThat(1, equalTo(repositoryMetaDataResponse.size()));
+        assertThat("node-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+    }
+
+    public void testSnapshotVerifyRepositoryAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            VerifyRepositoryRequest request = new VerifyRepositoryRequest(repositoryName);
+
+            // tag::verify-repository-execute-listener
+            ActionListener<VerifyRepositoryResponse> listener =
+                new ActionListener<VerifyRepositoryResponse>() {
+                    @Override
+                    public void onResponse(VerifyRepositoryResponse verifyRepositoryRestResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::verify-repository-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::verify-repository-execute-async
+            client.snapshot().verifyRepositoryAsync(request, listener); // <1>
+            // end::verify-repository-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

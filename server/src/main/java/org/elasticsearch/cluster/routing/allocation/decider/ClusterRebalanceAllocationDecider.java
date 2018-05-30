@@ -48,7 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "cluster_rebalance";
-    private static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
+    public static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
     public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING =
         new Setting<>(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
             ClusterRebalanceType::parseString, Property.Dynamic, Property.NodeScope);

@@ -2066,9 +2066,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ShardStateMetaData getShardStateMetaData() {
-        synchronized (mutex) {
-            return new ShardStateMetaData(shardRouting.primary(), indexSettings.getUUID(), shardRouting.allocationId());
-        }
+        final ShardRouting shardRouting = this.shardRouting;
+        return new ShardStateMetaData(shardRouting.primary(), indexSettings.getUUID(), shardRouting.allocationId());
     }
 
     /**

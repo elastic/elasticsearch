@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Objects;
 
 public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
@@ -35,6 +37,11 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public boolean compat(final Version version, final Map<String, String> headers) {
+        return headers.containsKey("has_xpack");
     }
 
     @Override

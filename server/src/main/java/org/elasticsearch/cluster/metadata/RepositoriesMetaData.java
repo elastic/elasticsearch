@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -36,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Contains metadata about registered snapshot repositories
@@ -177,6 +179,11 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
             toXContent(repository, builder, params);
         }
         return builder;
+    }
+
+    @Override
+    public boolean compat(final Version version, final Map<String, String> headers) {
+        return true;
     }
 
     @Override

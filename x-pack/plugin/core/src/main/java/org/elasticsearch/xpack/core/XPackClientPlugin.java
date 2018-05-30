@@ -184,15 +184,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     static Settings additionalSettings(final Settings settings, final boolean enabled, final boolean transportClientMode) {
+        final Settings.Builder builder = Settings.builder();
         if (enabled && transportClientMode) {
-            final Settings.Builder builder = Settings.builder();
             builder.put(SecuritySettings.addTransportSettings(settings));
             builder.put(SecuritySettings.addUserSettings(settings));
-            builder.put(ThreadContext.PREFIX + "." + "has_xpack", true);
-            return builder.build();
-        } else {
-            return Settings.EMPTY;
         }
+        builder.put(ThreadContext.PREFIX + "." + "has_xpack", true);
+        return builder.build();
     }
 
     @Override

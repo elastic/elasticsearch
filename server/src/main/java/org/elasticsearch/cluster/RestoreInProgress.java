@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -380,6 +382,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public boolean compat(final Version version, final Map<String, String> headers) {
+        return true;
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {

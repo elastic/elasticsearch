@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.ParseField;
@@ -43,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -95,6 +97,11 @@ public final class IndexGraveyard implements MetaData.Custom {
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public boolean compat(final Version version, final Map<String, String> headers) {
+        return true;
     }
 
     @Override

@@ -123,6 +123,11 @@ public class MlMetadata implements MetaData.Custom {
     }
 
     @Override
+    public boolean compat(final Version version, final Map<String, String> headers) {
+        return headers.containsKey("has_xpack");
+    }
+
+    @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.ALL_CONTEXTS;
     }

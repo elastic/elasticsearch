@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
@@ -62,6 +63,10 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
         return TYPE;
     }
 
+    @Override
+    public boolean compat(final Version version, final Map<String, String> headers) {
+        return version.onOrAfter(Version.V_6_0_0_beta2) && headers.containsKey("has_xpack");
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -88,11 +93,6 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
     @Override
     public String toString() {
         return "TokenMetaData{ everything is secret }";
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_6_0_0_beta2;
     }
 
     @Override

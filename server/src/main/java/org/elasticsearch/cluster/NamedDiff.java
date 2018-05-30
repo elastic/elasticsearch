@@ -22,15 +22,15 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 
+import java.util.Map;
+
 /**
  * Diff that also support NamedWriteable interface
  */
 public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteable {
-    /**
-     * The minimal version of the recipient this custom object can be sent to
-     */
-    default Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
+
+    default boolean compat(final Version version, @SuppressWarnings("unused") final Map<String, String> headers) {
+        return version.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
 }

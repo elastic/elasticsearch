@@ -783,13 +783,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+            if (cursor.value.compat(out.getVersion(), out.getHeaders())) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
         for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+            if (cursor.value.compat(out.getVersion(), out.getHeaders())) {
                 out.writeNamedWriteable(cursor.value);
             }
         }

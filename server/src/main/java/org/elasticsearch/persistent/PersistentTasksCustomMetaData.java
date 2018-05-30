@@ -188,8 +188,8 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0;
+    public boolean compat(final Version version, final Map<String, String> headers) {
+        return version.onOrAfter(Version.V_5_4_0) && headers.containsKey("has_xpack");
     }
 
     @Override

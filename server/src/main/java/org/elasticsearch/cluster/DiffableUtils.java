@@ -437,16 +437,17 @@ public final class DiffableUtils {
                 keySerializer.writeKey(delete, out);
             }
             Version version = out.getVersion();
+            final Map<String, String> headers = out.getHeaders();
             // filter out custom states not supported by the other node
             int diffCount = 0;
             for (Diff<T> diff : diffs.values()) {
-                if(valueSerializer.supportsVersion(diff, version)) {
+                if(valueSerializer.supportsVersion(diff, version, headers)) {
                     diffCount++;
                 }
             }
             out.writeVInt(diffCount);
             for (Map.Entry<K, Diff<T>> entry : diffs.entrySet()) {
-                if(valueSerializer.supportsVersion(entry.getValue(), version)) {
+                if(valueSerializer.supportsVersion(entry.getValue(), version, headers)) {
                     keySerializer.writeKey(entry.getKey(), out);
                     valueSerializer.writeDiff(entry.getValue(), out);
                 }
@@ -454,7 +455,7 @@ public final class DiffableUtils {
             // filter out custom states not supported by the other node
             int upsertsCount = 0;
             for (T upsert : upserts.values()) {
-                if(valueSerializer.supportsVersion(upsert, version)) {
+                if(valueSerializer.supportsVersion(upsert, version, headers)) {
                     upsertsCount++;
                 }
             }
@@ -561,14 +562,14 @@ public final class DiffableUtils {
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(Diff<V> value, Version version) {
+        default boolean supportsVersion(Diff<V> value, Version version, Map<String, String> headers) {
             return true;
         }
 
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(V value, Version version) {
+        default boolean supportsVersion(V value, Version version, Map<String, String> headers) {
             return true;
         }
 

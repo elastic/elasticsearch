@@ -98,6 +98,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     private Version version = Version.CURRENT;
+    private Map<String, String> headers = Collections.emptyMap();
 
     /**
      * The version of the node on the other side of this stream.
@@ -111,6 +112,14 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void setVersion(Version version) {
         this.version = version;
+    }
+
+    public Map<String, String> getHeaders() {
+        return this.headers;
+    }
+
+    public void setHeaders(final Map<String, String> headers) {
+        this.headers = Collections.unmodifiableMap(new HashMap<>(headers));
     }
 
     public long position() throws IOException {

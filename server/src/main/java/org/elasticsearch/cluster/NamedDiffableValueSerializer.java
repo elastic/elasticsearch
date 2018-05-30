@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Value Serializer for named diffables
@@ -41,13 +42,13 @@ public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends Di
     }
 
     @Override
-    public boolean supportsVersion(Diff<T> value, Version version) {
-        return version.onOrAfter(((NamedDiff<?>)value).getMinimalSupportedVersion());
+    public boolean supportsVersion(final Diff<T> value, final Version version, final Map<String, String> headers) {
+        return ((NamedDiff<?>)value).compat(version, headers);
     }
 
     @Override
-    public boolean supportsVersion(T value, Version version) {
-        return version.onOrAfter(value.getMinimalSupportedVersion());
+    public boolean supportsVersion(final T value, final Version version, final Map<String, String> headers) {
+        return value.compat(version, headers);
     }
 
     @SuppressWarnings("unchecked")
@@ -55,4 +56,5 @@ public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends Di
     public Diff<T> readDiff(StreamInput in, String key) throws IOException {
         return in.readNamedWriteable(NamedDiff.class, key);
     }
+
 }

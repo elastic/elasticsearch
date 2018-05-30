@@ -139,7 +139,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     }
 
     protected void setNodes(List<NodeView> nodes) {
-        this.nodes = nodes.stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
+        this.nodes = nodes;
     }
 
     @Override

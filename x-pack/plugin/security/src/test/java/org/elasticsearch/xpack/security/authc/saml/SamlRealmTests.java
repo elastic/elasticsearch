@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
@@ -22,7 +21,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
@@ -40,17 +40,11 @@ import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
 
-import javax.security.auth.x500.X500Principal;
-
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PrivilegedActionException;
 import java.security.PublicKey;
@@ -308,17 +302,23 @@ public class SamlRealmTests extends SamlTestCase {
     public void testCreateCredentialFromPemFiles() throws Exception {
         final Settings.Builder builder = buildSettings("http://example.com");
         final Path dir = createTempDir("encryption");
-        final KeyPair pair = buildKeyPair();
-        final X509Certificate cert = buildCertificate(pair);
-        builder.put(REALM_SETTINGS_PREFIX + ".encryption.key", writePemObject(dir, "enc.key", pair.getPrivate()).toString());
-        builder.put(REALM_SETTINGS_PREFIX + ".encryption.certificate", writePemObject(dir, "enc.crt", cert).toString());
+        final Path encryptionKeyPath = getDataPath("encryption.key");
+        final Path destEncryptionKeyPath = dir.resolve("encryption.key");
+        final PrivateKey encryptionKey = PemUtils.readPrivateKey(encryptionKeyPath, "encryption"::toCharArray);
+        final Path encryptionCertPath = getDataPath("encryption.crt");
+        final Path destEncryptionCertPath = dir.resolve("encryption.crt");
+        final X509Certificate encryptionCert = CertParsingUtils.readX509Certificates(Collections.singletonList(encryptionCertPath))[0];
+        Files.copy(encryptionKeyPath, destEncryptionKeyPath);
+        Files.copy(encryptionCertPath, destEncryptionCertPath);
+        builder.put(REALM_SETTINGS_PREFIX + ".encryption.key", destEncryptionKeyPath);
+        builder.put(REALM_SETTINGS_PREFIX + ".encryption.certificate", destEncryptionCertPath);
         final Settings settings = builder.build();
         final RealmConfig realmConfig = realmConfigFromGlobalSettings(settings);
         final Credential credential = SamlRealm.buildEncryptionCredential(realmConfig).get(0);
 
         assertThat(credential, notNullValue());
-        assertThat(credential.getPrivateKey(), equalTo(pair.getPrivate()));
-        assertThat(credential.getPublicKey(), equalTo(pair.getPublic()));
+        assertThat(credential.getPrivateKey(), equalTo(encryptionKey));
+        assertThat(credential.getPublicKey(), equalTo(encryptionCert.getPublicKey()));
     }
 
     public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
@@ -328,9 +328,8 @@ public class SamlRealmTests extends SamlTestCase {
                 .put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
         final boolean testMultipleEncryptionKeyPair = randomBoolean();
-        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = createKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = createKeyPair("RSA");
-
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readKeyPair("RSA_4096");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readKeyPair("RSA_2048");
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
         ks.setKeyEntry(getAliasName(certKeyPair1), certKeyPair1.v2(), "key-password".toCharArray(),
@@ -374,8 +373,8 @@ public class SamlRealmTests extends SamlTestCase {
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = createKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = createKeyPair("EC");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readRandomKeyPair("RSA");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readRandomKeyPair("EC");
 
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
@@ -413,9 +412,9 @@ public class SamlRealmTests extends SamlTestCase {
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = createKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = createKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair3 = createKeyPair("EC");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readKeyPair("RSA_4096");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readKeyPair("RSA_2048");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair3 = readRandomKeyPair("EC");
 
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
@@ -501,7 +500,9 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     private String getAliasName(final Tuple<X509Certificate, PrivateKey> certKeyPair) {
-        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-alias";
+        // Keys are pre-generated with the same name, so add the serial no to the alias so that keystore entries won't be overwritten
+        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-"+
+            certKeyPair.v1().getSerialNumber()+"-alias";
     }
 
     public void testBuildLogoutRequest() throws Exception {
@@ -550,25 +551,6 @@ public class SamlRealmTests extends SamlTestCase {
         final EntityDescriptor descriptor = mock(EntityDescriptor.class);
         Mockito.when(descriptor.getEntityID()).thenReturn("https://idp.saml/");
         return descriptor;
-    }
-
-    private X509Certificate buildCertificate(KeyPair pair) throws Exception {
-        return CertUtils.generateSignedCertificate(new X500Principal("CN=idp"), null, pair, null, null, 30);
-    }
-
-    private KeyPair buildKeyPair() throws NoSuchAlgorithmException {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
-        return keyPairGenerator.generateKeyPair();
-    }
-
-
-    private Path writePemObject(Path dir, String name, Object object) throws IOException {
-        final Path path = dir.resolve(name);
-        final JcaPEMWriter writer = new JcaPEMWriter(Files.newBufferedWriter(path, StandardCharsets.US_ASCII));
-        writer.writeObject(object);
-        writer.close();
-        return path;
     }
 
     private Tuple<RealmConfig, SSLService> buildConfig(String path) throws Exception {

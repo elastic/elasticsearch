@@ -465,7 +465,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Step 4. Start job task
             ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
-                    response -> persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.getJobId()),
+                    response -> persistentTasksService.sendStartRequest(MlMetadata.jobTaskId(jobParams.getJobId()),
                             OpenJobAction.TASK_NAME, jobParams, finalListener),
                     listener::onFailure
             );
@@ -518,8 +518,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<OpenJobAction.Response> listener) {
         JobPredicate predicate = new JobPredicate();
-        persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, jobParams.getTimeout(),
-                new PersistentTasksService.WaitForPersistentTaskStatusListener<OpenJobAction.JobParams>() {
+        persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, jobParams.getTimeout(),
+                new PersistentTasksService.WaitForPersistentTaskListener<OpenJobAction.JobParams>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {
                 if (predicate.exception != null) {
@@ -550,7 +550,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private void cancelJobStart(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,
                                 ActionListener<OpenJobAction.Response> listener) {
-        persistentTasksService.cancelPersistentTask(persistentTask.getId(),
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(),
                 new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {

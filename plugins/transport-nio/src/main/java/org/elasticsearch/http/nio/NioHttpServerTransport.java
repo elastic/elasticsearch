@@ -42,7 +42,7 @@ import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.netty4.AbstractHttpServerTransport;
+import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesChannelContext;

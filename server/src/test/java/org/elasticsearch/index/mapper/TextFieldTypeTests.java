@@ -71,8 +71,21 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("index_phrases", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType) ft;
                 tft.setIndexPhrases(true);
+            }
+        });
+        addModifier(new Modifier("index_prefixes", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                TextFieldMapper.PrefixFieldType pft = tft.getPrefixFieldType();
+                if (pft == null) {
+                    tft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft.name(), 3, 3));
+                }
+                else {
+                    tft.setPrefixFieldType(null);
+                }
             }
         });
     }

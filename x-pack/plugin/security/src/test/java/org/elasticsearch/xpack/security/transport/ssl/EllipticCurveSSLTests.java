@@ -10,7 +10,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.BeforeClass;
 
 import javax.net.ssl.HandshakeCompletedEvent;
@@ -73,12 +74,9 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
     public void testConnection() throws Exception {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
-        PrivateKey privateKey;
-        try (Reader reader = Files.newBufferedReader(keyPath)) {
-            privateKey = CertUtils.readPrivateKey(reader, () -> null);
-        }
-        Certificate[] certs = CertUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
-        X509ExtendedKeyManager x509ExtendedKeyManager = CertUtils.keyManager(certs, privateKey, new char[0]);
+        PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> null);
+        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
+        X509ExtendedKeyManager x509ExtendedKeyManager = CertParsingUtils.keyManager(certs, privateKey, new char[0]);
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(new X509ExtendedKeyManager[] { x509ExtendedKeyManager },
                 new TrustManager[] { new TrustAllTrustManager(false) }, new SecureRandom());

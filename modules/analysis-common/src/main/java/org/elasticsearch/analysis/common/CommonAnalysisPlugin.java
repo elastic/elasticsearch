@@ -193,6 +193,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         tokenizers.put("pattern", PatternTokenizerFactory::new);
         tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
         tokenizers.put("whitespace", WhitespaceTokenizerFactory::new);
+        tokenizers.put("keyword", KeywordTokenizerFactory::new);
         return tokenizers;
     }
 

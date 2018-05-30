@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -22,17 +20,12 @@ import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpRes
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
-
-import javax.security.auth.DestroyFailedException;
 
 /**
  * This class tests {@link CommandLineHttpClient} For extensive tests related to
@@ -73,15 +66,14 @@ public class CommandLineHttpClientTests extends ESTestCase {
         }
         CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
-                new SecureString(new char[] { 'p' }), () -> null, is -> responseBuilder(is));
+                new SecureString(new char[]{'p'}), () -> null, is -> responseBuilder(is));
 
         assertNotNull("Should have http response", httpResponse);
         assertEquals("Http status code does not match", 200, httpResponse.getHttpStatus());
         assertEquals("Http response body does not match", "complete", httpResponse.getResponseBody().get("test"));
     }
 
-    private MockWebServer createMockWebServer() throws IOException, UnrecoverableKeyException, CertificateException,
-            NoSuchAlgorithmException, KeyStoreException, OperatorCreationException, DestroyFailedException {
+    private MockWebServer createMockWebServer() {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
@@ -94,9 +86,20 @@ public class CommandLineHttpClientTests extends ESTestCase {
     private HttpResponseBuilder responseBuilder(final InputStream is) throws IOException {
         final HttpResponseBuilder httpResponseBuilder = new HttpResponseBuilder();
         if (is != null) {
-            byte[] bytes = Streams.readAll(is);
+            byte[] bytes = toByteArray(is);
             httpResponseBuilder.withResponseBody(new String(bytes, StandardCharsets.UTF_8));
         }
         return httpResponseBuilder;
+    }
+
+    private byte[] toByteArray(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] internalBuffer = new byte[1024];
+        int read = is.read(internalBuffer);
+        while (read != -1) {
+            baos.write(internalBuffer, 0, read);
+            read = is.read(internalBuffer);
+        }
+        return baos.toByteArray();
     }
 }

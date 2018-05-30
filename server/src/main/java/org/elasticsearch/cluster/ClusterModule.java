@@ -152,15 +152,15 @@ public class ClusterModule extends AbstractModule {
         return entries;
     }
 
-    private static final Set<String> PRE_6_3_METADATA_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+    static final Set<String> PRE_6_3_METADATA_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
         IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE));
 
-    private static final Set<String> PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+    static final Set<String> PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
         RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE));
 
     /**
-     * For interoperability with transport clients < 6.3, we need to strip customs from the
-     * cluster state that the client might not be able to deserialize
+     * For interoperability with transport clients older than 6.3, we need to strip customs
+     * from the cluster state that the client might not be able to deserialize
      *
      * @param clusterState the cluster state to filter the customs from
      * @return the adapted cluster state

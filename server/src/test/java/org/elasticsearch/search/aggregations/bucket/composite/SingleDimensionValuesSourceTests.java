@@ -46,7 +46,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            null,
             1,
             1
         );
@@ -63,22 +62,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            false,
-            "missing_value",
-            1,
-            1
-        );
-        assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
-        assertNull(source.createSortedDocsProducerOrNull(reader, null));
-
-        source = new BinaryValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
-            keyword,
-            context -> null,
-            DocValueFormat.RAW,
             true,
-            null,
             1,
             1
         );
@@ -92,7 +76,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            null,
             0,
             -1
         );
@@ -107,7 +90,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            null,
             1,
             1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
@@ -121,7 +103,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword, context -> null,
             DocValueFormat.RAW,
             false,
-            null,
             1,
             1
         );
@@ -137,21 +118,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            false,
-            "missing_value",
-            1,
-            1
-        );
-        assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
-        assertNull(source.createSortedDocsProducerOrNull(reader, null));
-
-        source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            keyword,
-            context -> null,
-            DocValueFormat.RAW,
             true,
-            null,
             1,
             1
         );
@@ -164,7 +131,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            null,
             1,
             -1
         );
@@ -178,7 +144,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
-            null,
             1,
             1
         );
@@ -202,7 +167,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     false,
-                    null,
                     1,
                     1
                 );
@@ -219,22 +183,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    false,
-                    0d,
-                    1,
-                    1);
-                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
-                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, null));
-                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
-
-                sourceWithMissing = new LongValuesSource(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    number,
-                    context -> null,
-                    value -> value,
-                    DocValueFormat.RAW,
                     true,
-                    null,
                     1,
                     1);
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
@@ -248,7 +197,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     false,
-                    null,
                     1,
                     -1
                 );
@@ -262,7 +210,6 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     DocValueFormat.RAW,
                     false,
-                    null,
                     1,
                     1
                 );

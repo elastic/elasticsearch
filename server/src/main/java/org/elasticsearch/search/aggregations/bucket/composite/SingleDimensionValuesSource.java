@@ -41,8 +41,6 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     protected final DocValueFormat format;
     @Nullable
     protected final MappedFieldType fieldType;
-    @Nullable
-    protected final Object missing;
     protected final boolean missingBucket;
 
     protected final int size;
@@ -57,18 +55,15 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * @param format The format of the source.
      * @param fieldType The field type or null if the source is a script.
      * @param missingBucket If true, an explicit `null bucket represents documents with missing values.
-     * @param missing The missing value or null if documents with missing value should be ignored.
      * @param size The number of values to record.
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
     SingleDimensionValuesSource(BigArrays bigArrays, DocValueFormat format,
-                                @Nullable MappedFieldType fieldType, boolean missingBucket, @Nullable Object missing,
+                                @Nullable MappedFieldType fieldType, boolean missingBucket,
                                 int size, int reverseMul) {
-        assert missing == null || missingBucket == false;
         this.bigArrays = bigArrays;
         this.format = format;
         this.fieldType = fieldType;
-        this.missing = missing;
         this.missingBucket = missingBucket;
         this.size = size;
         this.reverseMul = reverseMul;
@@ -147,7 +142,6 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
         if (fieldType == null ||
-                missing != null ||
                 (missingBucket && afterValue == null) ||
                 fieldType.indexOptions() == IndexOptions.NONE ||
                 // inverse of the natural order

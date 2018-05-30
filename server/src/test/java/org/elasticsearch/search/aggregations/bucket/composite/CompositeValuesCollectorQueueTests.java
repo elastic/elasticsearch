@@ -224,7 +224,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         value -> value,
                         DocValueFormat.RAW,
                         missingBucket,
-                        null,
                         size,
                         1
                     );
@@ -235,7 +234,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
                         DocValueFormat.RAW,
                         missingBucket,
-                        null,
                         size,
                         1
                     );
@@ -249,7 +247,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
                             missingBucket,
-                            null,
                             size,
                             1
                         );
@@ -261,7 +258,6 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())),
                             DocValueFormat.RAW,
                             missingBucket,
-                            null,
                             size,
                             1
                         );

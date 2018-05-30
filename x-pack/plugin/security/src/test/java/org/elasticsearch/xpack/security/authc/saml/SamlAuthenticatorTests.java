@@ -896,6 +896,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(attributes.attributes(), iterableWithSize(1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30970")
     public void testIncorrectSigningKeyIsRejected() throws Exception {
         final CryptoTransform signer = randomBoolean() ? this::signDoc : this::signAssertions;
         Instant now = clock.instant();

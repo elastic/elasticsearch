@@ -43,7 +43,7 @@ The Search API returns `400 - Bad request` while it would previously return
 *   the number of slices is too large
 *   keep alive for scroll is too large
 *   number of filters in the adjacency matrix aggregation is too large
-
+*   script compilation errors
 
 ==== Scroll queries cannot use the `request_cache` anymore
 

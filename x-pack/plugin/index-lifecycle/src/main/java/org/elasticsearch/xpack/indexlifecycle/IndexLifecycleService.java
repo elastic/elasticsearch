@@ -67,12 +67,24 @@ public class IndexLifecycleService extends AbstractComponent
             nowSupplier, policyRegistry);
     }
 
+    public ClusterState moveClusterStateToFailedStep(ClusterState currentState, String[] indices) {
+        return lifecycleRunner.moveClusterStateToFailedStep(currentState, indices);
+    }
+
     SchedulerEngine getScheduler() {
         return scheduler.get();
     }
 
     SchedulerEngine.Job getScheduledJob() {
         return scheduledJob;
+    }
+
+    public LongSupplier getNowSupplier() {
+        return nowSupplier;
+    }
+
+    public PolicyStepsRegistry getPolicyRegistry() {
+        return policyRegistry;
     }
 
     @Override

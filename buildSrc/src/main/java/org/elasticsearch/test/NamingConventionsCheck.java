@@ -81,22 +81,39 @@ public class NamingConventionsCheck {
         }
 
         // Now we should have no violations
-        assertNoViolations(
+        int exitCode  = 0 ;
+        exitCode += countAndPrintViolations(
                 "Not all subclasses of " + check.testClass.getSimpleName()
                     + " match the naming convention. Concrete classes must end with [Tests]",
-                check.missingSuffix);
-        assertNoViolations("Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
-        assertNoViolations("Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
-        assertNoViolations("Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
-        assertNoViolations("Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]", check.notImplementing);
-        assertNoViolations(
-                "Classes ending with [Tests] or [IT] or extending [" + check.testClass.getSimpleName() + "] must be in src/test/java",
-                check.testsInMain);
+                check.missingSuffix) ;
+        exitCode += countAndPrintViolations(
+            "Classes ending with [Tests] are abstract or interfaces",
+            check.notRunnable
+        );
+        exitCode += countAndPrintViolations(
+            "Found inner classes that are tests, which are excluded from the test runner",
+            check.innerClasses
+        );
+        exitCode += countAndPrintViolations(
+            "Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]",
+            check.pureUnitTest
+        );
+        exitCode += countAndPrintViolations(
+            "Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]",
+            check.notImplementing
+        );
+        exitCode += countAndPrintViolations(
+                "Classes ending with [Tests] or [IT] or extending [" +
+                    check.testClass.getSimpleName() + "] must be in src/test/java",
+                check.testsInMain
+        );
         if (skipIntegTestsInDisguise == false) {
-            assertNoViolations(
-                    "Subclasses of " + check.integTestClass.getSimpleName() + " should end with IT as they are integration tests",
-                    check.integTestsInDisguise);
+            exitCode += countAndPrintViolations("Subclasses of " + check.integTestClass.getSimpleName() +
+                        " should end with IT as they are integration tests",
+                    check.integTestsInDisguise
+                );
         }
+        System.exit(exitCode);
     }
 
     private final Set<Class<?>> notImplementing = new HashSet<>();
@@ -179,18 +196,15 @@ public class NamingConventionsCheck {
 
     }
 
-    /**
-     * Fail the process if there are any violations in the set. Named to look like a junit assertion even though it isn't because it is
-     * similar enough.
-     */
-    private static void assertNoViolations(String message, Set<Class<?>> set) {
+    private static int countAndPrintViolations(String message, Set<Class<?>> set) {
         if (false == set.isEmpty()) {
             System.err.println(message + ":");
             for (Class<?> bad : set) {
                 System.err.println(" * " + bad.getName());
             }
-            System.exit(1);
+            return 1;
         }
+        return 0;
     }
 
     /**

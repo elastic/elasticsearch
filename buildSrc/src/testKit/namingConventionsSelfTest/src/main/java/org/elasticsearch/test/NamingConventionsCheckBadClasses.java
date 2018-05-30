@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package namingConventionsSelfTest.src.main.java.org.elasticsearch.test;
+package org.elasticsearch.test;
 
 import junit.framework.TestCase;
 

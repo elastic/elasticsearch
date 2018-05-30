@@ -3,18 +3,15 @@ package org.elasticsearch.gradle.precommit;
 import groovy.lang.Closure;
 import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 import org.elasticsearch.gradle.LoggedExec;
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.test.NamingConventionsCheck;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.AbstractExecTask;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SourceSetContainer;
 
@@ -30,21 +27,16 @@ import java.util.Objects;
 public class NamingConventionsTask extends LoggedExec {
     public NamingConventionsTask() {
         setDescription("Tests that test classes aren't misnamed or misplaced");
-        // Extra classpath contains the actual test
         final Project project = getProject();
-        if (project.getConfigurations().getNames().contains("namingConventions") == false) {
-            project.getConfigurations().create("namingConventions");
-            Dependency buildToolsDep = project.getDependencies().add(
-                    "namingConventions",
-                    "org.elasticsearch.gradle:build-tools:" + VersionProperties.getElasticsearch()
-            );
-            assert buildToolsDep instanceof  ModuleDependency;
-            ((ModuleDependency) buildToolsDep).setTransitive(false);
-        }
 
         SourceSetContainer sourceSets = getJavaSourceSets();
         final FileCollection classpath = project.files(
-                project.getConfigurations().getByName("namingConventions"),
+                // This works because the class only depends on one class from junit that will be available from the
+                // tests compile classpath. It's the most straight forward way of telling Java where to find the main
+                // class.
+                NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation().getPath(),
+                // the tests to be loaded
+                checkForTestsInMain ? sourceSets.getByName("main").getRuntimeClasspath() : project.files(),
                 sourceSets.getByName("test").getCompileClasspath(),
                 sourceSets.getByName("test").getOutput()
         );
@@ -108,9 +100,6 @@ public class NamingConventionsTask extends LoggedExec {
     }
 
     public FileCollection getExistingClassesDirs() {
-        if (dirsToCheck != null) {
-            return dirsToCheck;
-        }
         FileCollection classesDirs = getJavaSourceSets().getByName(checkForTestsInMain ? "main" : "test")
                 .getOutput().getClassesDirs();
         return classesDirs.filter(it -> it.exists());
@@ -164,14 +153,6 @@ public class NamingConventionsTask extends LoggedExec {
         this.checkForTestsInMain = checkForTestsInMain;
     }
 
-    public FileCollection getDirsToCheck() {
-        return dirsToCheck;
-    }
-
-    public void setDirsToCheck(FileCollection dirsToCheck) {
-        this.dirsToCheck = dirsToCheck;
-    }
-
     /**
      * We use a simple "marker" file that we touch when the task succeeds
      * as the task output. This is compared against the modified time of the
@@ -201,12 +182,4 @@ public class NamingConventionsTask extends LoggedExec {
      */
     @Input
     private boolean checkForTestsInMain = false;
-    /**
-     * Optional. The specific directories to check. Takes precedence in front of other options that control location.
-     * Allows the build script to specify exactly which location to test.
-     * Defaults to non empty directories in sourceSets.[test|main].outputClassesDirs
-     */
-    @Input
-    @Optional
-    private FileCollection dirsToCheck;
 }

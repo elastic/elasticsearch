@@ -948,14 +948,14 @@ public class StoreTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         Path tempDir = createTempDir();
         final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
-        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, new DummyShardLock(shardId)));
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         writer.commit();
         writer.close();
-        assertTrue(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertTrue(Store.canOpenIndex(logger, tempDir, shardId, new DummyShardLock(shardId)));
 
         DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
 
@@ -966,7 +966,7 @@ public class StoreTests extends ESTestCase {
         };
         Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
-        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, new DummyShardLock(shardId)));
         store.close();
     }
 

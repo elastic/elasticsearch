@@ -234,8 +234,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         // but index can't be opened for a failed shard
         assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
-            (shardId, lockTimeoutMS) -> new DummyShardLock(shardId)),
-            equalTo(false));
+            new DummyShardLock(shard.shardId())), equalTo(false));
     }
 
     ShardStateMetaData getShardStateMetadata(IndexShard shard) {

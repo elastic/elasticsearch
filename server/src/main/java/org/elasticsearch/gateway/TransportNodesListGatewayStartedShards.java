@@ -158,13 +158,13 @@ public class TransportNodesListGatewayStartedShards extends
             ShardPath shardPath = null;
             try {
                 IndexSettings indexSettings = new IndexSettings(metaData, settings);
-                try (ShardLock ignored = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5))) {
+                try (ShardLock shardLock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5))) {
                     shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                    if (shardPath == null) {
+                        throw new IllegalStateException(shardId + " no shard path found");
+                    }
+                    Store.tryOpenIndex(shardPath.resolveIndex(), shardId, shardLock, logger);
                 }
-                if (shardPath == null) {
-                    throw new IllegalStateException(shardId + " no shard path found");
-                }
-                Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
             } catch (Exception exception) {
                 final ShardPath finalShardPath = shardPath;
                 logger.trace(() -> new ParameterizedMessage(

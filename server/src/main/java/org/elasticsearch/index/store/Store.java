@@ -72,9 +72,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
@@ -473,9 +471,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * can be successfully opened. This includes reading the segment infos and possible
      * corruption markers.
      */
-    public static boolean canOpenIndex(Logger logger, Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker) throws IOException {
+    public static boolean canOpenIndex(Logger logger, Path indexLocation, ShardId shardId, ShardLock shardLock) {
         try {
-            tryOpenIndex(indexLocation, shardId, shardLocker, logger);
+            tryOpenIndex(indexLocation, shardId, shardLock, logger);
         } catch (Exception ex) {
             logger.trace(() -> new ParameterizedMessage("Can't open index for path [{}]", indexLocation), ex);
             return false;
@@ -488,9 +486,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * segment infos and possible corruption markers. If the index can not
      * be opened, an exception is thrown
      */
-    public static void tryOpenIndex(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker, Logger logger) throws IOException, ShardLockObtainFailedException {
-        try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
-             Directory dir = new SimpleFSDirectory(indexLocation)) {
+    public static void tryOpenIndex(Path indexLocation, ShardId shardId, ShardLock shardLock, Logger logger) throws IOException {
+        assert shardLock.isOpen();
+        try (Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);

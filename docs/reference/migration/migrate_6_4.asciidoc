@@ -27,3 +27,14 @@ executing the resize operation. If you use this parameter, you will either have
 to follow up the operation with a request to adjust to the desired settings on
 the target index, or send the desired value of these settings with the resize
 operation.
+
+[[breaking_64_scripting_changes]]
+=== Scripting
+
+==== Legacy stored script formats have been deprecated
+
+Stored script formats that don't use top level `script` object have been deprecated and
+support for these formats will be removed in the next major release.
+
+This includes `template` stored scripts format and
+formats that do not encapsulate the script inside a `script` json object.

@@ -80,8 +80,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
                 // basically can't use the plugin
                 throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
             }
-
-
         } else {
             this.storageSettings = regularStorageSettings;
             this.deprecatedStorageSettings = new HashMap<>();
@@ -93,22 +91,19 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         // We register all regular azure clients
         for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.storageSettings.entrySet()) {
-            logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
-            createClient(azureStorageSettingsEntry.getValue());
+            final String clientName = azureStorageSettingsEntry.getKey();
+            createClient(clientName, azureStorageSettingsEntry.getValue());
         }
 
         // We register all deprecated azure clients
         for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.deprecatedStorageSettings.entrySet()) {
-            logger.debug("registering deprecated client for account [{}]", azureStorageSettingsEntry.getKey());
-            createClient(azureStorageSettingsEntry.getValue());
+            final String clientName = azureStorageSettingsEntry.getKey();
+            createClient(clientName, azureStorageSettingsEntry.getValue());
         }
     }
 
-    void createClient(AzureStorageSettings azureStorageSettings) {
+    private void createClient(final String clientName, final AzureStorageSettings azureStorageSettings) {
         try {
-            logger.trace("creating new Azure storage client using account [{}], key [{}], endpoint suffix [{}]",
-                azureStorageSettings.getAccount(), azureStorageSettings.getKey(), azureStorageSettings.getEndpointSuffix());
-
             String storageConnectionString =
                 "DefaultEndpointsProtocol=https;"
                     + "AccountName=" + azureStorageSettings.getAccount() + ";"
@@ -127,12 +122,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             // Register the client
             this.clients.put(azureStorageSettings.getAccount(), client);
         } catch (Exception e) {
-            logger.error("can not create azure storage client: {}", e.getMessage());
+            logger.error(() -> new ParameterizedMessage("Can not create azure storage client [{}]", clientName), e);
         }
     }
 
     CloudBlobClient getSelectedClient(String account, LocationMode mode) {
-        logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = this.storageSettings.get(account);
         if (azureStorageSettings == null) {
             // We can't find a client that has been registered using regular settings so we try deprecated client
@@ -140,8 +134,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             if (azureStorageSettings == null) {
                 // We did not get an account. That's bad.
                 if (Strings.hasLength(account)) {
-                    throw new IllegalArgumentException("Can not find named azure client [" + account +
-                        "]. Check your elasticsearch.yml.");
+                    throw new IllegalArgumentException("Unable to find Azure client");
                 }
                 throw new IllegalArgumentException("Can not find primary/secondary client using deprecated settings. " +
                     "Check your elasticsearch.yml.");
@@ -149,9 +142,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
-
         if (client == null) {
-            throw new IllegalArgumentException("Can not find an azure client for account [" + azureStorageSettings.getAccount() + "]");
+            throw new IllegalArgumentException("Can not find an Azure client");
         }
 
         // NOTE: for now, just set the location mode in case it is different;

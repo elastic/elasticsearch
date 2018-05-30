@@ -20,6 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -33,7 +35,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -44,8 +48,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -58,6 +64,21 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
             return singletonList(PreConfiguredTokenFilter.singleton("mock_other_lowercase", true, MockLowerCaseFilter::new));
         }
+
+        @Override
+        public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            return singletonMap("keyword", (indexSettings, environment, name, settings) -> {
+                class Factory implements TokenizerFactory {
+
+                    @Override
+                    public Tokenizer create() {
+                        return new MockTokenizer(MockTokenizer.KEYWORD, false);
+                    }
+                }
+                return new Factory();
+            });
+        }
+
     };
 
     @Override

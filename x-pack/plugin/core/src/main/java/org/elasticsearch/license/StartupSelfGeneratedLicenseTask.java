@@ -77,7 +77,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         long issueDate = license.issueDate();
         long expiryDate = license.expiryDate();
         // extend the basic license expiration date if needed since extendBasic will not be called now
-        if ("basic".equals(type)) {
+        if ("basic".equals(type) &&  expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
             expiryDate = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
         }
         License.Builder specBuilder = License.builder()

@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.core.ml.integration;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -37,12 +35,9 @@ public class MlRestTestStateCleaner {
 
     @SuppressWarnings("unchecked")
     private void deleteAllDatafeeds() throws IOException {
-        final Request datafeedsRequest = new Request("GET", "/_xpack/ml/datafeeds");
-        datafeedsRequest.addParameter("filter_path", "datafeeds");
-        final Response datafeedsResponse = adminClient.performRequest(datafeedsRequest);
-        @SuppressWarnings("unchecked")
+        final Map<String, Object> datafeedsAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_xpack/ml/datafeeds"));
         final List<Map<String, Object>> datafeeds =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", testCase.entityAsMap(datafeedsResponse));
+                (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", datafeedsAsMap);
         if (datafeeds == null) {
             return;
         }
@@ -79,12 +74,10 @@ public class MlRestTestStateCleaner {
     }
 
     private void deleteAllJobs() throws IOException {
-        final Request jobsRequest = new Request("GET", "/_xpack/ml/anomaly_detectors");
-        jobsRequest.addParameter("filter_path", "jobs");
-        final Response response = adminClient.performRequest(jobsRequest);
+        final Map<String, Object> jobsAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_xpack/ml/anomaly_detectors"));
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", testCase.entityAsMap(response));
+                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsAsMap);
         if (jobConfigs == null) {
             return;
         }

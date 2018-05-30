@@ -23,12 +23,20 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {
@@ -40,10 +48,32 @@ public class SyncedFlushUtil {
     /**
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
      */
-    public static ShardsSyncedFlushResult attemptSyncedFlush(Logger logger, InternalTestCluster cluster, ShardId shardId) {
+    public static ShardsSyncedFlushResult attemptSyncedFlush(Logger logger, InternalTestCluster cluster, ShardId shardId) throws Exception {
+        /*
+         * When the last indexing operation is completed, we will fire a global checkpoint sync.
+         * Since a global checkpoint sync request is a replication request, it will acquire an index
+         * shard permit on the primary when executing. If this happens at the same time while we are
+         * issuing the synced-flush, the synced-flush request will fail as it thinks there are
+         * in-flight operations. We can avoid such situation by not issue the synced-flush until the
+         * global checkpoint on the primary is propagated to replicas.
+         */
+        assertBusy(() -> {
+            long globalCheckpointOnPrimary = SequenceNumbers.NO_OPS_PERFORMED;
+            Set<String> assignedNodes = cluster.nodesInclude(shardId.getIndexName());
+            for (String node : assignedNodes) {
+                IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
+                IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
+                if (shard.routingEntry().primary()) {
+                    globalCheckpointOnPrimary = shard.getGlobalCheckpoint();
+                }
+            }
+            for (String node : assignedNodes) {
+                IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
+                IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
+                assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpointOnPrimary));
+            }
+        });
         SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-        logger.debug("Issue synced-flush on node [{}], shard [{}], cluster state [{}]",
-            service.nodeName(), shardId, cluster.clusterService(service.nodeName()).state());
         LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
         service.attemptSyncedFlush(shardId, listener);
         try {

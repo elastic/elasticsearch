@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -277,6 +276,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         BLOCKS("blocks"),
         NODES("nodes"),
         METADATA("metadata"),
+        METADATA_CUSTOMS("metadata_customs"),
         ROUTING_TABLE("routing_table"),
         ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");

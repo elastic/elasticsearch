@@ -85,6 +85,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.routingTable(
                     metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES));
             clusterStateRequest.metaData(metrics.contains(ClusterState.Metric.METADATA));
+            clusterStateRequest.metaDataCustoms(metrics.contains(ClusterState.Metric.METADATA_CUSTOMS));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
         }

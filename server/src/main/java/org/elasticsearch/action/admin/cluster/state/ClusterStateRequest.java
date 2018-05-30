@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,11 +30,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
 
     private boolean routingTable = true;
     private boolean nodes = true;
     private boolean metaData = true;
+    private boolean metaDataCustoms = false;
     private boolean blocks = true;
     private boolean customs = true;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -47,6 +51,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         routingTable = in.readBoolean();
         nodes = in.readBoolean();
         metaData = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            metaDataCustoms = in.readBoolean();
+        }
         blocks = in.readBoolean();
         customs = in.readBoolean();
         indices = in.readStringArray();
@@ -59,6 +66,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         out.writeBoolean(routingTable);
         out.writeBoolean(nodes);
         out.writeBoolean(metaData);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(metaDataCustoms);
+        }
         out.writeBoolean(blocks);
         out.writeBoolean(customs);
         out.writeStringArray(indices);
@@ -67,13 +77,18 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        if (metaData == false && metaDataCustoms) {
+            return addValidationError("metadata customs were requested without requesting metadata", null);
+        } else {
+            return null;
+        }
     }
 
     public ClusterStateRequest all() {
         routingTable = true;
         nodes = true;
         metaData = true;
+        metaDataCustoms = true;
         blocks = true;
         customs = true;
         indices = Strings.EMPTY_ARRAY;
@@ -84,6 +99,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         routingTable = false;
         nodes = false;
         metaData = false;
+        metaDataCustoms = false;
         blocks = false;
         customs = false;
         indices = Strings.EMPTY_ARRAY;
@@ -114,6 +130,15 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     public ClusterStateRequest metaData(boolean metaData) {
         this.metaData = metaData;
+        return this;
+    }
+
+    public boolean metaDataCustoms() {
+        return metaDataCustoms;
+    }
+
+    public ClusterStateRequest metaDataCustoms(boolean metaDataCustoms) {
+        this.metaDataCustoms = metaDataCustoms;
         return this;
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
 
@@ -115,13 +116,19 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 mdBuilder = MetaData.builder(currentState.metaData());
             }
 
-            // filter out metadata that shouldn't be returned by the API
-            for (ObjectObjectCursor<String, Custom> custom : currentState.metaData().customs()) {
-                if (custom.value.context().contains(MetaData.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.key);
+            final Predicate<Custom> predicate;
+            if (request.metaDataCustoms()) {
+                predicate = c -> c.context().contains(MetaData.XContentContext.API);
+            } else {
+                predicate = c -> false;
+            }
+            for (final ObjectObjectCursor<String, Custom> cursor : currentState.metaData().customs()) {
+                if (predicate.test(cursor.value) == false) {
+                    mdBuilder.removeCustom(cursor.key);
                 }
             }
         }
+
         builder.metaData(mdBuilder);
 
         if (request.customs()) {

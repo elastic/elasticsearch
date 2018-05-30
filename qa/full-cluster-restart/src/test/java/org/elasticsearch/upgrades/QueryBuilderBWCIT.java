@@ -153,6 +153,21 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
     public void testQueryBuilderBWC() throws Exception {
         String index = "queries";
         if (runningAgainstOldCluster) {

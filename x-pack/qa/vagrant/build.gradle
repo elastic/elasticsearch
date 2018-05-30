@@ -1,8 +1,3 @@
-import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
-import org.elasticsearch.gradle.plugin.MetaPluginPropertiesExtension
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
-
 apply plugin: 'elasticsearch.vagrantsupport'
 apply plugin: 'elasticsearch.vagrant'
 

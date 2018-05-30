@@ -96,6 +96,7 @@ install_node_using_archive() {
     export_elasticsearch_paths
 
     install_archive
+    set_debug_logging
     verify_archive_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_ARCHIVE_USER
@@ -123,6 +124,7 @@ install_node_using_package() {
     export_elasticsearch_paths
 
     install_package
+    set_debug_logging
     verify_package_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_PACKAGE_USER

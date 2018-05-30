@@ -26,7 +26,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -68,12 +67,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -105,6 +110,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -130,9 +136,11 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
@@ -1108,7 +1116,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
-            ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+            final Client masterClient = client();
+            ClusterState masterClusterState = masterClient.admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
@@ -1124,22 +1133,89 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version() && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                if (masterClusterState.version() == localClusterState.version()
+                        && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
-                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
-                        assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
-                        // Compare JSON serialization
-                        assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
-                    } catch (AssertionError error) {
-                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                        assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        /*
+                         * The cluster state received by the transport client can miss customs that the client does not understand. This
+                         * means that we only expect equality in the cluster state including customs if the master client and the local
+                         * client are of the same type (both or neither are transport clients). Otherwise, we can only assert equality
+                         * modulo non-core customs.
+                         */
+                        if (isTransportClient(masterClient) == isTransportClient(client)) {
+                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                            // but we can compare serialization sizes - they should be the same
+                            assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                            // Compare JSON serialization
+                            assertNull(
+                                    "cluster state JSON serialization does not match",
+                                    differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
+                        } else {
+                            // remove non-core customs and compare the cluster states
+                            assertNull(
+                                    "cluster state JSON serialization does not match (after removing some customs)",
+                                    differenceBetweenMapsIgnoringArrayOrder(
+                                            convertToMap(removePluginCustoms(masterClusterState)),
+                                            convertToMap(removePluginCustoms(localClusterState))));
+                        }
+                    } catch (final AssertionError error) {
+                        logger.error(
+                                "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                                masterClusterState.toString(),
+                                localClusterState.toString());
                         throw error;
                     }
                 }
             }
         }
 
+    }
+
+    /**
+     * Tests if the client is a transport client or wraps a transport client.
+     *
+     * @param client the client to test
+     * @return true if the client is a transport client or a wrapped transport client
+     */
+    private boolean isTransportClient(final Client client) {
+        if (TransportClient.class.isAssignableFrom(client.getClass())) {
+            return true;
+        } else if (client instanceof RandomizingClient) {
+            return isTransportClient(((RandomizingClient) client).in());
+        }
+        return false;
+    }
+
+    private static final Set<String> SAFE_METADATA_CUSTOMS =
+            Collections.unmodifiableSet(
+                    new HashSet<>(Arrays.asList(IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE)));
+
+    private static final Set<String> SAFE_CUSTOMS =
+            Collections.unmodifiableSet(
+                    new HashSet<>(Arrays.asList(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE)));
+
+    /**
+     * Remove any customs except for customs that we know all clients understand.
+     *
+     * @param clusterState the cluster state to remove possibly-unknown customs from
+     * @return the cluster state with possibly-unknown customs removed
+     */
+    private ClusterState removePluginCustoms(final ClusterState clusterState) {
+        final ClusterState.Builder builder = ClusterState.builder(clusterState);
+        clusterState.customs().keysIt().forEachRemaining(key -> {
+            if (SAFE_CUSTOMS.contains(key) == false) {
+                builder.removeCustom(key);
+            }
+        });
+        final MetaData.Builder mdBuilder = MetaData.builder(clusterState.metaData());
+        clusterState.metaData().customs().keysIt().forEachRemaining(key -> {
+            if (SAFE_METADATA_CUSTOMS.contains(key) == false) {
+                mdBuilder.removeCustom(key);
+            }
+        });
+        builder.metaData(mdBuilder);
+        return builder.build();
     }
 
     /**

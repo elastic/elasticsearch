@@ -156,7 +156,7 @@ public class TextFieldMapper extends FieldMapper {
             PrefixFieldMapper prefixMapper = null;
             if (prefixFieldType != null) {
                 if (fieldType().isSearchable() == false) {
-                    throw new IllegalArgumentException("Cannot set index_prefix on unindexed field [" + name() + "]");
+                    throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
                 }
                 if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
                     prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
@@ -203,7 +203,7 @@ public class TextFieldMapper extends FieldMapper {
                     builder.fielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
                     DocumentMapperParser.checkNoRemainingFields(propName, frequencyFilter, parserContext.indexVersionCreated());
                     iterator.remove();
-                } else if (propName.equals("index_prefix")) {
+                } else if (propName.equals("index_prefixes")) {
                     Map<?, ?> indexPrefix = (Map<?, ?>) propNode;
                     int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"),
                         Defaults.INDEX_PREFIX_MIN_CHARS);
@@ -243,7 +243,7 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static final class PrefixFieldType extends StringFieldType {
+    static final class PrefixFieldType extends StringFieldType {
 
         final int minChars;
         final int maxChars;
@@ -268,14 +268,14 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         void doXContent(XContentBuilder builder) throws IOException {
-            builder.startObject("index_prefix");
+            builder.startObject("index_prefixes");
             builder.field("min_chars", minChars);
             builder.field("max_chars", maxChars);
             builder.endObject();
         }
 
         @Override
-        public MappedFieldType clone() {
+        public PrefixFieldType clone() {
             return new PrefixFieldType(name(), minChars, maxChars);
         }
 
@@ -304,6 +304,22 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            PrefixFieldType that = (PrefixFieldType) o;
+            return minChars == that.minChars &&
+                maxChars == that.maxChars;
+        }
+
+        @Override
+        public int hashCode() {
+
+            return Objects.hash(super.hashCode(), minChars, maxChars);
         }
     }
 
@@ -355,6 +371,9 @@ public class TextFieldMapper extends FieldMapper {
             this.fielddataMinFrequency = ref.fielddataMinFrequency;
             this.fielddataMaxFrequency = ref.fielddataMaxFrequency;
             this.fielddataMinSegmentSize = ref.fielddataMinSegmentSize;
+            if (ref.prefixFieldType != null) {
+                this.prefixFieldType = ref.prefixFieldType.clone();
+            }
         }
 
         public TextFieldType clone() {
@@ -368,6 +387,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             TextFieldType that = (TextFieldType) o;
             return fielddata == that.fielddata
+                    && Objects.equals(prefixFieldType, that.prefixFieldType)
                     && fielddataMinFrequency == that.fielddataMinFrequency
                     && fielddataMaxFrequency == that.fielddataMaxFrequency
                     && fielddataMinSegmentSize == that.fielddataMinSegmentSize;
@@ -375,7 +395,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), fielddata,
+            return Objects.hash(super.hashCode(), fielddata, prefixFieldType,
                     fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }
 
@@ -418,6 +438,10 @@ public class TextFieldMapper extends FieldMapper {
         void setPrefixFieldType(PrefixFieldType prefixFieldType) {
             checkIfFrozen();
             this.prefixFieldType = prefixFieldType;
+        }
+
+        public PrefixFieldType getPrefixFieldType() {
+            return this.prefixFieldType;
         }
 
         @Override

@@ -38,34 +38,67 @@ import java.io.IOException;
  */
 class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc;
-    private final DoubleArray values;
+    private final BitArray bits;
+    private DoubleArray values;
     private double currentValue;
+    private boolean missingCurrentValue;
 
     DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
                        CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
-                       DocValueFormat format, Object missing, int size, int reverseMul) {
-        super(format, fieldType, missing, size, reverseMul);
+                       DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
+        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        this.values = bigArrays.newDoubleArray(size, false);
+        this.bits = missingBucket ? new BitArray(bigArrays, 100) : null;
+        this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
     }
 
     @Override
     void copyCurrent(int slot) {
-        values.set(slot, currentValue);
+        values = bigArrays.grow(values, slot+1);
+        if (missingBucket && missingCurrentValue) {
+            bits.clear(slot);
+        } else {
+            assert missingCurrentValue == false;
+            if (missingBucket) {
+                bits.set(slot);
+            }
+            values.set(slot, currentValue);
+        }
     }
 
     @Override
     int compare(int from, int to) {
+        if (missingBucket) {
+            if (bits.get(from) == false) {
+                return bits.get(to) ? -1 * reverseMul : 0;
+            } else if (bits.get(to) == false) {
+                return reverseMul;
+            }
+        }
         return compareValues(values.get(from), values.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
+        if (missingBucket) {
+            if (missingCurrentValue) {
+                return bits.get(slot) ? -1 * reverseMul : 0;
+            } else if (bits.get(slot) == false) {
+                return reverseMul;
+            }
+        }
         return compareValues(currentValue, values.get(slot));
     }
 
     @Override
     int compareCurrentWithAfter() {
+        if (missingBucket) {
+            if (missingCurrentValue) {
+                return afterValue != null ? -1 * reverseMul : 0;
+            } else if (afterValue == null) {
+                return reverseMul;
+            }
+        }
         return compareValues(currentValue, afterValue);
     }
 
@@ -75,7 +108,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     void setAfter(Comparable<?> value) {
-        if (value instanceof Number) {
+        if (missingBucket && value == null) {
+            afterValue = null;
+        } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
             afterValue = format.parseDouble(value.toString(), false, () -> {
@@ -86,6 +121,10 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     Double toComparable(int slot) {
+        if (missingBucket && bits.get(slot) == false) {
+            return null;
+        }
+        assert missingBucket == false || bits.get(slot);
         return values.get(slot);
     }
 
@@ -99,8 +138,12 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
                     int num = dvs.docValueCount();
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
+                        missingCurrentValue = false;
                         next.collect(doc, bucket);
                     }
+                } else if (missingBucket) {
+                    missingCurrentValue = true;
+                    next.collect(doc, bucket);
                 }
             }
         };
@@ -127,6 +170,6 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     public void close() {
-        Releasables.close(values);
+        Releasables.close(values, bits);
     }
 }

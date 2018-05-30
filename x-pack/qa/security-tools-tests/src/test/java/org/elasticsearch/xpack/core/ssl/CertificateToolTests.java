@@ -54,6 +54,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.net.InetAddress;
 import java.net.URI;
@@ -98,6 +99,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CertificateToolTests extends ESTestCase {
 
     private FileSystem jimfs;
+    private static final String CN_OID = "2.5.4.3";
 
     private Path initTempDir() throws Exception {
         Configuration conf = Configuration.unix().toBuilder().setAttributeViews("posix").build();
@@ -290,8 +292,8 @@ public class CertificateToolTests extends ESTestCase {
         int keySize = randomFrom(1024, 2048);
         int days = randomIntBetween(1, 1024);
 
-        KeyPair keyPair = CertUtils.generateKeyPair(keySize);
-        X509Certificate caCert = CertUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
+        KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
+        X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
 
         final boolean generatedCa = randomBoolean();
         final boolean keepCaKey = generatedCa && randomBoolean();
@@ -325,8 +327,8 @@ public class CertificateToolTests extends ESTestCase {
             assertTrue(Files.exists(zipRoot.resolve("ca")));
             assertTrue(Files.exists(zipRoot.resolve("ca").resolve("ca.crt")));
             // check the CA cert
-            try (Reader reader = Files.newBufferedReader(zipRoot.resolve("ca").resolve("ca.crt"))) {
-                X509Certificate parsedCaCert = readX509Certificate(reader);
+            try (InputStream input = Files.newInputStream(zipRoot.resolve("ca").resolve("ca.crt"))) {
+                X509Certificate parsedCaCert = readX509Certificate(input);
                 assertThat(parsedCaCert.getSubjectX500Principal().getName(), containsString("test ca"));
                 assertEquals(caCert, parsedCaCert);
                 long daysBetween = getDurationInDays(caCert);
@@ -347,10 +349,9 @@ public class CertificateToolTests extends ESTestCase {
                     }
                 }
 
-                try (Reader reader = Files.newBufferedReader(zipRoot.resolve("ca").resolve("ca.key"))) {
-                    PrivateKey privateKey = CertUtils.readPrivateKey(reader, () -> keyPassword != null ? keyPassword.toCharArray() : null);
-                    assertEquals(caInfo.certAndKey.key, privateKey);
-                }
+                PrivateKey privateKey = PemUtils.readPrivateKey(zipRoot.resolve("ca").resolve("ca.key"),
+                    () -> keyPassword != null ? keyPassword.toCharArray() : null);
+                assertEquals(caInfo.certAndKey.key, privateKey);
             }
         } else {
             assertFalse(Files.exists(zipRoot.resolve("ca")));
@@ -363,8 +364,8 @@ public class CertificateToolTests extends ESTestCase {
             assertTrue(Files.exists(cert));
             assertTrue(Files.exists(zipRoot.resolve(filename + "/" + filename + ".key")));
             final Path p12 = zipRoot.resolve(filename + "/" + filename + ".p12");
-            try (Reader reader = Files.newBufferedReader(cert)) {
-                X509Certificate certificate = readX509Certificate(reader);
+            try (InputStream input = Files.newInputStream(cert)) {
+                X509Certificate certificate = readX509Certificate(input);
                 assertEquals(certInfo.name.x500Principal.toString(), certificate.getSubjectX500Principal().getName());
                 final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
                 if (sanCount == 0) {
@@ -607,9 +608,9 @@ public class CertificateToolTests extends ESTestCase {
 
         assertThat(node3File, TestMatchers.pathExists(node3File));
 
-        final KeyStore node1KeyStore = CertUtils.readKeyStore(node1File, "PKCS12", node1Password.toCharArray());
-        final KeyStore node2KeyStore = CertUtils.readKeyStore(node2File, "PKCS12", node2Password.toCharArray());
-        final KeyStore node3KeyStore = CertUtils.readKeyStore(node3File, "PKCS12", node3Password.toCharArray());
+        final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1File, "PKCS12", node1Password.toCharArray());
+        final KeyStore node2KeyStore = CertParsingUtils.readKeyStore(node2File, "PKCS12", node2Password.toCharArray());
+        final KeyStore node3KeyStore = CertParsingUtils.readKeyStore(node3File, "PKCS12", node3Password.toCharArray());
 
         checkTrust(node1KeyStore, node1Password.toCharArray(), node1KeyStore, true);
         checkTrust(node1KeyStore, node1Password.toCharArray(), node2KeyStore, true);
@@ -715,11 +716,11 @@ public class CertificateToolTests extends ESTestCase {
         final Path node2Key = zip2Root.resolve("node02/node02.key");
         assertThat(node2Key, TestMatchers.pathExists(node2Key));
 
-        final KeyStore node1KeyStore = CertUtils.readKeyStore(node1P12, "PKCS12", node1Password.toCharArray());
+        final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1P12, "PKCS12", node1Password.toCharArray());
         final KeyStore node1TrustStore = node1KeyStore;
 
-        final KeyStore node2KeyStore = CertUtils.getKeyStoreFromPEM(node2Cert, node2Key, new char[0]);
-        final KeyStore node2TrustStore = CertUtils.readKeyStore(caP12, "PKCS12", caPassword.toCharArray());
+        final KeyStore node2KeyStore = CertParsingUtils.getKeyStoreFromPEM(node2Cert, node2Key, new char[0]);
+        final KeyStore node2TrustStore = CertParsingUtils.readKeyStore(caP12, "PKCS12", caPassword.toCharArray());
 
         checkTrust(node1KeyStore, node1Password.toCharArray(), node2TrustStore, true);
         checkTrust(node2KeyStore, new char[0], node1TrustStore, true);
@@ -782,8 +783,9 @@ public class CertificateToolTests extends ESTestCase {
      * Checks whether there are keys in {@code keyStore} that are trusted by {@code trustStore}.
      */
     private void checkTrust(KeyStore keyStore, char[] keyPassword, KeyStore trustStore, boolean trust) throws Exception {
-        final X509ExtendedKeyManager keyManager = CertUtils.keyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
-        final X509ExtendedTrustManager trustManager = CertUtils.trustManager(trustStore, TrustManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(keyStore, keyPassword,
+                KeyManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(trustStore, TrustManagerFactory.getDefaultAlgorithm());
 
         final X509Certificate[] node1CertificateIssuers = trustManager.getAcceptedIssuers();
         final Principal[] trustedPrincipals = new Principal[node1CertificateIssuers.length];
@@ -808,9 +810,8 @@ public class CertificateToolTests extends ESTestCase {
         }
     }
 
-    private X509Certificate readX509Certificate(Reader reader) throws Exception {
-        List<Certificate> list = new ArrayList<>(1);
-        CertUtils.readCertificates(reader, list, CertificateFactory.getInstance("X.509"));
+    private X509Certificate readX509Certificate(InputStream input) throws Exception {
+        List<Certificate> list = CertParsingUtils.readCertificates(input);
         assertEquals(1, list.size());
         assertThat(list.get(0), instanceOf(X509Certificate.class));
         return (X509Certificate) list.get(0);
@@ -833,7 +834,7 @@ public class CertificateToolTests extends ESTestCase {
                 ASN1Sequence seq = ASN1Sequence.getInstance(generalName.getName());
                 assertThat(seq.size(), equalTo(2));
                 assertThat(seq.getObjectAt(0), instanceOf(ASN1ObjectIdentifier.class));
-                assertThat(seq.getObjectAt(0).toString(), equalTo(CertUtils.CN_OID));
+                assertThat(seq.getObjectAt(0).toString(), equalTo(CN_OID));
                 assertThat(seq.getObjectAt(1), instanceOf(ASN1TaggedObject.class));
                 ASN1TaggedObject tagged = (ASN1TaggedObject) seq.getObjectAt(1);
                 assertThat(tagged.getObject(), instanceOf(ASN1String.class));

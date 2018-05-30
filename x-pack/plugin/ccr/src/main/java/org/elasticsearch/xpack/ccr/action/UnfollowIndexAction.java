@@ -141,7 +141,7 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
                 for (int i = 0; i < numShards; i++) {
                     final int shardId = i;
                     String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-                    persistentTasksService.cancelPersistentTask(taskId,
+                    persistentTasksService.sendRemoveRequest(taskId,
                             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                         @Override
                         public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {

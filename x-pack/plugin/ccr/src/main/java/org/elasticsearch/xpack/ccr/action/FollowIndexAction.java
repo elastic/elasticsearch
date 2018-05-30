@@ -238,7 +238,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
                             new ShardId(followIndexMetadata.getIndex(), shardId),
                             new ShardId(leaderIndexMetadata.getIndex(), shardId),
                             request.batchSize, request.concurrentProcessors, request.processorMaxTranslogBytes, filteredHeaders);
-                    persistentTasksService.startPersistentTask(taskId, ShardFollowTask.NAME, shardFollowTask,
+                    persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                                 @Override
                                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> task) {

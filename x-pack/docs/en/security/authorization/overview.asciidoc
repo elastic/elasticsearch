@@ -72,6 +72,6 @@ documents, then implement an access policy in a role definition. Users with that
 role can read a specific document only if they have all the required attributes. 
 
 For more information, see 
-https://www.elastic.co/blog/attribute-based-access-control-with-xpack[Document-level attribute-baesd access control with X-Pack 6.1].
+https://www.elastic.co/blog/attribute-based-access-control-with-xpack[Document-level attribute-based access control with X-Pack 6.1].
 
 //TO-DO: Add task related to configuring ABAC.

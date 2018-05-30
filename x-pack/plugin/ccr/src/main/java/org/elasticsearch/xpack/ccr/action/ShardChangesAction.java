@@ -235,9 +235,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
-
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
-            request.maxSeqNo = Math.min(request.maxSeqNo, indexShard.getGlobalCheckpoint());
             final Translog.Operation[] operations =
                 getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
             return new Response(indexMetaDataVersion, operations);

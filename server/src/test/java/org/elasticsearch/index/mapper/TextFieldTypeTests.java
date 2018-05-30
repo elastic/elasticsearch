@@ -71,6 +71,19 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
                 tft.setFielddataMinSegmentSize(1000);
             }
         });
+        addModifier(new Modifier("index_prefixes", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                TextFieldMapper.PrefixFieldType pft = tft.getPrefixFieldType();
+                if (pft == null) {
+                    tft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft.name(), 3, 3));
+                }
+                else {
+                    tft.setPrefixFieldType(null);
+                }
+            }
+        });
     }
 
     public void testTermQuery() {

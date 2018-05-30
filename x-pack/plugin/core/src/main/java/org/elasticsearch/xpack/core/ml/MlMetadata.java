@@ -142,7 +142,6 @@ public class MlMetadata implements MetaData.Custom {
 
     @Override
     public EnumSet<MetaData.XContentContext> context() {
-
         return CONTEXT;
     }
 

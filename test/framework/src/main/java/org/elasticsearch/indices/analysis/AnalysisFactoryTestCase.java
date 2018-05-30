@@ -65,7 +65,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     private static String toCamelCase(String s) {
         Matcher m = UNDERSCORE_THEN_ANYTHING.matcher(s);
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         while (m.find()) {
             m.appendReplacement(sb, m.group(1).toUpperCase());
         }

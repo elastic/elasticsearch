@@ -38,7 +38,7 @@ class ActiveDirectorySIDUtil {
         }
 
         char[] hex = Hex.encodeHex( bytes );
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
 
         // start with 'S'
         sb.append( 'S' );
@@ -65,7 +65,7 @@ class ActiveDirectorySIDUtil {
         // sub-authorities, little-endian
         for ( int i = 0; i < count; i++ )
         {
-            StringBuffer rid = new StringBuffer();
+            StringBuilder rid = new StringBuilder();
 
             for ( int k = 3; k >= 0; k-- )
             {

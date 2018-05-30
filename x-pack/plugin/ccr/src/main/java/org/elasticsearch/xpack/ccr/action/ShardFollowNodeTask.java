@@ -34,6 +34,10 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         markAsCompleted();
     }
 
+    public boolean isRunning() {
+        return isCancelled() == false && isCompleted() == false;
+    }
+
     void updateProcessedGlobalCheckpoint(long processedGlobalCheckpoint) {
         this.processedGlobalCheckpoint.set(processedGlobalCheckpoint);
     }

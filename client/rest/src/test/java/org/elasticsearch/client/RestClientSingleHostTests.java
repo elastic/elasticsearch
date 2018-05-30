@@ -58,11 +58,9 @@ import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -314,7 +312,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetHeaders()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeaders()}.
      */
     @Deprecated
     public void tesPerformRequestOldStyleNullHeaders() throws IOException {
@@ -335,7 +333,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetParameters()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
      */
     @Deprecated
     public void testPerformRequestOldStyleWithNullParams() throws IOException {
@@ -364,7 +362,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Request request = new Request(method, "/" + statusCode);
-            request.setHeaders(requestHeaders);
+            for (Header requestHeader : requestHeaders) {
+                request.addHeader(requestHeader.getName(), requestHeader.getValue());
+            }
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(request);
@@ -438,9 +438,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
             Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
-            request.setHeaders(headers);
             for (Header header : headers) {
-                expectedRequest.addHeader(header);
+                request.addHeader(header.getName(), header.getValue());
+                expectedRequest.addHeader(new Request.ReqHeader(header.getName(), header.getValue()));
                 uniqueNames.add(header.getName());
             }
         }

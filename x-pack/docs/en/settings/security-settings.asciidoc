@@ -1145,7 +1145,7 @@ Path to the PEM encoded file containing the private key.
 The passphrase that is used to decrypt the private key. This value is
 optional as the key might not be encrypted.
 
-`xpack.ssl.secure_key_passphrase` ({<<secure-settings,Secure>>)::
+`xpack.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
 The passphrase that is used to decrypt the private key. This value is
 optional as the key might not be encrypted.
 
@@ -1256,6 +1256,16 @@ this is `xpack.security.transport.ssl.key`. In order to use this setting in a
 transport profile, use the prefix `transport.profiles.$PROFILE.xpack.security.` and
 append the portion of the setting after `xpack.security.transport.`. For the key
 setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
+
+[[auditing-tls-ssl-settings]]
+:ssl-prefix:             xpack.security.audit.index.client.xpack
+:component:              Auditing
+:client-auth-default!:
+:server!:
+
+include::ssl-settings.asciidoc[]
+
+See also <<remote-audit-settings>>. 
 
 [float]
 [[ip-filtering-settings]]

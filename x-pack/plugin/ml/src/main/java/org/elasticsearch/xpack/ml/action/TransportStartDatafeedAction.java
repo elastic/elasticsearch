@@ -130,14 +130,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             };
 
             // Verify data extractor factory can be created, then start persistent task
-            MlMetadata mlMetadata = state.metaData().custom(MLMetadataField.TYPE);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
             PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             validate(params.getDatafeedId(), mlMetadata, tasks);
             DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
             Job job = mlMetadata.getJobs().get(datafeed.getJobId());
             DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
                     dataExtractorFactory ->
-                            persistentTasksService.startPersistentTask(MLMetadataField.datafeedTaskId(params.getDatafeedId()),
+                            persistentTasksService.sendStartRequest(MLMetadataField.datafeedTaskId(params.getDatafeedId()),
                             StartDatafeedAction.TASK_NAME, params, finalListener)
                     , listener::onFailure));
         } else {
@@ -156,8 +156,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private void waitForDatafeedStarted(String taskId, StartDatafeedAction.DatafeedParams params,
                                         ActionListener<StartDatafeedAction.Response> listener) {
         DatafeedPredicate predicate = new DatafeedPredicate();
-        persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, params.getTimeout(),
-                new PersistentTasksService.WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
+        persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, params.getTimeout(),
+                new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                 if (predicate.exception != null) {
@@ -184,7 +184,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     private void cancelDatafeedStart(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
                                      Exception exception, ActionListener<StartDatafeedAction.Response> listener) {
-        persistentTasksService.cancelPersistentTask(persistentTask.getId(),
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(),
                 new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
@@ -221,9 +221,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         @Override
         public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
-            MlMetadata mlMetadata = clusterState.metaData().custom(MLMetadataField.TYPE);
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            TransportStartDatafeedAction.validate(params.getDatafeedId(), mlMetadata, tasks);
+            TransportStartDatafeedAction.validate(params.getDatafeedId(), MlMetadata.getMlMetadata(clusterState), tasks);
             new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId()).checkDatafeedTaskCanBeCreated();
         }
 

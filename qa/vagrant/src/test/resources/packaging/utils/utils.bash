@@ -461,6 +461,13 @@ debug_collect_logs() {
     describe_port 127.0.0.1 9201
 }
 
+set_debug_logging() {
+    if [ "$ESCONFIG" ] && [ -d "$ESCONFIG" ] && [ -f /etc/os-release ] && (grep -qi suse /etc/os-release); then
+        echo 'logger.org.elasticsearch.indices: DEBUG' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.gateway: TRACE' >> "$ESCONFIG/elasticsearch.yml"
+    fi
+}
+
 # Waits for Elasticsearch to reach some status.
 # $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {

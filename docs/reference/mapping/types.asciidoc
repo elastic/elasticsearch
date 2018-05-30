@@ -40,6 +40,8 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<parent-join>>::   Defines parent/child relation for documents within the same index
 
+<<feature>>::       Record numeric features to boost hits at query time.
+
 [float]
 === Multi-fields
 
@@ -86,6 +88,6 @@ include::types/percolator.asciidoc[]
 
 include::types/parent-join.asciidoc[]
 
-
+include::types/feature.asciidoc[]
 
 

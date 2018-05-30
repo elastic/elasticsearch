@@ -688,6 +688,15 @@ public class TextFieldMapper extends FieldMapper {
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }
+
+        @Override
+        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
+            super.checkCompatibility(other, conflicts);
+            TextFieldType tft = (TextFieldType) other;
+            if (tft.indexPhrases != this.indexPhrases) {
+                conflicts.add("mapper [" + name() + "] has different [index_phrases] values");
+            }
+        }
     }
 
     private int positionIncrementGap;

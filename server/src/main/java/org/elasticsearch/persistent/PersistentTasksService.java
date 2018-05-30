@@ -22,14 +22,12 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -37,19 +35,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * This service is used by persistent actions to propagate changes in the action state and notify about completion
+ * This service is used by persistent tasks and allocated persistent tasks to communicate changes
+ * to the master node so that the master can update the cluster state and can track of the states
+ * of the persistent tasks.
  */
 public class PersistentTasksService extends AbstractComponent {
+
+    private static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+    private static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
 
     private final Client client;
     private final ClusterService clusterService;
@@ -63,92 +65,115 @@ public class PersistentTasksService extends AbstractComponent {
     }
 
     /**
-     * Creates the specified persistent task and attempts to assign it to a node.
+     * Notifies the master node to create new persistent task and to assign it to a node.
      */
-    @SuppressWarnings("unchecked")
-    public <Params extends PersistentTaskParams> void startPersistentTask(String taskId, String taskName, @Nullable Params params,
-                                                                          ActionListener<PersistentTask<Params>> listener) {
-        StartPersistentTaskAction.Request createPersistentActionRequest =
-                new StartPersistentTaskAction.Request(taskId, taskName, params);
+    public <Params extends PersistentTaskParams> void sendStartRequest(final String taskId,
+                                                                       final String taskName,
+                                                                       final @Nullable Params taskParams,
+                                                                       final ActionListener<PersistentTask<Params>> listener) {
+        @SuppressWarnings("unchecked")
+        final ActionListener<PersistentTask<?>> wrappedListener =
+            ActionListener.wrap(t -> listener.onResponse((PersistentTask<Params>) t), listener::onFailure);
+        StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);
+        execute(request, StartPersistentTaskAction.INSTANCE, wrappedListener);
+    }
+
+    /**
+     * Notifies the master node about the completion of a persistent task.
+     * <p>
+     * When {@code failure} is {@code null}, the persistent task is considered as successfully completed.
+     */
+    public void sendCompletionRequest(final String taskId,
+                                      final long taskAllocationId,
+                                      final @Nullable Exception taskFailure,
+                                      final ActionListener<PersistentTask<?>> listener) {
+        CompletionPersistentTaskAction.Request request = new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure);
+        execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
+    }
+
+    /**
+     * Cancels a locally running task using the Task Manager API
+     */
+    void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTaskId(new TaskId(clusterService.localNode().getId(), taskId));
+        request.setReason(reason);
         try {
-            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, StartPersistentTaskAction.INSTANCE, createPersistentActionRequest,
-                    ActionListener.wrap(o -> listener.onResponse((PersistentTask<Params>) o.getTask()), listener::onFailure));
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, PERSISTENT_TASK_ORIGIN)) {
+                client.admin().cluster().cancelTasks(request, new ContextPreservingActionListener<>(supplier, listener));
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
     /**
-     * Notifies the PersistentTasksClusterService about successful (failure == null) completion of a task or its failure
-     */
-    public void sendCompletionNotification(String taskId, long allocationId, Exception failure,
-                                           ActionListener<PersistentTask<?>> listener) {
-        CompletionPersistentTaskAction.Request restartRequest = new CompletionPersistentTaskAction.Request(taskId, allocationId, failure);
-        try {
-            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, CompletionPersistentTaskAction.INSTANCE, restartRequest,
-                    ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Cancels a locally running task using the task manager
-     */
-    void sendTaskManagerCancellation(long taskId, ActionListener<CancelTasksResponse> listener) {
-        DiscoveryNode localNode = clusterService.localNode();
-        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-        cancelTasksRequest.setTaskId(new TaskId(localNode.getId(), taskId));
-        cancelTasksRequest.setReason("persistent action was removed");
-        try {
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), PERSISTENT_TASK_ORIGIN, cancelTasksRequest, listener,
-                    client.admin().cluster()::cancelTasks);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Updates status of the persistent task.
+     * Notifies the master node that the state of a persistent task has changed.
      * <p>
      * Persistent task implementers shouldn't call this method directly and use
      * {@link AllocatedPersistentTask#updatePersistentStatus} instead
      */
-    void updateStatus(String taskId, long allocationId, Task.Status status, ActionListener<PersistentTask<?>> listener) {
-        UpdatePersistentTaskStatusAction.Request updateStatusRequest =
-                new UpdatePersistentTaskStatusAction.Request(taskId, allocationId, status);
-        try {
-            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, UpdatePersistentTaskStatusAction.INSTANCE, updateStatusRequest,
-                    ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+    void updateStatus(final String taskId,
+                      final long taskAllocationID,
+                      final Task.Status status,
+                      final ActionListener<PersistentTask<?>> listener) {
+        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(taskId, taskAllocationID, status);
+        execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
     }
 
     /**
-     * Cancels if needed and removes a persistent task
+     * Notifies the master node to remove a persistent task from the cluster state
      */
-    public void cancelPersistentTask(String taskId, ActionListener<PersistentTask<?>> listener) {
-        RemovePersistentTaskAction.Request removeRequest = new RemovePersistentTaskAction.Request(taskId);
-        try {
-            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, RemovePersistentTaskAction.INSTANCE, removeRequest,
-                ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+    public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
+        RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);
+        execute(request, RemovePersistentTaskAction.INSTANCE, listener);
     }
 
     /**
-     * Checks if the persistent task with giving id (taskId) has the desired state and if it doesn't
-     * waits of it.
+     * Executes an asynchronous persistent task action using the client.
+     * <p>
+     * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
-    public void waitForPersistentTaskStatus(String taskId, Predicate<PersistentTask<?>> predicate, @Nullable TimeValue timeout,
-                                            WaitForPersistentTaskStatusListener<?> listener) {
-        ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-        if (predicate.test(PersistentTasksCustomMetaData.getTaskWithId(stateObserver.setAndGetObservedState(), taskId))) {
-            listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(stateObserver.setAndGetObservedState(), taskId));
+    private <Req extends ActionRequest, Resp extends PersistentTaskResponse, Builder extends ActionRequestBuilder<Req, Resp, Builder>>
+        void execute(final Req request, final Action<Req, Resp, Builder> action, final ActionListener<PersistentTask<?>> listener) {
+            try {
+                final ThreadContext threadContext = client.threadPool().getThreadContext();
+                final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, PERSISTENT_TASK_ORIGIN)) {
+                    client.execute(action, request,
+                        new ContextPreservingActionListener<>(supplier,
+                            ActionListener.wrap(r -> listener.onResponse(r.getTask()), listener::onFailure)));
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+    }
+
+    /**
+     * Waits for a given persistent task to comply with a given predicate, then call back the listener accordingly.
+     *
+     * @param taskId the persistent task id
+     * @param predicate the persistent task predicate to evaluate
+     * @param timeout a timeout for waiting
+     * @param listener the callback listener
+     */
+    public void waitForPersistentTaskCondition(final String taskId,
+                                               final Predicate<PersistentTask<?>> predicate,
+                                               final @Nullable TimeValue timeout,
+                                               final WaitForPersistentTaskListener<?> listener) {
+        final Predicate<ClusterState> clusterStatePredicate = clusterState ->
+            predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId));
+
+        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
+        final ClusterState clusterState = observer.setAndGetObservedState();
+        if (clusterStatePredicate.test(clusterState)) {
+            listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId));
         } else {
-            stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
                     listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(state, taskId));
@@ -163,18 +188,28 @@ public class PersistentTasksService extends AbstractComponent {
                 public void onTimeout(TimeValue timeout) {
                     listener.onTimeout(timeout);
                 }
-            }, clusterState -> predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId)));
+            }, clusterStatePredicate);
         }
     }
 
-    public void waitForPersistentTasksStatus(Predicate<PersistentTasksCustomMetaData> predicate,
-            @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout,
-                logger, threadPool.getThreadContext());
-        if (predicate.test(stateObserver.setAndGetObservedState().metaData().custom(PersistentTasksCustomMetaData.TYPE))) {
+    /**
+     * Waits for persistent tasks to comply with a given predicate, then call back the listener accordingly.
+     *
+     * @param predicate the predicate to evaluate
+     * @param timeout a timeout for waiting
+     * @param listener the callback listener
+     */
+    public void waitForPersistentTasksCondition(final Predicate<PersistentTasksCustomMetaData> predicate,
+                                                final @Nullable TimeValue timeout,
+                                                final ActionListener<Boolean> listener) {
+        final Predicate<ClusterState> clusterStatePredicate = clusterState ->
+            predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE));
+
+        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
+        if (clusterStatePredicate.test(observer.setAndGetObservedState())) {
             listener.onResponse(true);
         } else {
-            stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
                     listener.onResponse(true);
@@ -187,45 +222,15 @@ public class PersistentTasksService extends AbstractComponent {
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new IllegalStateException("timed out after " + timeout));
+                    listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
                 }
-            }, clusterState -> predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE)), timeout);
+            }, clusterStatePredicate, timeout);
         }
     }
 
-    public interface WaitForPersistentTaskStatusListener<Params extends PersistentTaskParams>
-            extends ActionListener<PersistentTask<Params>> {
+    public interface WaitForPersistentTaskListener<P extends PersistentTaskParams> extends ActionListener<PersistentTask<P>> {
         default void onTimeout(TimeValue timeout) {
-            onFailure(new IllegalStateException("timed out after " + timeout));
-        }
-    }
-
-    private static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
-    private static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
-
-    /**
-     * Executes a consumer after setting the origin and wrapping the listener so that the proper context is restored
-     */
-    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
-            ThreadContext threadContext, String origin, Request request, ActionListener<Response> listener,
-            BiConsumer<Request, ActionListener<Response>> consumer) {
-        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, origin)) {
-            consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
-        }
-    }
-    /**
-     * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
-     * is wrapped to ensure the proper context is restored
-     */
-    public static <Request extends ActionRequest, Response extends ActionResponse,
-            RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void executeAsyncWithOrigin(
-            Client client, String origin, Action<Request, Response, RequestBuilder> action, Request request,
-            ActionListener<Response> listener) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, origin)) {
-            client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+            onFailure(new IllegalStateException("Timed out when waiting for persistent task after " + timeout));
         }
     }
 
@@ -234,5 +239,4 @@ public class PersistentTasksService extends AbstractComponent {
         threadContext.putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
     }
-
 }

@@ -2406,6 +2406,7 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
+    @Override
     public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
                                                       long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
@@ -2415,7 +2416,8 @@ public class InternalEngine extends Engine {
         }
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, minSeqNo, maxSeqNo, requiredFullRange);
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
+                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, minSeqNo, maxSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
         } finally {

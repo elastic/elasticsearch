@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -57,7 +58,47 @@ public class Shell {
         this.workingDirectory = workingDirectory;
     }
 
-    public Result run(String... command) {
+    /**
+     * Runs a script in a bash shell, throwing an exception if its exit code is nonzero
+     */
+    public Result bash(String script) {
+        return run(bashCommand(script));
+    }
+
+    /**
+     * Runs a script in a bash shell
+     */
+    public Result bashIgnoreExitCode(String script) {
+        return runIgnoreExitCode(bashCommand(script));
+    }
+
+    private static String[] bashCommand(String script) {
+        return Stream.concat(Stream.of("bash", "-c"), Stream.of(script)).toArray(String[]::new);
+    }
+
+    /**
+     * Runs a script in a powershell shell, throwing an exception if its exit code is nonzero
+     */
+    public Result powershell(String script) {
+        return run(powershellCommand(script));
+    }
+
+    /**
+     * Runs a script in a powershell shell
+     */
+    public Result powershellIgnoreExitCode(String script) {
+        return runIgnoreExitCode(powershellCommand(script));
+    }
+
+    private static String[] powershellCommand(String script) {
+        return Stream.concat(Stream.of("powershell.exe", "-Command"), Stream.of(script)).toArray(String[]::new);
+    }
+
+    /**
+     * Runs an executable file, passing all elements of {@code command} after the first as arguments. Throws an exception if the process'
+     * exit code is nonzero
+     */
+    private Result run(String[] command) {
         Result result = runIgnoreExitCode(command);
         if (result.isSuccess() == false) {
             throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "] result: " + result.toString());
@@ -65,7 +106,10 @@ public class Shell {
         return result;
     }
 
-    public Result runIgnoreExitCode(String... command) {
+    /**
+     * Runs an executable file, passing all elements of {@code command} after the first as arguments
+     */
+    private Result runIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
 

@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      catch: request
+      catch: bad_request
       xpack.watcher.put_watch:
         id: "my_exe_watch"
         body:  >
@@ -33,7 +33,7 @@
           }
 
   - is_true: error.script_stack
-  - match: { status: 500 }
+  - match: { status: 400 }
 
 ---
 "Test painless exceptions are returned when logging a broken response":

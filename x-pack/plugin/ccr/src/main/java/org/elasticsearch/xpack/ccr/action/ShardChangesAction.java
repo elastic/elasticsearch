@@ -245,7 +245,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
         @Override
         protected boolean resolveIndex(Request request) {
-            return true;
+            return false;
         }
 
         @Override

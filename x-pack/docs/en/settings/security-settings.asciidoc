@@ -1257,6 +1257,16 @@ transport profile, use the prefix `transport.profiles.$PROFILE.xpack.security.` 
 append the portion of the setting after `xpack.security.transport.`. For the key
 setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
+[[auditing-tls-ssl-settings]]
+:ssl-prefix:             xpack.security.audit.index.client.xpack
+:component:              Auditing
+:client-auth-default!:
+:server!:
+
+include::ssl-settings.asciidoc[]
+
+See also <<remote-audit-settings>>. 
+
 [float]
 [[ip-filtering-settings]]
 ==== IP filtering settings

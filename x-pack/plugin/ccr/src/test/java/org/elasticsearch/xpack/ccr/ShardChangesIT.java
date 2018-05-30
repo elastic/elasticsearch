@@ -145,7 +145,6 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(operation.id(), equalTo("5"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30227")
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards,

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,21 +45,17 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         protected final transient boolean keyed;
         protected final transient DocValueFormat format;
-        protected double from;
-        protected double to;
-        private long docCount;
-        InternalAggregations aggregations;
-        private String key;
-
-        public Bucket(boolean keyed, DocValueFormat formatter) {
-            this.keyed = keyed;
-            this.format = formatter;
-        }
+        protected final double from;
+        protected final double to;
+        private final long docCount;
+        private final InternalAggregations aggregations;
+        private final String key;
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat formatter) {
-            this(keyed, formatter);
-            this.key = key != null ? key : generateKey(from, to, formatter);
+                DocValueFormat format) {
+            this.keyed = keyed;
+            this.format = format;
+            this.key = key != null ? key : generateKey(from, to, format);
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -162,16 +159,25 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return builder;
         }
 
-        protected String generateKey(double from, double to, DocValueFormat formatter) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(Double.isInfinite(from) ? "*" : formatter.format(from));
-            sb.append("-");
-            sb.append(Double.isInfinite(to) ? "*" : formatter.format(to));
-            return sb.toString();
+        private static String generateKey(double from, double to, DocValueFormat format) {
+            StringBuilder builder = new StringBuilder()
+                .append(Double.isInfinite(from) ? "*" : format.format(from))
+                .append("-")
+                .append(Double.isInfinite(to) ? "*" : format.format(to));
+            return builder.toString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeString(key);
+            } else {
+                out.writeOptionalString(key);
+            }
+            out.writeDouble(from);
+            out.writeDouble(to);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
         }
 
         @Override
@@ -206,15 +212,15 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @SuppressWarnings("unchecked")
-        public R create(String name, List<B> ranges, DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
+        public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) {
-            return (R) new InternalRange<B, R>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
+            return (R) new InternalRange<B, R>(name, ranges, format, keyed, pipelineAggregators, metaData);
         }
 
         @SuppressWarnings("unchecked")
         public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat formatter) {
-            return (B) new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
+                DocValueFormat format) {
+            return (B) new Bucket(key, from, to, docCount, aggregations, keyed, format);
         }
 
         @SuppressWarnings("unchecked")
@@ -230,9 +236,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
     }
 
-    private List<B> ranges;
-    protected DocValueFormat format;
-    protected boolean keyed;
+    private final List<B> ranges;
+    protected final DocValueFormat format;
+    protected final boolean keyed;
 
     public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed,
             List<PipelineAggregator> pipelineAggregators,
@@ -253,7 +259,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.readOptionalString();
+            String key = in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)
+                ? in.readString()
+                : in.readOptionalString();
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),
                     InternalAggregations.readAggregations(in), keyed, format));
         }
@@ -266,11 +274,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         out.writeBoolean(keyed);
         out.writeVInt(ranges.size());
         for (B bucket : ranges) {
-            out.writeOptionalString(((Bucket) bucket).key);
-            out.writeDouble(bucket.from);
-            out.writeDouble(bucket.to);
-            out.writeVLong(((Bucket) bucket).docCount);
-            bucket.aggregations.writeTo(out);
+            bucket.writeTo(out);
         }
     }
 

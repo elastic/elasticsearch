@@ -48,10 +48,11 @@ name as an existing template, it will replace the old version.
 
 The `match_mapping_type` is the datatype detected by the json parser. Since
 JSON doesn't allow to distinguish a `long` from an `integer` or a `double` from
-a `float` so it will always choose the wider datatype, ie. `long` for integers
+a `float`, it will always choose the wider datatype, ie. `long` for integers
 and `double` for floating-point numbers.
 
 The following datatypes may be automatically detected:
+
  - `boolean` when `true` or `false` are encountered.
  - `date` when <<date-detection,date detection>> is enabled and a string is
    found that matches any of the configured date formats.

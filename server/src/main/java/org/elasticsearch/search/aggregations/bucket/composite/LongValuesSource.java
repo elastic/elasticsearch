@@ -56,8 +56,8 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     LongValuesSource(BigArrays bigArrays,
                      MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
-                     LongUnaryOperator rounding, DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
+                     LongUnaryOperator rounding, DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;

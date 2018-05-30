@@ -50,8 +50,8 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     BinaryValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
                        MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
+                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));

@@ -271,7 +271,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 vs::globalOrdinalsValues,
                 config.format(),
                 config.missingBucket(),
-                config.missing(),
                 size,
                 reverseMul
             );
@@ -288,7 +287,6 @@ final class CompositeAggregator extends BucketsAggregator {
                     vs::bytesValues,
                     config.format(),
                     config.missingBucket(),
-                    config.missing(),
                     size,
                     reverseMul
                 );
@@ -304,7 +302,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 vs::bytesValues,
                 config.format(),
                 config.missingBucket(),
-                config.missing(),
                 size,
                 reverseMul
             );
@@ -318,7 +315,6 @@ final class CompositeAggregator extends BucketsAggregator {
                     vs::doubleValues,
                     config.format(),
                     config.missingBucket(),
-                    config.missing(),
                     size,
                     reverseMul
                 );
@@ -337,7 +333,6 @@ final class CompositeAggregator extends BucketsAggregator {
                     rounding,
                     config.format(),
                     config.missingBucket(),
-                    config.missing(),
                     size,
                     reverseMul
                 );

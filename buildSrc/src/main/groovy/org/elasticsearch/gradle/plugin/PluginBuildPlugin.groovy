@@ -71,7 +71,9 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule) {
                 project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
-                project.tasks.run.clusterConfig.distribution = 'integ-test-zip'
+                project.tasks.run.clusterConfig.distribution = System.getProperty(
+                        'run.distribution', 'integ-test-zip'
+                )
             } else {
                 project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)

@@ -39,7 +39,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
     private List<SSLConfiguration> loadSslConfigurations(Settings settings) {
         final List<SSLConfiguration> list = new ArrayList<>();
         if (HTTP_SSL_ENABLED.get(settings)) {
-            list.add(sslService.sslConfiguration(SSLService.getHttpTransportSSLSettings(settings), Settings.EMPTY));
+            list.add(sslService.getHttpTransportSSLConfiguration());
         }
 
         if (XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)) {

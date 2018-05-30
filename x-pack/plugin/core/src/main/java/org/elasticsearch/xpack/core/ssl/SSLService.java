@@ -231,7 +231,9 @@ public class SSLService extends AbstractComponent {
      * Indicates whether client authentication is enabled for a particular configuration
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. The global configuration
      *                 will be used for fallback
+     * @deprecated Use {@link #isSSLClientAuthEnabled(SSLConfiguration)} with {@link #getSSLConfiguration(String)}
      */
+    @Deprecated
     public boolean isSSLClientAuthEnabled(Settings settings) {
         return isSSLClientAuthEnabled(settings, Settings.EMPTY);
     }
@@ -637,7 +639,7 @@ public class SSLService extends AbstractComponent {
         return sslSettings;
     }
 
-    public static Settings getHttpTransportSSLSettings(Settings settings) {
+    private Settings getHttpTransportSSLSettings(Settings settings) {
         Settings httpSSLSettings = settings.getByPrefix(XPackSettings.HTTP_SSL_PREFIX);
         if (httpSSLSettings.isEmpty()) {
             return httpSSLSettings;

@@ -291,8 +291,7 @@ public class SSLServiceTests extends ESTestCase {
         final SSLConfiguration globalConfig = sslService.sslConfiguration(Settings.EMPTY);
         assertThat(globalConfig.sslClientAuth(), is(SSLClientAuth.OPTIONAL));
 
-        final Settings httpSettings = SSLService.getHttpTransportSSLSettings(globalSettings);
-        final SSLConfiguration httpConfig = sslService.sslConfiguration(httpSettings);
+        final SSLConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
         assertThat(httpConfig.sslClientAuth(), is(SSLClientAuth.NONE));
     }
 

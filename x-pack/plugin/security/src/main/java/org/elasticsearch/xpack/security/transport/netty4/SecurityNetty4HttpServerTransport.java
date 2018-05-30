@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
 
     private final IPFilter ipFilter;
-    private final Settings sslSettings;
     private final SSLService sslService;
     private final SSLConfiguration sslConfiguration;
 
@@ -42,10 +41,9 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-        this.sslSettings = SSLService.getHttpTransportSSLSettings(settings);
         this.sslService = sslService;
         if (ssl) {
-            this.sslConfiguration = sslService.sslConfiguration(sslSettings, Settings.EMPTY);
+            this.sslConfiguration = sslService.getHttpTransportSSLConfiguration();
             if (sslService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
                         "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");

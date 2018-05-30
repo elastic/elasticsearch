@@ -141,7 +141,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
         MultiSearchTemplateResponse response = client().execute(MultiSearchTemplateAction.INSTANCE, multiRequest).get();
         assertThat(response.getResponses(), arrayWithSize(5));
-        assertThat(response.getTook().millis(), greaterThan(0l));
+        assertThat(response.getTook().millis(), greaterThan(0L));
 
         MultiSearchTemplateResponse.Item response1 = response.getResponses()[0];
         assertThat(response1.isFailure(), is(false));

@@ -292,12 +292,16 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
             super.checkCompatibility(other, conflicts, strict);
-            PrefixFieldType otherFieldType = (PrefixFieldType) other;
-            if (otherFieldType.minChars != this.minChars) {
-                conflicts.add("mapper [" + name() + "] has different min_chars values");
-            }
-            if (otherFieldType.maxChars != this.maxChars) {
-                conflicts.add("mapper [" + name() + "] has different max_chars values");
+            if (strict) {
+                PrefixFieldType otherFieldType = (PrefixFieldType) other;
+                if (otherFieldType.minChars != this.minChars) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
+                        + "[index_prefixes.min_chars] across all types.");
+                }
+                if (otherFieldType.maxChars != this.maxChars) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
+                        + "[index_prefixes.max_chars] across all types.");
+                }
             }
         }
 
@@ -420,6 +424,10 @@ public class TextFieldMapper extends FieldMapper {
                 if (fielddataMinSegmentSize() != otherType.fielddataMinSegmentSize()) {
                     conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
                             + "[fielddata_frequency_filter.min_segment_size] across all types.");
+                }
+                if (Objects.equals(this.prefixFieldType, ((TextFieldType) other).prefixFieldType) == false) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
+                        + "[index_prefixes] across all types.");
                 }
             }
         }

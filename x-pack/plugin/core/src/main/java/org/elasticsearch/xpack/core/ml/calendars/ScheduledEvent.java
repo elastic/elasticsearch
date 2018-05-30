@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.core.ml.job.config.Connective;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
@@ -148,8 +147,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         conditions.add(RuleCondition.createTime(Operator.LT, bucketEndTime));
 
         DetectionRule.Builder builder = new DetectionRule.Builder(conditions);
-        builder.setActions(RuleAction.FILTER_RESULTS, RuleAction.SKIP_SAMPLING);
-        builder.setConditionsConnective(Connective.AND);
+        builder.setActions(RuleAction.SKIP_RESULT, RuleAction.SKIP_MODEL_UPDATE);
         return builder.build();
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -32,8 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -177,9 +177,7 @@ public class JobManagerTests extends ESTestCase {
     public void testUpdateProcessOnFilterChanged() {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
-        RuleCondition.createCategorical("foo", "foo_filter");
-        DetectionRule filterRule = new DetectionRule.Builder(Collections.singletonList(
-                RuleCondition.createCategorical("foo", "foo_filter"))).build();
+        DetectionRule filterRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "foo_filter")).build();
         detectorReferencingFilter.setRules(Collections.singletonList(filterRule));
         AnalysisConfig.Builder filterAnalysisConfig = new AnalysisConfig.Builder(Collections.singletonList(
                 detectorReferencingFilter.build()));

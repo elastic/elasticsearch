@@ -100,29 +100,14 @@ setup:
   - match: { acknowledged: true }
 
 ---
-"Test get job with rules":
+"Test job with pre 6.4 rules":
 
   - do:
       xpack.ml.get_jobs:
-        job_id: old-cluster-job-with-rules
+        job_id: job-with-old-rules
   - match: { count: 1 }
-  - match: {
-      jobs.0.analysis_config.detectors.0.rules: [
-        {
-          "actions": ["filter_results"],
-          "conditions_connective": "or",
-          "conditions": [
-            {
-              "type":"numerical_actual",
-              "field_name":"country",
-              "field_value": "uk",
-              "condition": {"operator":"lt","value":"33.3"}
-            },
-            {"type":"categorical", "field_name":"country", "filter_id": "foo"}
-          ]
-        }
-      ]
-    }
+  - is_false: jobs.0.analysis_config.detectors.0.rules
+  - is_false: jobs.0.analysis_config.detectors.0.custom_rules
 
 ---
 "Test get job with function shortcut should expand":

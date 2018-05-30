@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
@@ -91,10 +91,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(process.isReady()).thenReturn(true);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
 
-        List<RuleCondition> conditions = Collections.singletonList(
-                RuleCondition.createCategorical("foo", "bar"));
-
-        DetectionRule updatedRule = new DetectionRule.Builder(conditions).build();
+        DetectionRule updatedRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "bar")).build();
         List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(
                 new JobUpdate.DetectorUpdate(0, "updated description", Collections.singletonList(updatedRule)));
 

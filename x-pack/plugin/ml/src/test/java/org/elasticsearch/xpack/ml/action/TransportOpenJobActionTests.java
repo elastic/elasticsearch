@@ -36,9 +36,16 @@ import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Condition;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.Operator;
+import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -49,6 +56,7 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -60,6 +68,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -561,6 +570,68 @@ public class TransportOpenJobActionTests extends ESTestCase {
         attributes.put("node.ml", "true");
         node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
         assertEquals("{_node_name1}{ml.machine_memory=5}{node.ml=true}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
+    }
+
+    public void testCheckJobWithRulesRequiresMinVersionOnAllNodes_GivenNodeDoesNotMeetRequiredVersion() {
+        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
+                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, new Condition(Operator.LT, 100.0))
+        )).build();
+
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setRules(Arrays.asList(rule));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        Job.Builder job = new Job.Builder("foo");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        MetaData metaData = MetaData.builder()
+                .putCustom(MLMetadataField.TYPE, new MlMetadata.Builder().putJob(job.build(new Date()), false).build())
+                .build();
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_old_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.V_6_3_0))
+                        .add(new DiscoveryNode("_new_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9201), Version.CURRENT))
+                        .localNodeId("_new_node")
+                        .masterNodeId("_new_node"))
+                .metaData(metaData)
+                .build();
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> TransportOpenJobAction.checkJobWithRulesRequiresMinVersionOnAllNodes("foo", cs));
+
+        assertThat(e.getMessage(), equalTo("Cannot open job [foo] because jobs using custom_rules " +
+                "require all nodes to be on version [6.4.0] or higher"));
+    }
+
+    public void testCheckJobWithRulesRequiresMinVersionOnAllNodes_GivenAllNodesMeetRequiredVersion() {
+        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
+                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, new Condition(Operator.LT, 100.0))
+        )).build();
+
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setRules(Arrays.asList(rule));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        Job.Builder job = new Job.Builder("foo");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        MetaData metaData = MetaData.builder()
+                .putCustom(MLMetadataField.TYPE, new MlMetadata.Builder().putJob(job.build(new Date()), false).build())
+                .build();
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_old_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.V_6_4_0))
+                        .add(new DiscoveryNode("_new_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9201), Version.CURRENT))
+                        .localNodeId("_new_node")
+                        .masterNodeId("_new_node"))
+                .metaData(metaData)
+                .build();
+
+        TransportOpenJobAction.checkJobWithRulesRequiresMinVersionOnAllNodes("foo", cs);
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {

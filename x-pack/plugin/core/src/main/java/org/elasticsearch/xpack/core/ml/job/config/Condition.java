@@ -14,13 +14,10 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * A class that describes a condition.
@@ -32,7 +29,7 @@ public class Condition implements ToXContentObject, Writeable {
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
     public static final ConstructingObjectParser<Condition, Void> PARSER = new ConstructingObjectParser<>(
-            CONDITION_FIELD.getPreferredName(), a -> new Condition((Operator) a[0], (String) a[1]));
+            CONDITION_FIELD.getPreferredName(), a -> new Condition((Operator) a[0], (double) a[1]));
 
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
@@ -41,52 +38,25 @@ public class Condition implements ToXContentObject, Writeable {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, Operator.OPERATOR_FIELD, ValueType.STRING);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return p.text();
-            }
-            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, VALUE_FIELD, ValueType.STRING_OR_NULL);
+        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
     }
 
     private final Operator op;
-    private final String value;
+    private final double value;
 
     public Condition(StreamInput in) throws IOException {
         op = Operator.readFromStream(in);
-        value = in.readOptionalString();
+        value = in.readDouble();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         op.writeTo(out);
-        out.writeOptionalString(value);
+        out.writeDouble(value);
     }
 
-    public Condition(Operator op, String value) {
-        if (value == null) {
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NULL));
-        }
-
-        if (op.expectsANumericArgument()) {
-            try {
-                Double.parseDouble(value);
-            } catch (NumberFormatException nfe) {
-                String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER, value);
-                throw ExceptionsHelper.badRequestException(msg);
-            }
-        } else {
-            try {
-                Pattern.compile(value);
-            } catch (PatternSyntaxException e) {
-                String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX, value);
-                throw ExceptionsHelper.badRequestException(msg);
-            }
-        }
-        this.op = op;
+    public Condition(Operator op, double value) {
+        this.op = ExceptionsHelper.requireNonNull(op, Operator.OPERATOR_FIELD.getPreferredName());
         this.value = value;
     }
 
@@ -94,7 +64,7 @@ public class Condition implements ToXContentObject, Writeable {
         return op;
     }
 
-    public String getValue() {
+    public double getValue() {
         return value;
     }
 

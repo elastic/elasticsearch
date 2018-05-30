@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -674,8 +675,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         builder.blocks = new ClusterBlocks(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
-            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
+            final Custom custom;
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                custom = in.readSkippableNamedWriteable(Custom.class);
+            } else {
+                custom = in.readNamedWriteable(Custom.class);
+            }
+            if (custom != null) {
+                builder.putCustom(custom.getWriteableName(), custom);
+            }
         }
         return builder.build();
     }
@@ -699,7 +707,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         out.writeVInt(numberOfCustoms);
         for (ObjectCursor<Custom> cursor : customs.values()) {
             if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
-                out.writeNamedWriteable(cursor.value);
+                if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                    out.writeSkippableNamedWriteable(cursor.value);
+                } else {
+                    out.writeNamedWriteable(cursor.value);
+                }
             }
         }
     }

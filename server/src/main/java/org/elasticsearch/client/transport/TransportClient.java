@@ -30,6 +30,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -152,7 +154,8 @@ public abstract class TransportClient extends AbstractClient {
             entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())
                                          .collect(Collectors.toList()));
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
+            NamedWriteableRegistry namedWriteableRegistry =
+                new NamedWriteableRegistry(entries, ClusterState.Custom.class, MetaData.Custom.class);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
                     searchModule.getNamedXContents().stream(),
                     pluginsService.filterPlugins(Plugin.class).stream()

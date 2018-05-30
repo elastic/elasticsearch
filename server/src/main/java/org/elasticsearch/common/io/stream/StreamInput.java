@@ -879,6 +879,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Similar to {@link #readNamedWriteable(Class)} but provides support for skipping
+     * the {@link NamedWriteable} if the registry allows leniency for the given category class.
+     * Returns null if the element was skipped.
+     */
+    @Nullable
+    public <C extends NamedWriteable> C readSkippableNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+        throw new UnsupportedOperationException("can't read skippable named writeable from StreamInput");
+    }
+
+    /**
      * Reads a {@link NamedWriteable} from the current stream with the given name. It is assumed that the caller obtained the name
      * from other source, so it's not read from the stream. The name is used for looking for
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
@@ -892,6 +902,17 @@ public abstract class StreamInput extends InputStream {
     public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass,
                                                            @SuppressWarnings("unused") String name) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Similar to {@link #readNamedWriteable(Class, String)} but provides support for skipping
+     * the {@link NamedWriteable} if the registry allows leniency for the given category class.
+     * Returns null if the element was skipped.
+     */
+    @Nullable
+    public <C extends NamedWriteable> C readSkippableNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass,
+                                                                    @SuppressWarnings("unused") String name) throws IOException {
+        throw new UnsupportedOperationException("can't read skippable named writeable from StreamInput");
     }
 
     /**

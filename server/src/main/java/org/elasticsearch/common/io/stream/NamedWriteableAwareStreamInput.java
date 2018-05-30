@@ -40,9 +40,19 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     }
 
     @Override
+    public <C extends NamedWriteable> C readSkippableNamedWriteable(Class<C> categoryClass) throws IOException {
+        String name = readString();
+        return readSkippableNamedWriteable(categoryClass, name);
+    }
+
+    @Override
     public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass,
                                                            @SuppressWarnings("unused") String name) throws IOException {
         Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name);
+        return read(name, reader);
+    }
+
+    private <C extends NamedWriteable> C read(String name, Writeable.Reader<? extends C> reader) throws IOException {
         C c = reader.read(this);
         if (c == null) {
             throw new IOException(
@@ -51,5 +61,23 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
         assert name.equals(c.getWriteableName()) : c + " claims to have a different name [" + c.getWriteableName()
             + "] than it was read from [" + name + "].";
         return c;
+    }
+
+    @Override
+    public <C extends NamedWriteable> C readSkippableNamedWriteable(Class<C> categoryClass, String name) throws IOException {
+        Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name, true);
+
+        final long skippableBytes = readVLong();
+
+        if (reader != null) {
+            return read(name, reader);
+        } else {
+            long skippedBytes = skip(skippableBytes);
+            if (skippedBytes != skippableBytes) {
+                throw new IOException(
+                    "Trying to skip " + skippableBytes + " for NamedWriteable " + name + " but only found " + skippedBytes + " bytes");
+            }
+            return null;
+        }
     }
 }

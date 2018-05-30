@@ -45,7 +45,7 @@ public class NamedWriteableRegistryTests extends ESTestCase {
         NamedWriteableRegistry.Entry entry =
             new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry));
-        Writeable.Reader<? extends NamedWriteable> reader = registry.getReader(NamedWriteable.class, "test");
+        Writeable.Reader<? extends NamedWriteable> reader = registry.getReader(NamedWriteable.class, "test", randomBoolean());
         assertNotNull(reader.read(null));
     }
 
@@ -60,7 +60,7 @@ public class NamedWriteableRegistryTests extends ESTestCase {
     public void testUnknownCategory() throws IOException {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            registry.getReader(NamedWriteable.class, "test"));
+            registry.getReader(NamedWriteable.class, "test", randomBoolean()));
         assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable category ["));
     }
 
@@ -69,7 +69,19 @@ public class NamedWriteableRegistryTests extends ESTestCase {
             new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            registry.getReader(NamedWriteable.class, "dne"));
+            registry.getReader(NamedWriteable.class, "dne", randomBoolean()));
         assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable ["));
+    }
+
+    public void testUnknownNameButSkippableCategory() throws IOException {
+        NamedWriteableRegistry.Entry entry =
+            new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry), NamedWriteable.class);
+        assertNull(registry.getReader(NamedWriteable.class, "dne", true));
+    }
+
+    public void testUnknownButSkippableCategory() throws IOException {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList(), NamedWriteable.class);
+        assertNull(registry.getReader(NamedWriteable.class, "dne", true));
     }
 }

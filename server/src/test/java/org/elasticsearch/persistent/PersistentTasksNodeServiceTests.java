@@ -235,14 +235,14 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
         PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, null, null, null) {
             @Override
-            public void sendTaskManagerCancellation(long taskId, ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
 
             @Override
-            public void sendCompletionNotification(String taskId, long allocationId, Exception failure,
-                                                   ActionListener<PersistentTask<?>> listener) {
+            public void sendCompletionRequest(final String taskId, final long taskAllocationId,
+                                              final Exception taskFailure, final ActionListener<PersistentTask<?>> listener) {
                 fail("Shouldn't be called during Cluster State cancellation");
             }
         };

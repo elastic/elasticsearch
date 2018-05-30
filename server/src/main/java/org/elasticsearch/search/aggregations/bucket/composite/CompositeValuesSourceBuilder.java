@@ -72,7 +72,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.valueType = ValueType.readFromStream(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             this.missingBucket = in.readBoolean();
         } else {
             this.missingBucket = false;
@@ -100,7 +100,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             valueType.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeBoolean(missingBucket);
         }
         out.writeGenericValue(missing);

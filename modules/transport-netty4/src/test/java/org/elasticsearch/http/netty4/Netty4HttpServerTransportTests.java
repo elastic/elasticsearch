@@ -273,7 +273,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         try (Netty4HttpServerTransport transport =
                      new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
@@ -352,7 +352,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         try (Netty4HttpServerTransport transport =
                  new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             AtomicBoolean channelClosed = new AtomicBoolean(false);
 

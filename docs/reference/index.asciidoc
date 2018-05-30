@@ -26,6 +26,7 @@ include::{xes-repo-dir}/settings/configuring-xes.asciidoc[]
 
 include::{xes-repo-dir}/setup/bootstrap-checks-xes.asciidoc[]
 
+:edit_url:
 include::upgrade.asciidoc[]
 
 include::migration/index.asciidoc[]
@@ -66,6 +67,7 @@ include::{xes-repo-dir}/rest-api/index.asciidoc[]
 
 include::{xes-repo-dir}/commands/index.asciidoc[]
 
+:edit_url:
 include::how-to.asciidoc[]
 
 include::testing.asciidoc[]

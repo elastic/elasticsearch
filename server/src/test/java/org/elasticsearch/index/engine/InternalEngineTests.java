@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -793,7 +794,7 @@ public class InternalEngineTests extends EngineTestCase {
             while (flushFinished.get() == false) {
                 Engine.GetResult previousGetResult = latestGetResult.get();
                 if (previousGetResult != null) {
-                    previousGetResult.release();
+                    previousGetResult.close();
                 }
                 latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
                 if (latestGetResult.get().exists() == false) {
@@ -807,7 +808,7 @@ public class InternalEngineTests extends EngineTestCase {
         flushFinished.set(true);
         getThread.join();
         assertTrue(latestGetResult.get().exists());
-        latestGetResult.get().release();
+        latestGetResult.get().close();
     }
 
     public void testSimpleOperations() throws Exception {
@@ -830,21 +831,20 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // but, not there non realtime
-        Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory);
-        assertThat(getResult.exists(), equalTo(false));
-        getResult.release();
+        try (Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory)) {
+            assertThat(getResult.exists(), equalTo(false));
+        }
 
         // but, we can still get it (in realtime)
-        getResult = engine.get(newGet(true, doc), searcherFactory);
-        assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.docIdAndVersion(), notNullValue());
-        getResult.release();
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
+            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.docIdAndVersion(), notNullValue());
+        }
 
         // but not real time is not yet visible
-        getResult = engine.get(newGet(false, doc), searcherFactory);
-        assertThat(getResult.exists(), equalTo(false));
-        getResult.release();
-
+        try (Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory)) {
+            assertThat(getResult.exists(), equalTo(false));
+        }
 
         // refresh and it should be there
         engine.refresh("test");
@@ -856,10 +856,10 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // also in non realtime
-        getResult = engine.get(newGet(false, doc), searcherFactory);
-        assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.docIdAndVersion(), notNullValue());
-        getResult.release();
+        try (Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory)) {
+            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.docIdAndVersion(), notNullValue());
+        }
 
         // now do an update
         document = testDocument();
@@ -876,10 +876,10 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // but, we can still get it (in realtime)
-        getResult = engine.get(newGet(true, doc), searcherFactory);
-        assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.docIdAndVersion(), notNullValue());
-        getResult.release();
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
+            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.docIdAndVersion(), notNullValue());
+        }
 
         // refresh and it should be updated
         engine.refresh("test");
@@ -901,9 +901,9 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // but, get should not see it (in realtime)
-        getResult = engine.get(newGet(true, doc), searcherFactory);
-        assertThat(getResult.exists(), equalTo(false));
-        getResult.release();
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
+            assertThat(getResult.exists(), equalTo(false));
+        }
 
         // refresh and it should be deleted
         engine.refresh("test");
@@ -941,10 +941,10 @@ public class InternalEngineTests extends EngineTestCase {
         engine.flush();
 
         // and, verify get (in real time)
-        getResult = engine.get(newGet(true, doc), searcherFactory);
-        assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.docIdAndVersion(), notNullValue());
-        getResult.release();
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
+            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.docIdAndVersion(), notNullValue());
+        }
 
         // make sure we can still work with the engine
         // now do an update
@@ -4156,7 +4156,7 @@ public class InternalEngineTests extends EngineTestCase {
                     new Term("_id", parsedDocument.id()),
                     parsedDocument,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    (long) randomIntBetween(1, 8),
+                    randomIntBetween(1, 8),
                     Versions.MATCH_ANY,
                     VersionType.INTERNAL,
                     Engine.Operation.Origin.PRIMARY,
@@ -4172,7 +4172,7 @@ public class InternalEngineTests extends EngineTestCase {
                     id,
                     new Term("_id", parsedDocument.id()),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    (long) randomIntBetween(1, 8),
+                    randomIntBetween(1, 8),
                     Versions.MATCH_ANY,
                     VersionType.INTERNAL,
                     Engine.Operation.Origin.PRIMARY,

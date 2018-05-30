@@ -23,8 +23,10 @@ import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
@@ -39,12 +41,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -110,6 +114,9 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(FilterScript.class)) {
             FilterScript.Factory factory = (p, lookup) -> newFilterScript(expr, lookup, p);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ScoreScript.class)) {
+            ScoreScript.Factory factory = (p, lookup) -> newScoreScript(expr, lookup, p);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
@@ -258,6 +265,42 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                     script.setDocument(docid);
                 }
             };
+        };
+    }
+    
+    private ScoreScript.LeafFactory newScoreScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        SearchScript.LeafFactory searchLeafFactory = newSearchScript(expr, lookup, vars);
+        return new ScoreScript.LeafFactory() {
+            @Override
+            public boolean needs_score() {
+                return searchLeafFactory.needs_score();
+            }
+
+            @Override
+            public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                SearchScript script = searchLeafFactory.newInstance(ctx);
+                return new ScoreScript(vars, lookup, ctx) {
+                    @Override
+                    public double execute() {
+                        return script.runAsDouble();
+                    }
+    
+                    @Override
+                    public void setDocument(int docid) {
+                        script.setDocument(docid);
+                    }
+    
+                    @Override
+                    public void setScorer(Scorer scorer) {
+                        script.setScorer(scorer);
+                    }
+    
+                    @Override
+                    public double get_score() {
+                        return script.getScore();
+                    }
+                };
+            }
         };
     }
 

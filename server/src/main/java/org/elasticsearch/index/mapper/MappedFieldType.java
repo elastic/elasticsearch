@@ -351,13 +351,6 @@ public abstract class MappedFieldType extends FieldType {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query nullValueQuery() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
     public abstract Query existsQuery(QueryShardContext context);
 
     /**

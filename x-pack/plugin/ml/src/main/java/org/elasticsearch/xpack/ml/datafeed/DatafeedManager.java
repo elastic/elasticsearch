@@ -49,7 +49,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 
 public class DatafeedManager extends AbstractComponent {
 
@@ -391,8 +391,8 @@ public class DatafeedManager extends AbstractComponent {
                 return;
             }
 
-            task.waitForPersistentTaskStatus(Objects::isNull, TimeValue.timeValueSeconds(20),
-                            new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
+            task.waitForPersistentTask(Objects::isNull, TimeValue.timeValueSeconds(20),
+                            new WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
                 public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(getJobId());

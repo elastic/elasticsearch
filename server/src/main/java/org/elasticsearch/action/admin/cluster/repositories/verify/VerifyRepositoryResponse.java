@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -108,6 +109,12 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     private List<NodeView> nodes;
 
+    private static final ObjectParser<VerifyRepositoryResponse, Void> PARSER =
+        new ObjectParser<>(VerifyRepositoryResponse.class.getName(), VerifyRepositoryResponse::new);
+    static {
+        PARSER.declareNamedObjects(VerifyRepositoryResponse::setNodes, NodeView.PARSER, new ParseField("nodes"));
+    }
+
     VerifyRepositoryResponse() {
     }
 
@@ -131,6 +138,10 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         return nodes;
     }
 
+    protected void setNodes(List<NodeView> nodes) {
+        this.nodes = nodes.stream().map(n -> n.convertToDiscoveryNode()).collect(Collectors.toList());
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -147,8 +158,29 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
+    public static VerifyRepositoryResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        VerifyRepositoryResponse other = (VerifyRepositoryResponse) obj;
+        return nodes.equals(other.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return nodes.hashCode();
     }
 }

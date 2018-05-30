@@ -116,8 +116,11 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = new MockScoreScript(script);
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(SortScript.class)) {
-            SortScript.Factory factory = new MockSortScript(script);
+        } else if (context.instanceClazz.equals(SortScript.Strings.class)) {
+            SortScript.Strings.Factory factory = new MockSortStringsScript(script);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SortScript.Numbers.class)) {
+            SortScript.Numbers.Factory factory = new MockSortNumbersScript(script);
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(TermsSetQueryBuilder.TermsSetScript.class)) {
             TermsSetQueryBuilder.TermsSetScript.Factory factory = new MockTermsSetScript(script);
@@ -392,19 +395,19 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
     
-    public class MockSortScript implements SortScript.Factory {
+    public class MockSortStringsScript implements SortScript.Strings.Factory {
         
         private final Function<Map<String, Object>, Object> scripts;
     
-        MockSortScript(Function<Map<String, Object>, Object> scripts) {
+        MockSortStringsScript(Function<Map<String, Object>, Object> scripts) {
             this.scripts = scripts;
         }
         
         @Override
-        public SortScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+        public SortScript.Strings.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
             return ctx -> {
                 Scorer[] scorerHolder = new Scorer[1];
-                return new SortScript(params, lookup, ctx) {
+                return new SortScript.Strings(params, lookup, ctx) {
     
                     @Override
                     public Object execute() {
@@ -418,10 +421,39 @@ public class MockScriptEngine implements ScriptEngine {
                     }
     
                     @Override
-                    public double executeAsDouble() {
-                        return (double) execute();
+                    public void setScorer(Scorer scorer) {
+                        scorerHolder[0] = scorer;
                     }
-                    
+                };
+            };
+        }
+    }
+    
+    public class MockSortNumbersScript implements SortScript.Numbers.Factory {
+        
+        private final Function<Map<String, Object>, Object> scripts;
+    
+        MockSortNumbersScript(Function<Map<String, Object>, Object> scripts) {
+            this.scripts = scripts;
+        }
+        
+        @Override
+        public SortScript.Numbers.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> {
+                Scorer[] scorerHolder = new Scorer[1];
+                return new SortScript.Numbers(params, lookup, ctx) {
+    
+                    @Override
+                    public double execute() {
+                        Map<String, Object> vars = new HashMap<>(getParams());
+                        vars.put("doc", getDoc());
+                        vars.put("params", params);
+                        if (scorerHolder[0] != null) {
+                            vars.put("_score", new ScoreAccessor(scorerHolder[0]));
+                        }
+                        return ((Number) scripts.apply(vars)).doubleValue();
+                    }
+    
                     @Override
                     public void setScorer(Scorer scorer) {
                         scorerHolder[0] = scorer;

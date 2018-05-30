@@ -305,9 +305,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SortScript.Factory factory = context.getScriptService().compile(script, SortScript.CONTEXT);
-        final SortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-
         MultiValueMode valueMode = null;
         if (sortMode != null) {
             valueMode = MultiValueMode.fromString(sortMode.toString());
@@ -328,11 +325,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
+                final SortScript.Strings.Factory stringsFactory =
+                    context.getScriptService().compile(script, SortScript.Strings.STRINGS_CONTEXT);
+                final SortScript.Strings.LeafFactory stringsLeafFactory = stringsFactory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    SortScript leafScript;
+                    SortScript.Strings leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(context);
+                        leafScript = stringsLeafFactory.newInstance(context);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
@@ -357,11 +357,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 };
                 break;
             case NUMBER:
+                final SortScript.Numbers.Factory numbersFactory = context.getScriptService().compile(script, SortScript.NUMBERS_CONTEXT);
+                final SortScript.Numbers.LeafFactory numbersLeafFactory = numbersFactory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    SortScript leafScript;
+                    SortScript.Numbers leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(context);
+                        leafScript = numbersLeafFactory.newInstance(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
@@ -370,7 +372,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public double doubleValue() {
-                                return leafScript.executeAsDouble();
+                                return leafScript.execute();
                             }
                         };
                         return FieldData.singleton(values);

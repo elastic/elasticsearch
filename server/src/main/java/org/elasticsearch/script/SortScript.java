@@ -45,16 +45,6 @@ public abstract class SortScript {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
     }
     
-    // String script sort returns a string
-    public abstract Object execute();
-    
-    // Number script sort returns a double
-    public double executeAsDouble() {
-        return ((Number) execute()).doubleValue();
-    }
-    
-    // TODO: Maybe have two sort script classes? (StringSortScript and NumberScriptSort)
-    
     public Map<String, Object> getParams() {
         return params;
     }
@@ -83,13 +73,40 @@ public abstract class SortScript {
         return scoreSupplier.getAsDouble();
     }
     
-    public interface LeafFactory {
-        SortScript newInstance(LeafReaderContext ctx) throws IOException;
+    public abstract static class Strings extends SortScript {
+    
+        public Strings(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+            super(params, lookup, leafContext);
+        }
+    
+        public abstract Object execute();
+    
+        public interface LeafFactory {
+            Strings newInstance(LeafReaderContext ctx) throws IOException;
+        }
+    
+        public interface Factory {
+            Strings.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
+        }
     }
     
-    public interface Factory {
-        SortScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
+    public abstract static class Numbers extends SortScript {
+        
+        public Numbers(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+            super(params, lookup, leafContext);
+        }
+    
+        public abstract double execute();
+    
+        public interface LeafFactory {
+            Numbers newInstance(LeafReaderContext ctx) throws IOException;
+        }
+    
+        public interface Factory {
+            Numbers.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
+        }
     }
     
-    public static final ScriptContext<SortScript.Factory> CONTEXT = new ScriptContext<>("sort", SortScript.Factory.class);
+    public static final ScriptContext<Strings.Factory> STRINGS_CONTEXT = new ScriptContext<>("sort", Strings.Factory.class);
+    public static final ScriptContext<Numbers.Factory> NUMBERS_CONTEXT = new ScriptContext<>("numbers", Numbers.Factory.class);
 }

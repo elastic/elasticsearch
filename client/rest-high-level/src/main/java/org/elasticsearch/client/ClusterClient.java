@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -52,7 +54,7 @@ public final class ClusterClient {
      */
     public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
             throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, emptySet(), headers);
     }
 
@@ -64,8 +66,30 @@ public final class ClusterClient {
      */
     public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Add a pipeline or update an existing pipeline in the cluster
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     */
+    public PutPipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline,
+            PutPipelineResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously add a pipeline or update an existing pipeline in the cluster
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     */
+    public void putPipelineAsync(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
+            PutPipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**
@@ -77,8 +101,8 @@ public final class ClusterClient {
      * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
      */
     public ClusterHealthResponse health(ClusterHealthRequest healthRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(healthRequest, Request::clusterHealth, ClusterHealthResponse::fromXContent,
-            singleton(RestStatus.REQUEST_TIMEOUT.getStatus()), headers);
+        return restHighLevelClient.performRequestAndParseEntity(healthRequest, RequestConverters::clusterHealth,
+                ClusterHealthResponse::fromXContent, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()), headers);
     }
 
     /**
@@ -89,7 +113,7 @@ public final class ClusterClient {
      * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
      */
     public void healthAsync(ClusterHealthRequest healthRequest, ActionListener<ClusterHealthResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, Request::clusterHealth, ClusterHealthResponse::fromXContent,
-            listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()), headers);
+        restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, RequestConverters::clusterHealth,
+                ClusterHealthResponse::fromXContent, listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()), headers);
     }
 }

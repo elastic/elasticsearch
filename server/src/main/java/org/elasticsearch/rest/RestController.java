@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.usage.UsageService;
@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -402,9 +401,15 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private void handleBadRequest(RestRequest request, RestChannel channel) {
-        channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
-            "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+    private void handleBadRequest(RestRequest request, RestChannel channel) throws IOException {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            builder.startObject();
+            {
+                builder.field("error", "no handler found for uri [" + request.uri() + "] and method [" + request.method() + "]");
+            }
+            builder.endObject();
+            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
+        }
     }
 
     /**

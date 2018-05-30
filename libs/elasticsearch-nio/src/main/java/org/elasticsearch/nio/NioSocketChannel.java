@@ -60,7 +60,7 @@ public class NioSocketChannel extends NioChannel {
         return remoteAddress;
     }
 
-    public void addConnectListener(BiConsumer<Void, Throwable> listener) {
+    public void addConnectListener(BiConsumer<Void, Exception> listener) {
         context.addConnectListener(listener);
     }
 

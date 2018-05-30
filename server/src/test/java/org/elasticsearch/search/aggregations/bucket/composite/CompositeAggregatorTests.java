@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -41,6 +42,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -62,6 +64,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -87,7 +90,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        FIELD_TYPES = new MappedFieldType[6];
+        FIELD_TYPES = new MappedFieldType[7];
         FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType();
         FIELD_TYPES[0].setName("keyword");
         FIELD_TYPES[0].setHasDocValues(true);
@@ -113,6 +116,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType();
         FIELD_TYPES[5].setName("terms");
         FIELD_TYPES[5].setHasDocValues(true);
+
+        FIELD_TYPES[6] = new IpFieldMapper.IpFieldType();
+        FIELD_TYPES[6].setName("ip");
+        FIELD_TYPES[6].setHasDocValues(true);
     }
 
     @Override
@@ -812,6 +819,47 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testWithDateTerms() throws IOException {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("date", asLong("2017-10-20T03:08:45")),
+                createDocument("date", asLong("2016-09-20T09:00:34")),
+                createDocument("date", asLong("2016-09-20T11:34:00")),
+                createDocument("date", asLong("2017-10-20T06:09:24")),
+                createDocument("date", asLong("2017-10-19T06:09:24")),
+                createDocument("long", 4L)
+            )
+        );
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date"),
+            LongPoint.newRangeQuery(
+                "date",
+                asLong("2016-09-20T09:00:34"),
+                asLong("2017-10-20T06:09:24")
+            )), dataset,
+            () -> {
+                TermsValuesSourceBuilder histo = new TermsValuesSourceBuilder("date")
+                    .field("date");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo));
+            },
+            (result) -> {
+                assertEquals(5, result.getBuckets().size());
+                assertEquals("{date=1508479764000}", result.afterKey().toString());
+                assertThat(result.getBuckets().get(0).getKey().get("date"), instanceOf(Long.class));
+                assertEquals("{date=1474362034000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{date=1474371240000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{date=1508393364000}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{date=1508468925000}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                assertEquals("{date=1508479764000}", result.getBuckets().get(4).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(4).getDocCount());
+            }
+        );
+    }
+
     public void testWithDateHistogramAndFormat() throws IOException {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -1437,6 +1485,51 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         assertEquals(expected, seen);
     }
 
+    public void testWithIP() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("ip", InetAddress.getByName("127.0.0.1")),
+                createDocument("ip", InetAddress.getByName("192.168.0.1")),
+                createDocument("ip", InetAddress.getByName("::1")),
+                createDocument("ip", InetAddress.getByName("::1")),
+                createDocument("ip", InetAddress.getByName("192.168.0.1"))
+            )
+        );
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("ip")), dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("ip")
+                    .field("ip");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{ip=192.168.0.1}", result.afterKey().toString());
+                assertEquals("{ip=::1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{ip=127.0.0.1}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{ip=192.168.0.1}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("ip")), dataset,
+            () -> {
+                TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("ip")
+                    .field("ip");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+                    .aggregateAfter(Collections.singletonMap("ip", "::1"));
+            }, (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{ip=192.168.0.1}", result.afterKey().toString());
+                assertEquals("{ip=127.0.0.1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{ip=192.168.0.1}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+    }
+
     private void testSearchCase(List<Query> queries,
                                 List<Map<String, List<Object>>> dataset,
                                 Supplier<CompositeAggregationBuilder> create,
@@ -1491,6 +1584,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 } else if (value instanceof String) {
                     doc.add(new SortedSetDocValuesField(name, new BytesRef((String) value)));
                     doc.add(new StringField(name, new BytesRef((String) value), Field.Store.NO));
+                } else if (value instanceof InetAddress) {
+                    doc.add(new SortedSetDocValuesField(name, new BytesRef(InetAddressPoint.encode((InetAddress) value))));
+                    doc.add(new InetAddressPoint(name, (InetAddress) value));
                 } else {
                     throw new AssertionError("invalid object: " + value.getClass().getSimpleName());
                 }

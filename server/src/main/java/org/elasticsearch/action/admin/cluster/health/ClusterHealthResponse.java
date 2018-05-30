@@ -231,7 +231,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     }
 
     /**
-     * <tt>true</tt> if the waitForXXX has timeout out and did not match.
+     * {@code true} if the waitForXXX has timeout out and did not match.
      */
     public boolean isTimedOut() {
         return this.timedOut;
@@ -292,7 +292,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         timedOut = in.readBoolean();
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards= in.readInt();
-        taskMaxWaitingTime = new TimeValue(in);
+        taskMaxWaitingTime = in.readTimeValue();
     }
 
     @Override
@@ -305,7 +305,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeBoolean(timedOut);
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
-        taskMaxWaitingTime.writeTo(out);
+        out.writeTimeValue(taskMaxWaitingTime);
     }
 
     @Override

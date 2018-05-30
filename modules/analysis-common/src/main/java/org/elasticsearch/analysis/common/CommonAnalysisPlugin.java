@@ -34,9 +34,11 @@ import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.analysis.core.LetterTokenizer;
 import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanNormalizationFilter;
 import org.apache.lucene.analysis.de.GermanStemFilter;
@@ -58,15 +60,25 @@ import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
+import org.apache.lucene.analysis.ngram.NGramTokenizer;
+import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
+import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
+import org.apache.lucene.analysis.standard.ClassicTokenizer;
+import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
+import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.util.ElisionFilter;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -88,6 +100,9 @@ import java.util.TreeMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(CommonAnalysisPlugin.class));
+
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
@@ -164,6 +179,21 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new TreeMap<>();
         tokenizers.put("simple_pattern", SimplePatternTokenizerFactory::new);
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
+        tokenizers.put("thai", ThaiTokenizerFactory::new);
+        tokenizers.put("nGram", NGramTokenizerFactory::new);
+        tokenizers.put("ngram", NGramTokenizerFactory::new);
+        tokenizers.put("edgeNGram", EdgeNGramTokenizerFactory::new);
+        tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
+        tokenizers.put("char_group", CharGroupTokenizerFactory::new);
+        tokenizers.put("classic", ClassicTokenizerFactory::new);
+        tokenizers.put("letter", LetterTokenizerFactory::new);
+        tokenizers.put("lowercase", LowerCaseTokenizerFactory::new);
+        tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);
+        tokenizers.put("PathHierarchy", PathHierarchyTokenizerFactory::new);
+        tokenizers.put("pattern", PatternTokenizerFactory::new);
+        tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
+        tokenizers.put("whitespace", WhitespaceTokenizerFactory::new);
+        tokenizers.put("keyword", KeywordTokenizerFactory::new);
         return tokenizers;
     }
 
@@ -171,8 +201,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
         List<PreConfiguredCharFilter> filters = new ArrayList<>();
         filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
-        // TODO deprecate htmlStrip
-        filters.add(PreConfiguredCharFilter.singleton("htmlStrip", false, HTMLStripCharFilter::new));
+        filters.add(PreConfiguredCharFilter.singletonWithVersion("htmlStrip", false, (reader, version) -> {
+            if (version.onOrAfter(org.elasticsearch.Version.V_6_3_0)) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("htmlStrip_deprecation",
+                        "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
+                                + "Please change the filter name to [html_strip] instead.");
+            }
+            return new HTMLStripCharFilter(reader);
+        }));
         return filters;
     }
 
@@ -203,9 +239,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, input ->
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
-        // TODO deprecate edgeNGram
-        filters.add(PreConfiguredTokenFilter.singleton("edgeNGram", false, input ->
-                new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("edgeNGram", false, (reader, version) -> {
+            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("edgeNGram_deprecation",
+                        "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                                + "Please change the filter name to [edge_ngram] instead.");
+            }
+            return new EdgeNGramTokenFilter(reader, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
+            }));
         filters.add(PreConfiguredTokenFilter.singleton("elision", true,
                 input -> new ElisionFilter(input, FrenchAnalyzer.DEFAULT_ARTICLES)));
         filters.add(PreConfiguredTokenFilter.singleton("french_stem", false, input -> new SnowballFilter(input, new FrenchStemmer())));
@@ -222,8 +263,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                         LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT,
                         LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS)));
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, NGramTokenFilter::new));
-        // TODO deprecate nGram
-        filters.add(PreConfiguredTokenFilter.singleton("nGram", false, NGramTokenFilter::new));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("nGram", false, (reader, version) -> {
+            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("nGram_deprecation",
+                        "The [nGram] token filter name is deprecated and will be removed in a future version. "
+                                + "Please change the filter name to [ngram] instead.");
+            }
+            return new NGramTokenFilter(reader);
+        }));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("reverse", false, ReverseStringFilter::new));
@@ -272,6 +319,16 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
         List<PreConfiguredTokenizer> tokenizers = new ArrayList<>();
         tokenizers.add(PreConfiguredTokenizer.singleton("keyword", KeywordTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("classic", ClassicTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("uax_url_email", UAX29URLEmailTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("path_hierarchy", PathHierarchyTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("edge_ngram",
+            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE), null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1), null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new, null));
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", LowerCaseTokenizer::new, () -> new TokenFilterFactory() {
             @Override
             public String name() {
@@ -283,6 +340,13 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 return new LowerCaseFilter(tokenStream);
             }
         }));
+
+        // Temporary shim for aliases. TODO deprecate after they are moved
+        tokenizers.add(PreConfiguredTokenizer.singleton("nGram", NGramTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("edgeNGram",
+            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE), null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new, null));
+
         return tokenizers;
     }
 }

@@ -144,7 +144,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         parentTaskId = TaskId.readFromStream(in);
         nodes = in.readStringArray();
         actions = in.readStringArray();
-        timeout = in.readOptionalWriteable(TimeValue::new);
+        timeout = in.readOptionalTimeValue();
     }
 
     @Override
@@ -154,7 +154,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         parentTaskId.writeTo(out);
         out.writeStringArrayNullable(nodes);
         out.writeStringArrayNullable(actions);
-        out.writeOptionalWriteable(timeout);
+        out.writeOptionalTimeValue(timeout);
     }
 
     public boolean match(Task task) {

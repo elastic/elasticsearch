@@ -55,6 +55,21 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     }
 
     /**
+     * Returns the underlying stats flags.
+     */
+    public CommonStatsFlags flags() {
+        return flags;
+    }
+
+    /**
+     * Sets the underlying stats flags.
+     */
+    public IndicesStatsRequest flags(CommonStatsFlags flags) {
+        this.flags = flags;
+        return this;
+    }
+
+    /**
      * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
      * enabled, returning specific indexing stats for those types.
      */
@@ -227,15 +242,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     public boolean translog() {
         return flags.isSet(Flag.Translog);
-    }
-
-    public IndicesStatsRequest suggest(boolean suggest) {
-        flags.set(Flag.Suggest, suggest);
-        return this;
-    }
-
-    public boolean suggest() {
-        return flags.isSet(Flag.Suggest);
     }
 
     public IndicesStatsRequest requestCache(boolean requestCache) {

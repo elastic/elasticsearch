@@ -2,8 +2,10 @@
 === Install Elasticsearch with Debian Package
 
 The Debian package for Elasticsearch can be <<install-deb,downloaded from our website>>
-or from our  <<deb-repo,APT repository>>. It can be used to install
+or from our <<deb-repo,APT repository>>. It can be used to install
 Elasticsearch on any Debian-based system such as Debian and Ubuntu.
+
+include::license.asciidoc[]
 
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
@@ -125,8 +127,21 @@ sudo dpkg -i elasticsearch-{version}.deb
 --------------------------------------------
 <1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
     `elasticsearch-{version}.deb: OK`.
+    
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.deb    
 
 endif::[]
+
+ifdef::include-xpack[]
+[[deb-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+{xpack} will try to automatically create a number of indices within Elasticsearch.
+include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
+
+endif::include-xpack[]
 
 include::init-systemd.asciidoc[]
 

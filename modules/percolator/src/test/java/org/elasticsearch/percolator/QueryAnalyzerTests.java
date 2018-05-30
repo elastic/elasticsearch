@@ -65,6 +65,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -175,7 +176,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("_field", "_term1"), new Term("_field", "_term2"));
         assertEquals(1, result.minimumShouldMatch); // because of the dup term
     }
-        
+
 
     public void testExtractQueryMetadata_booleanQuery() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -538,10 +539,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.setMinimumNumberShouldMatch(1);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Must clause is exact, but m_s_m is 1 so one should clause must match too", result.verified, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(1));
-        assertThat(result.extractions.size(), equalTo(1));
-        extractions = new ArrayList<>(result.extractions);
-        assertThat(extractions.get(0).term, equalTo(new Term("_field", "_term3")));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertTermsEqual(result.extractions, termQuery1.getTerm(), termQuery2.getTerm(), termQuery3.getTerm());
 
         builder = new BooleanQuery.Builder();
         BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
@@ -1297,7 +1296,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         boolQuery.add(LongPoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.SHOULD);
         result = analyze(boolQuery.build(), Version.CURRENT);
         assertFalse(result.verified);
-        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(2, result.extractions.size());
         assertEquals("_field2", new ArrayList<>(result.extractions).get(0).range.fieldName);
         assertEquals("_field1", new ArrayList<>(result.extractions).get(1).range.fieldName);
@@ -1337,9 +1336,9 @@ public class QueryAnalyzerTests extends ESTestCase {
                 BooleanClause.Occur.MUST
         );
         Result result = analyze(builder.build(), Version.CURRENT);
-        assertThat(result.verified, is(true));
+        assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(4));
+        assertThat(result.minimumShouldMatch, equalTo(2));
         assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
                 new Term("field", "value3"), new Term("field", "value4"));
 
@@ -1371,6 +1370,21 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.minimumShouldMatch, equalTo(2));
         assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
                 new Term("field", "value3"), new Term("field", "value4"));
+    }
+
+    public void testEmptyQueries() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
+
+        result = analyze(new DisjunctionMaxQuery(Collections.emptyList(), 0f), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
     }
 
     private static void assertDimension(byte[] expected, Consumer<byte[]> consumer) {

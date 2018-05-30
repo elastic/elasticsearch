@@ -1,0 +1,13 @@
+[[painless-keywords]]
+=== Keywords
+
+Keywords are reserved tokens for built-in language features and cannot be used
+as <<painless-identifiers, identifiers>> within a script. The following are
+keywords:
+
+[cols="^1,^1,^1,^1,^1"]
+|====
+| if | else | while | do | for
+| in | continue | break | return | new
+| try | catch | throw | this | instanceof
+|====

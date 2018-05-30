@@ -30,6 +30,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -60,6 +62,8 @@ import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
+import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
@@ -187,6 +191,8 @@ public class RestHighLevelClient implements Closeable {
 
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final ClusterClient clusterClient = new ClusterClient(this);
+    private final SnapshotClient snapshotClient = new SnapshotClient(this);
+    private final TasksClient tasksClient = new TasksClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -251,12 +257,30 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
+     */
+    public final SnapshotClient snapshot() {
+        return snapshotClient;
+    }
+
+    /**
+     * Provides a {@link TasksClient} which can be used to access the Tasks API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
+     */
+    public final TasksClient tasks() {
+        return tasksClient;
+    }
+
+    /**
      * Executes a bulk request using the Bulk API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
     public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -265,14 +289,14 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
     public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
+        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**
      * Pings the remote Elasticsearch cluster and returns true if the ping succeeded, false otherwise
      */
     public final boolean ping(Header... headers) throws IOException {
-        return performRequest(new MainRequest(), (request) -> Request.ping(), RestHighLevelClient::convertExistsResponse,
+        return performRequest(new MainRequest(), (request) -> RequestConverters.ping(), RestHighLevelClient::convertExistsResponse,
                 emptySet(), headers);
     }
 
@@ -280,8 +304,8 @@ public class RestHighLevelClient implements Closeable {
      * Get the cluster info otherwise provided when sending an HTTP request to port 9200
      */
     public final MainResponse info(Header... headers) throws IOException {
-        return performRequestAndParseEntity(new MainRequest(), (request) -> Request.info(), MainResponse::fromXContent, emptySet(),
-                headers);
+        return performRequestAndParseEntity(new MainRequest(), (request) -> RequestConverters.info(),
+                MainResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -290,7 +314,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
     public final GetResponse get(GetRequest getRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, singleton(404), headers);
+        return performRequestAndParseEntity(getRequest, RequestConverters::get, GetResponse::fromXContent, singleton(404), headers);
     }
 
     /**
@@ -299,7 +323,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
     public final void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, listener, singleton(404), headers);
+        performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, GetResponse::fromXContent, listener,
+                singleton(404), headers);
     }
 
     /**
@@ -308,7 +333,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
      */
     public final MultiGetResponse multiGet(MultiGetRequest multiGetRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, singleton(404), headers);
+        return performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, MultiGetResponse::fromXContent,
+                singleton(404), headers);
     }
 
     /**
@@ -317,7 +343,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
      */
     public final void multiGetAsync(MultiGetRequest multiGetRequest, ActionListener<MultiGetResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, MultiGetResponse::fromXContent, listener,
                 singleton(404), headers);
     }
 
@@ -327,7 +353,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
     public final boolean exists(GetRequest getRequest, Header... headers) throws IOException {
-        return performRequest(getRequest, Request::exists, RestHighLevelClient::convertExistsResponse, emptySet(), headers);
+        return performRequest(getRequest, RequestConverters::exists, RestHighLevelClient::convertExistsResponse, emptySet(), headers);
     }
 
     /**
@@ -336,7 +362,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
     public final void existsAsync(GetRequest getRequest, ActionListener<Boolean> listener, Header... headers) {
-        performRequestAsync(getRequest, Request::exists, RestHighLevelClient::convertExistsResponse, listener, emptySet(), headers);
+        performRequestAsync(getRequest, RequestConverters::exists, RestHighLevelClient::convertExistsResponse, listener,
+                emptySet(), headers);
     }
 
     /**
@@ -345,7 +372,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      */
     public final IndexResponse index(IndexRequest indexRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(indexRequest, RequestConverters::index, IndexResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -354,7 +381,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      */
     public final void indexAsync(IndexRequest indexRequest, ActionListener<IndexResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, listener, emptySet(), headers);
+        performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, IndexResponse::fromXContent, listener,
+                emptySet(), headers);
     }
 
     /**
@@ -363,7 +391,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
      */
     public final UpdateResponse update(UpdateRequest updateRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(updateRequest, RequestConverters::update, UpdateResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -372,7 +400,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
      */
     public final void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
+        performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, UpdateResponse::fromXContent, listener,
+                emptySet(), headers);
     }
 
     /**
@@ -381,8 +410,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
     public final DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, Collections.singleton(404),
-            headers);
+        return performRequestAndParseEntity(deleteRequest, RequestConverters::delete, DeleteResponse::fromXContent,
+                singleton(404), headers);
     }
 
     /**
@@ -391,7 +420,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
     public final void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, DeleteResponse::fromXContent, listener,
             Collections.singleton(404), headers);
     }
 
@@ -401,7 +430,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
     public final SearchResponse search(SearchRequest searchRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(searchRequest, RequestConverters::search, SearchResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -410,7 +439,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
     public final void searchAsync(SearchRequest searchRequest, ActionListener<SearchResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener, emptySet(), headers);
+        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, SearchResponse::fromXContent, listener,
+                emptySet(), headers);
     }
 
     /**
@@ -420,7 +450,7 @@ public class RestHighLevelClient implements Closeable {
      * elastic.co</a>
      */
     public final MultiSearchResponse multiSearch(MultiSearchRequest multiSearchRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(multiSearchRequest, Request::multiSearch, MultiSearchResponse::fromXContext,
+        return performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, MultiSearchResponse::fromXContext,
                 emptySet(), headers);
     }
 
@@ -431,7 +461,7 @@ public class RestHighLevelClient implements Closeable {
      * elastic.co</a>
      */
     public final void multiSearchAsync(MultiSearchRequest searchRequest, ActionListener<MultiSearchResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(searchRequest, Request::multiSearch, MultiSearchResponse::fromXContext, listener,
+        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, MultiSearchResponse::fromXContext, listener,
                 emptySet(), headers);
     }
 
@@ -442,7 +472,8 @@ public class RestHighLevelClient implements Closeable {
      * API on elastic.co</a>
      */
     public final SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, SearchResponse::fromXContent,
+                emptySet(), headers);
     }
 
     /**
@@ -453,7 +484,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void searchScrollAsync(SearchScrollRequest searchScrollRequest,
                                         ActionListener<SearchResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent,
+        performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, SearchResponse::fromXContent,
                 listener, emptySet(), headers);
     }
 
@@ -464,7 +495,7 @@ public class RestHighLevelClient implements Closeable {
      * Clear Scroll API on elastic.co</a>
      */
     public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+        return performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, ClearScrollResponse::fromXContent,
                 emptySet(), headers);
     }
 
@@ -476,9 +507,35 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void clearScrollAsync(ClearScrollRequest clearScrollRequest,
                                        ActionListener<ClearScrollResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+        performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, ClearScrollResponse::fromXContent,
                 listener, emptySet(), headers);
     }
+
+    /**
+     * Executes a request using the Search Template API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     */
+    public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
+                                                       Header... headers) throws IOException {
+        return performRequestAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate,
+            SearchTemplateResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a request using the Search Template API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     */
+    public final void searchTemplateAsync(SearchTemplateRequest searchTemplateRequest,
+                                          ActionListener<SearchTemplateResponse> listener,
+                                          Header... headers) {
+        performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate,
+            SearchTemplateResponse::fromXContent, listener, emptySet(), headers);
+    }
+
 
     /**
      * Executes a request using the Ranking Evaluation API.
@@ -487,7 +544,8 @@ public class RestHighLevelClient implements Closeable {
      * on elastic.co</a>
      */
     public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(rankEvalRequest, Request::rankEval, RankEvalResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, RankEvalResponse::fromXContent,
+                emptySet(), headers);
     }
 
     /**
@@ -497,8 +555,33 @@ public class RestHighLevelClient implements Closeable {
      * on elastic.co</a>
      */
     public final void rankEvalAsync(RankEvalRequest rankEvalRequest, ActionListener<RankEvalResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(rankEvalRequest, Request::rankEval, RankEvalResponse::fromXContent, listener, emptySet(),
-                headers);
+        performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, RankEvalResponse::fromXContent, listener,
+                emptySet(), headers);
+    }
+
+    /**
+     * Executes a request using the Field Capabilities API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
+     * on elastic.co</a>.
+     */
+    public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
+                                                     Header... headers) throws IOException {
+        return performRequestAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps,
+            FieldCapabilitiesResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a request using the Field Capabilities API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
+     * on elastic.co</a>.
+     */
+    public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest,
+                                     ActionListener<FieldCapabilitiesResponse> listener,
+                                     Header... headers) {
+        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps,
+            FieldCapabilitiesResponse::fromXContent, listener, emptySet(), headers);
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
@@ -517,9 +600,10 @@ public class RestHighLevelClient implements Closeable {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
+        addHeaders(req, headers);
         Response response;
         try {
-            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), headers);
+            response = client.performRequest(req);
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
@@ -566,9 +650,17 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return;
         }
+        addHeaders(req, headers);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), responseListener, headers);
+        client.performRequestAsync(req, responseListener);
+    }
+
+    private static void addHeaders(Request request, Header... headers) {
+        Objects.requireNonNull(headers, "headers cannot be null");
+        for (Header header : headers) {
+            request.addHeader(header.getName(), header.getValue());
+        }
     }
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,

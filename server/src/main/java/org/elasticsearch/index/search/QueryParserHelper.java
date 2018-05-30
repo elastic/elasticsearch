@@ -89,7 +89,8 @@ public final class QueryParserHelper {
      * @param field The field name to search.
      */
     public static FieldMapper getFieldMapper(MapperService mapperService, String field) {
-        for (DocumentMapper mapper : mapperService.docMappers(true)) {
+        DocumentMapper mapper = mapperService.documentMapper();
+        if (mapper != null) {
             FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(field);
             if (fieldMapper != null) {
                 return fieldMapper;

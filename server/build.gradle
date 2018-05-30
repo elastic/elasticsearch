@@ -163,6 +163,7 @@ forbiddenPatterns {
 
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
+  modules.add('x-pack')
   File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
   processResources.from(modulesFile)
   inputs.property('modules', modules)

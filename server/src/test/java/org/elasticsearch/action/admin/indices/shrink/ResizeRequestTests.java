@@ -31,11 +31,33 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ResizeRequestTests extends ESTestCase {
+
+    public void testCopySettingsValidation() {
+        runTestCopySettingsValidation(false, r -> {
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, r::get);
+            assertThat(e, hasToString(containsString("[copySettings] can not be explicitly set to [false]")));
+        });
+
+        runTestCopySettingsValidation(null, r -> assertNull(r.get().getCopySettings()));
+        runTestCopySettingsValidation(true, r -> assertTrue(r.get().getCopySettings()));
+    }
+
+    private void runTestCopySettingsValidation(final Boolean copySettings, final Consumer<Supplier<ResizeRequest>> consumer) {
+        consumer.accept(() -> {
+            final ResizeRequest request = new ResizeRequest();
+            request.setCopySettings(copySettings);
+            return request;
+        });
+    }
 
     public void testToXContent() throws IOException {
         {

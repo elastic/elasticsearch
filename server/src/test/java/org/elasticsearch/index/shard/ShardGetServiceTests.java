@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
 import java.io.IOException;
@@ -54,12 +53,11 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.reader().maxDoc(), 1); // we refreshed
         }
 
-        Engine.IndexResult test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar", null);
+        Engine.IndexResult test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet1 = primary.getService().getForUpdate("test", "1", test1.getVersion(), VersionType.INTERNAL);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
-        assertFalse(testGet1.getFields().containsKey(ParentFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.reader().maxDoc(), 1); // we read from the translog
@@ -70,12 +68,11 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         // now again from the reader
-        test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar", null);
+        test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         testGet1 = primary.getService().getForUpdate("test", "1", test1.getVersion(), VersionType.INTERNAL);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
-        assertFalse(testGet1.getFields().containsKey(ParentFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
 
         closeShards(primary);
@@ -88,8 +85,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .put("index.version.created", Version.V_5_6_0) // for parent field mapper
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("parent", "{ \"properties\": {}}")
-            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}, \"_parent\":  { \"type\": \"parent\"}}")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -103,13 +99,11 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.reader().maxDoc(), 1); // we refreshed
         }
 
-        Engine.IndexResult test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, null, "foobar");
+        Engine.IndexResult test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, null);
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet1 = primary.getService().getForUpdate("test", "1", test1.getVersion(), VersionType.INTERNAL);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
-        assertTrue(testGet1.getFields().containsKey(ParentFieldMapper.NAME));
         assertFalse(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
-        assertEquals("foobar", testGet1.getFields().get(ParentFieldMapper.NAME).getValue());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.reader().maxDoc(), 1); // we read from the translog
         }
@@ -119,13 +113,11 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         // now again from the reader
-        test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, null, "foobar");
+        test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, null);
         assertTrue(primary.getEngine().refreshNeeded());
         testGet1 = primary.getService().getForUpdate("test", "1", test1.getVersion(), VersionType.INTERNAL);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
-        assertTrue(testGet1.getFields().containsKey(ParentFieldMapper.NAME));
         assertFalse(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
-        assertEquals("foobar", testGet1.getFields().get(ParentFieldMapper.NAME).getValue());
 
         closeShards(primary);
     }

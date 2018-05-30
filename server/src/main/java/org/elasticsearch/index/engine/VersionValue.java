@@ -27,7 +27,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.util.Collection;
 import java.util.Collections;
 
-class VersionValue implements Accountable {
+abstract class VersionValue implements Accountable {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
 

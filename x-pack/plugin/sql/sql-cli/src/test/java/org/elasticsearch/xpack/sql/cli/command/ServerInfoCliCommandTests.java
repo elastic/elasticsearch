@@ -36,7 +36,7 @@ public class ServerInfoCliCommandTests extends ESTestCase {
         HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
         when(client.serverInfo()).thenReturn(new MainResponse("my_node", "1.2.3",
-                new ClusterName("my_cluster").value(), UUIDs.randomBase64UUID(), Build.CURRENT));
+                new ClusterName("my_cluster").value(), UUIDs.randomBase64UUID()));
         ServerInfoCliCommand cliCommand = new ServerInfoCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "info"));
         assertEquals(testTerminal.toString(), "Node:<em>my_node</em> Cluster:<em>my_cluster</em> Version:<em>1.2.3</em>\n");

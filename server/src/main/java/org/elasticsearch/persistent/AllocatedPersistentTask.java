@@ -26,7 +26,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -38,17 +37,15 @@ import java.util.function.Predicate;
  * Represents a executor node operation that corresponds to a persistent task
  */
 public class AllocatedPersistentTask extends CancellableTask {
-    private volatile String persistentTaskId;
-    private volatile long allocationId;
 
     private final AtomicReference<State> state;
-    @Nullable
-    private volatile Exception failure;
 
+    private volatile String persistentTaskId;
+    private volatile long allocationId;
+    private volatile @Nullable Exception failure;
     private volatile PersistentTasksService persistentTasksService;
     private volatile Logger logger;
     private volatile TaskManager taskManager;
-
 
     public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask,
                                    Map<String, String> headers) {
@@ -101,31 +98,29 @@ public class AllocatedPersistentTask extends CancellableTask {
         return failure;
     }
 
-    boolean markAsCancelled() {
-        return state.compareAndSet(AllocatedPersistentTask.State.STARTED, AllocatedPersistentTask.State.PENDING_CANCEL);
-    }
-
-    public State getState() {
-        return state.get();
-    }
-
     public long getAllocationId() {
         return allocationId;
     }
 
-    public enum State {
-        STARTED,  // the task is currently running
-        PENDING_CANCEL, // the task is cancelled on master, cancelling it locally
-        COMPLETED     // the task is done running and trying to notify caller
+    /**
+     * Waits for a given persistent task to comply with a given predicate, then call back the listener accordingly.
+     *
+     * @param predicate the persistent task predicate to evaluate
+     * @param timeout a timeout for waiting
+     * @param listener the callback listener
+     */
+    public void waitForPersistentTask(final Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> predicate,
+                                      final @Nullable TimeValue timeout,
+                                      final PersistentTasksService.WaitForPersistentTaskListener<?> listener) {
+        persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, predicate, timeout, listener);
     }
 
-    /**
-     * Waits for this persistent task to have the desired state.
-     */
-    public void waitForPersistentTaskStatus(Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> predicate,
-                                            @Nullable TimeValue timeout,
-                                            PersistentTasksService.WaitForPersistentTaskStatusListener<?> listener) {
-        persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, predicate, timeout, listener);
+    final boolean isCompleted() {
+        return state.get() ==  State.COMPLETED;
+    }
+
+    boolean markAsCancelled() {
+        return state.compareAndSet(State.STARTED, State.PENDING_CANCEL);
     }
 
     public void markAsCompleted() {
@@ -138,11 +133,10 @@ public class AllocatedPersistentTask extends CancellableTask {
         } else {
             completeAndNotifyIfNeeded(e);
         }
-
     }
 
     private void completeAndNotifyIfNeeded(@Nullable Exception failure) {
-        State prevState = state.getAndSet(AllocatedPersistentTask.State.COMPLETED);
+        final State prevState = state.getAndSet(State.COMPLETED);
         if (prevState == State.COMPLETED) {
             logger.warn("attempt to complete task [{}] with id [{}] in the [{}] state", getAction(), getPersistentTaskId(), prevState);
         } else {
@@ -153,7 +147,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                 this.failure = failure;
                 if (prevState == State.STARTED) {
                     logger.trace("sending notification for completed task [{}] with id [{}]", getAction(), getPersistentTaskId());
-                    persistentTasksService.sendCompletionNotification(getPersistentTaskId(), getAllocationId(), failure, new
+                    persistentTasksService.sendCompletionRequest(getPersistentTaskId(), getAllocationId(), failure, new
                             ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                                 @Override
                                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -172,5 +166,11 @@ public class AllocatedPersistentTask extends CancellableTask {
                 taskManager.unregister(this);
             }
         }
+    }
+
+    public enum State {
+        STARTED,  // the task is currently running
+        PENDING_CANCEL, // the task is cancelled on master, cancelling it locally
+        COMPLETED     // the task is done running and trying to notify caller
     }
 }

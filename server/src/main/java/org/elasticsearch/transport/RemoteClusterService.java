@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -27,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -97,6 +97,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             Setting.affixKeySetting("search.remote.", "skip_unavailable",
                     key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic), REMOTE_CLUSTERS_SEEDS);
 
+    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
+            && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());
+
     private final TransportService transportService;
     private final int numRemoteConnections;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
@@ -121,13 +124,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             connectionListener.onResponse(null);
         } else {
             CountDown countDown = new CountDown(seeds.size());
-            Predicate<DiscoveryNode> nodePredicate = (node) -> Version.CURRENT.isCompatible(node.getVersion());
-            if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
-                // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for
-                // cross cluster search
-                String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-                nodePredicate = nodePredicate.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
-            }
             remoteClusters.putAll(this.remoteClusters);
             for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
                 RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
@@ -143,7 +139,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
                     remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService, numRemoteConnections,
-                        nodePredicate);
+                        getNodePredicate(settings));
                     remoteClusters.put(entry.getKey(), remote);
                 }
 
@@ -166,6 +162,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
         }
         this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
+    }
+
+    static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
+        if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
+            // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
+            String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
+            return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
+        }
+        return DEFAULT_NODE_PREDICATE;
     }
 
     /**

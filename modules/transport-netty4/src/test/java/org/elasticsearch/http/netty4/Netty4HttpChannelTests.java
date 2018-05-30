@@ -60,7 +60,6 @@ import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestResponse;
@@ -212,12 +211,12 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-            Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
             HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
 
             // send a response
             Netty4HttpChannel channel =
-                    new Netty4HttpChannel(httpServerTransport, request, null, handlingSettings, threadPool.getThreadContext());
+                new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             TestResponse resp = new TestResponse();
             final String customHeader = "custom-header";
             final String customHeaderValue = "xyz";
@@ -227,7 +226,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             // inspect what was written
             List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
             assertThat(writtenObjects.size(), is(1));
-            HttpResponse response = (HttpResponse) writtenObjects.get(0);
+            HttpResponse response = ((Netty4HttpResponse) writtenObjects.get(0)).getResponse();
             assertThat(response.headers().get("non-existent-header"), nullValue());
             assertThat(response.headers().get(customHeader), equalTo(customHeaderValue));
             assertThat(response.headers().get(HttpHeaderNames.CONTENT_LENGTH), equalTo(Integer.toString(resp.content().length())));
@@ -243,10 +242,9 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
-            final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
             HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
             final Netty4HttpChannel channel =
-                    new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, handlingSettings, threadPool.getThreadContext());
+                    new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             final TestResponse response = new TestResponse(bigArrays);
             assertThat(response.content(), instanceOf(Releasable.class));
             embeddedChannel.close();
@@ -263,10 +261,9 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
-            final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
             HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
             final Netty4HttpChannel channel =
-                new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, handlingSettings, threadPool.getThreadContext());
+                new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
                 JsonXContent.contentBuilder().startObject().endObject());
             assertThat(response.content(), not(instanceOf(Releasable.class)));
@@ -312,7 +309,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             assertTrue(embeddedChannel.isOpen());
             HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
             final Netty4HttpChannel channel =
-                new Netty4HttpChannel(httpServerTransport, request, null, handlingSettings, threadPool.getThreadContext());
+                new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             final TestResponse resp = new TestResponse();
             channel.sendResponse(resp);
             assertThat(embeddedChannel.isOpen(), equalTo(!close));
@@ -340,13 +337,13 @@ public class Netty4HttpChannelTests extends ESTestCase {
             HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
 
             Netty4HttpChannel channel =
-                    new Netty4HttpChannel(httpServerTransport, request, null, handlingSettings, threadPool.getThreadContext());
+                new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             channel.sendResponse(new TestResponse());
 
             // get the response
             List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
             assertThat(writtenObjects.size(), is(1));
-            return (FullHttpResponse) writtenObjects.get(0);
+            return ((Netty4HttpResponse) writtenObjects.get(0)).getResponse();
         }
     }
 

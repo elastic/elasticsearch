@@ -553,6 +553,10 @@ public final class AnalysisRegistry implements Closeable {
             TokenizerFactory tokenizerFactory,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
+        if (keywordTokenizerFactory == null) {
+            throw new IllegalStateException("keyword tokenizer factory is null, normalizers require analysis-common module");
+        }
+
         if (normalizerFactory instanceof CustomNormalizerProvider) {
             ((CustomNormalizerProvider) normalizerFactory).build(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
         }

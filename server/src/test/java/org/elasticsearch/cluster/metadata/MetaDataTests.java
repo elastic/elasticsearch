@@ -99,6 +99,48 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    public void testAliasWithMoreThanOneWriteIndex() {
+        int indexCount = randomIntBetween(10, 100);
+        Set<String> indices = new HashSet<>(indexCount);
+        for (int i = 0; i < indexCount; i++) {
+            indices.add(randomAlphaOfLength(10));
+        }
+        Map<String, Set<String>> aliasToIndices = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, 3); i++) {
+            aliasToIndices.put(randomAlphaOfLength(5), new HashSet<>(randomSubsetOf(randomIntBetween(2, 3), indices)));
+        }
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        for (String index : indices) {
+            IndexMetaData.Builder indexBuilder = IndexMetaData.builder(index)
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            aliasToIndices.forEach((key, value) -> {
+                if (value.contains(index)) {
+                    indexBuilder.putAlias(AliasMetaData.builder(key).writeIndex(true).build());
+                }
+            });
+            metaDataBuilder.put(indexBuilder);
+        }
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> metaDataBuilder.build());
+        assertThat(exception.getMessage(), startsWith("aliases cannot have multiple write indices"));
+    }
+
+    public void testIndexCollidingWithExistingAlias() {
+        IndexMetaData.Builder fooIndexBuilder = IndexMetaData.builder("foo")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("bar").build());
+        IndexMetaData.Builder barIndexBuilder = IndexMetaData.builder("bar")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0);
+        MetaData.Builder metaDataBuilder = MetaData.builder().put(fooIndexBuilder).put(barIndexBuilder);
+        Exception exception = expectThrows(Exception.class, metaDataBuilder::build);
+        assertThat(exception.getMessage(),
+            equalTo("index and alias names need to be unique, but the following duplicates were found [bar (alias of [foo])]"));
+    }
+
     public void testResolveIndexRouting() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))

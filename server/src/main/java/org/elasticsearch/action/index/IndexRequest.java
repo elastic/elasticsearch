@@ -25,6 +25,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
@@ -38,7 +41,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -605,4 +608,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         throw new UnsupportedOperationException("shard id should never be set on IndexRequest");
     }
 
+    /**
+     * Override this method from {@link ReplicationRequest}. 6.4.0 introduces `is_write_index` to aliases so that
+     * index requests will resolve to the appropriate write index when available.
+     */
+    @Override
+    public IndicesOptions indicesOptions() {
+        if (Version.CURRENT.onOrAfter(Version.V_6_4_0)) {
+            return IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed();
+        }
+        return super.indicesOptions();
+    }
 }

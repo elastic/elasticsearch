@@ -761,6 +761,28 @@ public class GetActionIT extends ESIntegTestCase {
         assertGetFieldsNull(indexOrAlias(), "_doc", "1", alwaysNotStoredFieldsList);
     }
 
+    public void testSimpleGetAgainstMultipleAliases() throws IOException {
+        Alias writeAlias = new Alias("alias");
+        writeAlias.writeIndex(true);
+        assertAcked(prepareCreate("test")
+            .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
+            .setSettings(Settings.builder().put("index.refresh_interval", -1))
+            .addAlias(writeAlias));
+        assertAcked(prepareCreate("test2")
+            .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
+            .setSettings(Settings.builder().put("index.refresh_interval", -1))
+            .addAlias(new Alias("alias")));
+        ensureGreen();
+
+        logger.info("--> index doc 1");
+        client().prepareIndex("alias", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+
+        logger.info("--> realtime get 1");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareGet("alias", "type1", "1").get());
+        assertThat(exception.getMessage(), equalTo("unable to return a single index as the index and options provided got resolved to multiple indices"));
+    }
+
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
 
         String storedString = stored ? "true" : "false";

@@ -194,14 +194,27 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
 
             Collection<IndexMetaData> resolvedIndices = aliasOrIndex.getIndices();
-            if (resolvedIndices.size() > 1 && !options.allowAliasesToMultipleIndices()) {
-                String[] indexNames = new String[resolvedIndices.size()];
-                int i = 0;
-                for (IndexMetaData indexMetaData : resolvedIndices) {
-                    indexNames[i++] = indexMetaData.getIndex().getName();
+            if (resolvedIndices.size() > 1 && options.allowAliasesToMultipleIndices() && options.requireAliasesToWriteIndex()) {
+                // find write-index
+                if (aliasOrIndex.isAlias()) {
+                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias)  aliasOrIndex;
+                    List<IndexMetaData> writeIndices = alias.getWriteIndices();
+                    if (writeIndices.size() == 1) {
+                        resolvedIndices = writeIndices;
+                    } else if (writeIndices.size() > 1) {
+                        String[] indexNames = new String[writeIndices.size()];
+                        int i = 0;
+                        for (IndexMetaData indexMetaData : writeIndices) {
+                            indexNames[i++] = indexMetaData.getIndex().getName();
+                        }
+                        throw new IllegalArgumentException("Alias [" + expression +
+                            "] has multiple write indices " + Arrays.toString(indexNames)
+                            + " associated with it with [is_write_index = true]");
+                    } else if (resolvedIndices.size() > 1 && writeIndices.isEmpty()) {
+                        throw new IllegalArgumentException("Alias [" + expression
+                            + "] points to multiple indices with none set as a write-index [is_write_index=true]");
+                    }
                 }
-                throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
-                        Arrays.toString(indexNames) + "], can't execute a single index op");
             }
 
             for (IndexMetaData index : resolvedIndices) {

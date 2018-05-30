@@ -72,7 +72,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed();
     }
 
     @SuppressWarnings("unchecked")

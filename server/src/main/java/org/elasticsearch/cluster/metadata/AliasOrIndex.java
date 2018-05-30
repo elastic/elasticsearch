@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates the  {@link IndexMetaData} instances of a concrete index or indices an alias is pointing to.
@@ -93,6 +94,12 @@ public interface AliasOrIndex {
         @Override
         public List<IndexMetaData> getIndices() {
             return referenceIndexMetaDatas;
+        }
+
+
+        public List<IndexMetaData> getWriteIndices() {
+            return referenceIndexMetaDatas.stream()
+                .filter(i -> i.getAliases().get(aliasName).isWriteIndex()).collect(Collectors.toList());
         }
 
         /**

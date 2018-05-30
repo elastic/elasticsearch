@@ -244,6 +244,71 @@ GET /alias2/_search?q=user:kimchy&routing=2,3
 // CONSOLE
 // TEST[continued]
 
+[float]
+[[aliases-write-index]]
+==== Write Index
+
+It is possible to associate the index associated to an alias as the write index for this
+alias. When specified, all index and update requests against an alias that point to multiple
+indices will attempt to resolve to the one index that is the write index. If no such index is
+found, then an exception will be thrown.
+
+It is possible to specify an index associated with an alias as a write index using both the aliases API
+and index creation API.
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias1",
+                 "is_write_index" : true
+            }
+        }, {
+            "add" : {
+                 "index" : "test2",
+                 "alias" : "alias1",
+                 "is_write_index" : false
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\nPUT test2\n/]
+
+In this example, we associate the alias `alias1` to both `test` and `test2`, where
+`test` will be the index chosen for writing to.
+
+[source,js]
+--------------------------------------------------
+PUT /alias1/_doc/1
+{
+    "foo": "bar"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The new document that was indexed to `/alias1/_doc/1` will be indexed as if it were
+`/test/_doc/1`.
+
+[source,js]
+--------------------------------------------------
+GET /test/_doc/1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+
+[IMPORTANT]
+=====================================
+`is_write_index` will default to `true` for an alias on a newly created index that does not point to any other
+write indices already.
+=====================================
 
 [float]
 [[alias-adding]]
@@ -419,7 +484,8 @@ Response:
          "term" : {
            "year" : 2016
          }
-       }
+       },
+       "is_write_index": true
      }
    }
  }
@@ -448,7 +514,8 @@ Response:
           "term" : {
             "year" : 2016
           }
-        }
+        },
+        "is_write_index": true
       }
     }
   }
@@ -477,7 +544,8 @@ Response:
           "term" : {
             "year" : 2016
           }
-        }
+        },
+        "is_write_index": true
       }
     }
   }

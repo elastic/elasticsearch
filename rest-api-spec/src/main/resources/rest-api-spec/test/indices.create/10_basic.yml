@@ -74,18 +74,21 @@
               filter:
                 term:
                   field : value
+            test_dlias:
+              is_write_index: true
 
   - do:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_alias: { is_write_index: true}}
   - match: {test_index.aliases.test_blias.search_routing: b}
   - match: {test_index.aliases.test_blias.index_routing: b}
   - is_false: test_index.aliases.test_blias.filter
   - match: {test_index.aliases.test_clias.filter.term.field: value}
   - is_false: test_index.aliases.test_clias.index_routing
   - is_false: test_index.aliases.test_clias.search_routing
+  - is_true: test_index.aliases.test_dlias.is_write_index
 
 ---
 "Create index with no type mappings":

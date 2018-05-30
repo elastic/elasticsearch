@@ -95,7 +95,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("multiIndexAlias"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
-        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), containsString("more than one indices"));
+        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(),
+            equalTo("unable to return a single index as the index and options provided got resolved to multiple indices"));
 
         mgetResponse = client().prepareMultiGet()
             .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
@@ -103,7 +104,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("multiIndexAlias"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
-        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), containsString("more than one indices"));
+        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(),
+            equalTo("unable to return a single index as the index and options provided got resolved to multiple indices"));
     }
 
     public void testThatMgetShouldWorkWithAliasRouting() throws IOException {

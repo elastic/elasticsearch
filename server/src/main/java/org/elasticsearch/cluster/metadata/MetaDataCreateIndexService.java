@@ -86,9 +86,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
@@ -511,14 +513,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indexMetaDataBuilder.putMapping(mappingMd);
                 }
 
+                Map<String, AliasMetaData> aliases = new HashMap<>();
                 for (AliasMetaData aliasMetaData : templatesAliases.values()) {
-                    indexMetaDataBuilder.putAlias(aliasMetaData);
+                    // modify to be write_index when appropriate?
+                    aliases.put(aliasMetaData.getAlias(), aliasMetaData);
                 }
                 for (Alias alias : request.aliases()) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
-                    indexMetaDataBuilder.putAlias(aliasMetaData);
+                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting())
+                        .writeIndex(alias.isWriteIndex()).build();
+                    aliases.put(aliasMetaData.getAlias(), aliasMetaData);
                 }
+
+                aliases.forEach((aliasName, aliasMetaData) -> {
+                    if (aliasMetaData.isWriteIndex() == false
+                        && AliasValidator.validAliasWriteOnly(aliasName, true, currentState.metaData().indices())) {
+                        indexMetaDataBuilder.putAlias(AliasMetaData.builder(aliasName).filter(aliasMetaData.getFilter())
+                            .indexRouting(aliasMetaData.getIndexRouting()).searchRouting(aliasMetaData.searchRouting()).writeIndex(true));
+                    } else {
+                        aliasValidator.validateAliasWriteOnly(aliasMetaData.alias(), aliasMetaData.isWriteIndex(), currentState.metaData());
+                        indexMetaDataBuilder.putAlias(aliasMetaData);
+                    }
+                });
 
                 for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
                     indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());

@@ -38,8 +38,6 @@ class CompositeValuesSourceParserHelper {
                                                                                            ValueType targetValueType) {
         objectParser.declareField(VB::field, XContentParser::text,
             new ParseField("field"), ObjectParser.ValueType.STRING);
-        objectParser.declareField(VB::missing, XContentParser::objectText,
-            new ParseField("missing"), ObjectParser.ValueType.VALUE);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
         objectParser.declareField(VB::valueType, p -> {

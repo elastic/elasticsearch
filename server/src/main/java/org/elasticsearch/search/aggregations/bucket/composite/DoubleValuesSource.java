@@ -45,8 +45,8 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
                        CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, missing, size, reverseMul);
+                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = missingBucket ? new BitArray(bigArrays, 100) : null;
         this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);

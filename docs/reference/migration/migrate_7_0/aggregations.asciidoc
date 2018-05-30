@@ -10,3 +10,8 @@ These `execution_hint` are removed and should be replaced by `global_ordinals`.
 The dynamic cluster setting named `search.max_buckets` now defaults
 to 10,000 (instead of unlimited in the previous version).
 Requests that try to return more than the limit will fail with an exception.
+
+==== `missing` option of the `composite` aggregation has been removed
+
+The `missing` option of the `composite` aggregation, deprecated in 6.x,
+has been removed. `missing_bucket` should be used instead.

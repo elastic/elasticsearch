@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -86,10 +88,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
     public void testSnapshotDeleteRepository() throws IOException {
         String repository = "test";
-        String repositorySettings = "{\"type\":\"fs\", \"settings\":{\"location\": \".\"}}";
-
-        highLevelClient().getLowLevelClient().performRequest("put", "_snapshot/" + repository,
-            Collections.emptyMap(), new StringEntity(repositorySettings, ContentType.APPLICATION_JSON));
+        assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
         GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
@@ -101,5 +100,15 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
             highLevelClient().snapshot()::deleteRepositoryAsync);
 
         assertTrue(deleteResponse.isAcknowledged());
+    }
+
+    public void testVerifyRepository() throws IOException {
+        PutRepositoryResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
+        VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
+            highLevelClient().snapshot()::verifyRepositoryAsync);
+        assertThat(response.getNodes().size(), equalTo(1));
     }
 }

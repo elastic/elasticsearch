@@ -98,7 +98,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .build();
         TestAnalysis analysis = createTestAnalysis(settings);
         Tokenizer tokenizer = analysis.tokenizer.get("my_tokenizer").create();
-        tokenizer.setReader(new StringReader(""));
+        tokenizer.setReader(new StringReader("뿌리가 깊은 나무"));
         assertTokenStreamContents(tokenizer, new String[] {"뿌리", "가", "깊", "은", "나무"});
         tokenizer.setReader(new StringReader("가늠표"));
         assertTokenStreamContents(tokenizer, new String[] {"가늠표", "가늠", "표"});

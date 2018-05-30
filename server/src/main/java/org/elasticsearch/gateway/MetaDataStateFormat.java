@@ -141,9 +141,10 @@ public abstract class MetaDataStateFormat<T> {
                 Path finalPath = stateLocation.resolve(fileName);
                 try {
                     Files.copy(finalStatePath, tmpPath);
+                    IOUtils.fsync(tmpPath, false); // fsync the state file
                     // we are on the same FileSystem / Partition here we can do an atomic move
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
-                    IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
+                    IOUtils.fsync(stateLocation, true);
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }

@@ -26,15 +26,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -76,12 +67,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -113,6 +110,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -1135,9 +1133,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version() && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                if (masterClusterState.version() == localClusterState.version()
+                        && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
-                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
                         /*
                          * The cluster state received by the transport client can miss customs that the client does not understand. This
                          * means that we only expect equality in the cluster state including customs if the master client and the local
@@ -1147,15 +1146,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         if (isTransportClient(masterClient) == isTransportClient(client)) {
                             // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                             // but we can compare serialization sizes - they should be the same
-                            assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
+                            assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
                             // Compare JSON serialization
-                            assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
+                            assertNull(
+                                    "cluster state JSON serialization does not match",
+                                    differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
                         } else {
                             // remove non-core customs and compare the cluster states
-                            assertNull(differenceBetweenMapsIgnoringArrayOrder(convertToMap(removePluginCustoms(masterClusterState)), convertToMap(removePluginCustoms(localClusterState))));
+                            assertNull(
+                                    "cluster state JSON serialization does not match (after removing some customs)",
+                                    differenceBetweenMapsIgnoringArrayOrder(
+                                            convertToMap(removePluginCustoms(masterClusterState)),
+                                            convertToMap(removePluginCustoms(localClusterState))));
                         }
-                    } catch (AssertionError error) {
-                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}\n{}", masterClusterState.toString(), localClusterState.toString(), client);
+                    } catch (final AssertionError error) {
+                        logger.error(
+                                "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                                masterClusterState.toString(),
+                                localClusterState.toString());
                         throw error;
                     }
                 }
@@ -1164,6 +1172,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     }
 
+    /**
+     * Tests if the client is a transport client or wraps a transport client.
+     *
+     * @param client the client to test
+     * @return true if the client is a transport client or a wrapped transport client
+     */
     private boolean isTransportClient(final Client client) {
         if (TransportClient.class.isAssignableFrom(client.getClass())) {
             return true;
@@ -1181,6 +1195,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             Collections.unmodifiableSet(
                     new HashSet<>(Arrays.asList(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE)));
 
+    /**
+     * Remove any customs except for customs that we know all clients understand.
+     *
+     * @param clusterState the cluster state to remove possibly-unknown customs from
+     * @return the cluster state with possibly-unknown customs removed
+     */
     private ClusterState removePluginCustoms(final ClusterState clusterState) {
         final ClusterState.Builder builder = ClusterState.builder(clusterState);
         clusterState.customs().keysIt().forEachRemaining(key -> {

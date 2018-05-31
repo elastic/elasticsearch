@@ -64,11 +64,6 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_6_0_0_beta2;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // never render this to the user
         return builder;
@@ -94,6 +89,12 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
     public String toString() {
         return "TokenMetaData{ everything is secret }";
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_6_0_0_beta2;
+    }
+
 
     @Override
     public boolean isPrivate() {

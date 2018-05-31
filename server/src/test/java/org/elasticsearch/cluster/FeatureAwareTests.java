@@ -54,7 +54,7 @@ public class FeatureAwareTests extends ESTestCase {
         }
 
         @Override
-        public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+        public Diff<MetaData.Custom> diff(final MetaData.Custom previousState) {
             return null;
         }
 

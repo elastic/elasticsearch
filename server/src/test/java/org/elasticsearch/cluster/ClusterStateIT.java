@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -39,9 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,8 +59,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * This test suite sets up a situation where the cluster has two plugins installed (node, and node-and-transport-client), and a transport
@@ -79,6 +78,10 @@ public class ClusterStateIT extends ESIntegTestCase {
         private static final ParseField VALUE = new ParseField("value");
 
         private final int value;
+
+        int value() {
+            return value;
+        }
 
         Custom(final int value) {
             this.value = value;
@@ -264,6 +267,8 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         final String FEATURE = TcpTransport.FEATURE_PREFIX + "." + "node";
 
+        static final int VALUE = randomInt();
+
         @Override
         protected void registerBuiltinWritables() {
             registerMetaDataCustom(NodeCustom.TYPE, NodeCustom::new, parser -> new NodeCustom(NodeCustom.fromXContent(parser)));
@@ -276,7 +281,7 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         protected Custom getInstance() {
-            return new NodeCustom(42);
+            return new NodeCustom(VALUE);
         }
 
         @Override
@@ -288,6 +293,8 @@ public class ClusterStateIT extends ESIntegTestCase {
     public static class NodeAndTransportClientPlugin extends CustomPlugin {
 
         static final String FEATURE = TcpTransport.FEATURE_PREFIX + "." + "node-and-transport-client";
+
+        static final int VALUE = randomInt();
 
         @Override
         protected void registerBuiltinWritables() {
@@ -304,7 +311,7 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         protected Custom getInstance() {
-            return new NodeAndTransportClientCustom(13);
+            return new NodeAndTransportClientCustom(VALUE);
         }
 
         @Override
@@ -338,6 +345,9 @@ public class ClusterStateIT extends ESIntegTestCase {
         assertThat(keys, hasItem(IndexGraveyard.TYPE));
         assertThat(keys, not(hasItem(NodeCustom.TYPE)));
         assertThat(keys, hasItem(NodeAndTransportClientCustom.TYPE));
+        final MetaData.Custom actual = customs.get(NodeAndTransportClientCustom.TYPE);
+        assertThat(actual, instanceOf(NodeAndTransportClientCustom.class));
+        assertThat(((NodeAndTransportClientCustom)actual).value(), equalTo(NodeAndTransportClientPlugin.VALUE));
     }
 
 }

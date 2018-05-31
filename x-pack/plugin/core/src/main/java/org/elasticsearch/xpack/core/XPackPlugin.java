@@ -313,16 +313,11 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         return config;
     }
 
-    private static String FEATURE = "x-pack";
-
-    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private static Optional<String> X_PACK_REQUIRED_FEATURE = Optional.of(XPackPlugin.FEATURE);
-
     public interface XPackClusterStateCustom extends ClusterState.Custom {
 
         @Override
         default Optional<String> getRequiredFeature() {
-            return X_PACK_REQUIRED_FEATURE;
+            return XPackClientPlugin.X_PACK_FEATURE;
         }
 
     }
@@ -331,7 +326,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
 
         @Override
         default Optional<String> getRequiredFeature() {
-            return X_PACK_REQUIRED_FEATURE;
+            return XPackClientPlugin.X_PACK_FEATURE;
         }
 
     }

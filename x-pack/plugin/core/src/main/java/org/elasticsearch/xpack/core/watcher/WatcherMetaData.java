@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
-import java.util.Optional;
 
 public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom {
 
@@ -37,11 +36,6 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Optional<String> getRequiredFeature() {
-        return Optional.of("x-pack");
     }
 
     @Override

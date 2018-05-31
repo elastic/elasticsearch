@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse,
     ResizeRequestBuilder> {
-    public ResizeRequestBuilder(ElasticsearchClient client, Action<ResizeRequest, ResizeResponse, ResizeRequestBuilder> action) {
+    public ResizeRequestBuilder(ElasticsearchClient client, Action<ResizeRequest, ResizeResponse> action) {
         super(client, action, new ResizeRequest());
     }
 

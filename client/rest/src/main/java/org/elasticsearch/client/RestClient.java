@@ -61,6 +61,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -132,7 +133,7 @@ public class RestClient implements Closeable {
         if (hosts == null || hosts.length == 0) {
             throw new IllegalArgumentException("hosts must not be null nor empty");
         }
-        Set<HttpHost> httpHosts = new HashSet<>();
+        Set<HttpHost> httpHosts = new LinkedHashSet<>();
         AuthCache authCache = new BasicAuthCache();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
@@ -141,6 +142,13 @@ public class RestClient implements Closeable {
         }
         this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(httpHosts), authCache);
         this.blacklist.clear();
+    }
+
+    /**
+     * Returns the configured hosts
+     */
+    public List<HttpHost> getHosts() {
+        return new ArrayList<>(hostTuple.hosts);
     }
 
     /**

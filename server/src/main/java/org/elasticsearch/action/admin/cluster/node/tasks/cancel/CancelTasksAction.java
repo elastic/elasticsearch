@@ -20,12 +20,11 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for cancelling running tasks
  */
-public class CancelTasksAction extends Action<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
+public class CancelTasksAction extends Action<CancelTasksRequest, CancelTasksResponse> {
 
     public static final CancelTasksAction INSTANCE = new CancelTasksAction();
     public static final String NAME = "cluster:admin/tasks/cancel";
@@ -37,10 +36,5 @@ public class CancelTasksAction extends Action<CancelTasksRequest, CancelTasksRes
     @Override
     public CancelTasksResponse newResponse() {
         return new CancelTasksResponse();
-    }
-
-    @Override
-    public CancelTasksRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new CancelTasksRequestBuilder(client, this);
     }
 }

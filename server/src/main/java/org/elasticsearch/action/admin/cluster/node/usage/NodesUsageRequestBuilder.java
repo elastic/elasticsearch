@@ -26,8 +26,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class NodesUsageRequestBuilder
         extends NodesOperationRequestBuilder<NodesUsageRequest, NodesUsageResponse, NodesUsageRequestBuilder> {
 
-    public NodesUsageRequestBuilder(ElasticsearchClient client,
-            Action<NodesUsageRequest, NodesUsageResponse, NodesUsageRequestBuilder> action) {
+    public NodesUsageRequestBuilder(ElasticsearchClient client, Action<NodesUsageRequest, NodesUsageResponse> action) {
         super(client, action, new NodesUsageRequest());
     }
 

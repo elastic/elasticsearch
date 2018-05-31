@@ -16,19 +16,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionAction.Request,
-        FinalizeJobExecutionAction.Response,FinalizeJobExecutionAction.RequestBuilder> {
+public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionAction.Request, FinalizeJobExecutionAction.Response> {
 
     public static final FinalizeJobExecutionAction INSTANCE = new FinalizeJobExecutionAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";
 
     private FinalizeJobExecutionAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override

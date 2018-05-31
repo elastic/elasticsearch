@@ -20,20 +20,14 @@
 package org.elasticsearch.action.admin.cluster.remote;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public final class RemoteInfoAction extends Action<RemoteInfoRequest, RemoteInfoResponse, RemoteInfoRequestBuilder> {
+public final class RemoteInfoAction extends Action<RemoteInfoRequest, RemoteInfoResponse> {
 
     public static final String NAME = "cluster:monitor/remote/info";
     public static final RemoteInfoAction INSTANCE = new RemoteInfoAction();
 
     public RemoteInfoAction() {
         super(NAME);
-    }
-
-    @Override
-    public RemoteInfoRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RemoteInfoRequestBuilder(client, INSTANCE);
     }
 
     @Override

@@ -40,7 +40,6 @@ Docker images can be retrieved with the following commands:
 ["source","sh",subs="attributes"]
 --------------------------------------------
 docker pull {docker-repo}:{version}
-docker pull {docker-repo}-platinum:{version}
 docker pull {docker-repo}-oss:{version}
 --------------------------------------------
 

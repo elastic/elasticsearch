@@ -32,6 +32,6 @@ public class UpgradeSettingsAction extends Action<UpgradeSettingsRequest, Upgrad
 
     @Override
     public UpgradeSettingsResponse newResponse() {
-        return new UpgradeSettingsResponse();
+        return new UpgradeSettingsResponse(false);
     }
 }

@@ -33,10 +33,6 @@ public class WritePipelineResponse extends AcknowledgedResponse implements ToXCo
         declareAcknowledgedField(PARSER);
     }
 
-    WritePipelineResponse() {
-
-    }
-
     public WritePipelineResponse(boolean acknowledged) {
         super(acknowledged);
     }

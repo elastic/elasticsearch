@@ -43,7 +43,7 @@ public class PutMappingResponseTests extends AbstractStreamableXContentTestCase<
 
     @Override
     protected PutMappingResponse createBlankInstance() {
-        return new PutMappingResponse();
+        return new PutMappingResponse(false);
     }
 
     @Override

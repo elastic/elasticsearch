@@ -18,16 +18,10 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.hamcrest.Matchers.equalTo;
 
 public class PutRepositoryResponseTests extends AbstractStreamableXContentTestCase<PutRepositoryResponse> {
 
@@ -38,7 +32,7 @@ public class PutRepositoryResponseTests extends AbstractStreamableXContentTestCa
 
     @Override
     protected PutRepositoryResponse createBlankInstance() {
-        return new PutRepositoryResponse();
+        return new PutRepositoryResponse(false);
     }
 
     @Override

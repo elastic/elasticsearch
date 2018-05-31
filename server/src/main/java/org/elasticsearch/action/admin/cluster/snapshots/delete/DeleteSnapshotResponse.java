@@ -26,9 +26,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
  */
 public class DeleteSnapshotResponse extends AcknowledgedResponse {
 
-    DeleteSnapshotResponse() {
-    }
-
     DeleteSnapshotResponse(boolean acknowledged) {
         super(acknowledged);
     }

@@ -35,9 +35,6 @@ public class UpdateSettingsResponse extends AcknowledgedResponse {
         declareAcknowledgedField(PARSER);
     }
 
-    UpdateSettingsResponse() {
-    }
-
     UpdateSettingsResponse(boolean acknowledged) {
         super(acknowledged);
     }

@@ -43,7 +43,7 @@ public class DeleteIndexResponseTests extends AbstractStreamableXContentTestCase
 
     @Override
     protected DeleteIndexResponse createBlankInstance() {
-        return new DeleteIndexResponse();
+        return new DeleteIndexResponse(false);
     }
 
     @Override

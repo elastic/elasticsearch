@@ -31,7 +31,7 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -96,8 +96,6 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        public Response() {}
     }
 
 }

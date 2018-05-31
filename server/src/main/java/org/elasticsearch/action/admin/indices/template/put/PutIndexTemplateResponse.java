@@ -27,9 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
  */
 public class PutIndexTemplateResponse extends AcknowledgedResponse {
 
-    protected PutIndexTemplateResponse() {
-    }
-
     protected PutIndexTemplateResponse(boolean acknowledged) {
         super(acknowledged);
     }

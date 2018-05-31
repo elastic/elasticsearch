@@ -34,9 +34,6 @@ public class CloseIndexResponse extends AcknowledgedResponse {
         declareAcknowledgedField(PARSER);
     }
 
-    CloseIndexResponse() {
-    }
-
     CloseIndexResponse(boolean acknowledged) {
         super(acknowledged);
     }

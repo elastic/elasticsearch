@@ -9,9 +9,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 public class DeleteLicenseResponse extends AcknowledgedResponse {
 
-    DeleteLicenseResponse() {
-    }
-
     DeleteLicenseResponse(boolean acknowledged) {
         super(acknowledged);
     }

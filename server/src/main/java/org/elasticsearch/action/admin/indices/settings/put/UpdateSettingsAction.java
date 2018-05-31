@@ -32,6 +32,6 @@ public class UpdateSettingsAction extends Action<UpdateSettingsRequest, UpdateSe
 
     @Override
     public UpdateSettingsResponse newResponse() {
-        return new UpdateSettingsResponse();
+        return new UpdateSettingsResponse(false);
     }
 }

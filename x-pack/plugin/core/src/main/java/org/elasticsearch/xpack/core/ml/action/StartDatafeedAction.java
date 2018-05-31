@@ -50,7 +50,7 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -280,10 +280,6 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
     }
 
     public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
         public Response(boolean acknowledged) {
             super(acknowledged);
         }

@@ -31,7 +31,7 @@ public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -101,7 +101,5 @@ public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        private Response() {}
     }
 }

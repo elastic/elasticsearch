@@ -36,7 +36,7 @@ public class CloseIndexResponseTests extends AbstractStreamableXContentTestCase<
 
     @Override
     protected CloseIndexResponse createBlankInstance() {
-        return new CloseIndexResponse();
+        return new CloseIndexResponse(false);
     }
 
     @Override

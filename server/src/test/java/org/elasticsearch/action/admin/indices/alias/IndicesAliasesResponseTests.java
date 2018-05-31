@@ -36,7 +36,7 @@ public class IndicesAliasesResponseTests extends AbstractStreamableXContentTestC
 
     @Override
     protected IndicesAliasesResponse createBlankInstance() {
-        return new IndicesAliasesResponse();
+        return new IndicesAliasesResponse(false);
     }
 
     @Override

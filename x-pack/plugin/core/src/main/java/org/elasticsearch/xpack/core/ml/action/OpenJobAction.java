@@ -44,7 +44,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -246,10 +246,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
         public Response(boolean acknowledged) {
             super(acknowledged);
         }

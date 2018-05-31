@@ -60,7 +60,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
     @Override
     protected PutMappingResponse newResponse() {
-        return new PutMappingResponse();
+        return new PutMappingResponse(false);
     }
 
     @Override

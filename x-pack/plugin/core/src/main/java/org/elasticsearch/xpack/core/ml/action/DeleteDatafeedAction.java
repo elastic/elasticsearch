@@ -34,7 +34,7 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {
@@ -114,9 +114,6 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
     }
 
     public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-        }
 
         public Response(boolean acknowledged) {
             super(acknowledged);

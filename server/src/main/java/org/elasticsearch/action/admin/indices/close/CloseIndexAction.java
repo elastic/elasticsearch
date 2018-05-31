@@ -32,6 +32,6 @@ public class CloseIndexAction extends Action<CloseIndexRequest, CloseIndexRespon
 
     @Override
     public CloseIndexResponse newResponse() {
-        return new CloseIndexResponse();
+        return new CloseIndexResponse(false);
     }
 }

@@ -32,6 +32,6 @@ public class DeletePipelineAction extends Action<DeletePipelineRequest, WritePip
 
     @Override
     public WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+        return new WritePipelineResponse(false);
     }
 }

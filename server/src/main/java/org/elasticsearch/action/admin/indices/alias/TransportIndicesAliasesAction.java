@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
@@ -72,7 +73,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
 
     @Override
     protected IndicesAliasesResponse newResponse() {
-        return new IndicesAliasesResponse();
+        return new IndicesAliasesResponse(false);
     }
 
     @Override

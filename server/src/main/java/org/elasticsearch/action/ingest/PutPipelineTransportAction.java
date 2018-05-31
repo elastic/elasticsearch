@@ -34,8 +34,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -67,7 +67,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
 
     @Override
     protected WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+        return new WritePipelineResponse(false);
     }
 
     @Override

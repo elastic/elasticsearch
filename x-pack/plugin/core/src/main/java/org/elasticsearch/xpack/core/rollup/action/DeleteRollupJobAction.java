@@ -33,7 +33,7 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request,
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
@@ -98,10 +98,6 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request,
     }
 
     public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
 
         public Response(boolean acknowledged) {
             super(acknowledged);

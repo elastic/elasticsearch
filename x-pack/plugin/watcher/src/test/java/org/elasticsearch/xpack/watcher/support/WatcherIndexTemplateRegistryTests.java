@@ -177,9 +177,5 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         TestPutIndexTemplateResponse(boolean acknowledged) {
             super(acknowledged);
         }
-
-        TestPutIndexTemplateResponse() {
-            super();
-        }
     }
 }

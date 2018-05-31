@@ -54,7 +54,7 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
 
     @Override
     protected DeleteStoredScriptResponse newResponse() {
-        return new DeleteStoredScriptResponse();
+        return new DeleteStoredScriptResponse(false);
     }
 
     @Override

@@ -55,7 +55,7 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
 
     @Override
     protected WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+        return new WritePipelineResponse(false);
     }
 
     @Override

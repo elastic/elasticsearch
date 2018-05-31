@@ -53,7 +53,7 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
 
     @Override
     protected PutStoredScriptResponse newResponse() {
-        return new PutStoredScriptResponse();
+        return new PutStoredScriptResponse(false);
     }
 
     @Override

@@ -76,7 +76,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     @Override
     protected CloseIndexResponse newResponse() {
-        return new CloseIndexResponse();
+        return new CloseIndexResponse(false);
     }
 
     @Override

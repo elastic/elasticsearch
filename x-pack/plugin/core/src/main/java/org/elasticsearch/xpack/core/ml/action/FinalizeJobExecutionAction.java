@@ -27,7 +27,7 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -76,9 +76,5 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        public Response() {
-        }
     }
-
 }

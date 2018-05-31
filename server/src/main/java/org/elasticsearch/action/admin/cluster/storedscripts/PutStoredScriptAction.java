@@ -36,6 +36,6 @@ public class PutStoredScriptAction extends Action<PutStoredScriptRequest, PutSto
 
     @Override
     public PutStoredScriptResponse newResponse() {
-        return new PutStoredScriptResponse();
+        return new PutStoredScriptResponse(false);
     }
 }

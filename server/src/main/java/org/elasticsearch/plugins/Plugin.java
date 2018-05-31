@@ -78,9 +78,15 @@ import java.util.function.UnaryOperator;
  * methods should cause any extensions of {@linkplain Plugin} that used the pre-5.x style extension syntax to fail to build and point the
  * plugin author at the new extension syntax. We hope that these make the process of upgrading a plugin from 2.x to 5.x only mildly painful.
  */
-public abstract class
-Plugin implements Closeable {
+public abstract class Plugin implements Closeable {
 
+    /**
+     * A feature exposed by the plugin. This should be used if a plugin exposes {@link org.elasticsearch.cluster.ClusterState.Custom} or
+     * {@link MetaData.Custom}; see also {@link org.elasticsearch.cluster.ClusterState.FeatureAware}.
+     *
+     * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
+     * customs
+     */
     protected Optional<String> getFeature() {
         return Optional.empty();
     }

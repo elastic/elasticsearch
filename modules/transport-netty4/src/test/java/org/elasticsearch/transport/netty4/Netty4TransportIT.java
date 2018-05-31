@@ -48,7 +48,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -113,10 +112,11 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
         }
 
         @Override
-        protected String handleRequest(TcpChannel channel, String profileName, StreamInput stream, long requestId, int messageLengthBytes,
-                                       Version version, InetSocketAddress remoteAddress, byte status) throws IOException {
-            String action =
-                    super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress, status);
+        protected String handleRequest(TcpChannel channel, String profileName,
+                                       StreamInput stream, long requestId, int messageLengthBytes, Version version,
+                                       InetSocketAddress remoteAddress, byte status) throws IOException {
+            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
+                    remoteAddress, status);
             channelProfileName = TcpTransport.DEFAULT_PROFILE;
             return action;
         }

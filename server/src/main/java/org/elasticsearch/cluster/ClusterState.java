@@ -293,7 +293,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
         if (metaData.customs().isEmpty() == false) {
             sb.append("metadata customs:\n");
-            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
+            for (final ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
                 final String type = cursor.key;
                 final MetaData.Custom custom = cursor.value;
                 sb.append(TAB).append(type).append(": ").append(custom);

@@ -236,6 +236,13 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
+            // The following shard generates the request based on the global checkpoint which may not be synced to all leading copies.
+            // However, this guarantees that the requesting range always be below the local-checkpoint of any leading copies.
+            final long localCheckpoint = indexShard.getLocalCheckpoint();
+            if (request.maxSeqNo > localCheckpoint || request.minSeqNo > localCheckpoint) {
+                throw new IllegalStateException("invalid range from_seqno=[" + request.minSeqNo + "], to_seqno=[" + request.maxSeqNo + "],"
+                    + " local_checkpoint=[" + localCheckpoint + "], shardId=[" + shardId + "]");
+            }
             final Translog.Operation[] operations =
                 getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
             return new Response(indexMetaDataVersion, operations);

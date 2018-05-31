@@ -139,4 +139,23 @@ public class CatResponseTableTests extends ESTestCase {
         assertEquals(2, table.getRows().size());
     }
 
+    public void testAddNullValue() {
+        CatResponseTable table = new CatResponseTable(new FakeRestRequest());
+        String pattern = "some_pattern";
+        table.startHeaders()
+            .addCell("header1" )
+            .addCell("header2")
+            .endHeaders();
+        table.setFilter(pattern);
+        table.startRow()
+            .addCell(null)
+            .addCell("bar")
+            .endRow();
+        table.startRow()
+            .addCell("some_pattern")
+            .addCell("bar234")
+            .endRow();
+        assertEquals(1, table.getRows().size());
+    }
+
 }

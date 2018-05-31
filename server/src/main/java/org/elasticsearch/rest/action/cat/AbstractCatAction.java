@@ -51,15 +51,16 @@ public abstract class AbstractCatAction extends BaseRestHandler {
     protected abstract Table getTableWithHeader(RestRequest request);
 
     protected CatResponseTable getTable(final RestRequest request) {
-        if (table == null) {
-            table = new CatResponseTable(request);
+        if (grepFilter == null) {
+            grepFilter = request == null ? "" : request.param("grep", "");
         }
-        return table;
+        return new CatResponseTable(request).setFilter(grepFilter);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         boolean helpWanted = request.paramAsBoolean("help", false);
+        grepFilter = request.param("grep", "");
         if (helpWanted) {
             return channel -> {
                 Table table = getTableWithHeader(request);
@@ -79,13 +80,11 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes()));
             };
         } else {
-            getTable(request).setFilter(request.param("grep", ""));
             return doCatRequest(request, client);
         }
     }
 
-    private CatResponseTable table;
-
+    private String grepFilter;
     static Set<String> RESPONSE_PARAMS =
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s")));
 

@@ -89,8 +89,9 @@ public class CatResponseTable extends Table {
             if (currentCells == null) {
                 throw new IllegalStateException("no row started...");
             }
-            if (matcher != null) {
-                matcher.reset(RestTable.renderValue(request, value));
+            String sValue = RestTable.renderValue(request, value);
+            if (matcher != null && sValue != null) {
+                matcher.reset(sValue);
                 if (matcher.find()) {
                     isValidRow = !filterInverted;
                 }

@@ -32,9 +32,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.assertThat;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {
@@ -62,12 +59,9 @@ public class SyncedFlushUtil {
             listenerHolder.set(listener);
             service.attemptSyncedFlush(shardId, listener);
             listener.latch.await();
-            if (listener.error != null) {
-                return; // stop here so that we can preserve the error
-            }
-            if (listener.result.failed()) {
-                // only retry if request failed due to ongoing operations on primary
-                assertThat(listener.result.failureReason(), not(containsString("ongoing operations on primary")));
+            if (listener.result != null && listener.result.failureReason() != null
+                && listener.result.failureReason().contains("ongoing operations on primary")) {
+                throw new AssertionError(listener.result.failureReason()); // cause the assert busy to retry
             }
         });
         if (listenerHolder.get().error != null) {

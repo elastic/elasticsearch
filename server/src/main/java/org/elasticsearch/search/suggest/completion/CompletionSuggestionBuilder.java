@@ -57,6 +57,7 @@ import java.util.Objects;
  * indexing.
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
+
     private static final XContentType CONTEXT_BYTES_XCONTENT_TYPE = XContentType.JSON;
     static final String SUGGESTION_NAME = "completion";
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");

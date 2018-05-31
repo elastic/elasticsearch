@@ -6,23 +6,17 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * The action for clearing the cache used by native roles that are stored in an index.
  */
-public class ClearRolesCacheAction extends Action<ClearRolesCacheRequest, ClearRolesCacheResponse, ClearRolesCacheRequestBuilder> {
+public class ClearRolesCacheAction extends Action<ClearRolesCacheRequest, ClearRolesCacheResponse> {
 
     public static final ClearRolesCacheAction INSTANCE = new ClearRolesCacheAction();
     public static final String NAME = "cluster:admin/xpack/security/roles/cache/clear";
 
     protected ClearRolesCacheAction() {
         super(NAME);
-    }
-
-    @Override
-    public ClearRolesCacheRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ClearRolesCacheRequestBuilder(client, this, new ClearRolesCacheRequest());
     }
 
     @Override

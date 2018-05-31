@@ -20,20 +20,14 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetFieldMappingsAction extends Action<GetFieldMappingsRequest, GetFieldMappingsResponse, GetFieldMappingsRequestBuilder> {
+public class GetFieldMappingsAction extends Action<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     public static final GetFieldMappingsAction INSTANCE = new GetFieldMappingsAction();
     public static final String NAME = "indices:admin/mappings/fields/get";
 
     private GetFieldMappingsAction() {
         super(NAME);
-    }
-
-    @Override
-    public GetFieldMappingsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetFieldMappingsRequestBuilder(client, this);
     }
 
     @Override

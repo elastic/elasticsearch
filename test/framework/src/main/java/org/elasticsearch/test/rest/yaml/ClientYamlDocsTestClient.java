@@ -42,9 +42,13 @@ import java.util.Objects;
  */
 public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
 
-    public ClientYamlDocsTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts, Version esVersion)
-            throws IOException {
-        super(restSpec, restClient, hosts, esVersion);
+    public ClientYamlDocsTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
+        super(restSpec, restClient, hosts, esVersion, masterVersion);
     }
 
     @Override
@@ -62,8 +66,7 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
                 request.addParameter(param.getKey(), param.getValue());
             }
             request.setEntity(entity);
-            request.setHeaders(buildHeaders(headers));
-            request.setNodeSelector(nodeSelector);
+            setOptions(request, headers, nodeSelector);
             try {
                 Response response = restClient.performRequest(request);
                 return new ClientYamlTestResponse(response);

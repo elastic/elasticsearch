@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -61,17 +62,27 @@ public class ClientYamlTestClient {
     private final ClientYamlSuiteRestSpec restSpec;
     protected final RestClient restClient;
     private final Version esVersion;
+    private final Version masterVersion;
 
-    public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
-                                Version esVersion) throws IOException {
+    public ClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClient = restClient;
         this.esVersion = esVersion;
+        this.masterVersion = masterVersion;
     }
 
     public Version getEsVersion() {
         return esVersion;
+    }
+
+    public Version getMasterVersion() {
+        return masterVersion;
     }
 
     /**
@@ -171,8 +182,7 @@ public class ClientYamlTestClient {
             request.addParameter(param.getKey(), param.getValue());
         }
         request.setEntity(entity);
-        request.setHeaders(buildHeaders(headers));
-        request.setNodeSelector(nodeSelector);
+        setOptions(request, headers, nodeSelector);
         try {
             Response response = restClient.performRequest(request);
             return new ClientYamlTestResponse(response);
@@ -181,14 +191,15 @@ public class ClientYamlTestClient {
         }
     }
 
-    protected static Header[] buildHeaders(Map<String, String> headers) {
-        Header[] requestHeaders = new Header[headers.size()];
-        int index = 0;
+    protected static void setOptions(Request request, Map<String, String> headers, NodeSelector nodeSelector) {
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        // TODO check that I'm not changing this in this PR. I don't mean to but merge issues.
         for (Map.Entry<String, String> header : headers.entrySet()) {
             logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
-            requestHeaders[index++] = new BasicHeader(header.getKey(), header.getValue());
+            options.addHeader(header.getKey(), header.getValue());
         }
-        return requestHeaders;
+        options.setNodeSelector(nodeSelector);
+        request.setOptions(options);
     }
 
     private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, long contentLength) {

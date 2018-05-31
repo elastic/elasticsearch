@@ -204,7 +204,8 @@ public final class RestClientBuilder {
             HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
-                .setSSLContext(SSLContext.getDefault());
+                .setSSLContext(SSLContext.getDefault())
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }

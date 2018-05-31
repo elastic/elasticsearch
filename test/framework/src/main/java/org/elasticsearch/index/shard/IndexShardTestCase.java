@@ -632,7 +632,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
         assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
-        assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getNumberOfFiles());
+        assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getTotalFileCount());
         assertNull(lastSnapshotStatus.getFailure());
     }
 

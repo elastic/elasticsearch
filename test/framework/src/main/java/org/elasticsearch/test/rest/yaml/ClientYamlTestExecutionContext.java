@@ -203,4 +203,8 @@ public class ClientYamlTestExecutionContext {
         return clientYamlTestClient.getEsVersion();
     }
 
+    public Version masterVersion() {
+        return clientYamlTestClient.getMasterVersion();
+    }
+
 }

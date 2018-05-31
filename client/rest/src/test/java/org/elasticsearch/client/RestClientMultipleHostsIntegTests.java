@@ -201,7 +201,9 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
      */
     public void testNodeSelector() throws IOException {
         Request request = new Request("GET", "/200");
-        request.setNodeSelector(firstPositionNodeSelector());
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setNodeSelector(firstPositionNodeSelector());
+        request.setOptions(options);
         int rounds = between(1, 10);
         for (int i = 0; i < rounds; i++) {
             /*

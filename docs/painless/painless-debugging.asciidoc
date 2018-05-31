@@ -48,7 +48,7 @@ Which shows that the class of `doc.first` is
       "java_class": "org.elasticsearch.index.fielddata.ScriptDocValues$Longs",
       ...
    },
-   "status": 500
+   "status": 400
 }
 ---------------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]

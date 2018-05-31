@@ -34,12 +34,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -65,17 +67,20 @@ public class RestClientTests extends RestClientTestCase {
             restClient.performRequestAsync(new Request("unsupported", randomAsciiLettersOfLength(5)), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of unsupported method");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(UnsupportedOperationException.class));
-                    assertEquals("http method not supported: unsupported", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(UnsupportedOperationException.class));
+                        assertEquals("http method not supported: unsupported", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
@@ -89,22 +94,25 @@ public class RestClientTests extends RestClientTestCase {
             restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of unsupported method");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(UnsupportedOperationException.class));
-                    assertEquals("http method not supported: unsupported", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(UnsupportedOperationException.class));
+                        assertEquals("http method not supported: unsupported", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetParameters()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
      */
     @Deprecated
     public void testPerformOldStyleAsyncWithNullParams() throws Exception {
@@ -113,22 +121,25 @@ public class RestClientTests extends RestClientTestCase {
             restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of null parameters");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("parameters cannot be null", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(NullPointerException.class));
+                        assertEquals("parameters cannot be null", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetHeaders()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeader()}.
      */
     @Deprecated
     public void testPerformOldStyleAsyncWithNullHeaders() throws Exception {
@@ -137,18 +148,21 @@ public class RestClientTests extends RestClientTestCase {
             ResponseListener listener = new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of null headers");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("header cannot be null", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(NullPointerException.class));
+                        assertEquals("header cannot be null", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             };
             restClient.performRequestAsync("GET", randomAsciiLettersOfLength(5), listener, (Header) null);
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
@@ -158,17 +172,20 @@ public class RestClientTests extends RestClientTestCase {
             restClient.performRequestAsync(new Request("GET", "::http:///"), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of wrong endpoint");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(IllegalArgumentException.class));
-                    assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(IllegalArgumentException.class));
+                        assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
@@ -182,17 +199,20 @@ public class RestClientTests extends RestClientTestCase {
             restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    fail("should have failed because of wrong endpoint");
+                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(IllegalArgumentException.class));
-                    assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
-                    latch.countDown();
+                    try {
+                        assertThat(exception, instanceOf(IllegalArgumentException.class));
+                        assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
-            latch.await();
+            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
         }
     }
 
@@ -209,6 +229,64 @@ public class RestClientTests extends RestClientTestCase {
             URI uri = RestClient.buildUri(null, "/index/type/id", Collections.singletonMap("foo$bar", "x/y/z"));
             assertEquals("/index/type/id", uri.getPath());
             assertEquals("foo$bar=x/y/z", uri.getQuery());
+        }
+    }
+
+    public void testSetNodesWrongArguments() throws IOException {
+        try (RestClient restClient = createRestClient()) {
+            restClient.setNodes((Node[]) null);
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setNodes();
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setNodes((Node) null);
+            fail("setNodes should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("node cannot be null", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setNodes(new Node(new HttpHost("localhost", 9200)), null, new Node(new HttpHost("localhost", 9201)));
+            fail("setNodes should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("node cannot be null", e.getMessage());
+        }
+    }
+
+    public void testSetHostsPreservesOrdering() throws Exception {
+        try (RestClient restClient = createRestClient()) {
+            Node[] hosts = randomNodes();
+            restClient.setNodes(hosts);
+            assertEquals(Arrays.asList(hosts), restClient.getNodes());
+        }
+    }
+
+    private static Node[] randomNodes() {
+        int numNodes = randomIntBetween(1, 10);
+        Node[] nodes = new Node[numNodes];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = new Node(new HttpHost("host-" + i, 9200));
+        }
+        return nodes;
+    }
+
+    public void testSetNodesDuplicatedHosts() throws Exception {
+        try (RestClient restClient = createRestClient()) {
+            int numNodes = randomIntBetween(1, 10);
+            Node[] nodes = new Node[numNodes];
+            Node node = new Node(new HttpHost("host", 9200));
+            for (int i = 0; i < nodes.length; i++) {
+                nodes[i] = node;
+            }
+            restClient.setNodes(nodes);
+            assertEquals(1, restClient.getNodes().size());
+            assertEquals(node, restClient.getNodes().get(0));
         }
     }
 
@@ -365,37 +443,6 @@ public class RestClientTests extends RestClientTestCase {
                     + "[host=http://1, version=1], [host=http://2, version=2], "
                     + "[host=http://3, version=3]]";
             assertEquals(message, e.getMessage());
-        }
-    }
-
-    public void testSetNodesFailures() throws IOException {
-        RestClient restClient = createRestClient();
-        try {
-            restClient.setNodes((Node[]) null);
-            fail("setNodes should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("nodes must not be null or empty", e.getMessage());
-        }
-        try {
-            restClient.setNodes();
-            fail("setNodes should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("nodes must not be null or empty", e.getMessage());
-        }
-        try {
-            restClient.setNodes((Node) null);
-            fail("setNodes should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("node cannot be null", e.getMessage());
-        }
-        try {
-            restClient.setNodes(
-                    new Node(new HttpHost("localhost", 9200)),
-                    null,
-                    new Node(new HttpHost("localhost", 9201)));
-            fail("setNodes should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("node cannot be null", e.getMessage());
         }
     }
 

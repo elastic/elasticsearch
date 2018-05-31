@@ -47,7 +47,7 @@ public class NodeFailureListenerTests extends ESTestCase {
 
         listener.onFailure(node);
 
-        verify(sniffer).sniffOnFailure(node);
+        verify(sniffer).sniffOnFailure();
     }
 
     public void testResourceNotifiedOnFailure() {
@@ -72,7 +72,7 @@ public class NodeFailureListenerTests extends ESTestCase {
         }
 
         if (optionalSniffer != null) {
-            verify(sniffer).sniffOnFailure(node);
+            verify(sniffer).sniffOnFailure();
         }
     }
 

@@ -322,7 +322,9 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * NodeSelector overrides the round robin behavior.
              */
             Request request = new Request("GET", "/200");
-            request.setNodeSelector(firstPositionOnly);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.setNodeSelector(firstPositionOnly);
+            request.setOptions(options);
             Response response = restClient.performRequest(request);
             assertEquals(nodes[0].getHost(), response.getHost());
         }
@@ -342,7 +344,9 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * NodeSelector overrides the round robin behavior.
              */
             Request request = new Request("GET", "/200");
-            request.setNodeSelector(NodeSelector.NOT_MASTER_ONLY);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.setNodeSelector(NodeSelector.NOT_MASTER_ONLY);
+            request.setOptions(options);
             Response response = restClient.performRequest(request);
             assertEquals(newNodes[0].getHost(), response.getHost());
         }

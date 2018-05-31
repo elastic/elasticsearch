@@ -24,17 +24,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobAction.Response, UpdateJobAction.RequestBuilder> {
+public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobAction.Response> {
     public static final UpdateJobAction INSTANCE = new UpdateJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
     private UpdateJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public UpdateJobAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new UpdateJobAction.RequestBuilder(client, this);
     }
 
     @Override

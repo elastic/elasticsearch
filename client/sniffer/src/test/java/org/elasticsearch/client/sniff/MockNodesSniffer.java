@@ -22,7 +22,6 @@ package org.elasticsearch.client.sniff;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -31,7 +30,7 @@ import java.util.List;
  */
 class MockNodesSniffer implements NodesSniffer {
     @Override
-    public List<Node> sniff() throws IOException {
+    public List<Node> sniff() {
         return Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
     }
 }

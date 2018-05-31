@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class FlushAction extends Action<FlushRequest, FlushResponse, FlushRequestBuilder> {
+public class FlushAction extends Action<FlushRequest, FlushResponse> {
 
     public static final FlushAction INSTANCE = new FlushAction();
     public static final String NAME = "indices:admin/flush";
@@ -34,10 +33,5 @@ public class FlushAction extends Action<FlushRequest, FlushResponse, FlushReques
     @Override
     public FlushResponse newResponse() {
         return new FlushResponse();
-    }
-
-    @Override
-    public FlushRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new FlushRequestBuilder(client, this);
     }
 }

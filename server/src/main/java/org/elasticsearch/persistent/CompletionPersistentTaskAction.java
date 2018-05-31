@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.persistent;
 
+import java.io.IOException;
+import java.util.Objects;
+
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -35,12 +38,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-
-import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -48,20 +48,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Action that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
  */
-public class CompletionPersistentTaskAction extends Action<CompletionPersistentTaskAction.Request,
-        PersistentTaskResponse,
-        CompletionPersistentTaskAction.RequestBuilder> {
+public class CompletionPersistentTaskAction extends Action<CompletionPersistentTaskAction.Request, PersistentTaskResponse> {
 
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/completion";
 
     private CompletionPersistentTaskAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override

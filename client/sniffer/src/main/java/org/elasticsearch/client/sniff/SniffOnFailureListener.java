@@ -59,7 +59,6 @@ public class SniffOnFailureListener extends RestClient.FailureListener {
         if (sniffer == null) {
             throw new IllegalStateException("sniffer was not set, unable to sniff on failure");
         }
-        //re-sniff immediately but take out the node that failed
-        sniffer.sniffOnFailure(node);
+        sniffer.sniffOnFailure();
     }
 }

@@ -12,19 +12,13 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Action for deleting a role-mapping from the
  * org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class DeleteRoleMappingAction extends Action<DeleteRoleMappingRequest,
-        DeleteRoleMappingResponse, DeleteRoleMappingRequestBuilder> {
+public class DeleteRoleMappingAction extends Action<DeleteRoleMappingRequest, DeleteRoleMappingResponse> {
 
     public static final DeleteRoleMappingAction INSTANCE = new DeleteRoleMappingAction();
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/delete";
 
     private DeleteRoleMappingAction() {
         super(NAME);
-    }
-
-    @Override
-    public DeleteRoleMappingRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new DeleteRoleMappingRequestBuilder(client, this);
     }
 
     @Override

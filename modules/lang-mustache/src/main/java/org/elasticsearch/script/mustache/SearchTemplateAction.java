@@ -20,20 +20,14 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class SearchTemplateAction extends Action<SearchTemplateRequest, SearchTemplateResponse, SearchTemplateRequestBuilder> {
+public class SearchTemplateAction extends Action<SearchTemplateRequest, SearchTemplateResponse> {
 
     public static final SearchTemplateAction INSTANCE = new SearchTemplateAction();
     public static final String NAME = "indices:data/read/search/template";
 
     private SearchTemplateAction() {
         super(NAME);
-    }
-
-    @Override
-    public SearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SearchTemplateRequestBuilder(client, this);
     }
 
     @Override

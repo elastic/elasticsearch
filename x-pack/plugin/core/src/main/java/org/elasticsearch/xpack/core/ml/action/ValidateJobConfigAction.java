@@ -22,8 +22,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
-public class ValidateJobConfigAction
-extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response, ValidateJobConfigAction.RequestBuilder> {
+public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response> {
 
     public static final ValidateJobConfigAction INSTANCE = new ValidateJobConfigAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate";
@@ -33,16 +32,11 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         protected RequestBuilder(ElasticsearchClient client, ValidateJobConfigAction action) {
             super(client, action, new Request());

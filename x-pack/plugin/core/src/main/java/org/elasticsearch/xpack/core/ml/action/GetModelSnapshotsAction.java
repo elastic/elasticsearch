@@ -29,19 +29,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetModelSnapshotsAction
-extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response, GetModelSnapshotsAction.RequestBuilder> {
+public class GetModelSnapshotsAction extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response> {
 
     public static final GetModelSnapshotsAction INSTANCE = new GetModelSnapshotsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/model_snapshots/get";
 
     private GetModelSnapshotsAction() {
         super(NAME);
-    }
-
-    @Override
-    public GetModelSnapshotsAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -280,7 +274,7 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, GetModelSnapshotsAction action) {
             super(client, action, new Request());

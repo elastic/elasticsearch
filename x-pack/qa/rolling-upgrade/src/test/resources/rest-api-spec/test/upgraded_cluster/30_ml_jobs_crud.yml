@@ -8,7 +8,9 @@ setup:
 
 ---
 "Test open old jobs":
-
+  - skip:
+      version: "all"
+      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/30982"
   - do:
       xpack.ml.open_job:
         job_id: old-cluster-job
@@ -75,6 +77,9 @@ setup:
 
 ---
 "Test job with no model memory limit has established model memory after reopening":
+  - skip:
+      version: "all"
+      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/30982"
   - do:
       xpack.ml.open_job:
         job_id: no-model-memory-limit-job

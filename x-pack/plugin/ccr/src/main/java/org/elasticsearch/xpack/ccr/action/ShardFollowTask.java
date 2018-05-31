@@ -25,7 +25,7 @@ import java.util.Set;
 
 public class ShardFollowTask implements PersistentTaskParams {
 
-    public static final String NAME = "shard_follow";
+    public static final String NAME = "xpack/ccr/shard_follow_task";
 
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS =

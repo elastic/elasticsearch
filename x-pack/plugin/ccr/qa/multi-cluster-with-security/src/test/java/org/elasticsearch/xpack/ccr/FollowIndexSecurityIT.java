@@ -125,7 +125,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         for (Map.Entry<?, ?> entry : nodeTasks.entrySet()) {
             Map<?, ?> nodeTask = (Map<?, ?>) entry.getValue();
             String action = (String) nodeTask.get("action");
-            if (action.startsWith("shard_follow")) {
+            if (action.startsWith("xpack/ccr/shard_follow_task")) {
                 numNodeTasks++;
             }
         }

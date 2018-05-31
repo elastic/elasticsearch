@@ -104,7 +104,7 @@ public class RollupIT extends ESIntegTestCase {
     }
 
     @Before
-    public void createIndex() throws Exception {
+    public void createIndex() {
         client().admin().indices().prepareCreate("test-1").addMapping("doc", "{\"doc\": {\"properties\": {" +
                 "\"date_histo\": {\"type\": \"date\"}, " +
                 "\"histo\": {\"type\": \"integer\"}, " +
@@ -125,7 +125,7 @@ public class RollupIT extends ESIntegTestCase {
                 }
             }
         }
-        BulkResponse response = bulk.get();
+        bulk.get();
         client().admin().indices().prepareRefresh("test-1").get();
     }
 
@@ -195,27 +195,23 @@ public class RollupIT extends ESIntegTestCase {
 
         // Make sure it started
         ESTestCase.assertBusy(() -> {
-            ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-
-            RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, "testIndexPattern");
-            if (rollupJobStatus == null) {;
+            RollupJobStatus rollupJobStatus = getRollupJobStatus("testIndexPattern");
+            if (rollupJobStatus == null) {
                 fail("null");
             }
 
-            IndexerState state = rollupJobStatus.getState();
+            IndexerState state = rollupJobStatus.getIndexerState();
             assertTrue(state.equals(IndexerState.STARTED) || state.equals(IndexerState.INDEXING));
         }, 60, TimeUnit.SECONDS);
 
         // And wait for it to finish
         ESTestCase.assertBusy(() -> {
-            ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-
-            RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, "testIndexPattern");
+            RollupJobStatus rollupJobStatus = getRollupJobStatus("testIndexPattern");
             if (rollupJobStatus == null) {
                 fail("null");
             }
 
-            IndexerState state = rollupJobStatus.getState();
+            IndexerState state = rollupJobStatus.getIndexerState();
             assertTrue(state.equals(IndexerState.STARTED) && rollupJobStatus.getPosition() != null);
         }, 60, TimeUnit.SECONDS);
 
@@ -274,23 +270,20 @@ public class RollupIT extends ESIntegTestCase {
 
         // Make sure it started
         ESTestCase.assertBusy(() -> {
-            ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-
-            RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, "job1");
+            RollupJobStatus rollupJobStatus = getRollupJobStatus("job1");
             if (rollupJobStatus == null) {
                 fail("null");
             }
 
-            IndexerState state = rollupJobStatus.getState();
+            IndexerState state = rollupJobStatus.getIndexerState();
             assertTrue(state.equals(IndexerState.STARTED) || state.equals(IndexerState.INDEXING));
         }, 60, TimeUnit.SECONDS);
 
         //but not the other task
         ESTestCase.assertBusy(() -> {
-            ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-            RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, "job2");
+            RollupJobStatus rollupJobStatus = getRollupJobStatus("job2");
 
-            IndexerState state = rollupJobStatus.getState();
+            IndexerState state = rollupJobStatus.getIndexerState();
             assertTrue(state.equals(IndexerState.STOPPED));
         }, 60, TimeUnit.SECONDS);
 
@@ -301,9 +294,7 @@ public class RollupIT extends ESIntegTestCase {
 
         // Make sure the first job's task is gone
         ESTestCase.assertBusy(() -> {
-            ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-
-            RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, "job1");
+            RollupJobStatus rollupJobStatus = getRollupJobStatus("job1");
             assertTrue(rollupJobStatus == null);
         }, 60, TimeUnit.SECONDS);
 
@@ -320,10 +311,9 @@ public class RollupIT extends ESIntegTestCase {
 
         // and still STOPPED
         ESTestCase.assertBusy(() -> {
-            ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-            RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, "job2");
+            RollupJobStatus rollupJobStatus = getRollupJobStatus("job2");
 
-            IndexerState state = rollupJobStatus.getState();
+            IndexerState state = rollupJobStatus.getIndexerState();
             assertTrue(state.equals(IndexerState.STOPPED));
         }, 60, TimeUnit.SECONDS);
     }
@@ -404,19 +394,17 @@ public class RollupIT extends ESIntegTestCase {
         Assert.assertThat(response.isStarted(), equalTo(true));
 
         ESTestCase.assertBusy(() -> {
-            ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-            RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, taskId);
+            RollupJobStatus rollupJobStatus = getRollupJobStatus(taskId);
             if (rollupJobStatus == null) {
                 fail("null");
             }
 
-            IndexerState state = rollupJobStatus.getState();
+            IndexerState state = rollupJobStatus.getIndexerState();
             logger.error("state: [" + state + "]");
             assertTrue(state.equals(IndexerState.STARTED) && rollupJobStatus.getPosition() != null);
         }, 60, TimeUnit.SECONDS);
 
-        ListTasksResponse tasksResponse = client().admin().cluster().prepareListTasks().setDetailed(true).get();
-        RollupJobStatus rollupJobStatus = getRollupJobStatus(tasksResponse, taskId);
+        RollupJobStatus rollupJobStatus = getRollupJobStatus(taskId);
         if (rollupJobStatus == null) {
             Assert.fail("rollup job status should not be null");
         }
@@ -481,11 +469,13 @@ public class RollupIT extends ESIntegTestCase {
         }
     }
 
-    private RollupJobStatus getRollupJobStatus(ListTasksResponse tasksResponse, String taskId) {
-        for (TaskInfo task : tasksResponse.getTasks()) {
-            if (task.getDescription().equals("rollup_" + taskId)) {
-                return ((RollupJobStatus) task.getStatus());
-            }
+    private RollupJobStatus getRollupJobStatus(final String taskId) {
+        final GetRollupJobsAction.Request request = new GetRollupJobsAction.Request(taskId);
+        final GetRollupJobsAction.Response response = client().execute(GetRollupJobsAction.INSTANCE, request).actionGet();
+
+        if (response.getJobs() != null && response.getJobs().isEmpty() == false) {
+            assertThat("Expect 1 rollup job with id " + taskId, response.getJobs().size(), equalTo(1));
+            return response.getJobs().iterator().next().getStatus();
         }
         return null;
     }
@@ -498,13 +488,13 @@ public class RollupIT extends ESIntegTestCase {
         for (GetRollupJobsAction.JobWrapper job : response.getJobs()) {
             StopRollupJobAction.Request stopRequest = new StopRollupJobAction.Request(job.getJob().getId());
             try {
-                StopRollupJobAction.Response stopResponse = client().execute(StopRollupJobAction.INSTANCE, stopRequest).get();
+                client().execute(StopRollupJobAction.INSTANCE, stopRequest).get();
             } catch (ElasticsearchException e) {
                 //
             }
 
             DeleteRollupJobAction.Request deleteRequest = new DeleteRollupJobAction.Request(job.getJob().getId());
-            DeleteRollupJobAction.Response deleteResponse = client().execute(DeleteRollupJobAction.INSTANCE, deleteRequest).get();
+            client().execute(DeleteRollupJobAction.INSTANCE, deleteRequest).get();
         }
     }
 }

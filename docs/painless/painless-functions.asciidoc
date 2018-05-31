@@ -1,0 +1,13 @@
+[[painless-functions]]
+=== Functions
+
+You can declare functions at the beginning of a Painless script, for example:
+
+[source,painless]
+---------------------------------------------------------
+boolean isNegative(def x) { x < 0 }
+...
+if (isNegative(someVar)) {
+  ...
+}
+---------------------------------------------------------

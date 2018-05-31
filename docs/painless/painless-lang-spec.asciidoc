@@ -43,4 +43,12 @@ include::painless-operators-reference.asciidoc[]
 
 include::painless-operators-array.asciidoc[]
 
-include::painless-general-syntax.asciidoc[]
+include::painless-statements.asciidoc[]
+
+include::painless-scripts.asciidoc[]
+
+include::painless-functions.asciidoc[]
+
+include::painless-lambdas.asciidoc[]
+
+include::painless-regexes.asciidoc[]

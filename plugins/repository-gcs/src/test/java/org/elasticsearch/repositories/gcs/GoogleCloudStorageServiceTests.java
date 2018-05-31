@@ -64,7 +64,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 .put(GoogleCloudStorageClientSettings.PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectIdName)
                 .build();
         final GoogleCloudStorageService service = new GoogleCloudStorageService(settings);
-        service.updateClientsSettings(GoogleCloudStorageClientSettings.load(settings));
+        service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.client("another_client"));
         assertThat(e.getMessage(), Matchers.startsWith("Unknown client name"));
         assertSettingDeprecationsAndWarnings(

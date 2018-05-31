@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import java.io.IOException;
 import java.util.Random;
 
 import com.amazonaws.ClientConfiguration;
@@ -127,12 +128,12 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
 
     /**
-     * Reloads the settings for the AmazonEC2 client. New clients will be build
-     * using these. Old client is usable until released. On release it will be
-     * destroyed instead of being returned to the cache.
+     * Refreshes the settings for the AmazonEC2 client. New clients will be build
+     * using these new settings. Old client is usable until released. On release it
+     * will be destroyed instead of being returned to the cache.
      */
     @Override
-    public synchronized Ec2ClientSettings updateClientSettings(Ec2ClientSettings clientSettings) {
+    public synchronized Ec2ClientSettings refreshAndClearCache(Ec2ClientSettings clientSettings) {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClient();
@@ -142,7 +143,11 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
     }
 
     @Override
-    public synchronized void releaseCachedClient() {
+    public void close() {
+        releaseCachedClient();
+    }
+
+    private synchronized void releaseCachedClient() {
         if (this.clientReference == null) {
             return;
         }
@@ -154,4 +159,5 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();
     }
+
 }

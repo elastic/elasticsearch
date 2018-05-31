@@ -22,12 +22,14 @@ package org.elasticsearch.discovery.ec2;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-interface AwsEc2Service {
+interface AwsEc2Service extends Closeable {
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
 
     class HostType {
@@ -79,25 +81,20 @@ interface AwsEc2Service {
             key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
 
     /**
-     * Creates then caches an {@code AmazonEC2} client using the current client
-     * settings.
+     * Builds then caches an {@code AmazonEC2} client using the current client
+     * settings. Returns an {@code AmazonEc2Reference} wrapper which should be
+     * released as soon as it is not required anymore.
      */
     AmazonEc2Reference client();
 
     /**
-     * Updates settings for building the client. Future client requests will use the
-     * new settings. Implementations SHOULD drop the client cache to prevent reusing
-     * the client with old settings from cache.
+     * Updates the settings for building the client and releases the cached one.
+     * Future client requests will use the new settings to lazily built the new
+     * client.
      *
-     * @param clientSettings
-     *            the new settings
-     * @return the old settings
+     * @param clientSettings the new refreshed settings
+     * @return the old stale settings
      */
-    Ec2ClientSettings updateClientSettings(Ec2ClientSettings clientSettings);
+    Ec2ClientSettings refreshAndClearCache(Ec2ClientSettings clientSettings);
 
-    /**
-     * Releases the cached client. Subsequent client requests will recreate the
-     * client instance. Does not touch the client settings.
-     */
-    void releaseCachedClient();
 }

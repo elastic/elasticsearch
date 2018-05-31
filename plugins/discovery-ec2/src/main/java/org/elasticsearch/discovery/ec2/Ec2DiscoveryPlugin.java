@@ -172,13 +172,13 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
 
     @Override
     public void close() throws IOException {
-        ec2Service.releaseCachedClient();
+        ec2Service.close();
     }
 
     @Override
     public void reload(Settings settings) {
         // secure settings should be readable
         final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
-        ec2Service.updateClientSettings(clientSettings);
+        ec2Service.refreshAndClearCache(clientSettings);
     }
 }

@@ -212,7 +212,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings) {
+    public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
         return emptyMap();
     }
 }

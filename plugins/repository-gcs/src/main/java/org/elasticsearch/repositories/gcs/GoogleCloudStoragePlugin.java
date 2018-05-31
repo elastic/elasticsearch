@@ -74,6 +74,6 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         // `GoogleCloudStorageClientSettings` instance) instead of the `Settings`
         // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
-        this.storageService.updateClientsSettings(clientsSettings);
+        this.storageService.refreshAndClearCache(clientsSettings);
     }
 }

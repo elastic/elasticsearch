@@ -19,30 +19,25 @@
 
 package org.elasticsearch.repositories.s3;
 
+import java.io.Closeable;
 import java.util.Map;
 
-interface AwsS3Service {
+interface AwsS3Service extends Closeable {
 
     /**
      * Creates then caches an {@code AmazonS3} client using the current client
-     * settings.
+     * settings. Returns an {@code AmazonS3Reference} wrapper which has to be
+     * released as soon as it is not needed anymore.
      */
     AmazonS3Reference client(String clientName);
 
     /**
-     * Updates settings for building clients. Future client requests will use the
-     * new settings. Implementations SHOULD drop the client cache to prevent reusing
-     * clients with old settings from cache.
+     * Updates settings for building clients and clears the client cache. Future
+     * client requests will use the new settings to lazily build new clients.
      *
-     * @param clientsSettings
-     *            the new settings
-     * @return the old settings
+     * @param clientsSettings the new refreshed settings
+     * @return the old stale settings
      */
-    Map<String, S3ClientSettings> updateClientsSettings(Map<String, S3ClientSettings> clientsSettings);
+    Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings);
 
-    /**
-     * Releases cached clients. Subsequent client requests will recreate client
-     * instances. Does not touch the client settings.
-     */
-    void releaseCachedClients();
 }

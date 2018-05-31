@@ -34,6 +34,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+
+import java.io.IOException;
 import java.util.Map;
 import static java.util.Collections.emptyMap;
 
@@ -48,12 +50,13 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
     }
 
     /**
-     * Reloads the settings for the AmazonS3 client. New clients will be build using
-     * these. Old clients are usable until released. On release they will be
-     * destroyed contrary to being returned to the cache.
+     * Refreshes the settings for the AmazonS3 clients and clears the cache of
+     * existing clients. New clients will be build using these new settings. Old
+     * clients are usable until released. On release they will be destroyed instead
+     * to being returned to the cache.
      */
     @Override
-    public synchronized Map<String, S3ClientSettings> updateClientsSettings(Map<String, S3ClientSettings> clientsSettings) {
+    public synchronized Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClients();
@@ -142,8 +145,7 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
         }
     }
 
-    @Override
-    public synchronized void releaseCachedClients() {
+    protected synchronized void releaseCachedClients() {
         // the clients will shutdown when they will not be used anymore
         for (final AmazonS3Reference clientReference : clientsCache.values()) {
             clientReference.decRef();
@@ -171,6 +173,11 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
         public void refresh() {
             SocketAccess.doPrivilegedVoid(credentials::refresh);
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        releaseCachedClients();
     }
 
 }

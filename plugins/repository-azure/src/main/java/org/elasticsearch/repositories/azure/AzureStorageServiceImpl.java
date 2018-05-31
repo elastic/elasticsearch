@@ -61,7 +61,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         super(settings);
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        updateClientsSettings(clientsSettings);
+        refreshAndClearCache(clientsSettings);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings) {
+    public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
         final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
         this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         // clients are built lazily by {@link client(String)}

@@ -66,7 +66,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         this.awsS3Service = getAwsS3Service(settings);
         // eagerly load client settings so that secure settings are read
         final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
-        this.awsS3Service.updateClientsSettings(clientsSettings);
+        this.awsS3Service.refreshAndClearCache(clientsSettings);
     }
 
     protected S3RepositoryPlugin(AwsS3Service awsS3Service) {
@@ -112,11 +112,11 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
-        awsS3Service.updateClientsSettings(clientsSettings);
+        awsS3Service.refreshAndClearCache(clientsSettings);
     }
 
     @Override
-    public void close() {
-        awsS3Service.releaseCachedClients();
+    public void close() throws IOException {
+        awsS3Service.close();
     }
 }

@@ -67,12 +67,12 @@ public class S3RepositoryTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, S3ClientSettings> updateClientsSettings(Map<String, S3ClientSettings> clientsSettings) {
+        public Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
             return Collections.emptyMap();
         }
 
         @Override
-        public void releaseCachedClients() {
+        public void close() {
         }
     }
 

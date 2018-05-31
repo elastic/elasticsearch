@@ -34,6 +34,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -150,8 +151,8 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
     }
 
     @Override
-    public void close() {
-        this.service.releaseCachedClients();
+    public void close() throws IOException {
+        this.service.close();
     }
 
     public CannedAccessControlList getCannedACL() {

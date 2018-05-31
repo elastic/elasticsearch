@@ -68,6 +68,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        azureStoreService.updateClientsSettings(clientsSettings);
+        azureStoreService.refreshAndClearCache(clientsSettings);
     }
 }

@@ -6,9 +6,8 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetLicenseAction extends Action<GetLicenseRequest, GetLicenseResponse, GetLicenseRequestBuilder> {
+public class GetLicenseAction extends Action<GetLicenseRequest, GetLicenseResponse> {
 
     public static final GetLicenseAction INSTANCE = new GetLicenseAction();
     public static final String NAME = "cluster:monitor/xpack/license/get";
@@ -20,10 +19,5 @@ public class GetLicenseAction extends Action<GetLicenseRequest, GetLicenseRespon
     @Override
     public GetLicenseResponse newResponse() {
         return new GetLicenseResponse();
-    }
-
-    @Override
-    public GetLicenseRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetLicenseRequestBuilder(client, this);
     }
 }

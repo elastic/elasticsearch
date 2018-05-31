@@ -649,7 +649,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                protected void nodeOperation(AllocatedPersistentTask task, P params, Task.Status status) {
+                protected void nodeOperation(AllocatedPersistentTask task, P params, PersistentTaskState state) {
                     throw new UnsupportedOperationException();
                 }
             }));

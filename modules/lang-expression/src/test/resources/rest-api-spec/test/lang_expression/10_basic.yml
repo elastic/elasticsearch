@@ -1,4 +1,4 @@
-# Integration tests for Expression scripts
+# Integration tests for Expression scriptsmatch
 #
 "Expression loaded":
     - do:
@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules: { name: lang-expression  } }
+    - contains:  { nodes.$master.modules: { name: lang-expression  } }

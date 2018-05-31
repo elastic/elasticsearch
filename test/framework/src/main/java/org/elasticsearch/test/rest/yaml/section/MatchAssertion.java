@@ -90,36 +90,7 @@ public class MatchAssertion extends Assertion {
             }
         }
 
-        // add support for matching objects ({a:b}) against list of objects ([ {a:b, c:d} ])
-        if(expectedValue instanceof Map && actualValue instanceof List) {
-            Map<String, Object> expectedMap = (Map<String, Object>) expectedValue;
-            List<Object> actualList = (List<Object>) actualValue;
-            assertTrue(
-                getField() + " was expected to be a list with Map but it's " + actualValue,
-                actualList.stream()
-                    .filter((each) -> each instanceof Map)
-                    .findAny()
-                    .isPresent()
-            );
-
-            List<Map<String, Object>> actualValues = actualList.stream()
-                .filter(each -> each instanceof Map)
-                .map((each -> (Map<String, Object>) each))
-                .filter(each -> each.keySet().containsAll(expectedMap.keySet()))
-                .collect(Collectors.toList());
-            assertThat(
-                getField() + " expected to be a list with at least one object that has keys: " +
-                    expectedMap.keySet() + " but it was " + actualList,
-                actualValues,
-                is(not(empty()))
-            );
-            assertTrue(
-                getField() + " expected to be a list with at least on object that matches " + expectedMap +
-                    " but was " + actualValues,
-                actualValues.stream()
-                    .anyMatch(each -> each.entrySet().containsAll(expectedMap.entrySet()))
-            );
-        } else if (expectedValue.equals(actualValue) == false) {
+        if (expectedValue.equals(actualValue) == false) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compare(getField(), actualValue, expectedValue);
             throw new AssertionError(getField() + " didn't match expected value:\n" + message);

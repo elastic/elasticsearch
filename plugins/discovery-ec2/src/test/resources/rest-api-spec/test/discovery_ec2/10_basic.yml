@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins: { name: discovery-ec2 } }
+    - contains:  { nodes.$master.plugins: { name: discovery-ec2 } }

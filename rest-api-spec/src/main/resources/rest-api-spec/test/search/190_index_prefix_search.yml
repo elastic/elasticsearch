@@ -2,7 +2,7 @@
 "search with index prefixes":
   - skip:
       version: " - 6.99.99"
-      reason: index_prefix is only available as of 6.3.0
+      reason: index_prefixes is only available as of 6.3.0
   - do:
       indices.create:
         index:  test
@@ -12,7 +12,7 @@
               properties:
                 text:
                   type: text
-                  index_prefix:
+                  index_prefixes:
                     min_chars: 1
                     max_chars: 10
 

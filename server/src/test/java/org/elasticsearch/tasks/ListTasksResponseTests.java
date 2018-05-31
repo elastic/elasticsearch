@@ -132,10 +132,15 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         }
     }
 
+    /**
+     * Test parsing {@link ListTasksResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
+     * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
+     */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<ListTasksResponse> instanceSupplier = ListTasksResponseTests::createTestInstanceWithFailures;
         //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        //but that does not bother our assertions, it's no big deal. We want to test that we don't break.
+        //but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
         //exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;

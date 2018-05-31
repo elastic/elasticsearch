@@ -366,7 +366,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
          * Establishes the node connections. If validateInHandshake is set to true, the connection will fail if
          * node returned in the handshake response is different than the discovery node.
          */
-        List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes, boolean validateInHandshake) {
+        List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes) {
             for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
                 if (!transportService.nodeConnected(node)) {
@@ -438,7 +438,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 }
             }
 
-            nodes = establishNodeConnections(newNodes, false);
+            nodes = establishNodeConnections(newNodes);
             filteredNodes = Collections.unmodifiableList(newFilteredNodes);
         }
     }
@@ -560,7 +560,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 }
             }
 
-            nodes = establishNodeConnections(newNodes, true);
+            nodes = establishNodeConnections(newNodes);
             filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }

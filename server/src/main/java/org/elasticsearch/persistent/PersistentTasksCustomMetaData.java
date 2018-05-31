@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -188,8 +189,13 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     }
 
     @Override
-    public boolean compat(final Version version, final Map<String, String> headers) {
-        return version.onOrAfter(Version.V_5_4_0) && headers.containsKey("has_xpack");
+    public Optional<String> getRequiredFeature() {
+        return Optional.of("x-pack");
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_5_4_0;
     }
 
     @Override

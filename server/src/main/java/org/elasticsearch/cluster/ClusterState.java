@@ -692,16 +692,21 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (cursor.value.compat(out.getVersion(), out.getHeaders())) {
+            if (isCompatible(out, cursor.value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
         for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (cursor.value.compat(out.getVersion(), out.getHeaders())) {
+            if (isCompatible(out, cursor.value)) {
                 out.writeNamedWriteable(cursor.value);
             }
         }
+    }
+
+    private static boolean isCompatible(final StreamOutput out, final Custom custom) {
+        return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion())
+                && (custom.getRequiredFeature().isPresent() == false || out.hasFeature(custom.getRequiredFeature().get()));
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {

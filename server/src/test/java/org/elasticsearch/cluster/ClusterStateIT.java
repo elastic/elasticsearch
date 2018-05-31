@@ -19,18 +19,11 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -47,7 +40,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -59,17 +51,14 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
 public class ClusterStateIT extends ESIntegTestCase {
@@ -83,8 +72,8 @@ public class ClusterStateIT extends ESIntegTestCase {
         static class CustomPluginCustom implements MetaData.Custom {
 
             @Override
-            public boolean compat(Version version, Map<String, String> headers) {
-                return headers.containsKey("custom");
+            public Optional<String> getRequiredFeature() {
+                return Optional.of("custom");
             }
 
             @Override
@@ -179,11 +168,6 @@ public class ClusterStateIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(CustomPlugin.class)).collect(Collectors.toCollection(ArrayList::new));
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(ThreadContext.PREFIX + "." + "custom", true).build();
     }
 
     public void testOptionalCustoms() throws Exception {

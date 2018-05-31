@@ -373,9 +373,14 @@ public final class ThreadContext implements Closeable, Writeable {
         private long warningHeadersSize; //saving current warning headers' size not to recalculate the size with every new warning header
         private ThreadContextStruct(StreamInput in) throws IOException {
             final int numRequest = in.readVInt();
+            System.out.println(numRequest);
             Map<String, String> requestHeaders = numRequest == 0 ? Collections.emptyMap() : new HashMap<>(numRequest);
             for (int i = 0; i < numRequest; i++) {
-                requestHeaders.put(in.readString(), in.readString());
+                final String key = in.readString();
+                final String value = in.readString();
+                System.out.println(key);
+                System.out.println(value);
+                requestHeaders.put(key, value);
             }
 
             this.requestHeaders = requestHeaders;

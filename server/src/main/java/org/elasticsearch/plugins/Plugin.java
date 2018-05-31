@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
@@ -77,7 +78,12 @@ import java.util.function.UnaryOperator;
  * methods should cause any extensions of {@linkplain Plugin} that used the pre-5.x style extension syntax to fail to build and point the
  * plugin author at the new extension syntax. We hope that these make the process of upgrading a plugin from 2.x to 5.x only mildly painful.
  */
-public abstract class Plugin implements Closeable {
+public abstract class
+Plugin implements Closeable {
+
+    protected Optional<String> getFeature() {
+        return Optional.empty();
+    }
 
     /**
      * Node level guice modules.

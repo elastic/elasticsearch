@@ -123,8 +123,8 @@ public class MlMetadata implements MetaData.Custom {
     }
 
     @Override
-    public boolean compat(final Version version, final Map<String, String> headers) {
-        return headers.containsKey("has_xpack");
+    public Optional<String> getRequiredFeature() {
+        return Optional.of("x-pack");
     }
 
     @Override

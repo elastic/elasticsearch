@@ -1976,11 +1976,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
             @Override
             protected String handleRequest(TcpChannel mockChannel, String profileName, StreamInput stream, long requestId,
-                                           int messageLengthBytes, Version version, Map<String, String> headers,
+                                           int messageLengthBytes, Version version, Set<String> features,
                                            InetSocketAddress remoteAddress, byte status)
                 throws IOException {
-                return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, headers, remoteAddress,
-                    (byte) (status & ~(1 << 3))); // we flip the isHandshake bit back and act like the handler is not found
+                return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, features,
+                        remoteAddress,
+                        (byte) (status & ~(1 << 3))); // we flip the isHandshake bit back and act like the handler is not found
             }
         };
 

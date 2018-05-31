@@ -20,6 +20,7 @@ import org.elasticsearch.license.License.OperationMode;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Contains metadata about registered licenses
@@ -109,8 +110,8 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
     }
 
     @Override
-    public boolean compat(final Version version, final Map<String, String> headers) {
-        return headers.containsKey("has_xpack");
+    public Optional<String> getRequiredFeature() {
+        return Optional.of("x-pack");
     }
 
     @Override

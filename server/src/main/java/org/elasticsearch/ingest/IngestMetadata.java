@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -109,11 +108,6 @@ public final class IngestMetadata implements MetaData.Custom {
         }
         builder.endArray();
         return builder;
-    }
-
-    @Override
-    public boolean compat(final Version version, final Map<String, String> headers) {
-        return true;
     }
 
     @Override

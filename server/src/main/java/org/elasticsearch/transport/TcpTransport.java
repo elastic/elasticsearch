@@ -1140,11 +1140,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param requestId   the request ID this response replies to
      * @param action      the action this response replies to
      */
-    public void sendErrorResponse(Version nodeVersion, Map<String, String> headers, TcpChannel channel, final Exception error, final long requestId,
+    public void sendErrorResponse(Version nodeVersion, Set<String> features, TcpChannel channel, final Exception error, final long requestId,
                                   final String action) throws IOException {
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(nodeVersion);
-            stream.setHeaders(headers);
+            stream.setFeatures(features);
             RemoteTransportException tx = new RemoteTransportException(
                 nodeName(), new TransportAddress(channel.getLocalAddress()), action, error);
             threadPool.getThreadContext().writeTo(stream);
@@ -1164,14 +1164,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse} objects back to the caller.
      *
-     * @see #sendErrorResponse(Version, Map, TcpChannel, Exception, long, String) for sending back errors to the caller
+     * @see #sendErrorResponse(Version, Set, TcpChannel, Exception, long, String) for sending back errors to the caller
      */
-    public void sendResponse(Version nodeVersion, Map<String, String> headers, TcpChannel channel, final TransportResponse response, final long requestId,
+    public void sendResponse(Version nodeVersion, Set<String> features, TcpChannel channel, final TransportResponse response, final long requestId,
                              final String action, TransportResponseOptions options) throws IOException {
-        sendResponse(nodeVersion, headers, channel, response, requestId, action, options, (byte) 0);
+        sendResponse(nodeVersion, features, channel, response, requestId, action, options, (byte) 0);
     }
 
-    private void sendResponse(Version nodeVersion, Map<String, String> headers, TcpChannel channel, final TransportResponse response, final long requestId,
+    private void sendResponse(Version nodeVersion, Set<String> features, TcpChannel channel, final TransportResponse response, final long requestId,
                               final String action, TransportResponseOptions options, byte status) throws IOException {
         if (compress) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
@@ -1186,7 +1186,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             threadPool.getThreadContext().writeTo(stream);
             stream.setVersion(nodeVersion);
-            stream.setHeaders(headers);
+            stream.setFeatures(features);
             BytesReference message = buildMessage(requestId, status, nodeVersion, response, stream);
 
             final TransportResponseOptions finalOptions = options;
@@ -1439,11 +1439,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             ensureVersionCompatibility(version, getCurrentVersion(), isHandshake);
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
+            System.out.println(threadPool.getThreadContext().getHeaders());
             threadPool.getThreadContext().readHeaders(streamIn);
             threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
-            final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+            final Set<String> features = new HashSet<>(Arrays.asList(threadPool.getThreadContext().getHeader("features").split(",")));
             if (TransportStatus.isRequest(status)) {
-                handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, headers, remoteAddress, status);
+                handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, features, remoteAddress, status);
             } else {
                 final TransportResponseHandler<?> handler;
                 if (isHandshake) {
@@ -1547,7 +1548,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     protected String handleRequest(TcpChannel channel, String profileName, final StreamInput stream, long requestId,
-                                   int messageLengthBytes, Version version, Map<String, String> headers, InetSocketAddress remoteAddress, byte status)
+                                   int messageLengthBytes, Version version, Set<String> features, InetSocketAddress remoteAddress, byte status)
         throws IOException {
         final String action = stream.readString();
         transportService.onRequestReceived(requestId, action);
@@ -1555,7 +1556,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         try {
             if (TransportStatus.isHandshake(status)) {
                 final VersionHandshakeResponse response = new VersionHandshakeResponse(getCurrentVersion());
-                sendResponse(version, headers, channel, response, requestId, HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
+                sendResponse(version, features, channel, response, requestId, HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
                     TransportStatus.setHandshake((byte) 0));
             } else {
                 final RequestHandlerRegistry reg = transportService.getRequestHandler(action);
@@ -1567,7 +1568,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, headers, profileName,
+                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName,
                     messageLengthBytes);
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(remoteAddress));
@@ -1578,7 +1579,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, headers, profileName, 0);
+                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName, 0);
             }
             try {
                 transportChannel.sendResponse(e);

@@ -151,9 +151,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
+
+    @Override
+    protected Optional<String> getFeature() {
+        return Optional.of("x-pack");
+    }
 
     private final Settings settings;
 
@@ -184,13 +190,14 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     static Settings additionalSettings(final Settings settings, final boolean enabled, final boolean transportClientMode) {
-        final Settings.Builder builder = Settings.builder();
         if (enabled && transportClientMode) {
-            builder.put(SecuritySettings.addTransportSettings(settings));
-            builder.put(SecuritySettings.addUserSettings(settings));
+            return Settings.builder()
+                    .put(SecuritySettings.addTransportSettings(settings))
+                    .put(SecuritySettings.addUserSettings(settings))
+                    .build();
+        } else {
+            return Settings.EMPTY;
         }
-        builder.put(ThreadContext.PREFIX + "." + "has_xpack", true);
-        return builder.build();
     }
 
     @Override

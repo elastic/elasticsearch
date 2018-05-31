@@ -38,7 +38,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public final class DiffableUtils {
     private DiffableUtils() {
@@ -437,17 +439,17 @@ public final class DiffableUtils {
                 keySerializer.writeKey(delete, out);
             }
             Version version = out.getVersion();
-            final Map<String, String> headers = out.getHeaders();
+            Predicate<Optional<String>> feature = o -> o.isPresent() == false || out.hasFeature(o.get());
             // filter out custom states not supported by the other node
             int diffCount = 0;
             for (Diff<T> diff : diffs.values()) {
-                if(valueSerializer.supportsVersion(diff, version, headers)) {
+                if(valueSerializer.supportsStream(diff, version, feature)) {
                     diffCount++;
                 }
             }
             out.writeVInt(diffCount);
             for (Map.Entry<K, Diff<T>> entry : diffs.entrySet()) {
-                if(valueSerializer.supportsVersion(entry.getValue(), version, headers)) {
+                if(valueSerializer.supportsStream(entry.getValue(), version, feature)) {
                     keySerializer.writeKey(entry.getKey(), out);
                     valueSerializer.writeDiff(entry.getValue(), out);
                 }
@@ -455,7 +457,7 @@ public final class DiffableUtils {
             // filter out custom states not supported by the other node
             int upsertsCount = 0;
             for (T upsert : upserts.values()) {
-                if(valueSerializer.supportsVersion(upsert, version, headers)) {
+                if(valueSerializer.supportsStream(upsert, version, feature)) {
                     upsertsCount++;
                 }
             }
@@ -562,14 +564,14 @@ public final class DiffableUtils {
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(Diff<V> value, Version version, Map<String, String> headers) {
+        default boolean supportsStream(Diff<V> value, Version version, Predicate<Optional<String>> feature) {
             return true;
         }
 
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(V value, Version version, Map<String, String> headers) {
+        default boolean supportsStream(V value, Version version, Predicate<Optional<String>> feature) {
             return true;
         }
 

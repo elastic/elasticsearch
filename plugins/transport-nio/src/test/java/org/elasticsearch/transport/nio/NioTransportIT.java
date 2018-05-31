@@ -48,6 +48,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -110,8 +111,8 @@ public class NioTransportIT extends NioIntegTestCase {
         @Override
         protected String handleRequest(TcpChannel channel, String profileName,
                                        StreamInput stream, long requestId, int messageLengthBytes, Version version,
-                                       Map<String, String> headers, InetSocketAddress remoteAddress, byte status) throws IOException {
-            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version, headers,
+                                       Set<String> features, InetSocketAddress remoteAddress, byte status) throws IOException {
+            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version, features,
                     remoteAddress, status);
             channelProfileName = TcpTransport.DEFAULT_PROFILE;
             return action;

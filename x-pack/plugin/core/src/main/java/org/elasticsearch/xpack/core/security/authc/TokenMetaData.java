@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
@@ -64,8 +65,8 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
     }
 
     @Override
-    public boolean compat(final Version version, final Map<String, String> headers) {
-        return version.onOrAfter(Version.V_6_0_0_beta2) && headers.containsKey("has_xpack");
+    public Optional<String> getRequiredFeature() {
+        return Optional.of("x-pack");
     }
 
     @Override

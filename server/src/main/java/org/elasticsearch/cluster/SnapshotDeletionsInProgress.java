@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -108,11 +107,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     @Override
-    public boolean compat(final Version version, final Map<String, String> headers) {
-        return version.onOrAfter(VERSION_INTRODUCED);
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -137,6 +131,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(Custom.class, TYPE, in);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return VERSION_INTRODUCED;
     }
 
     @Override

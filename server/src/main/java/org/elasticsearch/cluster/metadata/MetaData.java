@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -783,16 +784,21 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (cursor.value.compat(out.getVersion(), out.getHeaders())) {
+            if (isCompatible(out, cursor.value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
         for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (cursor.value.compat(out.getVersion(), out.getHeaders())) {
+            if (isCompatible(out, cursor.value)) {
                 out.writeNamedWriteable(cursor.value);
             }
         }
+    }
+
+    private static boolean isCompatible(final StreamOutput out, final Custom custom) {
+        return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion())
+                && (custom.getRequiredFeature().isPresent() == false || out.hasFeature(custom.getRequiredFeature().get()));
     }
 
     public static Builder builder() {

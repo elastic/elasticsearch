@@ -58,10 +58,12 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
@@ -98,7 +100,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     private Version version = Version.CURRENT;
-    private Map<String, String> headers = Collections.emptyMap();
+    private Set<String> features;
 
     /**
      * The version of the node on the other side of this stream.
@@ -114,12 +116,12 @@ public abstract class StreamOutput extends OutputStream {
         this.version = version;
     }
 
-    public Map<String, String> getHeaders() {
-        return this.headers;
+    public boolean hasFeature(final String feature) {
+        return this.features.contains(feature);
     }
 
-    public void setHeaders(final Map<String, String> headers) {
-        this.headers = Collections.unmodifiableMap(new HashMap<>(headers));
+    public void setFeatures(final Set<String> features) {
+        this.features = Collections.unmodifiableSet(new HashSet<>(features));
     }
 
     public long position() throws IOException {

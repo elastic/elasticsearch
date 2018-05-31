@@ -953,10 +953,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         final Tuple<X509Certificate, PrivateKey> oldKeyPair = idpSigningCertificatePair;
-        //Ensure we won't read any of the ones we could have picked randomly before
+        // Ensure we won't read any of the ones we could have picked randomly before
         idpSigningCertificatePair = readKeyPair("RSA_4096_updated");
         assertThat(idpSigningCertificatePair.v2(), not(equalTo(oldKeyPair.v2())));
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
+        // Restore the keypair to one from the keypair pool of all algorithms and keys
+        idpSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
     }
 
     public void testParsingRejectsTamperedContent() throws Exception {

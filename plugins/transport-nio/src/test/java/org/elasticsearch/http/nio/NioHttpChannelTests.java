@@ -32,7 +32,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -59,7 +58,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
@@ -81,7 +79,6 @@ import static org.mockito.Mockito.when;
 
 public class NioHttpChannelTests extends ESTestCase {
 
-    private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
     private NioSocketChannel nioChannel;
@@ -92,7 +89,6 @@ public class NioHttpChannelTests extends ESTestCase {
         nioChannel = mock(NioSocketChannel.class);
         channelContext = mock(SocketChannelContext.class);
         when(nioChannel.getContext()).thenReturn(channelContext);
-        networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
@@ -251,10 +247,10 @@ public class NioHttpChannelTests extends ESTestCase {
         }
 
         channel.sendResponse(response);
-        Class<BiConsumer<Void, Throwable>> listenerClass = (Class<BiConsumer<Void, Throwable>>) (Class) BiConsumer.class;
-        ArgumentCaptor<BiConsumer<Void, Throwable>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+        Class<BiConsumer<Void, Exception>> listenerClass = (Class<BiConsumer<Void, Exception>>) (Class) BiConsumer.class;
+        ArgumentCaptor<BiConsumer<Void, Exception>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
         verify(channelContext).sendMessage(any(), listenerCaptor.capture());
-        BiConsumer<Void, Throwable> listener = listenerCaptor.getValue();
+        BiConsumer<Void, Exception> listener = listenerCaptor.getValue();
         if (randomBoolean()) {
             listener.accept(null, null);
         } else {
@@ -264,6 +260,7 @@ public class NioHttpChannelTests extends ESTestCase {
     }
 
 
+    @SuppressWarnings("unchecked")
     public void testConnectionClose() throws Exception {
         final Settings settings = Settings.builder().build();
         final FullHttpRequest httpRequest;
@@ -288,10 +285,10 @@ public class NioHttpChannelTests extends ESTestCase {
             corsConfig, threadPool.getThreadContext());
         final TestResponse resp = new TestResponse();
         channel.sendResponse(resp);
-        Class<BiConsumer<Void, Throwable>> listenerClass = (Class<BiConsumer<Void, Throwable>>) (Class) BiConsumer.class;
-        ArgumentCaptor<BiConsumer<Void, Throwable>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+        Class<BiConsumer<Void, Exception>> listenerClass = (Class<BiConsumer<Void, Exception>>) (Class) BiConsumer.class;
+        ArgumentCaptor<BiConsumer<Void, Exception>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
         verify(channelContext).sendMessage(any(), listenerCaptor.capture());
-        BiConsumer<Void, Throwable> listener = listenerCaptor.getValue();
+        BiConsumer<Void, Exception> listener = listenerCaptor.getValue();
         listener.accept(null, null);
         if (close) {
             verify(nioChannel, times(1)).close();

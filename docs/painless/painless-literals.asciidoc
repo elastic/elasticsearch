@@ -4,7 +4,7 @@
 Use a literal to specify a value directly in an
 <<painless-operators, operation>>.
 
-[[integers]]
+[[integer-literals]]
 ==== Integers
 
 Use an integer literal to specify an integer type value in decimal, octal, or
@@ -44,7 +44,7 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 <5> `int -18` in octal
 <6> `int 3882` in hex
 
-[[floats]]
+[[float-literals]]
 ==== Floats
 
 Use a floating point literal to specify a floating point type value of a
@@ -78,7 +78,7 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 <4> `double -126.34`
 <5> `float 89.9`
 
-[[strings]]
+[[string-literals]]
 ==== Strings
 
 Use a string literal to specify a <<string-type, `String` type>> value with
@@ -114,7 +114,7 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 "double-quoted with non-escaped 'single-quotes'"
 ----
 
-[[characters]]
+[[character-literals]]
 ==== Characters
 
 A character literal cannot be specified directly. Instead, use the

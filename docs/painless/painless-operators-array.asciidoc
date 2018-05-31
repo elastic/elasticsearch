@@ -1,7 +1,7 @@
 [[painless-operators-array]]
 === Operators: Array
 
-[[array-initialization]]
+[[array-initialization-operator]]
 ==== Array Initialization
 
 You create and initialize arrays using the brackets `[]` and braces `{}`
@@ -52,7 +52,7 @@ def[] da = new def[] {i, l, f*d, s}; // Declare def array da and set it to
                                      // values i, l, f*d, and s
 ----
 
-[[array-access]]
+[[array-access-operator]]
 ==== Array Access
 
 Elements in an array are stored and accessed using the brackets `[]` operator.
@@ -100,7 +100,7 @@ return d[z];              // Access the 1st element of array d using the
 NOTE: The use of the `def` type in the second example means that the types
 cannot be resolved until runtime.
 
-[[array-length]]
+[[array-length-operator]]
 ==== Array Length
 
 Arrays contain a special member known as 'length' that is a read-only value that contains the size of the array.  This member can be accessed from an array using the dot operator.
@@ -112,7 +112,7 @@ int[] x = new int[10]; // declares an int array variable x and sets it to a newl
 int l = x.length;      // declares and int variable l and sets it to the field length of variable x
 ----
 
-[[new-array]]
+[[new-array-operator]]
 ==== New Array
 
 An array type instance can be allocated using the new operator. The format starts with the new operator followed by the type followed by a series of opening and closing braces each containing an expression for the size of the dimension.

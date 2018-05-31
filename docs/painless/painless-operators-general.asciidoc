@@ -1,7 +1,7 @@
 [[painless-operators-general]]
 === Operators: General
 
-[[precedence]]
+[[precedence-operator]]
 ==== Precedence
 
 An expression encapsulated within a *precedence operator* overrides
@@ -39,7 +39,7 @@ precedence: '(' expression ')';
     (note the subtract is evaluated before the divide due to the *precedence
             operator*)
 
-[[function-call]]
+[[function-call-operator]]
 ==== Function Call
 
 A function call is defined within a script.  Use the *function call operator* to
@@ -70,14 +70,14 @@ function_call: ID '(' ( expression (',' expression)* )? ')'';
     call `add` with arguments (`int 1`, `int 2`) -> `int 3`;
     store `int 3` to `z`
 
-[[cast]]
+[[cast-operator]]
 ==== Cast
 
 An explicit cast converts the value of an original type to the equivalent value
 of a target type forcefully as an operation.  Use the *cast operator* to specify
 an explicit cast. Refer to <<painless-casting, casting>> for more information.
 
-[[conditional]]
+[[conditional-operator]]
 ==== Conditional
 
 A conditional consists of three expressions. The first expression is evaluated
@@ -150,37 +150,112 @@ occur.
     implicit cast `double 1.0` to `def` -> `def`;
     store `def` to `z`;
 
-[[assignment]]
+[[assignment-operator]]
 ==== Assignment
 
-Assignment can be used to assign a value to a variable.  See Variable Assignment [MARK] for more information.
+Use the *assignment operator* to store a value in a variable or reference type
+member field for use in subsequent operations. Any operation
+that produces a value can be assigned to any variable/field as long as the
+<<painless-types, types>> are the same or the resultant type can be
+<<painless-casting, implicitly cast>> to the variable/field type.
 
-[[compound-assignment]]
-==== Compound Assignment
+See <<variable-assignment, variable assignment>> for examples using variables.
 
-Compound assignment can be used as a shortcut for an assignment where a binary operation would occur between the variable/field as the left-side expression and a separate right-side expression.  The variable/field and right-side expression must be of appropriate types for the specific operation or an error will occur.  A downcast may be necessary for certain operations to be able to assign the result back into the variable/field and will happen implicitly.  The format is a variable/field, followed by one of the compound assignment operators, finished with an expression.
+*Errors*
 
-*Grammar:*
+* If the type of value is unable to match the type of variable or field.
+
+*Grammar*
 [source,ANTLR4]
 ----
-compund_assignment: ID (. ID)? '$=' expression; // $ is a placeholder for the operation symbol
+assignment: field '=' expression
 ----
 
-A compound assignment is equivalent to the expression below where V is the variable/field and T is the type of variable/member.
+*Examples*
 
-[source,Java]
+The examples use the following reference type definition:
+
+----
+name:
+  Example
+
+non-static member fields:
+  * int x
+  * def y
+  * List z
+----
+
+* Uses of field assignment.
++
+[source,Painless]
+----
+<1> Example example = new Example();
+<2> example.x = 1;
+<3> example.y = 2.0;
+<4> example.z = new ArrayList();
+----
++
+<1> declare `Example example`;
+    allocate `Example` instance -> `Example reference`;
+    store `Example reference` to `example`
+<2> load from `example` -> `Example reference`;
+    store `int 1` to `x` of `Example reference`
+<3> load from `example` -> `Example reference`;
+    implicit cast `double 2.0` to `def` -> `def`;
+    store `def` to `y` of `Example reference`
+<4> load from `example` -> `Example reference`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `z` of `Example reference`
++
+* Use of field assignment from a field access.
++
+[source,Painless]
+----
+<1> Example example = new Example();
+<2> example.x = 1;
+<3> example.y = example.x;
+----
++
+<1> declare `Example example`;
+    allocate `Example` instance -> `Example reference`;
+    store `Example reference` to `example`
+<2> load from `example` -> `Example reference`;
+    store `int 1` to `x` of `Example reference`
+<3> load from `example` -> `Example reference @0`
+    load from `example` -> `Example reference @1`
+    load from `x` of `Example reference @1` -> `int 1`
+    implicit cast `int 1` to `def` -> `def`
+    store `def` to `y` of `Example reference @0`;
+    (note `Example reference @0` and `Example reference @1` are the same)
+
+[[compound-assignment-operator]]
+==== Compound Assignment
+
+Use the *compound assignment operator* as a shortcut for an assignment where a
+binary operation would occur between the variable/field as the left-side
+expression and a separate right-side expression.
+
+A compound assignment is equivalent to the expression below where V is the
+variable/field and T is the type of variable/member.
+
 ----
 V = (T)(V op expression);
 ----
 
-The table below shows all available operators for compound assignment.  All operators follow any casting/promotion rules according to their regular definition.
+*Operators*
+
+The table below shows the available operators for use in a compound assignment.
+Each operator follows the casting/promotion rules according to their regular
+definition.  For numeric operations their will be an extra implicit cast when
+necessary to return the promoted numeric type value to the original numeric type
+value of the variable/field and can result in data loss.
 
 |====
 |Operator|Compound Symbol
 |Multiplication|*=
 |Division|/=
 |Remainder|%=
-|String Concatenation|+=
 |Addition|+=
 |Subtraction|-=
 |Left Shift|<<=
@@ -192,29 +267,158 @@ The table below shows all available operators for compound assignment.  All oper
 |Boolean Xor|^=
 |Bitwise Or|\|=
 |Boolean Or|\|=
+|String Concatenation|+=
 |====
 
-*Examples:*
-[source,Java]
-----
-int i = 10;         // declares the variable i and sets it to constant int 10
-i *= 2;             // multiplies i by 2 -- i = (int)(i * 2)
-i /= 5;             // divides i by 5 -- i = (int)(i / 5)
-i %= 3;             // gives the remainder for i/3 -- i = (int)(i % 3)
-i += 5;             // adds 5 to i -- i = (int)(i + 5)
-i -= 5;             // subtracts 5 from i -- i = (int)(i - 5)
-i <<= 2;            // left shifts i by 2 -- i = (int)(i << 2)
-i >>= 1;            // right shifts i by 1 -- i = (int)(i >> 1)
-i >>>= 1;           // unsigned right shifts i by 1 -- i = (int)(i >>> 1)
-i &= 15;            // ands i with 15 -- i = (int)(i & 15)
-i ^= 12;            // xors i with 12 -- i = (int)(i ^ 2)
-i |= 4;             // ors i with 4 -- i = (int)(i | 4)
+*Errors*
 
-boolean b = true;   // declares the boolean variable b and sets it to the constant boolean true
-b &= false;         // ands b with false -- b = (boolean)(b & false)
-b ^= false;         // xors b with false -- b = (boolean)(b & false)
-b |= true;          // ors be with true -- b = (boolean)(b & false)
+* If the type of value is unable to match the type of variable or field.
 
-def x = 'compound'; // declares the def variable x and sets it to the constant String 'compound'
-x += ' assignment'; // string concatenates ' assignment' to x -- x = (String)(x + ' assignment')
+*Grammar*
+[source,ANTLR4]
 ----
+compound_assignment: ( ID | field ) '$=' expression;
+----
+
+Note the use of the `$=` represents the use of any of the possible binary
+operators.
+
+*Examples*
+
+* Uses of compound assignment for each numeric operator.
++
+[source,Painless]
+----
+<1> int i = 10;
+<2> i *= 2;
+<3> i /= 5;
+<4> i %= 3;
+<5> i += 5;
+<6> i -= 5;
+<7> i <<= 2;
+<8> i >>= 1;
+<9> i >>>= 1;
+<10> i &= 15;
+<11> i ^= 12;
+<12> i |= 2;
+----
++
+<1> declare `int i`;
+    store `int 10` to `i`
+<2> load `i` -> `int 10`;
+    multiply `int 10` and `int 2` -> `int 20`;
+    store `int 20` to `i`;
+    (note this is equivalent to `i = i*2`)
+<3> load `i` -> `int 20`;
+    divide `int 20` by `int 5` -> `int 4`;
+    store `int 4` to `i`;
+    (note this is equivalent to `i = i/5`)
+<4> load `i` -> `int 4`;
+    remainder `int 4` by `int 3` -> `int 1`;
+    store `int 1` to `i`;
+    (note this is equivalent to `i = i%3`)
+<5> load `i` -> `int 1`;
+    add `int 1` and `int 5` -> `int 6`;
+    store `int 6` to `i`;
+    (note this is equivalent to `i = i+5`)
+<6> load `i` -> `int 6`;
+    subtract `int 5` from `int 6` -> `int 1`;
+    store `int 1` to `i`;
+    (note this is equivalent to `i = i-5`)
+<7> load `i` -> `int 1`;
+    left shift `int 1` by `int 2` -> `int 4`;
+    store `int 4` to `i`;
+    (note this is equivalent to `i = i<<2`)
+<8> load `i` -> `int 4`;
+    right shift `int 4` by `int 1` -> `int 2`;
+    store `int 2` to `i`;
+    (note this is equivalent to `i = i>>1`)
+<9> load `i` -> `int 2`;
+    unsigned right shift `int 2` by `int 1` -> `int 1`;
+    store `int 1` to `i`;
+    (note this is equivalent to `i = i>>>1`)
+<10> load `i` -> `int 1`;
+     bitwise and `int 1` and `int 15` -> `int 1`;
+     store `int 1` to `i`;
+     (note this is equivalent to `i = i&2`)
+<11> load `i` -> `int 1`;
+     bitwise xor `int 1` and `int 12` -> `int 13`;
+     store `int 13` to `i`;
+     (note this is equivalent to `i = i^2`)
+<12> load `i` -> `int 13`;
+     bitwise or `int 13` and `int 2` -> `int 15`;
+     store `int 15` to `i`;
+     (note this is equivalent to `i = i|2`)
++
+* Uses of compound assignment for each boolean operator.
++
+[source,Painless]
+----
+<1> boolean b = true;
+<2> b &= false;
+<3> b ^= false;
+<4> b |= true;
+----
++
+<1> declare `boolean b`;
+    store `boolean true` in `b`;
+<2> load `b` -> `boolean true`;
+    boolean and `boolean true` and `boolean false` -> `boolean false`;
+    store `boolean false` to `b`;
+    (note this is equivalent to `b = b && false`)
+<3> load `b` -> `boolean false`;
+    boolean xor `boolean false` and `boolean false` -> `boolean false`;
+    store `boolean false` to `b`;
+    (note this is equivalent to `b = b ^ false`)
+<4> load `b` -> `boolean true`;
+    boolean or `boolean false` and `boolean true` -> `boolean true`;
+    store `boolean true` to `b`;
+    (note this is equivalent to `b = b || true`)
++
+* Use of compound assignment with the *string concatenation operator*.
++
+[source,Painless]
+----
+<1> String s = 'compound';
+<2> s += ' assignment';
+----
+<1> declare `String s`;
+    store `String 'compound'` to `s`;
+<2> load `s` -> `String 'compound'`;
+    string concat `String 'compound'` and `String ' assignment''`
+            -> `String 'compound assignment'`;
+    store `String 'compound assignment'` to `s`;
+    (note this is equivalent to `s = s + ' assignment'`)
++
+* Use of a compound assignment with the `def` type.
++
+[source,Painless]
+----
+<1> def x = 1;
+<2> x += 2;
+----
+<1> declare `def x`;
+    implicit cast `int 1` to `def`;
+    store `def` to `x`;
+<2> load `x` -> `def`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    add `int 1` and `int 2` -> `int 3`;
+    implicit cast `int 3` to `def` -> `def`;
+    store `def` to `x`;
+    (note this is equivalent to `x = x+2`)
++
+* Use of a compound assignment with an extra implicit cast.
++
+[source,Painless]
+----
+<1> byte b = 1;
+<2> b += 2;
+----
+<1> declare `byte b`;
+    store `byte 1` to `x`;
+<2> load `x` -> `byte 1`;
+    implicit cast `byte 1 to `int 1` -> `int 1`;
+    add `int 1` and `int 2` -> `int 3`;
+    implicit cast `int 3` to `byte 3` -> `byte 3`;
+    store `byte 3` to `b`;
+    (note this is equivalent to `b = b+2`)

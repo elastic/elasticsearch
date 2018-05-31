@@ -1,7 +1,7 @@
 [[painless-operators-reference]]
 === Operators: Reference
 
-[[method-call]]
+[[method-call-operator]]
 ==== Method Call
 
 You call reference type methods using the dot operator and the method id:
@@ -76,7 +76,7 @@ casts between primitive types and reference types, see <<boxing-unboxing, Boxing
 and Unboxing>>.
 **************************
 
-[[field-access]]
+[[field-access-operator]]
 ==== Field Access
 You access primitive and reference type members in a reference type using the
 dot operator '.' followed by the id of the member. The accessed member behaves
@@ -104,7 +104,7 @@ int value = ft.x + ft.y;            // Declare variable value as an int,
                                     //   assign the sum to the variable value
 ----
 
-[[null-safe]]
+[[null-safe-operator]]
 ==== Null Safe
 
 The null safe operator `?.` can be used in place of the dot operator
@@ -145,7 +145,7 @@ value = y?.get(3);     // Sets value to null since y is null
 value = z?.get(5);     // Sets value to the result of .get(5) since z is not null
 ----
 
-[[list-initialization]]
+[[list-initialization-operator]]
 ==== List Initialization
 
 You create and initialize lists using the brackets `[]` operator. The values
@@ -176,7 +176,7 @@ String s = "5";
 List l1 = [i, l, f*d, s]; // declares the List variable l1 and sets it to a newly initialized List with the values of i, l, and f*d and s
 ----
 
-[[list-access]]
+[[list-access-operator]]
 ==== List Access
 
 Elements in a List are stored or accessed using the brackets operator.  The format begins with an opening bracket, followed by an expression, and finishes with a closing bracket.  Storing elements in a List is equivalent to invoking a List's set method.  Accessing elements in a List is equivalent to invoking a List's get method.  Using this operator is strictly a shortcut for the previously mentioned methods.  The range of elements within a List that can be accessed is [0, size) where size is the number of elements currently in the List.  Elements may also be accessed from the last element in a List using a negative numeric value from [-size, -1].  The expression used to determine which element is accessed must be able to be implicitly cast to an int.  An error will occur if the expression is outside of the legal range or is not of type int.
@@ -213,7 +213,7 @@ return d[z];             // accesses the 1st element of the variable d using the
 
 Note in the first example above all types can be resolved at compile-time, while in the second example all types must wait to be resolved until run-time.
 
-[[map-initialization]]
+[[map-initialization-operator]]
 ==== Map Initialization
 
 A Map can be created and initialized using the brackets operator.  The format begins with a bracket, followed by an arbitrary number of key-value pairs delimited with commas (except the last), and ends with a closing bracket.  Each key-value pair is a set of two expressions separate by a colon.  If there is only a single colon with no expressions, a new empty Map is created.
@@ -244,7 +244,7 @@ String s = "5";
 Map m1 = [b:i, l:f*d, d:s]; // declares the Map variable m1 and sets it to a newly initialized Map with the keys b, l, d and values i, f*d, s, respectively
 ----
 
-[[map-access]]
+[[map-access-operator]]
 ==== Map Access
 
 Elements in a Map can be stored or accessed using the brackets operator.  The format begins with an opening bracket, followed by an expression, and finishes with a closing bracket.  Storing values in a Map is equivalent to invoking a Map's put method.  Accessing values in a Map is equivalent to invoking a Map's get method.  Using this operator is strictly a shortcut for the previously mentioned methods.  Any element from a Map can be stored/accessed where the expression is the key.  If a key has no corresponding value when accessing a Map then the value will be null.
@@ -275,7 +275,7 @@ return d[z];                       // accesses the value for the key value5 of t
 
 Note in the first example above all types can be resolved at compile-time, while in the second example all types must wait to be resolved until run-time.
 
-[[new-instance]]
+[[new-instance-operator]]
 ==== New Instance
 
 A constructor call is a special type of method call [MARK] used to allocate a reference type instance using the new operator.  The format is the new operator followed by a type, an opening parenthesis, arguments if any, and a closing parenthesis.  Arguments are a series of zero-to-many expressions delimited by commas.  Auto-boxing and auto-unboxing will be applied automatically for arguments passed into a constructor call.  See boxing and unboxing [MARK] for more information on this topic.  Constructor argument types can always be resolved at run-time; if appropriate type conversions (casting) cannot be applied an error will occur.  Once a reference type instance has been allocated, its members may be used as part of other expressions.
@@ -298,7 +298,7 @@ def e;                   // declares the def variable e
 e = new HashMap(m);      // sets e to a newly allocated HashMap using the constructor with a single argument m
 ----
 
-[[string-concatenation]]
+[[string-concatenation-operator]]
 ==== String Concatenation
 
 Concatenates two expressions together as a single String where at least of one of the expressions is a String to begin with.  The format is an expression, followed by a plus operator, and a closing expression.
@@ -320,7 +320,7 @@ z = z + d;                 // sets the String variable z to the concatenation of
 d = "con" + x + y + "cat"; // sets the def variable d to the concatenation of String constant "con", x, y, and the String constant "cat"
 ----
 
-[[elvis]]
+[[elvis-operator]]
 ==== Elvis
 
 The elvis operator consists of two expressions.  If the first expression is a non-null value then the resultant value will be the evaluated first expression otherwise the resultant value will be the evaluated second expression.  This is typically used as a shortcut for a null check in a conditional.  An error will occur if the expected result is a primitive type.  The format is an expression, followed by the question-mark-colon operator, and finishes with an expression.

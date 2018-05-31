@@ -19,9 +19,9 @@ variable is listed as part of the definitions below. A primitive type value is
 copied during an assignment or as an argument for a method/function call.
 
 A primitive type has a corresponding reference type (also known as a boxed
-type). Use the <<field-access, field access operator>> or
-<<method-call, method call operator>> on a primitive type value to force
-evaluation as its corresponding reference type value.
+type). Use the <<field-access-operator, field access operator>> or
+<<method-call-operator, method call operator>> on a primitive type value to
+force evaluation as its corresponding reference type value.
 
 The following primitive types are available:
 
@@ -112,9 +112,10 @@ multiple pieces of data (member fields) and logic to manipulate that data
 (API) for scripts.
 
 A reference type instance is a single set of data for one reference type
-object allocated to the heap. Use the <<new-instance, new instance operator>> to
-allocate a reference type instance. Use a reference type instance to load from,
-store to, and manipulate complex data.
+object allocated to the heap. Use the
+<<new-instance-operator, new instance operator>> to allocate a reference type
+instance. Use a reference type instance to load from, store to, and manipulate
+complex data.
 
 A reference type value refers to a reference type instance, and multiple
 reference type values may refer to the same reference type instance. A change to
@@ -138,8 +139,8 @@ static member field::
 
 A static member field is a named and typed piece of data. Each reference type
 *object* contains one set of data representative of its static member fields.
-Use the <<field-access, field access operator>> in correspondence with the
-reference type object name to access a static member field for loading and
+Use the <<field-access-operator, field access operator>> in correspondence with
+the reference type object name to access a static member field for loading and
 storing to a specific reference type *object*. No reference type instance
 allocation is necessary to use a static member field.
 
@@ -148,31 +149,32 @@ non-static member field::
 A non-static member field is a named and typed piece of data. Each reference
 type *instance* contains one set of data representative of its reference type
 object's non-static member fields. Use the
-<<field-access, field access operator>> for loading and storing to a non-static
-member field of a specific reference type *instance*. An allocated reference
-type instance is required to use a non-static member field.
+<<field-access-operator, field access operator>> for loading and storing to a
+non-static member field of a specific reference type *instance*. An allocated
+reference type instance is required to use a non-static member field.
 
 static member method::
 
 A static member method is a function called on a reference type *object*. Use
-the <<method-call, method call operator>> in correspondence with the reference
-type object name to call a static member method. No reference type instance
-allocation is necessary to use a static member method.
+the <<method-call-operator, method call operator>> in correspondence with the
+reference type object name to call a static member method. No reference type
+instance allocation is necessary to use a static member method.
 
 non-static member method::
 
 A non-static member method is a function called on a reference type *instance*.
 A non-static member method called on a reference type instance can load from and
 store to non-static member fields of that specific reference type instance. Use
-the <<method-call, method call operator>> in correspondence with a specific
-reference type instance to call a non-static member method. An allocated
-reference type instance is required to use a non-static member method.
+the <<method-call-operator, method call operator>> in correspondence with a
+specific reference type instance to call a non-static member method. An
+allocated reference type instance is required to use a non-static member method.
 
 constructor::
 
 A constructor is a special type of function used to allocate a reference type
 *instance* defined by a specific reference type *object*. Use the
-<<new-instance, new instance operator>> to allocate a reference type instance.
+<<new-instance-operator, new instance operator>> to allocate a reference type
+instance.
 
 A reference type object follows a basic inheritance model. Consider types A and
 B. Type A is considered to be a parent of B, and B a child of A, if B inherits
@@ -333,9 +335,10 @@ types and reference types directly when performance is critical.
 ==== String Type
 
 The `String` type is a specialized reference type that does not require
-explicit allocation. Use a <<strings, string literal>> to directly evaluate a
-`String` type value. While not required, the
-<<new-instance, new instance operator>> can allocate `String` type instances.
+explicit allocation. Use a <<string-literals, string literal>> to directly
+evaluate a `String` type value. While not required, the
+<<new-instance-operator, new instance operator>> can allocate `String` type
+instances.
 
 *Examples*
 
@@ -386,12 +389,12 @@ type instance are of the same type.  Each value is assigned an index from within
 the range `[0, length)` where length is the total number of values allocated for
 the array type instance.
 
-Use the <<new-array, new array operator>> or the
-<<array-initialization, array initialization operator>> to allocate an array
-type instance. Declare an array type <<painless-variables, variable>> or access
-an array type member field (from a reference type instance), and assign it an
-array type value for evaluation during later operations. The default value for a
-newly-declared array type variable is `null`. An array type value is
+Use the <<new-array-operator, new array operator>> or the
+<<array-initialization-operator, array initialization operator>> to allocate an
+array type instance. Declare an array type <<painless-variables, variable>> or
+access an array type member field (from a reference type instance), and assign
+it an array type value for evaluation during later operations. The default value
+for a newly-declared array type variable is `null`. An array type value is
 shallow-copied during an assignment or as an argument for a method/function
 call. Assign `null` to an array type variable to indicate the array type value
 refers to no array type instance. The JVM will garbage collect an array type
@@ -399,10 +402,10 @@ instance when it is no longer referred to by any array type values. Pass `null`
 as an argument to a method/function call to indicate the argument refers to no
 array type instance.
 
-Use the <<array-length, array length operator>> to retrieve the length of an
-array type value as an int type value. Use the
-<<array-access, array access operator>> to load from and store to individual
-values within an array type value.
+Use the <<array-length-operator, array length operator>> to retrieve the length
+of an array type value as an int type value. Use the
+<<array-access-operator, array access operator>> to load from and store to
+individual values within an array type value.
 
 When an array type instance is allocated with multiple dimensions using the
 range `[2, d]` where `d >= 2`, each dimension in the range `[1, d-1]` is also

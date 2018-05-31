@@ -1,7 +1,7 @@
 [[painless-operators-boolean]]
 === Operators: Boolean
 
-[[boolean-not]]
+[[boolean-not-operator]]
 ==== Boolean Not
 
 Boolean not will flip a boolean value from true to false or false to true using the bang operator.  The format is a bang operator followed by an expression.
@@ -22,7 +22,7 @@ boolean y = !x;     // declares the boolean variable y and sets it to the opposi
 def z = !y;         // declares the def variable z and sets it to the opposite of the boolean variable y
 ----
 
-[[greater-than]]
+[[greater-than-operator]]
 ==== Greater Than
 
 Greater than compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a larger value than the right-side expression otherwise false.  The format is an expression, followed by the right angle operator, and a closing expression.
@@ -57,7 +57,7 @@ def z = y > 6.5;   // declares the def variable z and sets it to the result of y
 def a = y > x;     // declares the def variable a and sets it to the result of y greater than z (x is promoted to double at compile-time)
 ----
 
-[[greater-than-or-equal]]
+[[greater-than-or-equal-operator]]
 ==== Greater Than Or Equal
 
 Greater than or equal compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a larger value than or equal to the right-side expression otherwise false.  The format is an expression, followed by the right angle and equals operator, and a closing expression.
@@ -92,7 +92,7 @@ def z = y >= 6.5;   // declares the def variable z and sets it to the result of 
 def a = y >= x;     // declares the def variable a and sets it to the result of y greater than or equal to z (x is promoted to double at compile-time)
 ----
 
-[[less-than]]
+[[less-than-operator]]
 ==== Less Than
 
 Less than compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a smaller value than the right-side expression otherwise false.  The format is an expression, followed by the left angle operator, and a closing expression.
@@ -127,7 +127,7 @@ def z = y < 6.5;   // declares the def variable z and sets it to the result of y
 def a = y < x;     // declares the def variable a and sets it to the result of y less than z (x is promoted to double at compile-time)
 ----
 
-[[less-than-or-equal]]
+[[less-than-or-equal-operator]]
 ==== Less Than Or Equal
 
 Less than or equal compares two numerical expressions where a resultant boolean value will be true if the left-side expression is a larger value than or equal to the right-side expression otherwise false.  The format is an expression, followed by the left angle and equals operator, and a closing expression.
@@ -162,7 +162,7 @@ def z = y <= 6.5;   // declares the def variable z and sets it to the result of 
 def a = y <= x;     // declares the def variable a and sets it to the result of y less than or equal to z (x is promoted to double at compile-time)
 ----
 
-[[instance-of]]
+[[instance-of-operator]]
 ==== Instance Of
 
 The instanceof operator can be used to compare a variable's type to a specified reference type where a resultant boolean value is true if the variable type is the same as or a descendant of the specified reference type and false otherwise.  The format is an id, followed by the instanceof operator, and finished with a type.
@@ -184,7 +184,7 @@ boolean b = y instanceof Map;     // declares the boolean variable b and sets it
 boolean c = z instanceof List;    // declares the boolean variable c and sets it to true since z's type is a descendant of the type List
 ----
 
-[[equality-equals]]
+[[equality-equals-operator]]
 ==== Equality Equals
 
 Equality equals compares two expressions where a resultant boolean value is true if the two expressions are equal and false otherwise.  When reference types are compared using this operator the equivalent of the equals member method will be called against the first expression, where the second expression is the argument.  Though the equals member method is used for reference types, this operation will always be null-safe.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the equals-equals operator, and finished with an expression.
@@ -245,7 +245,7 @@ result = null == dl;            // compares null to dl with a boolean result of 
 result = l1 == null;            // compares l1 to null with a boolean result of false
 ----
 
-[[equality-not-equals]]
+[[equality-not-equals-operator]]
 ==== Equality Not Equals
 
 Equality not equals compares two expressions where a resultant boolean value is true if the two expressions are not equal and false otherwise.  When reference types are compared using this operator the equivalent of the equals member method will be called against the first expression, where the second expression is the argument, with the resultant boolean being reversed.  Though the equals member method is used for reference types, this operation will always be null-safe.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the bang-equals operator, and finished with an expression.
@@ -306,7 +306,7 @@ result = null != dl;            // compares null to dl with a boolean result of 
 result = l1 != null;            // compares null to l1 with a boolean result of true
 ----
 
-[[identity-equals]]
+[[identity-equals-operator]]
 ==== Identity Equals
 
 Identity equals compares two expressions where a resultant boolean value is true if the two expressions are equal and false otherwise.  Two primitive types are considered to be equal if they have the same value.  Two reference types are considered to be equal if they refer to the exact same instance in memory or are both null.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the equals-equals-equals operator, and finished with an expression.
@@ -368,7 +368,7 @@ result = null === dl;           // compares null to dl with a boolean result of 
 result = l1 === null;           // compares null to l1 with a boolean result of false
 ----
 
-[[identity-not-equals]]
+[[identity-not-equals-operator]]
 ==== Identity Not Equals
 
 Identity not equals compares two expressions where a resultant boolean value is true if the two expressions are not equal and false otherwise.  Two primitive types are considered to be not equal if they have different values.  Two reference types are considered to be not equal if they refer to the different instances in memory or one is null and the other is not.  Valid comparisons are between boolean types, primitive numeric types, and reference types.  If a comparison is made that is not listed as one of the valid comparisons an error will occur.  The format is an expression, followed by the bang-equals-equals operator, and finished with an expression.
@@ -430,7 +430,7 @@ result = null !== dl;           // compares null to dl with a boolean result of 
 result = l1 !== null;           // compares null to l1 with a boolean result of true
 ----
 
-[[boolean-xor]]
+[[boolean-xor-operator]]
 ==== Boolean Xor
 
 Boolean xor will xor together two boolean expressions.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
@@ -459,7 +459,7 @@ boolean y = x ^ true; // declares the boolean variable y and sets it the result 
 def z = y ^ x;        // declares the def variable z and sets it to the result of y xor x
 ----
 
-[[boolean-and]]
+[[boolean-and-operator]]
 ==== Boolean And
 
 Boolean and will and together two boolean expressions.  If the first expression is found to be false then it is known that the result will also be false, so evaluation of the second expression will be skipped.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
@@ -486,7 +486,7 @@ boolean y = x && true; // declares the boolean variable y and sets it the result
 def z = y && x;        // declares the def variable z and sets it to the result of y and x
 ----
 
-[[boolean-or]]
+[[boolean-or-operator]]
 ==== Boolean Or
 
 Boolean or will or together two boolean expressions.  If the first expression is found to be true then it is known that the result will also be true, so evaluation of the second expression will be skipped.  The table below shows what the resultant boolean value will be based on the two boolean expressions.

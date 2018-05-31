@@ -4,7 +4,7 @@
 A variable loads and stores a value for evaluation during
 <<painless-operators, operations>>.
 
-[[declaration]]
+[[variable-declaration]]
 ==== Declaration
 
 Declare a variable before use with the format of <<painless-types, type>>
@@ -66,10 +66,11 @@ assignment: '=' expression;
 [[variable-assignment]]
 ==== Assignment
 
-Use the *assignment operator* to store a value in a variable. Any operation
-that produces a value can be assigned to any variable as long as the
-<<painless-types, types>> are the same or the resultant type can be
-<<painless-casting, implicitly cast>> to the variable type.
+Use the *assignment operator* to store a value in a variable for use in
+subsequent operations. Any operation that produces a value can be assigned to
+any variable as long as the <<painless-types, types>> are the same or the
+resultant type can be <<painless-casting, implicitly cast>> to the variable
+type.
 
 *Errors*
 

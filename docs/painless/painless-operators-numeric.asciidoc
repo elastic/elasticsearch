@@ -1,7 +1,7 @@
 [[painless-operators-numeric]]
 === Operators: Numeric
 
-[[post-increment]]
+[[post-increment-operator]]
 ==== Post Increment
 
 A variable/field representing a numerical value can be possibly evaluated as part of an expression, and then increased by 1 for its respective type.  The format starts with a variable name followed by a plus and ends with a plus.
@@ -38,7 +38,7 @@ long k;       // declares the long variable k
 k = l++;      // sets the long variable k to the value of l (1), and then increments the long variable l by 1 to a value of 2
 ----
 
-[[post-decrement]]
+[[post-decrement-operator]]
 ==== Post Decrement
 
 A variable/field representing a numerical value can be possibly evaluated as part of an expression, and then increased by 1 for its respective type.  The format starts with a variable name followed by a minus and ends with a minus.
@@ -75,7 +75,7 @@ float k;        // declares the float variable k
 k = l--;        // sets the float variable k to the value of l (1.0f), and then decrements the float variable l by 1.0 to a value of 0.0
 ----
 
-[[pre-increment]]
+[[pre-increment-operator]]
 ==== Pre Increment
 
 A variable/field representing a numerical value can be increased by 1 for its respective type, and then possibly evaluated as part of an expression.  The format starts with a plus followed by a plus and ends with a variable name.
@@ -112,7 +112,7 @@ long k;       // declares the long variable k
 k = ++l;      // increments the long variable l by 1 to a value of 2, and then sets the long variable k to the value of l (2)
 ----
 
-[[pre-decrement]]
+[[pre-decrement-operator]]
 ==== Pre Decrement
 
 A variable/field representing a numerical value can be decreased by 1 for its respective type, and then possibly evaluated as part of an expression.  The format starts with a minus followed by a minus and ends with a variable name.
@@ -148,7 +148,7 @@ double k;        // declares the double variable k
 k = --l;         // decrements the double variable l by 1.0 to a value of 0.0, and then sets the double variable k to the value of l (0.0)
 ----
 
-[[unary-positive]]
+[[unary-positive-operator]]
 ==== Unary Positive
 
 Unary positive gives the identity of a numerical value using the plus operator.  In practice this is usually a no-op, but will cause some numeric types to be promoted.  Format starts with a plus operator followed by a numerical expression.
@@ -183,7 +183,7 @@ def z = +y;  // declares the def variable z and sets it to positive y
 byte z = +2; //ERROR: cannot implicitly downcast an int to a byte
 ----
 
-[[unary-negative]]
+[[unary-negative-operator]]
 ==== Unary Negative
 
 Unary negative negates a numeric value using the minus operator.  Format starts with a minus followed by a numerical expression.
@@ -218,7 +218,7 @@ def z = -y;  // declares the def variable z and sets it to negative y
 byte z = -2; //ERROR: cannot implicitly downcast an int to a byte
 ----
 
-[[bitwise-not]]
+[[bitwise-not-operator]]
 ==== Bitwise Not
 
 Bitwise not will flip each bit of an integer type expression.  The format is the tilde operator followed by an expression.
@@ -253,7 +253,7 @@ def e;       // declares the def variable e
 e = ~d;      // sets e the negation of d
 ----
 
-[[multiplication]]
+[[multiplication-operator]]
 ==== Multiplication
 
 Multiplies two numerical expressions.  Rules for resultant overflow and NaN values follow the Java specification.  The format is an expression, followed by the star operator, and a closing expression.
@@ -288,7 +288,7 @@ def z = x*y;      // declares the def variable z and sets it to the result of x 
 def a = z*x;      // declares the def variable a and sets it to the result of z multiplied by x (x is promoted to def at compile-time and double at run-time)
 ----
 
-[[division]]
+[[division-operator]]
 ==== Division
 
 Divides two numerical expressions.  Rules for NaN values and division by zero follow the Java specification.  Integer division will drop the remainder of the resultant value.  The format is an expression, followed by the slash operator, and a closing expression.
@@ -323,7 +323,7 @@ def z = x/y;      // declares the def variable z and sets it to the result of x 
 def a = z/x;      // declares the def variable a and sets it to the result of z divided by x (x is promoted to def at compile-time and double at run-time)
 ----
 
-[[remainder]]
+[[remainder-operator]]
 ==== Remainder
 
 Calculates the remainder for division between two numerical expressions.  Rules for NaN values and division by zero follow the Java specification.  The format is an expression, followed by the percent operator, and a closing expression.
@@ -358,7 +358,7 @@ def z = x%y;      // declares the def variable z and sets it to the remainder of
 def a = z%x;      // declares the def variable a and sets it to the remainder of z divided by x (x is promoted to def at compile-time and double at run-time)
 ----
 
-[[addition]]
+[[addition-operator]]
 ==== Addition
 
 Adds two numerical expressions.  Rules for resultant overflow and NaN values follow the Java specification.  The format is an expression, followed by the plus operator, and a closing expression.
@@ -393,7 +393,7 @@ def z = x + y;      // declares the def variable z and sets it to the result of 
 def a = z + x;      // declares the def variable a and sets it to the result of z added to x (x is promoted to def at compile-time and double at run-time)
 ----
 
-[[subtraction]]
+[[subtraction-operator]]
 ==== Subtraction
 
 Subtracts two numerical expressions.  Rules for resultant overflow and NaN values follow the Java specification.  The format is an expression, followed by the minus operator, and a closing expression.
@@ -428,7 +428,7 @@ def z = x-y;      // declares the def variable z and sets it to the result of y 
 def a = z-x;      // declares the def variable a and sets it to the result of x subtracted from z (x is promoted to def at compile-time and double at run-time)
 ----
 
-[[left-shift]]
+[[left-shift-operator]]
 ==== Left Shift
 
 Shifts lower order bits to higher order bits in the left-side expression by the distance specified in the right-side expression.  The format is an expression followed by two left-carrots, and a closing expression.
@@ -463,7 +463,7 @@ def z = x << y;  // declares the def variable z and sets it to the result of x l
 def a = z << x;  // declares the def variable a and sets it to the result of z left shifted by x
 ----
 
-[[right-shift]]
+[[right-shift-operator]]
 ==== Right Shift
 
 Shifts higher order bits to lower order bits in the left-side expression by the distance specified in the right-side expression.  Right shift will preserve the signed bit (highest order bit) as part of the result.  The format is an expression followed by two right-carrots, and a closing expression.
@@ -498,7 +498,7 @@ def z = x >> y;  // declares the def variable z and sets it to the result of x r
 def a = z >> x;  // declares the def variable a and sets it to the result of z right shifted by x
 ----
 
-[[unsigned-right-shift]]
+[[unsigned-right-shift-operator]]
 ==== Unsigned Right Shift
 
 Shifts higher order bits to lower order bits in the left-side expression by the distance specified in the right-side expression.  Unsigned right shift will not preserve the signed bit (highest order bit) as part of the result.  The format is an expression followed by three right-carrots, and a closing expression.
@@ -533,7 +533,7 @@ def z = x >> y;  // declares the def variable z and sets it to the result of x u
 def a = z >> x;  // declares the def variable a and sets it to the result of z unsigned right shifted by x
 ----
 
-[[bitwise-and]]
+[[bitwise-and-operator]]
 ==== Bitwise And
 
 Bitwise and will and together two integer type expressions.  The table below shows what each resultant bit will in the resultant integer type value be based on the corresponding bit in each integer type expression.
@@ -576,7 +576,7 @@ def e;          // declares the def variable e
 e = d & z;      // sets e to the result of d and z
 ----
 
-[[bitwise-xor]]
+[[bitwise-xor-operator]]
 ==== Bitwise Xor
 
 Bitwise xor will xor together two integer type expressions.  The table below shows what each resultant bit will in the resultant integer type value be based on the corresponding bit in each integer type expression.
@@ -619,7 +619,7 @@ def e;          // declares the def variable e
 e = d ^ z;      // sets e to the result of d xor z
 ----
 
-[[bitwise-or]]
+[[bitwise-or-operator]]
 ==== Bitwise Or
 
 Bitwise or will or together two integer type expressions.  The table below shows what each resultant bit will in the resultant integer type value be based on the corresponding bit in each integer type expression.

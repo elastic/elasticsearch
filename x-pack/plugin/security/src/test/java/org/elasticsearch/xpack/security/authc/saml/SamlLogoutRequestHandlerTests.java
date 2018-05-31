@@ -48,7 +48,7 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
 
     @BeforeClass
     public static void setupCredential() throws Exception {
-        credential = (X509Credential)buildOpenSamlCredential(createKeyPair()).get(0);
+        credential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
     }
 
     @AfterClass
@@ -210,7 +210,7 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
         final Settings realmSettings = Settings.EMPTY;
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, () -> Collections.singletonList(credential));
 
-        final X509Credential spCredential = (X509Credential)buildOpenSamlCredential(createKeyPair()).get(0);
+        final X509Credential spCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"), spCredential);
         final SpConfiguration sp = new SpConfiguration("https://sp.test/", "https://sp.test/saml/asc", LOGOUT_URL,
                 signingConfiguration, Arrays.asList(spCredential));

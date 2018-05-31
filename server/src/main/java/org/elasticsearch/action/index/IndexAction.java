@@ -22,7 +22,7 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndexAction extends Action<IndexRequest, IndexResponse, IndexRequestBuilder> {
+public class IndexAction extends Action<IndexRequest, IndexResponse> {
 
     public static final IndexAction INSTANCE = new IndexAction();
     public static final String NAME = "indices:data/write/index";
@@ -34,10 +34,5 @@ public class IndexAction extends Action<IndexRequest, IndexResponse, IndexReques
     @Override
     public IndexResponse newResponse() {
         return new IndexResponse();
-    }
-
-    @Override
-    public IndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndexRequestBuilder(client, this);
     }
 }

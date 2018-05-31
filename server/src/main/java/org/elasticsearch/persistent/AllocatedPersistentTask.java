@@ -115,7 +115,7 @@ public class AllocatedPersistentTask extends CancellableTask {
         persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, predicate, timeout, listener);
     }
 
-    final boolean isCompleted() {
+    protected final boolean isCompleted() {
         return state.get() ==  State.COMPLETED;
     }
 

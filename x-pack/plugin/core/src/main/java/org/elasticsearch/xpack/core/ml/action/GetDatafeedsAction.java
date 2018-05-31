@@ -25,8 +25,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDatafeedsAction.Response,
-        GetDatafeedsAction.RequestBuilder> {
+public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
 
     public static final GetDatafeedsAction INSTANCE = new GetDatafeedsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/get";
@@ -35,11 +34,6 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
 
     private GetDatafeedsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override

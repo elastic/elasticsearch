@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Vector;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
@@ -146,7 +145,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
     public void testCombine() {
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
-        Vector<EvalQueryQuality> partialResults = new Vector<>(3);
+        List<EvalQueryQuality> partialResults = new ArrayList<>(3);
         partialResults.add(new EvalQueryQuality("id1", 0.5));
         partialResults.add(new EvalQueryQuality("id2", 1.0));
         partialResults.add(new EvalQueryQuality("id3", 0.75));

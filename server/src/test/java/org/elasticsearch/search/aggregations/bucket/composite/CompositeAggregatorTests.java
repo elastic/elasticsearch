@@ -142,19 +142,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         createAggregatorFactory(builder, searcher);
     }
 
-    public void testMissingBucket() throws Exception {
-        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10))
-            .field("unknown")
-            .missingBucket(true)
-            .missing("MISSING");
-        CompositeAggregationBuilder builder = new CompositeAggregationBuilder("test", Collections.singletonList(terms));
-        IndexSearcher searcher = new IndexSearcher(new MultiReader());
-        QueryShardException exc =
-            expectThrows(QueryShardException.class, () -> createAggregator(builder, searcher));
-        assertWarnings("[missing] is deprecated. Please use [missing_bucket] instead.");
-        assertThat(exc.getMessage(), containsString("cannot use [missing] option in conjunction with [missing_bucket]"));
-    }
-
     public void testWithKeyword() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(

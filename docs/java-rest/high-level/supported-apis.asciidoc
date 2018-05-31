@@ -67,6 +67,7 @@ Index Management::
 * <<java-rest-high-split-index>>
 * <<java-rest-high-refresh>>
 * <<java-rest-high-flush>>
+* <<java-rest-high-flush-synced>>
 * <<java-rest-high-clear-cache>>
 * <<java-rest-high-force-merge>>
 * <<java-rest-high-rollover-index>>
@@ -89,6 +90,7 @@ include::indices/shrink_index.asciidoc[]
 include::indices/split_index.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/flush.asciidoc[]
+include::indices/flush_synced.asciidoc[]
 include::indices/clear_cache.asciidoc[]
 include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
@@ -116,10 +118,12 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-get-repository>>
 * <<java-rest-high-snapshot-create-repository>>
 * <<java-rest-high-snapshot-delete-repository>>
+* <<java-rest-high-snapshot-verify-repository>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
 include::snapshot/delete_repository.asciidoc[]
+include::snapshot/verify_repository.asciidoc[]
 
 == Tasks APIs
 

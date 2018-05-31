@@ -54,8 +54,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     GlobalOrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
                               CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
-                              DocValueFormat format, boolean missingBucket, Object missing, int size, int reverseMul) {
-        super(bigArrays, format, type, missingBucket, missing, size, reverseMul);
+                              DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+        super(bigArrays, format, type, missingBucket, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
     }

@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -329,7 +329,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
-        tasksBuilder.updateTaskStatus(MlMetadata.jobTaskId("job_id6"), null);
+        tasksBuilder.updateTaskState(MlMetadata.jobTaskId("job_id6"), null);
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
@@ -630,7 +630,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         builder.addTask(MlMetadata.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
                 new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
-            builder.updateTaskStatus(MlMetadata.jobTaskId(jobId), new JobTaskStatus(jobState, builder.getLastAllocationId()));
+            builder.updateTaskState(MlMetadata.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));
         }
     }
 

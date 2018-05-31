@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -274,8 +275,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, StartDatafeedAction.DatafeedParams params,
-                                     Task.Status status) {
+        protected void nodeOperation(final AllocatedPersistentTask allocatedPersistentTask,
+                                     final StartDatafeedAction.DatafeedParams params,
+                                     final PersistentTaskState state) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             datafeedTask.datafeedManager = datafeedManager;
             datafeedManager.run(datafeedTask,
@@ -373,7 +375,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
                 return true;
             }
-            DatafeedState datafeedState = (DatafeedState) persistentTask.getStatus();
+            DatafeedState datafeedState = (DatafeedState) persistentTask.getState();
             return datafeedState == DatafeedState.STARTED;
         }
     }

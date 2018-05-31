@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
@@ -363,7 +363,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
         assertEquals(JobState.OPENING, MlMetadata.getJobState("foo", tasksBuilder.build()));
 
-        tasksBuilder.updateTaskStatus(MlMetadata.jobTaskId("foo"), new JobTaskStatus(JobState.OPENED, tasksBuilder.getLastAllocationId()));
+        tasksBuilder.updateTaskState(MlMetadata.jobTaskId("foo"), new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId()));
         assertEquals(JobState.OPENED, MlMetadata.getJobState("foo", tasksBuilder.build()));
     }
 

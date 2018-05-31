@@ -42,6 +42,26 @@ setup:
 
   - do:
       indices.create:
+        index: my_index2
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: another_index
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: unmanaged_index
+        body:
+          settings: {}
+
+  - do:
+      indices.create:
         index: my_index_no_policy
 
 ---
@@ -51,6 +71,18 @@ teardown:
       acknowledge: true
       indices.delete:
         index: my_index
+  - do:
+      acknowledge: true
+      indices.delete:
+        index: my_index2
+  - do:
+      acknowledge: true
+      indices.delete:
+        index: another_index
+  - do:
+      acknowledge: true
+      indices.delete:
+        index: unmanaged_index
 
   - do:
       acknowledge: true
@@ -77,8 +109,86 @@ teardown:
 
   - match: { my_index.index: "my_index" }
   - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.phase: "hot" }
-  - match: { my_index.action: "pre-pre-readonly" }
+  - match: { my_index.phase: "new" }
+  - match: { my_index.action: "after" }
   - match: { my_index.step: "after" }
-  - match: { my_index.failed_step: null }
-  - match: { my_index.step_info: null }
+  - is_false: my_index.failed_step
+  - is_false: my_index.step_info
+
+  - is_false: my_index2
+  - is_false: another_index
+  - is_false: unmanaged_index
+
+---
+"Test Wildcard Index Lifecycle Explain":
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.explain_lifecycle:
+        index: "my_*"
+
+  - match: { my_index.index: "my_index" }
+  - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { my_index.phase: "new" }
+  - match: { my_index.action: "after" }
+  - match: { my_index.step: "after" }
+  - is_false: my_index.failed_step
+  - is_false: my_index.step_info
+
+  - match: { my_index2.index: "my_index2" }
+  - match: { my_index2.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { my_index2.phase: "new" }
+  - match: { my_index2.action: "after" }
+  - match: { my_index2.step: "after" }
+  - is_false: my_index2.failed_step
+  - is_false: my_index2.step_info
+
+  - is_false: another_index
+  - is_false: unmanaged_index
+
+
+---
+"Test All Indexes Lifecycle Explain":
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.explain_lifecycle: {}
+
+  - match: { my_index.index: "my_index" }
+  - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { my_index.phase: "new" }
+  - match: { my_index.action: "after" }
+  - match: { my_index.step: "after" }
+  - is_false: my_index.failed_step
+  - is_false: my_index.step_info
+
+  - match: { my_index2.index: "my_index2" }
+  - match: { my_index2.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { my_index2.phase: "new" }
+  - match: { my_index2.action: "after" }
+  - match: { my_index2.step: "after" }
+  - is_false: my_index2.failed_step
+  - is_false: my_index2.step_info
+  
+  - match: { another_index.index: "another_index" }
+  - match: { another_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { another_index.phase: "new" }
+  - match: { another_index.action: "after" }
+  - match: { another_index.step: "after" }
+  - is_false: another_index.failed_step
+  - is_false: another_index.step_info
+
+  - is_false: unmanaged_index
+
+---
+"Test Unmanaged Index Lifecycle Explain":
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.explain_lifecycle:
+        index: "unmanaged_index"
+
+  - is_false: my_index
+  - is_false: my_index2
+  - is_false: another_index
+  - is_false: unmanaged_index

@@ -22,8 +22,8 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
 
     public RestExplainLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, IndexLifecycle.BASE_PATH + "explain", this);
-        controller.registerHandler(RestRequest.Method.GET, IndexLifecycle.BASE_PATH + "explain/{index}", this);
+        controller.registerHandler(RestRequest.Method.GET, "_" + IndexLifecycle.NAME + "/explain", this);
+        controller.registerHandler(RestRequest.Method.GET, "{index}/_" + IndexLifecycle.NAME + "/explain", this);
     }
 
     @Override

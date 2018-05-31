@@ -326,7 +326,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // ILM
                 DeleteLifecycleAction.INSTANCE,
                 GetLifecycleAction.INSTANCE,
-                PutLifecycleAction.INSTANCE, ExplainLifecycleAction.INSTANCE
+                PutLifecycleAction.INSTANCE, 
+                ExplainLifecycleAction.INSTANCE
         );
     }
 

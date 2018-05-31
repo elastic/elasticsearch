@@ -19,9 +19,22 @@ import java.io.IOException;
 public class IndexExplainResponseTests extends AbstractSerializingTestCase<IndexExplainResponse> {
 
     static IndexExplainResponse randomIndexExplainResponse() {
-        return new IndexExplainResponse(randomAlphaOfLength(10), randomAlphaOfLength(10), randomNonNegativeLong(), randomAlphaOfLength(10),
-                randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean() ? "" : randomAlphaOfLength(10), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean() ? new BytesArray(new byte[0])
+        if (frequently()) {
+            return randomManagedIndexExplainResponse();
+        } else {
+            return randomUnmanagedIndexExplainResponse();
+        }
+    }
+
+    private static IndexExplainResponse randomUnmanagedIndexExplainResponse() {
+        return IndexExplainResponse.newUnmanagedIndexResponse(randomAlphaOfLength(10));
+    }
+
+    private static IndexExplainResponse randomManagedIndexExplainResponse() {
+        return IndexExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean(),
+                randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+                randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                randomBoolean() ? null
                         : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()));
     }
 
@@ -52,59 +65,77 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         long phaseTime = instance.getPhaseTime();
         long actionTime = instance.getActionTime();
         long stepTime = instance.getStepTime();
+        boolean managed = instance.managedByILM();
+        boolean skip = instance.skip();
         BytesReference stepInfo = instance.getStepInfo();
-        switch (between(0, 10)) {
-        case 0:
-            index = index + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 1:
-            policy = policy + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 2:
-            phase = phase + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 3:
-            action = action + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 4:
-            step = step + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 5:
-            if (Strings.hasLength(failedStep) == false) {
-                failedStep = randomAlphaOfLength(10);
-            } else if (randomBoolean()) {
-                failedStep = failedStep + randomAlphaOfLengthBetween(1, 5);
-            } else {
-                failedStep = "";
+        if (managed) {
+            switch (between(0, 12)) {
+            case 0:
+                index = index + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 1:
+                policy = policy + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 2:
+                phase = phase + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 3:
+                action = action + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 4:
+                step = step + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 5:
+                if (Strings.hasLength(failedStep) == false) {
+                    failedStep = randomAlphaOfLength(10);
+                } else if (randomBoolean()) {
+                    failedStep = failedStep + randomAlphaOfLengthBetween(1, 5);
+                } else {
+                    failedStep = null;
+                }
+                break;
+            case 6:
+                policyTime += randomLongBetween(0, 100000);
+                break;
+            case 7:
+                phaseTime += randomLongBetween(0, 100000);
+                break;
+            case 8:
+                actionTime += randomLongBetween(0, 100000);
+                break;
+            case 9:
+                stepTime += randomLongBetween(0, 100000);
+                break;
+            case 10:
+                if (Strings.hasLength(stepInfo) == false) {
+                    stepInfo = new BytesArray(randomByteArrayOfLength(100));
+                } else if (randomBoolean()) {
+                    stepInfo = randomValueOtherThan(stepInfo,
+                            () -> new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()));
+                } else {
+                    stepInfo = null;
+                }
+                break;
+            case 11:
+                skip = skip == false;
+                break;
+            case 12:
+                return IndexExplainResponse.newUnmanagedIndexResponse(index);
+            default:
+                throw new AssertionError("Illegal randomisation branch");
             }
-            break;
-        case 6:
-            policyTime += randomLongBetween(0, 100000);
-            break;
-        case 7:
-            phaseTime += randomLongBetween(0, 100000);
-            break;
-        case 8:
-            actionTime += randomLongBetween(0, 100000);
-            break;
-        case 9:
-            stepTime += randomLongBetween(0, 100000);
-            break;
-        case 10:
-            if (stepInfo.length() == 0) {
-                stepInfo = new BytesArray(randomByteArrayOfLength(100));
-            } else if (randomBoolean()) {
-                stepInfo = randomValueOtherThan(stepInfo,
-                        () -> new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()));
-            } else {
-                stepInfo = new BytesArray(new byte[0]);
+            return IndexExplainResponse.newManagedIndexResponse(index, policy, skip, policyTime, phase, action, step, failedStep, phaseTime,
+                    actionTime, stepTime, stepInfo);
+        } else {
+            switch (between(0, 1)) {
+            case 0:
+                return IndexExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
+            case 1:
+                return randomManagedIndexExplainResponse();
+            default:
+                throw new AssertionError("Illegal randomisation branch");
             }
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
         }
-        return new IndexExplainResponse(index, policy, policyTime, phase, action, step, failedStep, phaseTime, actionTime, stepTime,
-                stepInfo);
     }
 
 }

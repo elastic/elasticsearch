@@ -27,7 +27,9 @@ import java.util.Objects;
 public class IndexExplainResponse implements ToXContentObject, Writeable {
 
     private static final ParseField INDEX_FIELD = new ParseField("index");
+    private static final ParseField MANAGED_BY_ILM_FIELD = new ParseField("managed");
     private static final ParseField POLICY_NAME_FIELD = new ParseField("policy");
+    private static final ParseField SKIP_FIELD = new ParseField("skip");
     private static final ParseField LIFECYCLE_DATE_FIELD = new ParseField("lifecycle_date");
     private static final ParseField PHASE_FIELD = new ParseField("phase");
     private static final ParseField ACTION_FIELD = new ParseField("action");
@@ -39,19 +41,34 @@ public class IndexExplainResponse implements ToXContentObject, Writeable {
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
 
     public static final ConstructingObjectParser<IndexExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "index_explain_response", a -> new IndexExplainResponse((String) a[0], (String) a[1], (long) a[2], (String) a[3], (String) a[4],
-                    (String) a[5], (String) a[6], (long) a[7], (long) a[8], (long) a[9], (BytesReference) a[10]));
+            "index_explain_response",
+            a -> new IndexExplainResponse(
+                    (String) a[0], 
+                    (boolean) a[1], 
+                    (String) a[2], 
+                    (boolean) (a[3] == null ? false: a[3]), 
+                    (long) (a[4] == null ? -1L: a[4]), 
+                    (String) a[5],
+                    (String) a[6], 
+                    (String) a[7], 
+                    (String) a[8], 
+                    (long) (a[9] == null ? -1L: a[9]), 
+                    (long) (a[10] == null ? -1L: a[10]), 
+                    (long) (a[11] == null ? -1L: a[11]),  
+                    (BytesReference) a[12]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_NAME_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), LIFECYCLE_DATE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PHASE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTION_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), STEP_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), POLICY_NAME_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), LIFECYCLE_DATE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PHASE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STEP_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), PHASE_TIME_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), ACTION_TIME_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), STEP_TIME_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PHASE_TIME_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ACTION_TIME_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), STEP_TIME_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.copyCurrentStructure(p);
@@ -69,12 +86,38 @@ public class IndexExplainResponse implements ToXContentObject, Writeable {
     private final long phaseTime;
     private final long actionTime;
     private final long stepTime;
+    private final boolean skip;
+    private final boolean managedByILM;
     private final BytesReference stepInfo;
 
-    public IndexExplainResponse(String index, String policyName, long lifecycleDate, String phase, String action, String step,
-            String failedStep, long phaseTime, long actionTime, long stepTime, BytesReference stepInfo) {
+    public static IndexExplainResponse newManagedIndexResponse(String index, String policyName, boolean skip, long lifecycleDate,
+            String phase, String action, String step, String failedStep, long phaseTime, long actionTime, long stepTime,
+            BytesReference stepInfo) {
+        return new IndexExplainResponse(index, true, policyName, skip, lifecycleDate, phase, action, step, failedStep, phaseTime,
+                actionTime, stepTime, stepInfo);
+    }
+
+    public static IndexExplainResponse newUnmanagedIndexResponse(String index) {
+        return new IndexExplainResponse(index, false, null, false, -1L, null, null, null, null, -1L, -1L, -1L, null);
+    }
+
+    private IndexExplainResponse(String index, boolean managedByILM, String policyName, boolean skip, long lifecycleDate, String phase,
+            String action, String step, String failedStep, long phaseTime, long actionTime, long stepTime, BytesReference stepInfo) {
+        if (managedByILM) {
+            if (policyName == null) {
+                throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
+            }
+        } else {
+            if (policyName != null || lifecycleDate >= 0 || phase != null || action != null || step != null || failedStep != null
+                    || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null) {
+                throw new IllegalArgumentException(
+                        "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]");
+            }
+        }
         this.index = index;
         this.policyName = policyName;
+        this.managedByILM = managedByILM;
+        this.skip = skip;
         this.lifecycleDate = lifecycleDate;
         this.phase = phase;
         this.action = action;
@@ -82,47 +125,76 @@ public class IndexExplainResponse implements ToXContentObject, Writeable {
         this.phaseTime = phaseTime;
         this.actionTime = actionTime;
         this.stepTime = stepTime;
-        this.failedStep = failedStep == null ? "" : failedStep;
-        this.stepInfo = stepInfo == null ? new BytesArray(new byte[0]) : stepInfo;
+        this.failedStep = failedStep;
+        this.stepInfo = stepInfo;
     }
 
     public IndexExplainResponse(StreamInput in) throws IOException {
         index = in.readString();
-        policyName = in.readString();
-        lifecycleDate = in.readVLong();
-        phase = in.readString();
-        action = in.readString();
-        step = in.readString();
-        failedStep = in.readOptionalString();
-        phaseTime = in.readVLong();
-        actionTime = in.readVLong();
-        stepTime = in.readVLong();
-        stepInfo = in.readOptionalBytesReference();
+        managedByILM = in.readBoolean();
+        if (managedByILM) {
+            policyName = in.readString();
+            skip = in.readBoolean();
+            lifecycleDate = in.readVLong();
+            phase = in.readString();
+            action = in.readString();
+            step = in.readString();
+            failedStep = in.readOptionalString();
+            phaseTime = in.readVLong();
+            actionTime = in.readVLong();
+            stepTime = in.readVLong();
+            stepInfo = in.readOptionalBytesReference();
+            
+        } else {
+            policyName = null;
+            skip = false;
+            lifecycleDate = -1L;
+            phase = null;
+            action = null;
+            step = null;
+            failedStep = null;
+            phaseTime = -1L;
+            actionTime = -1L;
+            stepTime = -1L;
+            stepInfo = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeString(policyName);
-        out.writeVLong(lifecycleDate);
-        out.writeString(phase);
-        out.writeString(action);
-        out.writeString(step);
-        out.writeOptionalString(failedStep);
-        out.writeVLong(phaseTime);
-        out.writeVLong(actionTime);
-        out.writeVLong(stepTime);
-        out.writeOptionalBytesReference(stepInfo);
+        out.writeBoolean(managedByILM);
+        if (managedByILM) {
+            out.writeString(policyName);
+            out.writeBoolean(skip);
+            out.writeVLong(lifecycleDate);
+            out.writeString(phase);
+            out.writeString(action);
+            out.writeString(step);
+            out.writeOptionalString(failedStep);
+            out.writeVLong(phaseTime);
+            out.writeVLong(actionTime);
+            out.writeVLong(stepTime);
+            out.writeOptionalBytesReference(stepInfo);
+        }
     }
 
     public String getIndex() {
         return index;
     }
     
+    public boolean managedByILM() {
+        return managedByILM;
+    }
+
     public String getPolicyName() {
         return policyName;
     }
     
+    public boolean skip() {
+        return skip;
+    }
+
     public long getLifecycleDate() {
         return lifecycleDate;
     }
@@ -163,35 +235,39 @@ public class IndexExplainResponse implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
-        if (builder.humanReadable()) {
-            builder.field(LIFECYCLE_DATE_FIELD.getPreferredName(), new DateTime(lifecycleDate, ISOChronology.getInstanceUTC()));
-        } else {
-            builder.field(LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
-        }
-        builder.field(PHASE_FIELD.getPreferredName(), phase);
-        if (builder.humanReadable()) {
-            builder.field(PHASE_TIME_FIELD.getPreferredName(), new DateTime(phaseTime, ISOChronology.getInstanceUTC()));
-        } else {
-            builder.field(PHASE_TIME_FIELD.getPreferredName(), phaseTime);
-        }
-        builder.field(ACTION_FIELD.getPreferredName(), action);
-        if (builder.humanReadable()) {
-            builder.field(ACTION_TIME_FIELD.getPreferredName(), new DateTime(actionTime, ISOChronology.getInstanceUTC()));
-        } else {
-            builder.field(ACTION_TIME_FIELD.getPreferredName(), actionTime);
-        }
-        builder.field(STEP_FIELD.getPreferredName(), step);
-        if (builder.humanReadable()) {
-            builder.field(STEP_TIME_FIELD.getPreferredName(), new DateTime(stepTime, ISOChronology.getInstanceUTC()));
-        } else {
-            builder.field(STEP_TIME_FIELD.getPreferredName(), stepTime);
-        }
-        if (Strings.hasLength(failedStep)) {
-            builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);
-        }
-        if (stepInfo != null && stepInfo.length() > 0) {
-            builder.rawField(STEP_INFO_FIELD.getPreferredName(), stepInfo.streamInput(), XContentType.JSON);
+        builder.field(MANAGED_BY_ILM_FIELD.getPreferredName(), managedByILM);
+        if (managedByILM) {
+            builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
+            builder.field(SKIP_FIELD.getPreferredName(), skip);
+            if (builder.humanReadable()) {
+                builder.field(LIFECYCLE_DATE_FIELD.getPreferredName(), new DateTime(lifecycleDate, ISOChronology.getInstanceUTC()));
+            } else {
+                builder.field(LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+            }
+            builder.field(PHASE_FIELD.getPreferredName(), phase);
+            if (builder.humanReadable()) {
+                builder.field(PHASE_TIME_FIELD.getPreferredName(), new DateTime(phaseTime, ISOChronology.getInstanceUTC()));
+            } else {
+                builder.field(PHASE_TIME_FIELD.getPreferredName(), phaseTime);
+            }
+            builder.field(ACTION_FIELD.getPreferredName(), action);
+            if (builder.humanReadable()) {
+                builder.field(ACTION_TIME_FIELD.getPreferredName(), new DateTime(actionTime, ISOChronology.getInstanceUTC()));
+            } else {
+                builder.field(ACTION_TIME_FIELD.getPreferredName(), actionTime);
+            }
+            builder.field(STEP_FIELD.getPreferredName(), step);
+            if (builder.humanReadable()) {
+                builder.field(STEP_TIME_FIELD.getPreferredName(), new DateTime(stepTime, ISOChronology.getInstanceUTC()));
+            } else {
+                builder.field(STEP_TIME_FIELD.getPreferredName(), stepTime);
+            }
+            if (Strings.hasLength(failedStep)) {
+                builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);
+            }
+            if (stepInfo != null && stepInfo.length() > 0) {
+                builder.rawField(STEP_INFO_FIELD.getPreferredName(), stepInfo.streamInput(), XContentType.JSON);
+            }
         }
         builder.endObject();
         return builder;
@@ -199,7 +275,8 @@ public class IndexExplainResponse implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, policyName, lifecycleDate, phase, action, step, failedStep, phaseTime, actionTime, stepTime, stepInfo);
+        return Objects.hash(index, managedByILM, policyName, skip, lifecycleDate, phase, action, step, failedStep, phaseTime, actionTime,
+                stepTime, stepInfo);
     }
 
     @Override
@@ -212,7 +289,9 @@ public class IndexExplainResponse implements ToXContentObject, Writeable {
         }
         IndexExplainResponse other = (IndexExplainResponse) obj;
         return Objects.equals(index, other.index) &&
+                Objects.equals(managedByILM, other.managedByILM) &&
                 Objects.equals(policyName, other.policyName) &&
+                Objects.equals(skip, other.skip) &&
                 Objects.equals(lifecycleDate, other.lifecycleDate) &&
                 Objects.equals(phase, other.phase) &&
                 Objects.equals(action, other.action) &&

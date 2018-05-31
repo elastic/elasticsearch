@@ -47,12 +47,16 @@ import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MultiMatchQuery.FieldAndFieldType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockKeywordPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
     private IndexService indexService;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(MockKeywordPlugin.class);
+    }
 
     @Before
     public void setup() throws IOException {

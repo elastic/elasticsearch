@@ -64,7 +64,7 @@ public class Archives {
         if (distribution.packaging == Distribution.Packaging.TAR) {
 
             if (Platforms.LINUX) {
-                sh.run("tar", "-C", baseInstallPath.toString(), "-xzpf", distributionFile.toString());
+                sh.bash("tar -C " + baseInstallPath + " -xzpf " + distributionFile);
             } else {
                 throw new RuntimeException("Distribution " + distribution + " is not supported on windows");
             }
@@ -72,11 +72,12 @@ public class Archives {
         } else if (distribution.packaging == Distribution.Packaging.ZIP) {
 
             if (Platforms.LINUX) {
-                sh.run("unzip", distributionFile.toString(), "-d", baseInstallPath.toString());
+                sh.bash("unzip " + distributionFile + " -d " + baseInstallPath);
             } else {
-                sh.run("powershell.exe", "-Command",
+                sh.powershell(
                     "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; " +
-                    "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')");
+                    "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')"
+                );
             }
 
         } else {
@@ -102,35 +103,35 @@ public class Archives {
     private static void setupArchiveUsersLinux(Path installPath) {
         final Shell sh = new Shell();
 
-        if (sh.runIgnoreExitCode("getent", "group", "elasticsearch").isSuccess() == false) {
+        if (sh.bashIgnoreExitCode("getent group elasticsearch").isSuccess() == false) {
             if (isDPKG()) {
-                sh.run("addgroup", "--system", "elasticsearch");
+                sh.bash("addgroup --system elasticsearch");
             } else {
-                sh.run("groupadd", "-r", "elasticsearch");
+                sh.bash("groupadd -r elasticsearch");
             }
         }
 
-        if (sh.runIgnoreExitCode("id", "elasticsearch").isSuccess() == false) {
+        if (sh.bashIgnoreExitCode("id elasticsearch").isSuccess() == false) {
             if (isDPKG()) {
-                sh.run("adduser",
-                    "--quiet",
-                    "--system",
-                    "--no-create-home",
-                    "--ingroup", "elasticsearch",
-                    "--disabled-password",
-                    "--shell", "/bin/false",
+                sh.bash("adduser " +
+                    "--quiet " +
+                    "--system " +
+                    "--no-create-home " +
+                    "--ingroup elasticsearch " +
+                    "--disabled-password " +
+                    "--shell /bin/false " +
                     "elasticsearch");
             } else {
-                sh.run("useradd",
-                    "--system",
-                    "-M",
-                    "--gid", "elasticsearch",
-                    "--shell", "/sbin/nologin",
-                    "--comment", "elasticsearch user",
+                sh.bash("useradd " +
+                    "--system " +
+                    "-M " +
+                    "--gid elasticsearch " +
+                    "--shell /sbin/nologin " +
+                    "--comment 'elasticsearch user' " +
                     "elasticsearch");
             }
         }
-        sh.run("chown", "-R", "elasticsearch:elasticsearch", installPath.toString());
+        sh.bash("chown -R elasticsearch:elasticsearch " + installPath);
     }
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {

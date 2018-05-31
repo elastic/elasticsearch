@@ -29,10 +29,6 @@ import java.util.Optional;
  */
 public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteable {
 
-    default Optional<String> getRequiredFeature() {
-        return Optional.empty();
-    }
-
     /**
      * The minimal version of the recipient this custom object can be sent to
      */

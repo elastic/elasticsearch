@@ -113,11 +113,10 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
         }
 
         @Override
-        protected String handleRequest(TcpChannel channel, String profileName,
-                                       StreamInput stream, long requestId, int messageLengthBytes, Version version,
-                                       Set<String> features, InetSocketAddress remoteAddress, byte status) throws IOException {
-            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version, features,
-                    remoteAddress, status);
+        protected String handleRequest(TcpChannel channel, String profileName, StreamInput stream, long requestId, int messageLengthBytes,
+                                       Version version, InetSocketAddress remoteAddress, byte status) throws IOException {
+            String action =
+                    super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress, status);
             channelProfileName = TcpTransport.DEFAULT_PROFILE;
             return action;
         }

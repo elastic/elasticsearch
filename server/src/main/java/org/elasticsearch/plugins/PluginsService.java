@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -226,7 +227,7 @@ public class PluginsService extends AbstractComponent {
             }
         }
         if (features.isEmpty() == false) {
-            builder.put(ThreadContext.PREFIX + "." + "features", features.keySet().stream().collect(Collectors.joining(",")));
+
         }
         return builder.put(this.settings).build();
     }

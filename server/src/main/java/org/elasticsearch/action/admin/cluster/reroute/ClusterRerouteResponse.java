@@ -77,7 +77,6 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
         } else {
             ClusterModule.filterCustomsForPre63Clients(state).writeTo(out);
         }
-        state.writeTo(out);
         writeAcknowledged(out);
         RoutingExplanations.writeTo(explanations, out);
     }

@@ -118,7 +118,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * NOTE: The nodeOperation has to throw an exception, trigger task.markAsCompleted() or task.completeAndNotifyIfNeeded() methods to
      * indicate that the persistent task has finished.
      */
-    protected abstract void nodeOperation(AllocatedPersistentTask task, Params params, @Nullable Task.Status status);
+    protected abstract void nodeOperation(AllocatedPersistentTask task, Params params, @Nullable PersistentTaskState state);
 
     public String getExecutor() {
         return executor;

@@ -23,20 +23,18 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertThat;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {
@@ -54,37 +52,28 @@ public class SyncedFlushUtil {
          * Since a global checkpoint sync request is a replication request, it will acquire an index
          * shard permit on the primary when executing. If this happens at the same time while we are
          * issuing the synced-flush, the synced-flush request will fail as it thinks there are
-         * in-flight operations. We can avoid such situation by not issue the synced-flush until the
-         * global checkpoint on the primary is propagated to replicas.
+         * in-flight operations. We can avoid such situation by continuing issuing another synced-flush
+         * if the synced-flush failed due to the ongoing operations on the primary.
          */
+        SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
+        AtomicReference<LatchedListener<ShardsSyncedFlushResult>> listenerHolder = new AtomicReference<>();
         assertBusy(() -> {
-            long globalCheckpointOnPrimary = SequenceNumbers.NO_OPS_PERFORMED;
-            Set<String> assignedNodes = cluster.nodesInclude(shardId.getIndexName());
-            for (String node : assignedNodes) {
-                IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
-                IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-                if (shard.routingEntry().primary()) {
-                    globalCheckpointOnPrimary = shard.getGlobalCheckpoint();
-                }
+            LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
+            listenerHolder.set(listener);
+            service.attemptSyncedFlush(shardId, listener);
+            listener.latch.await();
+            if (listener.error != null) {
+                return; // stop here so that we can preserve the error
             }
-            for (String node : assignedNodes) {
-                IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
-                IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-                assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpointOnPrimary));
+            if (listener.result.failed()) {
+                // only retry if request failed due to ongoing operations on primary
+                assertThat(listener.result.failureReason(), not(containsString("ongoing operations on primary")));
             }
         });
-        SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-        LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
-        service.attemptSyncedFlush(shardId, listener);
-        try {
-            listener.latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (listenerHolder.get().error != null) {
+            throw ExceptionsHelper.convertToElastic(listenerHolder.get().error);
         }
-        if (listener.error != null) {
-            throw ExceptionsHelper.convertToElastic(listener.error);
-        }
-        return listener.result;
+        return listenerHolder.get().result;
     }
 
     public static final class LatchedListener<T> implements ActionListener<T> {

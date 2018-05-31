@@ -615,29 +615,29 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot for reading operations since the provided seqno.
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long minSeqNo) throws IOException {
+    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return newLuceneChangesSnapshot(source, mapperService, Math.max(0, minSeqNo), Long.MAX_VALUE, false);
+            return newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
         } else {
-            return getTranslog().getSnapshotBetween(minSeqNo, Long.MAX_VALUE);
+            return getTranslog().getSnapshotBetween(startingSeqNo, Long.MAX_VALUE);
         }
     }
 
-    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long minSeqNo) throws IOException {
+    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             try (Translog.Snapshot snapshot =
-                     newLuceneChangesSnapshot(source, mapperService, Math.max(0, minSeqNo), Long.MAX_VALUE, false)) {
+                     newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)) {
                 return snapshot.totalOperations();
             } catch (IOException ex) {
                 maybeFailEngine(source, ex);
                 throw ex;
             }
         } else {
-            return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
+            return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
         }
     }
 
-    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long minSeqNo) throws IOException;
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

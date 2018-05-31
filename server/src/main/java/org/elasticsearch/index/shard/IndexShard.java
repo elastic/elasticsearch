@@ -1602,24 +1602,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the estimated number of history operations whose seq# at least the provided seq# in this shard.
      */
-    public int estimateNumberOfHistoryOperations(String source, long minSeqNo) throws IOException {
-        return getEngine().estimateNumberOfHistoryOperations(source, mapperService, minSeqNo);
+    public int estimateNumberOfHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().estimateNumberOfHistoryOperations(source, mapperService, startingSeqNo);
     }
 
     /**
-     * Creates a new history snapshot for reading operations since the provided seqno.
+     * Creates a new history snapshot for reading operations since the provided starting seqno (inclusive).
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Translog.Snapshot getHistoryOperations(String source, long minSeqNo) throws IOException {
-        return getEngine().readHistoryOperations(source, mapperService, minSeqNo);
+    public Translog.Snapshot getHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().readHistoryOperations(source, mapperService, startingSeqNo);
     }
 
     /**
-     * Checks if we have a completed history of operations since the given minSeqNo.
+     * Checks if we have a completed history of operations since the given starting seqno (inclusive).
      * This method should be called after acquiring the retention lock; See {@link #acquireRetentionLockForPeerRecovery()}
      */
-    public boolean hasCompleteHistoryOperations(String source, long minSeqNo) throws IOException {
-        return getEngine().hasCompleteOperationHistory(source, mapperService, minSeqNo);
+    public boolean hasCompleteHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().hasCompleteOperationHistory(source, mapperService, startingSeqNo);
     }
 
     /**

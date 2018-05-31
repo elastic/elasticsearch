@@ -2373,13 +2373,13 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long minSeqNo) throws IOException {
+    public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return getMinRetainedSeqNo() <= minSeqNo;
+            return getMinRetainedSeqNo() <= startingSeqNo;
         } else {
             final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(minSeqNo, minSeqNo - 1);
-            try (Translog.Snapshot snapshot = getTranslog().getSnapshotBetween(minSeqNo, Long.MAX_VALUE)) {
+            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
+            try (Translog.Snapshot snapshot = getTranslog().getSnapshotBetween(startingSeqNo, Long.MAX_VALUE)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
                     if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {

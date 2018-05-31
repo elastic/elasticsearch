@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -187,9 +188,37 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 task -> taskName.equals(task.taskName) && nodeId.equals(task.assignment.executorNode)).count();
     }
 
+    private static final Version MINIMAL_SUPPORTED_VERSION;
+
+    static {
+        /*
+         * Prior to version 6.3.0 of Elasticsearch, persistent tasks were in X-Pack and we could assume that every node in the cluster and
+         * all connected clients also had the X-Pack plugin. The only constraint against sending persistent tasks custom metadata in
+         * response to a cluster state request was that the version of the client was at least 5.4.0. When we migrated the persistent task
+         * code to the server codebase, we introduced the possibility that we could communicating with a client on a version between 5.4.0
+         * (inclusive) and 6.3.0 (exclusive). However, such a client could not understand persistent task metadata. As such, we not set the
+         * minimal supported version on persistent tasks custom metadata to 6.3.0 as that is the first version that we are certain any
+         * client of that version can understand persistent tasks custom metdata. However, this is a breaking change from previous versions
+         * where for persistent tasks custom metadata we assumed that any client would have X-Pack installed. To reinstate the previous
+         * behavior (e.g., for debugging) we provide the following undocumented system property. This system property could be removed at
+         * any time.
+         */
+        final String property = System.getProperty("es.persistent_tasks.custom_metadata_minimum_version", "6.3.0");
+        final Version minimalSupportedVersion = Version.fromString(property);
+        if (minimalSupportedVersion.before(Version.V_5_4_0)) {
+            throw new IllegalArgumentException(
+                    "es.persistent_tasks.custom_metadata_minimum_version must be after [5.4.0] but was [" + property + "]");
+        } else if (minimalSupportedVersion.after(Version.CURRENT)) {
+            throw new IllegalArgumentException(
+                    "es.persistent_tasks.custom_metadata_minimum_version must be before [" + Version.CURRENT.toString()
+                            + "] but was [" + property + "]");
+        }
+        MINIMAL_SUPPORTED_VERSION = minimalSupportedVersion;
+    }
+
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0;
+        return MINIMAL_SUPPORTED_VERSION;
     }
 
     @Override

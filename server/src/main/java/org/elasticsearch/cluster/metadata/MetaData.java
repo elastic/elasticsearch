@@ -69,6 +69,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -119,6 +120,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+
+        default Optional<String> getRequiredFeature() {
+            return Optional.empty();
+        }
 
         EnumSet<XContentContext> context();
     }

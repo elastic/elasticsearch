@@ -61,6 +61,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -91,6 +92,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+
+        default Optional<String> getRequiredFeature() {
+            return Optional.empty();
+        }
 
         /**
          * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.

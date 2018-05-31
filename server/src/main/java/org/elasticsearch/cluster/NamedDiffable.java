@@ -37,8 +37,4 @@ public interface NamedDiffable<T> extends Diffable<T>, NamedWriteable {
         return Version.CURRENT.minimumIndexCompatibilityVersion();
     }
 
-    default Optional<String> getRequiredFeature() {
-        return Optional.empty();
-    }
-
 }

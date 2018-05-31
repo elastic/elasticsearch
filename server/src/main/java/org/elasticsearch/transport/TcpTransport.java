@@ -1439,7 +1439,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             ensureVersionCompatibility(version, getCurrentVersion(), isHandshake);
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
-            System.out.println(threadPool.getThreadContext().getHeaders());
             threadPool.getThreadContext().readHeaders(streamIn);
             threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
             final Set<String> features = new HashSet<>(Arrays.asList(threadPool.getThreadContext().getHeader("features").split(",")));

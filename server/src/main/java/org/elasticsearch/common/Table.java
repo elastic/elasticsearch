@@ -211,6 +211,10 @@ public class Table {
         return headerAliasMap;
     }
 
+    protected boolean isInHeaders(){
+        return inHeaders;
+    }
+
     public static class Cell {
         public final Object value;
         public final Map<String, String> attr;

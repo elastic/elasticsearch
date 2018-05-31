@@ -93,7 +93,7 @@ public class RestTasksAction extends AbstractCatAction {
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
         boolean detailed = request.paramAsBoolean("detailed", false);
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
 
         // Task main info

@@ -88,7 +88,7 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders()
                 .addCell("index", "default:true;alias:i,idx;desc:index name")
                 .addCell("shard", "default:true;alias:s,sh;desc:shard name")

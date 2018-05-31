@@ -67,7 +67,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table t = new Table();
+        final Table t = getTable(request);
         t.startHeaders();
         t.addCell("insertOrder", "alias:o;text-align:right;desc:task insertion order");
         t.addCell("timeInQueue", "alias:t;text-align:right;desc:how long task has been in queue");

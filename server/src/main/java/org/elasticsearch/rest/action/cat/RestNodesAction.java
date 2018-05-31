@@ -114,7 +114,7 @@ public class RestNodesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
         table.addCell("pid", "default:false;alias:p;desc:process id");
@@ -295,7 +295,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
             table.addCell(diskUsedPercent);
-            
+
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());

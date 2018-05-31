@@ -145,7 +145,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");

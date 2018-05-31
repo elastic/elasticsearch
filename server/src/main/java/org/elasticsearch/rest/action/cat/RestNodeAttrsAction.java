@@ -80,7 +80,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("node", "default:true;alias:name;desc:node name");
         table.addCell("id",   "default:false;alias:id,nodeId;desc:unique node id");

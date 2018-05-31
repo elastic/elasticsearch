@@ -80,7 +80,7 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        return new Table()
+        return getTable(request)
                 .startHeaders()
                 .addCell("id", "alias:id,snapshot;desc:unique snapshot")
                 .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")

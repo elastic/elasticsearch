@@ -60,7 +60,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
-/** A {@link FieldMapper} for ip addresses. */
+/** A {@link FieldMapper} for datetime related values */
 public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
@@ -78,7 +78,11 @@ public class DateFieldMapper extends FieldMapper {
         private boolean dateTimeFormatterSet = false;
 
         public Builder(String name) {
-            super(name, new DateFieldType(), new DateFieldType());
+            this(name, new DateFieldType());
+        }
+
+        public Builder(String name, DateFieldType dateFieldType) {
+            super(name, dateFieldType, dateFieldType);
             builder = this;
             locale = Locale.ROOT;
         }
@@ -143,7 +147,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
+            Builder builder = createBuilder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -170,13 +174,17 @@ public class DateFieldMapper extends FieldMapper {
             }
             return builder;
         }
+
+        protected Builder createBuilder(String name) {
+            return new Builder(name);
+        }
     }
 
-    public static final class DateFieldType extends MappedFieldType {
+    public static class DateFieldType extends MappedFieldType {
         protected FormatDateTimeFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
-        DateFieldType() {
+        protected DateFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);
@@ -184,7 +192,7 @@ public class DateFieldMapper extends FieldMapper {
             setDateTimeFormatter(DEFAULT_DATE_TIME_FORMATTER);
         }
 
-        DateFieldType(DateFieldType other) {
+        protected DateFieldType(DateFieldType other) {
             super(other);
             setDateTimeFormatter(other.dateTimeFormatter);
         }
@@ -392,7 +400,7 @@ public class DateFieldMapper extends FieldMapper {
 
     private Explicit<Boolean> ignoreMalformed;
 
-    private DateFieldMapper(
+    protected DateFieldMapper(
             String simpleName,
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,
@@ -443,7 +451,7 @@ public class DateFieldMapper extends FieldMapper {
 
         long timestamp;
         try {
-            timestamp = fieldType().parse(dateAsString);
+            timestamp = parse(dateAsString);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(fieldType.name());
@@ -464,6 +472,10 @@ public class DateFieldMapper extends FieldMapper {
         if (fieldType().stored()) {
             fields.add(new StoredField(fieldType().name(), timestamp));
         }
+    }
+
+    protected long parse(String dateAsString) {
+        return fieldType().parse(dateAsString);
     }
 
     @Override

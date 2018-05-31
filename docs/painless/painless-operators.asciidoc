@@ -299,7 +299,7 @@ Elements are referenced by an expression enclosed in brackets. An error
 occurs if the expression used to reference an element cannot be implicitly
 cast to an `int`.
 
-The range of elements within an array that can be accessed is `[0, size)` where
+The range of elements within an array that can be accessed is `[0, size]` where
 size is the originally allocated size of the array. To access elements relative
 to the last element in an array, you can use a negative numeric value from
 `[-size, -1]`. An error occurs if you attempt to reference an element outside

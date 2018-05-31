@@ -12,8 +12,8 @@ setup:
 ---
 "Get snapshot status":
   - skip:
-      version:     " - 6.99.99"
-      reason:      "backporting in progress: https://github.com/elastic/elasticsearch/pull/29602"
+      version:     " - 6.3.99"
+      reason:      "extra stats fields was introduced in 6.4.0"
   - do:
       indices.create:
         index: test_index

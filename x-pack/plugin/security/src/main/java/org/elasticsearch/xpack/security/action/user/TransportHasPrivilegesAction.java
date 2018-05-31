@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
@@ -80,7 +81,8 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             listener::onFailure));
     }
 
-    private void resolveApplicationPrivileges(HasPrivilegesRequest request, ActionListener<Collection<ApplicationPrivilege>> listener) {
+    private void resolveApplicationPrivileges(HasPrivilegesRequest request,
+                                              ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         final Set<String> applications = getApplicationNames(request);
         privilegeStore.getPrivileges(applications, null, listener);
     }
@@ -91,7 +93,8 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             .collect(Collectors.toSet());
     }
 
-    private void checkPrivileges(HasPrivilegesRequest request, Role userRole, Collection<ApplicationPrivilege> applicationPrivileges,
+    private void checkPrivileges(HasPrivilegesRequest request, Role userRole,
+                                 Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
                                  ActionListener<HasPrivilegesResponse> listener) {
         logger.trace(() -> new ParameterizedMessage("Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
             Strings.arrayToCommaDelimitedString(userRole.names()),
@@ -197,7 +200,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     }
 
     private boolean testResourceMatch(String application, String checkResource, String checkPrivilegeName, Role userRole,
-                                      Collection<ApplicationPrivilege> privileges) {
+                                      Collection<ApplicationPrivilegeDescriptor> privileges) {
         final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
         final ApplicationPrivilege checkPrivilege = ApplicationPrivilege.get(application, nameSet, privileges);
         assert checkPrivilege.getApplication().equals(application)

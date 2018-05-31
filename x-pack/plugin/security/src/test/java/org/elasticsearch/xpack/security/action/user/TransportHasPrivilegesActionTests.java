@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -38,12 +39,16 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +66,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
     private User user;
     private Role role;
     private TransportHasPrivilegesAction action;
-    private List<ApplicationPrivilege> applicationPrivileges;
+    private List<ApplicationPrivilegeDescriptor> applicationPrivileges;
 
     @Before
     public void setup() {
@@ -86,11 +91,12 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(authorizationService).roles(eq(user), any(ActionListener.class));
 
-        applicationPrivileges = Collections.emptyList();
+        applicationPrivileges = new ArrayList<>();
         NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         Mockito.doAnswer(inv -> {
             assertThat(inv.getArguments(), arrayWithSize(3));
-            ActionListener<List<ApplicationPrivilege>> listener = (ActionListener<List<ApplicationPrivilege>>) inv.getArguments()[2];
+            ActionListener<List<ApplicationPrivilegeDescriptor>> listener
+                = (ActionListener<List<ApplicationPrivilegeDescriptor>>) inv.getArguments()[2];
             logger.info("Privileges for ({}) are {}", Arrays.toString(inv.getArguments()), applicationPrivileges);
             listener.onResponse(applicationPrivileges);
             return null;
@@ -215,26 +221,20 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
      * <em>does the user have ___ privilege on a wildcard that covers (is a superset of) this pattern?</em>
      */
     public void testWildcardHandling() throws Exception {
-        final ApplicationPrivilege kibanaRead = new ApplicationPrivilege("kibana", "read",
+        final ApplicationPrivilege kibanaRead = defineApplicationPrivilege("kibana", "read",
                 "data:read/*", "action:login", "action:view/dashboard");
-        final ApplicationPrivilege kibanaWrite = new ApplicationPrivilege("kibana", "write",
+        final ApplicationPrivilege kibanaWrite = defineApplicationPrivilege("kibana", "write",
                 "data:write/*", "action:login", "action:view/dashboard");
-        final ApplicationPrivilege kibanaAdmin = new ApplicationPrivilege("kibana", "admin",
+        final ApplicationPrivilege kibanaAdmin = defineApplicationPrivilege("kibana", "admin",
                 "action:login", "action:manage/*");
-        final ApplicationPrivilege kibanaViewSpace = new ApplicationPrivilege("kibana", "view-space",
+        final ApplicationPrivilege kibanaViewSpace = defineApplicationPrivilege("kibana", "view-space",
                 "action:login", "space:view/*");
-        applicationPrivileges = Arrays.asList(
-                kibanaRead,
-                kibanaWrite,
-                kibanaAdmin,
-                kibanaViewSpace
-        );
         role = Role.builder("test3")
                 .add(IndexPrivilege.ALL, "logstash-*", "foo?")
                 .add(IndexPrivilege.READ, "abc*")
                 .add(IndexPrivilege.WRITE, "*xyz")
                 .addApplicationPrivilege(kibanaRead, Collections.singleton("*"))
-                .addApplicationPrivilege(kibanaViewSpace, Sets.newHashSet("space/engineering/*", "space/builds"))
+                .addApplicationPrivilege(kibanaViewSpace, newHashSet("space/engineering/*", "space/builds"))
                 .build();
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -311,6 +311,11 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         ));
     }
 
+    private ApplicationPrivilege defineApplicationPrivilege(String app, String name, String ... actions) {
+        this.applicationPrivileges.add(new ApplicationPrivilegeDescriptor(app, name, newHashSet(actions), emptyMap()));
+        return new ApplicationPrivilege(app, name, actions);
+    }
+
     public void testCheckingIndexPermissionsDefinedOnDifferentPatterns() throws Exception {
         role = Role.builder("test-write")
                 .add(IndexPrivilege.INDEX, "apache-*")
@@ -335,13 +340,12 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
     }
 
     public void testCheckingApplicationPrivilegesOnDifferentApplicationsAndResources() throws Exception {
-        final ApplicationPrivilege app1Read = new ApplicationPrivilege("app1", "read", "data:read/*");
-        final ApplicationPrivilege app1Write = new ApplicationPrivilege("app1", "write", "data:write/*");
-        final ApplicationPrivilege app1All = new ApplicationPrivilege("app1", "all", "*");
-        final ApplicationPrivilege app2Read = new ApplicationPrivilege("app2", "read", "data:read/*");
-        final ApplicationPrivilege app2Write = new ApplicationPrivilege("app2", "write", "data:write/*");
-        final ApplicationPrivilege app2All = new ApplicationPrivilege("app2", "all", "*");
-        applicationPrivileges = Arrays.asList(app1Read, app1Write, app1All, app2Read, app2Write, app2All);
+        final ApplicationPrivilege app1Read = defineApplicationPrivilege("app1", "read", "data:read/*");
+        final ApplicationPrivilege app1Write = defineApplicationPrivilege("app1", "write", "data:write/*");
+        final ApplicationPrivilege app1All = defineApplicationPrivilege("app1", "all", "*");
+        final ApplicationPrivilege app2Read = defineApplicationPrivilege("app2", "read", "data:read/*");
+        final ApplicationPrivilege app2Write = defineApplicationPrivilege("app2", "write", "data:write/*");
+        final ApplicationPrivilege app2All = defineApplicationPrivilege("app2", "all", "*");
 
         role = Role.builder("test-role")
                 .addApplicationPrivilege(app1Read, Collections.singleton("foo/*"))
@@ -394,9 +398,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
     }
 
     public void testIsCompleteMatch() throws Exception {
-        final ApplicationPrivilege kibanaRead = new ApplicationPrivilege("kibana", "read", "data:read/*");
-        final ApplicationPrivilege kibanaWrite = new ApplicationPrivilege("kibana", "write", "data:write/*");
-        this.applicationPrivileges = Arrays.asList(kibanaRead, kibanaWrite);
+        final ApplicationPrivilege kibanaRead = defineApplicationPrivilege("kibana", "read", "data:read/*");
+        final ApplicationPrivilege kibanaWrite = defineApplicationPrivilege("kibana", "write", "data:write/*");
         role = Role.builder("test-write")
                 .cluster(ClusterPrivilege.MONITOR)
                 .add(IndexPrivilege.READ, "read-*")

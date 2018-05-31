@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,7 +35,6 @@ import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPO
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.sameInstance;
@@ -94,20 +94,19 @@ public class ApplicationPrivilegeTests extends ESTestCase {
     }
 
     public void testGetPrivilegeByName() {
-        final ApplicationPrivilege myRead = new ApplicationPrivilege("my-app", "read", "data:read/*", "action:login");
-        final ApplicationPrivilege myWrite = new ApplicationPrivilege("my-app", "write", "data:write/*", "action:login");
-        final ApplicationPrivilege myAdmin = new ApplicationPrivilege("my-app", "admin", "data:read/*", "action:*");
-        final ApplicationPrivilege yourRead = new ApplicationPrivilege("your-app", "read", "data:read/*", "action:login");
-        final Set<ApplicationPrivilege> stored = Sets.newHashSet(myRead, myWrite, myAdmin, yourRead);
+        final ApplicationPrivilegeDescriptor descriptor = descriptor("my-app", "read", "data:read/*", "action:login");
+        final ApplicationPrivilegeDescriptor myWrite = descriptor("my-app", "write", "data:write/*", "action:login");
+        final ApplicationPrivilegeDescriptor myAdmin = descriptor("my-app", "admin", "data:read/*", "action:*");
+        final ApplicationPrivilegeDescriptor yourRead = descriptor("your-app", "read", "data:read/*", "action:login");
+        final Set<ApplicationPrivilegeDescriptor> stored = Sets.newHashSet(descriptor, myWrite, myAdmin, yourRead);
 
-        assertThat(ApplicationPrivilege.get("my-app", Collections.singleton("read"), stored), sameInstance(myRead));
-        assertThat(ApplicationPrivilege.get("my-app", Collections.singleton("write"), stored), sameInstance(myWrite));
+        assertEqual(ApplicationPrivilege.get("my-app", Collections.singleton("read"), stored), descriptor);
+        assertEqual(ApplicationPrivilege.get("my-app", Collections.singleton("write"), stored), myWrite);
 
         final ApplicationPrivilege readWrite = ApplicationPrivilege.get("my-app", Sets.newHashSet("read", "write"), stored);
         assertThat(readWrite.getApplication(), equalTo("my-app"));
         assertThat(readWrite.name(), containsInAnyOrder("read", "write"));
         assertThat(readWrite.getPatterns(), arrayContainingInAnyOrder("data:read/*", "data:write/*", "action:login"));
-        assertThat(readWrite.getMetadata().entrySet(), empty());
 
         CharacterRunAutomaton run = new CharacterRunAutomaton(readWrite.getAutomaton());
         for (String action : Arrays.asList("data:read/settings", "data:write/user/kimchy", "action:login")) {
@@ -118,90 +117,31 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         }
     }
 
+    private void assertEqual(ApplicationPrivilege myReadPriv, ApplicationPrivilegeDescriptor myRead) {
+        assertThat(myReadPriv.getApplication(), equalTo(myRead.getApplication()));
+        assertThat(myReadPriv.getPrivilegeName(), equalTo(myRead.getName()));
+        assertThat(Sets.newHashSet(myReadPriv.getPatterns()), equalTo(myRead.getActions()));
+    }
+
+    private ApplicationPrivilegeDescriptor descriptor(String application, String name, String... actions) {
+        return new ApplicationPrivilegeDescriptor(application, name, Sets.newHashSet(actions), Collections.emptyMap());
+    }
+
     public void testEqualsAndHashCode() {
         final ApplicationPrivilege privilege = randomPrivilege();
         final EqualsHashCodeTestUtils.MutateFunction<ApplicationPrivilege> mutate = randomFrom(
             orig -> new ApplicationPrivilege(
-                "x" + orig.getApplication(), orig.getPrivilegeName(), asList(orig.getPatterns()), orig.getMetadata()),
+                "x" + orig.getApplication(), orig.getPrivilegeName(), asList(orig.getPatterns())),
             orig -> new ApplicationPrivilege(
-                orig.getApplication(), "x" + orig.getPrivilegeName(), asList(orig.getPatterns()), orig.getMetadata()),
+                orig.getApplication(), "x" + orig.getPrivilegeName(), asList(orig.getPatterns())),
             orig -> new ApplicationPrivilege(
-                orig.getApplication(), orig.getPrivilegeName(), Collections.singleton("*"), orig.getMetadata()),
-            orig -> new ApplicationPrivilege(
-                orig.getApplication(), orig.getPrivilegeName(), asList(orig.getPatterns()), Collections.singletonMap("clone", "yes"))
+                orig.getApplication(), orig.getPrivilegeName(), Collections.singleton("*"))
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(privilege,
             original -> new ApplicationPrivilege(
-                original.getApplication(), original.getPrivilegeName(), asList(original.getPatterns()), original.getMetadata()),
+                original.getApplication(), original.getPrivilegeName(), asList(original.getPatterns())),
             mutate
         );
-    }
-
-    public void testSerialization() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            final ApplicationPrivilege original = randomPrivilege();
-            original.writeTo(out);
-            final ApplicationPrivilege clone = ApplicationPrivilege.readFrom(out.bytes().streamInput());
-            assertThat(clone, Matchers.equalTo(original));
-            assertThat(original, Matchers.equalTo(clone));
-        }
-    }
-
-    public void testXContentGenerationAndParsing() throws IOException {
-        final boolean includeTypeField = randomBoolean();
-
-        final XContent xContent = randomFrom(XContentType.values()).xContent();
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            final XContentBuilder builder = new XContentBuilder(xContent, out);
-
-            final ApplicationPrivilege original = randomPrivilege();
-            if (includeTypeField) {
-                original.toIndexContent(builder);
-            } else {
-                original.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            }
-            builder.flush();
-
-            final byte[] bytes = out.toByteArray();
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
-                final ApplicationPrivilege clone = ApplicationPrivilege.parse(parser,
-                    randomBoolean() ? randomAlphaOfLength(3) : null,
-                    randomBoolean() ? randomAlphaOfLength(3) : null,
-                    includeTypeField);
-                assertThat(clone, Matchers.equalTo(original));
-                assertThat(original, Matchers.equalTo(clone));
-            }
-        }
-    }
-
-    public void testParseXContentWithDefaultNames() throws IOException {
-        final String json = "{ \"actions\": [ \"data:read\" ], \"metadata\" : { \"num\": 1, \"bool\":false } }";
-        final XContent xContent = XContentType.JSON.xContent();
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
-            final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, "my_app", "read", false);
-            assertThat(privilege.getApplication(), equalTo("my_app"));
-            assertThat(privilege.getPrivilegeName(), equalTo("read"));
-            assertThat(privilege.getPatterns(), equalTo(new String[] { "data:read" }));
-            assertThat(privilege.getMetadata().entrySet(), iterableWithSize(2));
-            assertThat(privilege.getMetadata().get("num"), equalTo(1));
-            assertThat(privilege.getMetadata().get("bool"), equalTo(false));
-        }
-    }
-
-    public void testParseXContentWithoutUsingDefaultNames() throws IOException {
-        final String json = "{" +
-            "  \"application\": \"your_app\"," +
-            "  \"name\": \"write\"," +
-            "  \"actions\": [ \"data:write\" ]" +
-            "}";
-        final XContent xContent = XContentType.JSON.xContent();
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
-            final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, "my_app", "read", false);
-            assertThat(privilege.getApplication(), equalTo("your_app"));
-            assertThat(privilege.getPrivilegeName(), equalTo("write"));
-            assertThat(privilege.getPatterns(), equalTo(new String[] { "data:write" }));
-            assertThat(privilege.getMetadata().entrySet(), iterableWithSize(0));
-        }
     }
 
     private void assertValidationFailure(String messageContent, Supplier<ApplicationPrivilege> supplier) {
@@ -227,7 +167,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         for (int i = randomInt(3); i > 0; i--) {
             metadata.put(randomAlphaOfLengthBetween(2, 5), randomFrom(randomBoolean(), randomInt(10), randomAlphaOfLength(5)));
         }
-        return new ApplicationPrivilege(applicationName, privilegeName, asList(patterns), metadata);
+        return new ApplicationPrivilege(applicationName, privilegeName, asList(patterns));
     }
 
 }

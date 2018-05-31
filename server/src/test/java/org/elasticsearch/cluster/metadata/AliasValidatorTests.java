@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class AliasValidatorTests extends ESTestCase {
@@ -43,5 +45,29 @@ public class AliasValidatorTests extends ESTestCase {
 
         // Doesn't throw an exception because we allow upper case alias names
         validator.validateAliasStandalone("CAT", null);
+    }
+
+    public void testValidateAliasWriteOnly() {
+        AliasValidator validator = new AliasValidator(Settings.EMPTY);
+        String alias = randomAlphaOfLength(5);
+        String index = randomAlphaOfLength(10);
+
+        // when false
+        validator.validateAliasWriteOnly(alias, false, buildMetaData(index, alias, randomBoolean()));
+
+        // when true and conflicts with existing index
+        Exception exception = expectThrows(IllegalArgumentException.class,
+            () -> validator.validateAliasWriteOnly(alias, true, buildMetaData(index, alias, true)));
+        assertThat(exception.getMessage(), equalTo("alias [" + alias + "] already has a write index [" + index + "]"));
+
+        // when true and safe
+        validator.validateAliasWriteOnly(alias, true, buildMetaData(index, alias, false));
+    }
+
+    private MetaData buildMetaData(String name, String alias, boolean writeIndex) {
+        return MetaData.builder().put(IndexMetaData.builder(name)
+            .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
+            .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
+            .numberOfShards(1).numberOfReplicas(0)).build();
     }
 }

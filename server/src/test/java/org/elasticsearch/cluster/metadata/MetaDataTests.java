@@ -428,6 +428,40 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    public void testMetaDataBuilderGetWriteIndex() {
+        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("index")
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0);
+        boolean hasAlias = randomBoolean();
+        Boolean isWriteIndex = randomBoolean() ? null : randomBoolean();
+        if (hasAlias) {
+            indexMetaDataBuilder.putAlias(AliasMetaData.builder("alias").writeIndex(isWriteIndex));
+        }
+        MetaData.Builder builder = MetaData.builder().put(indexMetaDataBuilder);
+        Index writeIndex = builder.getWriteIndex("alias");
+        if (hasAlias && Boolean.TRUE.equals(isWriteIndex)) {
+            assertThat(writeIndex, equalTo(indexMetaDataBuilder.build().getIndex()));
+        } else {
+            assertNull(writeIndex);
+        }
+    }
+
+    public void testMetaDataGetWriteIndex() {
+        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("index")
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0);
+        boolean hasAlias = randomBoolean();
+        Boolean isWriteIndex = randomBoolean() ? null : randomBoolean();
+        if (hasAlias) {
+            indexMetaDataBuilder.putAlias(AliasMetaData.builder("alias").writeIndex(isWriteIndex));
+        }
+        MetaData metaData = MetaData.builder().put(indexMetaDataBuilder).build();
+        Index writeIndex = metaData.getWriteIndex("alias");
+        if (hasAlias && Boolean.TRUE.equals(isWriteIndex)) {
+            assertThat(writeIndex, equalTo(indexMetaDataBuilder.build().getIndex()));
+        } else {
+            assertNull(writeIndex);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
                                                     String index) {

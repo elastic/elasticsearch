@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import java.util.Collection;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
@@ -123,6 +125,62 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
                 new AliasAction.RemoveIndex("test"),
                 new AliasAction.RemoveIndex("test")));
         assertNull(after.metaData().getAliasAndIndexLookup().get("test"));
+    }
+
+    public void testAddWriteOnlyWithNoExistingAliases() {
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), "test");
+
+        ClusterState after = service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, false)));
+        assertNull(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex());
+
+        after = service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, null)));
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test")));
+
+        after = service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, true)));
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test")));
+    }
+
+    public void testAddWriteOnlyWithExistingWriteIndex() {
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test")
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("test2")
+            .putAlias(AliasMetaData.builder("alias").writeIndex(true).build())
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
+
+        ClusterState after = service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, null)));
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test2")));
+
+        after = service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, null)));
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test2")));
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, true))));
+        assertThat(exception.getMessage(), equalTo("alias [alias] already has a write index [test2]"));
+    }
+
+    public void testAddWriteOnlyValidatesAgainstMetaDataBuilder() {
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test")
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("test2")
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
+
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, true),
+            new AliasAction.Add("test2", "alias", null, null, null, true)
+        )));
+        assertThat(exception.getMessage(), equalTo("alias [alias] already has a write index [test]"));
     }
 
     private ClusterState createIndex(ClusterState state, String index) {

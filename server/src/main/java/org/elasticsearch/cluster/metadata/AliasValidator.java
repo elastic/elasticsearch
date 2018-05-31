@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -37,6 +38,7 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -57,7 +59,8 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAlias(Alias alias, String index, MetaData metaData) {
-        validateAlias(alias.name(), index, alias.indexRouting(), name -> metaData.index(name));
+        validateAlias(alias.name(), index, alias.indexRouting(), alias.writeIndex(), metaData::index,
+            () -> metaData.getWriteIndex(alias.name()));
     }
 
     /**
@@ -66,7 +69,8 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasMetaData(AliasMetaData aliasMetaData, String index, MetaData metaData) {
-        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), name -> metaData.index(name));
+        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), aliasMetaData.writeIndex(), metaData::index,
+            () -> metaData.getWriteIndex(aliasMetaData.alias()));
     }
 
     /**
@@ -90,7 +94,8 @@ public class AliasValidator extends AbstractComponent {
     /**
      * Validate a proposed alias.
      */
-    public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetaData> indexLookup) {
+    public void validateAlias(String alias, String index, @Nullable String indexRouting, @Nullable Boolean writeIndex,
+                              Function<String, IndexMetaData> indexLookup, Supplier<Index> writeIndexSupplier) {
         validateAliasStandalone(alias, indexRouting);
 
         if (!Strings.hasText(index)) {
@@ -100,6 +105,11 @@ public class AliasValidator extends AbstractComponent {
         IndexMetaData indexNamedSameAsAlias = indexLookup.apply(alias);
         if (indexNamedSameAsAlias != null) {
             throw new InvalidAliasNameException(indexNamedSameAsAlias.getIndex(), alias, "an index exists with the same name as the alias");
+        }
+
+        Index existingWriteIndex = writeIndexSupplier.get();
+        if (Boolean.TRUE.equals(writeIndex) && existingWriteIndex != null && existingWriteIndex.getName().equals(index) == false) {
+            throw new IllegalArgumentException("alias [" + alias + "] already has a write index [" + existingWriteIndex.getName() + "]");
         }
     }
 
@@ -142,6 +152,27 @@ public class AliasValidator extends AbstractComponent {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
+        }
+    }
+
+    /**
+     * throws exception if specified alias is attempting to be write_only while this alias points to another index
+     *
+     * @param aliasName the alias in question
+     * @param metaData the Cluster metadata
+     * @throws IllegalArgumentException if the alias cannot be write_only
+     */
+    public void validateAliasWriteOnly(String aliasName, boolean isWriteIndex, MetaData metaData) {
+        if (isWriteIndex) {
+            AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(aliasName);
+            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
+                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                IndexMetaData writeIndex = alias.getWriteIndex();
+                if (writeIndex != null) {
+                    throw new IllegalArgumentException("alias [" + aliasName +
+                        "] already has a write index [" + writeIndex.getIndex().getName() + "]");
+                }
+            }
         }
     }
 

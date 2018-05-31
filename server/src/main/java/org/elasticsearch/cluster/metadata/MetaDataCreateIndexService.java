@@ -511,14 +511,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indexMetaDataBuilder.putMapping(mappingMd);
                 }
 
+                Map<String, AliasMetaData> aliases = new HashMap<>();
+
                 for (AliasMetaData aliasMetaData : templatesAliases.values()) {
-                    indexMetaDataBuilder.putAlias(aliasMetaData);
+                    aliases.put(aliasMetaData.getAlias(), aliasMetaData);
                 }
                 for (Alias alias : request.aliases()) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.isWriteIndex()).build();
-                    indexMetaDataBuilder.putAlias(aliasMetaData);
+                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
+                    aliases.put(aliasMetaData.getAlias(), aliasMetaData);
                 }
+
+                aliases.forEach((aliasName, aliasMetaData) -> {
+                    if (aliasMetaData.writeIndex() == null
+                            && currentState.metaData().getWriteIndex(aliasName) == null) {
+                        indexMetaDataBuilder.putAlias(AliasMetaData.builder(aliasName).filter(aliasMetaData.getFilter())
+                            .indexRouting(aliasMetaData.getIndexRouting()).searchRouting(aliasMetaData.searchRouting()).writeIndex(true));
+                    } else {
+                        aliasValidator.validateAliasWriteOnly(aliasMetaData.alias(), Boolean.TRUE.equals(aliasMetaData.writeIndex()),
+                            currentState.metaData());
+                        indexMetaDataBuilder.putAlias(aliasMetaData);
+                    }
+                });
 
                 for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
                     indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());

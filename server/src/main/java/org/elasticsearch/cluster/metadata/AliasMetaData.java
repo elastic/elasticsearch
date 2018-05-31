@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,6 +57,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
 
     private final Set<String> searchRoutingValues;
 
+    @Nullable
     private final Boolean writeIndex;
 
     private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex) {
@@ -147,7 +148,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         if (indexRouting != null ? !indexRouting.equals(that.indexRouting) : that.indexRouting != null) return false;
         if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null)
             return false;
-        if (writeIndex != null ? !writeIndex.equals(that.writeIndex) : that.writeIndex != null)
+        if (writeIndex != null ? writeIndex != that.writeIndex : that.writeIndex != null)
             return false;
 
         return true;
@@ -212,7 +213,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             writeIndex = in.readOptionalBoolean();
         } else {
-            writeIndex = false;
+            writeIndex = null;
         }
     }
 
@@ -241,6 +242,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
 
         private String searchRouting;
 
+        @Nullable
         private Boolean writeIndex;
 
 
@@ -307,7 +309,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             return this;
         }
 
-        public Builder writeIndex(Boolean writeIndex) {
+        public Builder writeIndex(@Nullable Boolean writeIndex) {
             this.writeIndex = writeIndex;
             return this;
         }

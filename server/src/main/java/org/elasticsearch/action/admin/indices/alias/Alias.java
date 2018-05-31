@@ -62,7 +62,8 @@ public class Alias implements Streamable, ToXContentObject {
     @Nullable
     private String searchRouting;
 
-    private boolean writeIndex;
+    @Nullable
+    private Boolean writeIndex;
 
     private Alias() {
 
@@ -173,14 +174,14 @@ public class Alias implements Streamable, ToXContentObject {
     /**
      * @return the write index flag for the alias
      */
-    public boolean isWriteIndex() {
+    public Boolean writeIndex() {
         return writeIndex;
     }
 
     /**
      *  Sets whether an alias is pointing to a write-index
      */
-    public Alias writeIndex(boolean writeIndex) {
+    public Alias writeIndex(@Nullable Boolean writeIndex) {
         this.writeIndex = writeIndex;
         return this;
     }
@@ -201,7 +202,7 @@ public class Alias implements Streamable, ToXContentObject {
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            writeIndex = in.readBoolean();
+            writeIndex = in.readOptionalBoolean();
         }
     }
 
@@ -212,7 +213,7 @@ public class Alias implements Streamable, ToXContentObject {
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(writeIndex);
+            out.writeOptionalBoolean(writeIndex);
         }
     }
 

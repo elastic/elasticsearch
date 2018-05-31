@@ -554,6 +554,25 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         throw new IndexNotFoundException(index);
     }
 
+    /**
+     * Retrieves the write-index for a given <code>alias</code>
+     *
+     * @param alias the alias to search for a write-index with
+     * @return the write-index {@link Index} for <code>alias</code>, null if no write-index is configured
+     */
+    public Index getWriteIndex(String alias) {
+        for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+            IndexMetaData indexMetaData = cursor.value;
+            for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                AliasMetaData aliasMetaData = aliasCursor.value;
+                if (aliasMetaData.getAlias().equals(alias) && aliasMetaData.writeIndex()) {
+                    return indexMetaData.getIndex();
+                }
+            }
+        }
+        return null;
+    }
+
     public ImmutableOpenMap<String, IndexMetaData> indices() {
         return this.indices;
     }
@@ -995,6 +1014,25 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 clusterUUID = UUIDs.randomBase64UUID();
             }
             return this;
+        }
+
+        /**
+         * Retrieves the write-index for a given <code>alias</code>
+         *
+         * @param alias the alias to search for a write-index with
+         * @return the write-index {@link Index} for <code>alias</code>, null if no write-index is configured
+         */
+        public Index getWriteIndex(String alias) {
+            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                IndexMetaData indexMetaData = cursor.value;
+                for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                    AliasMetaData aliasMetaData = aliasCursor.value;
+                    if (aliasMetaData.getAlias().equals(alias) && aliasMetaData.writeIndex()) {
+                        return indexMetaData.getIndex();
+                    }
+                }
+            }
+            return null;
         }
 
         public MetaData build() {

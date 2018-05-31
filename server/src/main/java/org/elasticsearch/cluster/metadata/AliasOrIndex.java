@@ -95,6 +95,11 @@ public interface AliasOrIndex {
             return referenceIndexMetaDatas;
         }
 
+
+        public IndexMetaData getWriteIndex() {
+            return referenceIndexMetaDatas.stream().filter(i -> i.getAliases().get(aliasName).writeIndex()).findAny().orElse(null);
+        }
+
         /**
          * Returns the unique alias metadata per concrete index.
          *

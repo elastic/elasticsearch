@@ -64,6 +64,7 @@ import java.util.Arrays;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.inject.matcher.Matchers.any;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasAllKeys;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.hamcrest.Matchers.containsString;
@@ -71,6 +72,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.isA;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
@@ -290,6 +294,37 @@ public class IndexCreationTaskTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, this::executeTask);
 
         assertThat(e.getMessage(), containsString("invalid wait_for_active_shards"));
+    }
+
+    public void testWriteIndex() throws Exception {
+        Boolean writeIndex = randomBoolean() ? null : randomBoolean();
+        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
+        setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
+        setupRequestMapping("mapping1", createMapping());
+        setupRequestCustom("custom1", createCustom());
+        reqSettings.put("key1", "value1");
+
+        final ClusterState result = executeTask();
+
+        Boolean expectedWriteIndex = writeIndex == null ? Boolean.TRUE : writeIndex;
+        assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
+        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(expectedWriteIndex));
+    }
+
+    public void testWriteIndexValidationException() throws Exception {
+        IndexMetaData existingWriteIndex = IndexMetaData.builder("test2")
+            .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
+            .numberOfShards(1).numberOfReplicas(0).build();
+        idxBuilder.put("test2", existingWriteIndex);
+        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
+        setupRequestMapping("mapping1", createMapping());
+        setupRequestCustom("custom1", createCustom());
+        reqSettings.put("key1", "value1");
+        Boolean isWriteIndex = randomBoolean() ? true : null;
+        setupRequestAlias(new Alias("alias1").writeIndex(isWriteIndex));
+
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> executeTask());
+        assertThat(exception.getMessage(), equalTo("alias [alias1] already has a write index [test2]"));
     }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {

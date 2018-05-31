@@ -291,6 +291,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 sb.append("isa_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
             }
         }
+        if (metaData.customs().isEmpty() == false) {
+            sb.append("metadata customs:\n");
+            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
+                final String type = cursor.key;
+                final MetaData.Custom custom = cursor.value;
+                sb.append(TAB).append(type).append(": ").append(custom);
+            }
+        }
+        sb.append("\n");
         sb.append(blocks());
         sb.append(nodes());
         sb.append(routingTable());
@@ -738,13 +747,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         blocks.writeTo(out);
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
-        for (ObjectCursor<Custom> cursor : customs.values()) {
+        for (final ObjectCursor<Custom> cursor : customs.values()) {
             if (FeatureAware.shouldSerializeCustom(out, cursor.value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
-        for (ObjectCursor<Custom> cursor : customs.values()) {
+        for (final ObjectCursor<Custom> cursor : customs.values()) {
             if (FeatureAware.shouldSerializeCustom(out, cursor.value)) {
                 out.writeNamedWriteable(cursor.value);
             }

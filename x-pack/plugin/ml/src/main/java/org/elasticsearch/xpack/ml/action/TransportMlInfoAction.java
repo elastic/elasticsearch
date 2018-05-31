@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
@@ -31,10 +32,9 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     @Inject
     public TransportMlInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                 ClusterService clusterService) {
-        super(settings, MlInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                MlInfoAction.Request::new);
+                                 ActionFilters actionFilters, ClusterService clusterService) {
+        super(settings, MlInfoAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
         this.clusterService = clusterService;
     }
 

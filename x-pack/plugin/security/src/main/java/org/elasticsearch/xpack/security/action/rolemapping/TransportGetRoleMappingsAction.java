@@ -29,13 +29,10 @@ public class TransportGetRoleMappingsAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportGetRoleMappingsAction(Settings settings, ThreadPool threadPool,
-                                          ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                          TransportService transportService,
-                                          NativeRoleMappingStore nativeRoleMappingStore) {
+    public TransportGetRoleMappingsAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+                                          TransportService transportService, NativeRoleMappingStore nativeRoleMappingStore) {
         super(settings, GetRoleMappingsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetRoleMappingsRequest::new);
+            GetRoleMappingsRequest::new);
         this.roleMappingStore = nativeRoleMappingStore;
     }
 

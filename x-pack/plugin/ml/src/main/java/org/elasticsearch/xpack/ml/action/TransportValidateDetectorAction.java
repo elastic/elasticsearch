@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -20,9 +22,9 @@ public class TransportValidateDetectorAction extends HandledTransportAction<Vali
 
     @Inject
     public TransportValidateDetectorAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ValidateDetectorAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                ValidateDetectorAction.Request::new);
+                                           ActionFilters actionFilters) {
+        super(settings, ValidateDetectorAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<ValidateDetectorAction.Request>) ValidateDetectorAction.Request::new);
     }
 
     @Override

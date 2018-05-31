@@ -75,8 +75,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(authorizationService).roles(eq(user), any(ActionListener.class));
 
-        action = new TransportHasPrivilegesAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), authorizationService);
+        action = new TransportHasPrivilegesAction(settings, threadPool, transportService, mock(ActionFilters.class), authorizationService);
     }
 
     /**

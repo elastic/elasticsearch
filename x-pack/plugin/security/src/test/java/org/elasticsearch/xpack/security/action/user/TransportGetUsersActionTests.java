@@ -93,7 +93,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
+                usersStore, transportService, reservedRealm);
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(anonymousUser.principal());
@@ -128,7 +128,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
+                usersStore, transportService, mock(ReservedRealm.class));
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
@@ -171,7 +171,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
+                usersStore, transportService, reservedRealm);
 
         logger.error("names {}", names);
         GetUsersRequest request = new GetUsersRequest();
@@ -211,7 +211,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
+                usersStore, transportService, reservedRealm);
 
         GetUsersRequest request = new GetUsersRequest();
         doAnswer(new Answer() {
@@ -258,7 +258,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
+                usersStore, transportService, mock(ReservedRealm.class));
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);
@@ -306,7 +306,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
+                usersStore, transportService, mock(ReservedRealm.class));
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);

@@ -39,10 +39,10 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
 
     @Inject
     public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                              ActionFilters actionFilters,
                                               JobProvider jobProvider, ClusterService clusterService, Client client, Auditor auditor) {
-        super(settings, DeleteModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteModelSnapshotAction.Request::new);
+        super(settings, DeleteModelSnapshotAction.NAME, threadPool, transportService, actionFilters,
+              DeleteModelSnapshotAction.Request::new);
         this.client = client;
         this.jobProvider = jobProvider;
         this.clusterService = clusterService;

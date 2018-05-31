@@ -45,10 +45,9 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     @Inject
     public TransportForecastJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
-                                      AutodetectProcessManager processManager) {
+                                      JobProvider jobProvider, AutodetectProcessManager processManager) {
         super(settings, ForecastJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ForecastJobAction.Request::new, ForecastJobAction.Response::new,
+            ForecastJobAction.Request::new, ForecastJobAction.Response::new,
                 ThreadPool.Names.SAME, processManager);
         this.jobProvider = jobProvider;
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread

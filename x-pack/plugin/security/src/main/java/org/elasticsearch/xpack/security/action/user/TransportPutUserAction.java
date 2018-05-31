@@ -30,9 +30,8 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
     @Inject
     public TransportPutUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                   NativeUsersStore usersStore, TransportService transportService) {
-        super(settings, PutUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutUserRequest::new);
+        super(settings, PutUserAction.NAME, threadPool, transportService, actionFilters, PutUserRequest::new);
         this.usersStore = usersStore;
     }
 

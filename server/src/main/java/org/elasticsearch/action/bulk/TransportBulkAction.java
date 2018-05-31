@@ -91,6 +91,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final TransportCreateIndexAction createIndexAction;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -110,7 +111,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest::new);
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest::new);
         Objects.requireNonNull(relativeTimeProvider);
         this.clusterService = clusterService;
         this.ingestService = ingestService;
@@ -119,6 +120,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.autoCreateIndex = autoCreateIndex;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 

@@ -59,7 +59,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(settings, actionName, threadPool, EMPTY_FILTERS, null, new TaskManager(settings, threadPool, Collections.emptySet()));
+            super(settings, actionName, threadPool, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet()));
         }
 
         @Override

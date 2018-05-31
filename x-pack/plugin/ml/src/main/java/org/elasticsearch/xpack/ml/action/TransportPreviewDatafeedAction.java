@@ -32,6 +32,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
@@ -41,10 +42,9 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     @Inject
     public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          Client client, ClusterService clusterService) {
-        super(settings, PreviewDatafeedAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                PreviewDatafeedAction.Request::new);
+                                          ActionFilters actionFilters, Client client, ClusterService clusterService) {
+        super(settings, PreviewDatafeedAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
     }

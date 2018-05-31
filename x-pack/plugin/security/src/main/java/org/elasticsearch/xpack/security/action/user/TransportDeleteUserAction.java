@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -28,10 +30,9 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
 
     @Inject
     public TransportDeleteUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, NativeUsersStore usersStore,
-                                     TransportService transportService) {
-        super(settings, DeleteUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteUserRequest::new);
+                                     NativeUsersStore usersStore, TransportService transportService) {
+        super(settings, DeleteUserAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<DeleteUserRequest>) DeleteUserRequest::new);
         this.usersStore = usersStore;
     }
 

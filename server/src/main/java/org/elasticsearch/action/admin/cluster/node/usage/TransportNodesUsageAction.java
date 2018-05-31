@@ -43,10 +43,9 @@ public class TransportNodesUsageAction
 
     @Inject
     public TransportNodesUsageAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, UsageService usageService) {
-        super(settings, NodesUsageAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                NodesUsageRequest::new, NodeUsageRequest::new, ThreadPool.Names.MANAGEMENT, NodeUsage.class);
+            TransportService transportService, ActionFilters actionFilters, UsageService usageService) {
+        super(settings, NodesUsageAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            NodesUsageRequest::new, NodeUsageRequest::new, ThreadPool.Names.MANAGEMENT, NodeUsage.class);
         this.usageService = usageService;
     }
 

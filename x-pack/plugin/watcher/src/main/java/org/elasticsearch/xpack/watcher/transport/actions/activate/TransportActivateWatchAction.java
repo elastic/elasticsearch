@@ -53,10 +53,9 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
 
     @Inject
     public TransportActivateWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Clock clock,
-                                        XPackLicenseState licenseState, WatchParser parser, Client client) {
-        super(settings, ActivateWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, ActivateWatchRequest::new);
+                                        ActionFilters actionFilters, Clock clock, XPackLicenseState licenseState,
+                                        WatchParser parser, Client client) {
+        super(settings, ActivateWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, ActivateWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.client = client;

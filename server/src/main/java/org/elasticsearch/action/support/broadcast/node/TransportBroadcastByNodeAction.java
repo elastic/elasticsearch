@@ -81,6 +81,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String transportNodeBroadcastAction;
 
@@ -109,11 +110,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             Supplier<Request> request,
             String executor,
             boolean canTripCircuitBreaker) {
-        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters,
             request);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         transportNodeBroadcastAction = actionName + "[n]";
 

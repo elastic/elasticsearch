@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -26,11 +28,10 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     @Inject
     public TransportSqlTranslateAction(Settings settings, ThreadPool threadPool,
                                        TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                        PlanExecutor planExecutor,
                                        SqlLicenseChecker sqlLicenseChecker) {
         super(settings, SqlTranslateAction.NAME, threadPool, transportService, actionFilters,
-                SqlTranslateRequest::new, indexNameExpressionResolver);
+            (Supplier<SqlTranslateRequest>) SqlTranslateRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;

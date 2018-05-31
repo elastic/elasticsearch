@@ -25,9 +25,8 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
 
     @Inject
     public TransportPutRoleAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                   NativeRolesStore rolesStore, TransportService transportService) {
-        super(settings, PutRoleAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutRoleRequest::new);
+        super(settings, PutRoleAction.NAME, threadPool, transportService, actionFilters, PutRoleRequest::new);
         this.rolesStore = rolesStore;
     }
 

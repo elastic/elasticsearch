@@ -55,12 +55,10 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     private final GatewayMetaState metaState;
 
     @Inject
-    public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool,
-                                              ClusterService clusterService, TransportService transportService,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              GatewayMetaState metaState) {
+    public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                              TransportService transportService, ActionFilters actionFilters, GatewayMetaState metaState) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
+            Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
         this.metaState = metaState;
     }
 

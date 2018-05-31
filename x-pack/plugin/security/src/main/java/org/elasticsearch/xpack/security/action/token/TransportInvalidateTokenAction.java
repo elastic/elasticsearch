@@ -27,10 +27,9 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
 
     @Inject
     public TransportInvalidateTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          TokenService tokenService) {
+                                          ActionFilters actionFilters, TokenService tokenService) {
         super(settings, InvalidateTokenAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, InvalidateTokenRequest::new);
+            InvalidateTokenRequest::new);
         this.tokenService = tokenService;
     }
 

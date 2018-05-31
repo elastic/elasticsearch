@@ -37,9 +37,8 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
     @Inject
     public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
                                       SearchTransportService searchTransportService) {
-        super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters,
             ClearScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;

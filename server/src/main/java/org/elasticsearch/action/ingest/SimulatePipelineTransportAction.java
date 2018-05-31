@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
 
@@ -39,8 +40,10 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final SimulateExecutionService executionService;
 
     @Inject
-    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
-        super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, SimulatePipelineRequest::new, indexNameExpressionResolver);
+    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                           ActionFilters actionFilters, NodeService nodeService) {
+        super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<SimulatePipelineRequest>) SimulatePipelineRequest::new);
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
         this.executionService = new SimulateExecutionService(threadPool);
     }

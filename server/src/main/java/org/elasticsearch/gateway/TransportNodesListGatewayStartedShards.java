@@ -72,14 +72,11 @@ public class TransportNodesListGatewayStartedShards extends
     private final IndicesService indicesService;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool,
-                                                  ClusterService clusterService, TransportService transportService,
-                                                  ActionFilters actionFilters,
-                                                  IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                  TransportService transportService, ActionFilters actionFilters,
                                                   NodeEnvironment env, IndicesService indicesService) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
-              NodeGatewayStartedShards.class);
+            Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED, NodeGatewayStartedShards.class);
         this.nodeEnv = env;
         this.indicesService = indicesService;
     }

@@ -40,12 +40,9 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
 
     @Inject
     public TransportGetRollupJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService) {
-
+                                       ActionFilters actionFilters, ClusterService clusterService) {
         super(settings, GetRollupJobsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, GetRollupJobsAction.Request::new,
-                GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
+            GetRollupJobsAction.Request::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override

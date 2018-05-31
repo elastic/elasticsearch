@@ -81,7 +81,6 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private ActionFilters filters;
-    private IndexNameExpressionResolver resolver;
     private final MonitoringService monitoringService = mock(MonitoringService.class);
 
     @Before
@@ -96,7 +95,6 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         transportService = mock(TransportService.class);
         filters = mock(ActionFilters.class);
-        resolver = mock(IndexNameExpressionResolver.class);
 
         when(transportService.getTaskManager()).thenReturn(taskManager);
         when(taskManager.register(anyString(), eq(MonitoringBulkAction.NAME), any(TaskAwareRequest.class))).thenReturn(null);
@@ -115,7 +113,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).blocks(clusterBlock).build());
 
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
-                                                                                       transportService, filters, resolver, exporters,
+                                                                                       transportService, filters, exporters,
                                                                                        monitoringService);
 
         final MonitoringBulkRequest request = randomRequest();
@@ -129,7 +127,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         when(monitoringService.isMonitoringActive()).thenReturn(false);
 
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
-                                                                                       transportService, filters, resolver, exporters,
+                                                                                       transportService, filters, exporters,
                                                                                        monitoringService);
 
         final MonitoringBulkDoc doc = mock(MonitoringBulkDoc.class);
@@ -151,7 +149,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         when(monitoringService.isMonitoringActive()).thenReturn(randomBoolean());
 
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
-                                                                                       transportService, filters, resolver, exporters,
+                                                                                       transportService, filters, exporters,
                                                                                        monitoringService);
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
@@ -215,7 +213,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
-                                                                                       transportService, filters, resolver, exporters,
+                                                                                       transportService, filters, exporters,
                                                                                        monitoringService);
         action.execute(request).get();
 

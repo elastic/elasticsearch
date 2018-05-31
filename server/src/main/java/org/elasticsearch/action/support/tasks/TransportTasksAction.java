@@ -28,7 +28,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -78,12 +77,10 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
-    protected TransportTasksAction(Settings settings, String actionName, ThreadPool threadPool,
-                                   ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Supplier<TasksRequest> requestSupplier,
-                                   Supplier<TasksResponse> responseSupplier,
-                                   String nodeExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestSupplier);
+    protected TransportTasksAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
+                                   TransportService transportService, ActionFilters actionFilters, Supplier<TasksRequest> requestSupplier,
+                                   Supplier<TasksResponse> responseSupplier, String nodeExecutor) {
+        super(settings, actionName, threadPool, transportService, actionFilters, requestSupplier);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";

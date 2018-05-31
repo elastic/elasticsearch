@@ -37,10 +37,9 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
     @Inject
     public TransportKillProcessAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
                                       AutodetectProcessManager processManager, Auditor auditor) {
-        super(settings, KillProcessAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
+        super(settings, KillProcessAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
         this.auditor = auditor;
     }
 

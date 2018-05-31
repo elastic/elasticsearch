@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -37,11 +39,10 @@ public class TransportSyncedFlushAction extends HandledTransportAction<SyncedFlu
     SyncedFlushService syncedFlushService;
 
     @Inject
-    public TransportSyncedFlushAction(Settings settings, ThreadPool threadPool,
-                                      TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
-                                      SyncedFlushService syncedFlushService) {
-        super(settings, SyncedFlushAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SyncedFlushRequest::new);
+    public TransportSyncedFlushAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                      ActionFilters actionFilters, SyncedFlushService syncedFlushService) {
+        super(settings, SyncedFlushAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<SyncedFlushRequest>) SyncedFlushRequest::new);
         this.syncedFlushService = syncedFlushService;
     }
 

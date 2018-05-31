@@ -38,10 +38,8 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
 
     @Inject
     public TransportCreateTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      TokenService tokenService, AuthenticationService authenticationService) {
-        super(settings, CreateTokenAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                CreateTokenRequest::new);
+                                      ActionFilters actionFilters, TokenService tokenService, AuthenticationService authenticationService) {
+        super(settings, CreateTokenAction.NAME, threadPool, transportService, actionFilters, CreateTokenRequest::new);
         this.tokenService = tokenService;
         this.authenticationService = authenticationService;
     }

@@ -53,11 +53,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
     @Inject
     public TransportStopDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService, PersistentTasksService persistentTasksService) {
+                                       ActionFilters actionFilters, ClusterService clusterService,
+                                       PersistentTasksService persistentTasksService) {
         super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, StopDatafeedAction.Request::new, StopDatafeedAction.Response::new,
-                MachineLearning.UTILITY_THREAD_POOL_NAME);
+            StopDatafeedAction.Request::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.persistentTasksService = persistentTasksService;
     }
 

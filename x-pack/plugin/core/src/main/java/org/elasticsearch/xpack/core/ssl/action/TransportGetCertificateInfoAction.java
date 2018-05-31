@@ -28,10 +28,9 @@ public class TransportGetCertificateInfoAction extends HandledTransportAction<Ge
     @Inject
     public TransportGetCertificateInfoAction(Settings settings, ThreadPool threadPool,
                                              TransportService transportService, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
                                              SSLService sslService) {
         super(settings, GetCertificateInfoAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetCertificateInfoAction.Request::new);
+            GetCertificateInfoAction.Request::new);
         this.sslService = sslService;
     }
 

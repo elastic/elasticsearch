@@ -173,7 +173,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final Realms realms = mock(Realms.class);
         action = new TransportSamlInvalidateSessionAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), tokenService, realms);
+                mock(ActionFilters.class),tokenService, realms);
 
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Environment env = TestEnvironment.newEnvironment(settings);

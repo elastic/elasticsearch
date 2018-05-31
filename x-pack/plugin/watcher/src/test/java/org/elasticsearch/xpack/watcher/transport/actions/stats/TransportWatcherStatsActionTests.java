@@ -81,8 +81,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(triggerService.stats()).thenReturn(firstTriggerServiceStats, secondTriggerServiceStats);
 
         action = new TransportWatcherStatsAction(Settings.EMPTY, transportService, clusterService, threadPool, new
-            ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), watcherLifeCycleService,
-            executionService, triggerService);
+            ActionFilters(Collections.emptySet()), watcherLifeCycleService, executionService, triggerService);
     }
 
     public void testWatcherStats() throws Exception {

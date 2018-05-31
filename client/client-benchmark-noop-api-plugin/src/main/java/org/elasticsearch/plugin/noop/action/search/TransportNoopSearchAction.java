@@ -37,13 +37,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.function.Supplier;
 
 public class TransportNoopSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
     @Inject
-    public TransportNoopSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters
-        actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters, SearchRequest::new,
-            indexNameExpressionResolver);
+    public TransportNoopSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                     ActionFilters actionFilters) {
+        super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters, (Supplier<SearchRequest>) SearchRequest::new);
     }
 
     @Override

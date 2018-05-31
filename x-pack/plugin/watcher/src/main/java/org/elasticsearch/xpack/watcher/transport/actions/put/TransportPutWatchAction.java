@@ -64,10 +64,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   WatchParser parser, Client client) {
-        super(settings, PutWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, PutWatchRequest::new);
+                                   Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
+        super(settings, PutWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, PutWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.client = client;

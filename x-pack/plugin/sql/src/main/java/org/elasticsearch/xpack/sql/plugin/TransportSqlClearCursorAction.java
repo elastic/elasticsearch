@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -25,13 +27,9 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlClearCursorAction(Settings settings, ThreadPool threadPool,
-                           TransportService transportService, ActionFilters actionFilters,
-                           IndexNameExpressionResolver indexNameExpressionResolver,
-                           PlanExecutor planExecutor,
-                           SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, NAME, threadPool, transportService, actionFilters, SqlClearCursorRequest::new,
-                indexNameExpressionResolver);
+    public TransportSqlClearCursorAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                         ActionFilters actionFilters, PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
+        super(settings, NAME, threadPool, transportService, actionFilters, (Supplier<SqlClearCursorRequest>) SqlClearCursorRequest::new);
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }

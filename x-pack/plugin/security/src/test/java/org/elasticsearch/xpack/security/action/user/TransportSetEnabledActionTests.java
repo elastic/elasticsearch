@@ -65,7 +65,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportSetEnabledAction action = new TransportSetEnabledAction(settings, threadPool, transportService, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore);
+                usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
         request.username(new AnonymousUser(settings).principal());
@@ -103,7 +103,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                mock(ActionFilters.class), usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
         request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
@@ -157,7 +157,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                mock(ActionFilters.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
@@ -209,7 +209,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                mock(ActionFilters.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
@@ -249,7 +249,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                mock(ActionFilters.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();

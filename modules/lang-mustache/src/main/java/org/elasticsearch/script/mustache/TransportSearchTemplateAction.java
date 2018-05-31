@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
 
@@ -55,11 +56,12 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
     @Inject
     public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver resolver,
+                                         ActionFilters actionFilters,
                                          ScriptService scriptService,
                                          TransportSearchAction searchAction,
                                          NamedXContentRegistry xContentRegistry) {
-        super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new);
+        super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters,
+              (Supplier<SearchTemplateRequest>) SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.searchAction = searchAction;
         this.xContentRegistry = xContentRegistry;

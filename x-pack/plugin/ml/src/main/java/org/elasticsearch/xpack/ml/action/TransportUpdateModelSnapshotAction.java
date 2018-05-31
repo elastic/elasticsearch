@@ -44,10 +44,9 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
 
     @Inject
     public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              JobProvider jobProvider, Client client) {
-        super(settings, UpdateModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                UpdateModelSnapshotAction.Request::new);
+                                              ActionFilters actionFilters, JobProvider jobProvider, Client client) {
+        super(settings, UpdateModelSnapshotAction.NAME, threadPool, transportService, actionFilters,
+            UpdateModelSnapshotAction.Request::new);
         this.jobProvider = jobProvider;
         this.client = client;
     }

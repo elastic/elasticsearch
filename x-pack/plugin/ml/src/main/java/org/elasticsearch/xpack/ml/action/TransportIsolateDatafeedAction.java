@@ -35,10 +35,9 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
 
     @Inject
     public TransportIsolateDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService) {
+                                          ActionFilters actionFilters, ClusterService clusterService) {
         super(settings, IsolateDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, IsolateDatafeedAction.Request::new, IsolateDatafeedAction.Response::new,
+            IsolateDatafeedAction.Request::new, IsolateDatafeedAction.Response::new,
                 MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 

@@ -27,10 +27,8 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
 
     @Inject
     public TransportChangePasswordAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         NativeUsersStore nativeUsersStore) {
-        super(settings, ChangePasswordAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                ChangePasswordRequest::new);
+                                         ActionFilters actionFilters, NativeUsersStore nativeUsersStore) {
+        super(settings, ChangePasswordAction.NAME, threadPool, transportService, actionFilters, ChangePasswordRequest::new);
         this.nativeUsersStore = nativeUsersStore;
     }
 

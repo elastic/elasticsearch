@@ -27,11 +27,10 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
     private final CompositeRolesStore rolesStore;
 
     @Inject
-    public TransportClearRolesCacheAction(Settings settings, ThreadPool threadPool,
-                                          ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                          CompositeRolesStore rolesStore, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportClearRolesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                          TransportService transportService, ActionFilters actionFilters, CompositeRolesStore rolesStore) {
         super(settings, ClearRolesCacheAction.NAME, threadPool, clusterService, transportService,
-              actionFilters, indexNameExpressionResolver, ClearRolesCacheRequest::new, ClearRolesCacheRequest.Node::new,
+              actionFilters, ClearRolesCacheRequest::new, ClearRolesCacheRequest.Node::new,
               ThreadPool.Names.MANAGEMENT, ClearRolesCacheResponse.Node.class);
         this.rolesStore = rolesStore;
     }

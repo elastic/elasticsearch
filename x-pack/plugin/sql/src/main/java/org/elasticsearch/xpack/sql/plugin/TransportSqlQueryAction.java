@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
@@ -34,13 +35,9 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlQueryAction(Settings settings, ThreadPool threadPool,
-                                   TransportService transportService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                   PlanExecutor planExecutor,
-                                   SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlQueryAction.NAME, threadPool, transportService, actionFilters, SqlQueryRequest::new,
-                indexNameExpressionResolver);
+    public TransportSqlQueryAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                   PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
+        super(settings, SqlQueryAction.NAME, threadPool, transportService, actionFilters, (Supplier<SqlQueryRequest>) SqlQueryRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;

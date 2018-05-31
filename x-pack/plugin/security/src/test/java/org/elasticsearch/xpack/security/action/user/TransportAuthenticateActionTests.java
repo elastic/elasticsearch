@@ -41,7 +41,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
+                mock(ActionFilters.class), securityContext);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -67,7 +67,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
+                mock(ActionFilters.class), securityContext);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -95,7 +95,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
+                mock(ActionFilters.class), securityContext);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();

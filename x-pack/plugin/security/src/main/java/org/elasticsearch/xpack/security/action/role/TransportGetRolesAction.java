@@ -30,11 +30,10 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
 
     @Inject
     public TransportGetRolesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                    NativeRolesStore nativeRolesStore, TransportService transportService,
                                    ReservedRolesStore reservedRolesStore) {
-        super(settings, GetRolesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetRolesRequest::new);
+        super(settings, GetRolesAction.NAME, threadPool, transportService, actionFilters,
+            GetRolesRequest::new);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }

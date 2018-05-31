@@ -288,9 +288,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ScriptService scriptService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+                               ActionFilters actionFilters, ScriptService scriptService) {
+            super(settings, NAME, threadPool, transportService, actionFilters, Request::new);
             this.scriptService = scriptService;
         }
         @Override

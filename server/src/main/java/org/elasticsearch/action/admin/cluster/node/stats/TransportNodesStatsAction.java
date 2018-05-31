@@ -46,10 +46,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     @Inject
     public TransportNodesStatsAction(Settings settings, ThreadPool threadPool,
                                      ClusterService clusterService, TransportService transportService,
-                                     NodeService nodeService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+                                     NodeService nodeService, ActionFilters actionFilters) {
         super(settings, NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
+            NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
         this.nodeService = nodeService;
     }
 

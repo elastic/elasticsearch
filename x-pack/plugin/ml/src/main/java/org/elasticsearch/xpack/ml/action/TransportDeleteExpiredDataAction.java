@@ -38,10 +38,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
 
     @Inject
     public TransportDeleteExpiredDataAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            Client client, ClusterService clusterService) {
-        super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteExpiredDataAction.Request::new);
+                                            ActionFilters actionFilters, Client client, ClusterService clusterService) {
+        super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
         this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
     }

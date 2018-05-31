@@ -37,10 +37,9 @@ public final class TransportSamlPrepareAuthenticationAction
 
     @Inject
     public TransportSamlPrepareAuthenticationAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                    Realms realms) {
-        super(settings, SamlPrepareAuthenticationAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SamlPrepareAuthenticationRequest::new);
+                                                    ActionFilters actionFilters, Realms realms) {
+        super(settings, SamlPrepareAuthenticationAction.NAME, threadPool, transportService, actionFilters,
+            SamlPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 

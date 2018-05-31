@@ -122,9 +122,8 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, Request::new);
+                               ActionFilters actionFilters) {
+            super(settings, NAME, threadPool, transportService, actionFilters, Request::new);
         }
 
         @Override

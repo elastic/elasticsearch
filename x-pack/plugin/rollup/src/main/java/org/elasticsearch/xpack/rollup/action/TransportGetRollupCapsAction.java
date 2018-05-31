@@ -29,20 +29,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 
 public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
 
     private final ClusterService clusterService;
 
     @Inject
-    public TransportGetRollupCapsAction(Settings settings,
-                                        TransportService transportService,
-                                        ClusterService clusterService,
-                                        ThreadPool threadPool,
-                                        ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportGetRollupCapsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ThreadPool threadPool, ActionFilters actionFilters) {
         super(settings, GetRollupCapsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetRollupCapsAction.Request::new);
+            (Supplier<GetRollupCapsAction.Request>) GetRollupCapsAction.Request::new);
         this.clusterService = clusterService;
     }
 

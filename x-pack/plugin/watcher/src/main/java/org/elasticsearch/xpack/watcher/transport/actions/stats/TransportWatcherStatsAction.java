@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
-import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
@@ -39,12 +38,10 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
 
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, WatcherLifeCycleService lifeCycleService,
+                                       ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService,
                                        ExecutionService executionService, TriggerService triggerService) {
-        super(settings, WatcherStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                WatcherStatsRequest::new, WatcherStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT,
-                WatcherStatsResponse.Node.class);
+        super(settings, WatcherStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            WatcherStatsRequest::new, WatcherStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT, WatcherStatsResponse.Node.class);
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;
         this.triggerService = triggerService;

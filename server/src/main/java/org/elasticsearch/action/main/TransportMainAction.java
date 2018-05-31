@@ -40,9 +40,8 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
 
     @Inject
     public TransportMainAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService) {
-        super(settings, MainAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MainRequest::new);
+                               ActionFilters actionFilters, ClusterService clusterService) {
+        super(settings, MainAction.NAME, threadPool, transportService, actionFilters, MainRequest::new);
         this.clusterService = clusterService;
     }
 

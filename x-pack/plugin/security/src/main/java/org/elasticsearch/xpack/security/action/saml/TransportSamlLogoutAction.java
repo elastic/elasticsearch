@@ -43,10 +43,8 @@ public final class TransportSamlLogoutAction
 
     @Inject
     public TransportSamlLogoutAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     Realms realms, TokenService tokenService) {
-        super(settings, SamlLogoutAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SamlLogoutRequest::new);
+                                     ActionFilters actionFilters, Realms realms, TokenService tokenService) {
+        super(settings, SamlLogoutAction.NAME, threadPool, transportService, actionFilters, SamlLogoutRequest::new);
         this.realms = realms;
         this.tokenService = tokenService;
     }

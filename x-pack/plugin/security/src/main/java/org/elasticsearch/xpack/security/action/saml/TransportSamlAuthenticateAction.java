@@ -37,10 +37,9 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
 
     @Inject
     public TransportSamlAuthenticateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           AuthenticationService authenticationService, TokenService tokenService) {
-        super(settings, SamlAuthenticateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SamlAuthenticateRequest::new);
+                                           ActionFilters actionFilters, AuthenticationService authenticationService,
+                                           TokenService tokenService) {
+        super(settings, SamlAuthenticateAction.NAME, threadPool, transportService, actionFilters, SamlAuthenticateRequest::new);
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
     }

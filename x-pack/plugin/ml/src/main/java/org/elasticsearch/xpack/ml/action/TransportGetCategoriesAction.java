@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -26,10 +28,9 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
 
     @Inject
     public TransportGetCategoriesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        JobProvider jobProvider, Client client, JobManager jobManager) {
-        super(settings, GetCategoriesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetCategoriesAction.Request::new);
+                                        ActionFilters actionFilters, JobProvider jobProvider, Client client, JobManager jobManager) {
+        super(settings, GetCategoriesAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<GetCategoriesAction.Request>) GetCategoriesAction.Request::new);
         this.jobProvider = jobProvider;
         this.client = client;
         this.jobManager = jobManager;

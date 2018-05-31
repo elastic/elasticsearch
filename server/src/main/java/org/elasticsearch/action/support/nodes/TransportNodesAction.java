@@ -26,7 +26,6 @@ import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -63,11 +62,9 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected TransportNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                   Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest,
-                                   String nodeExecutor,
+                                   Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest, String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);

@@ -265,7 +265,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         TransportCloseJobAction transportAction = new TransportCloseJobAction(Settings.EMPTY,
-                mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+                mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
                 clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class));
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);

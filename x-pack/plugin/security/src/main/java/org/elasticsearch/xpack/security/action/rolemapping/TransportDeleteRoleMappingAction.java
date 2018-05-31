@@ -24,13 +24,10 @@ public class TransportDeleteRoleMappingAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportDeleteRoleMappingAction(Settings settings, ThreadPool threadPool,
-                                            ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver,
-                                            TransportService transportService,
-                                            NativeRoleMappingStore roleMappingStore) {
+    public TransportDeleteRoleMappingAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+                                            TransportService transportService, NativeRoleMappingStore roleMappingStore) {
         super(settings, DeleteRoleMappingAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, DeleteRoleMappingRequest::new);
+            DeleteRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 

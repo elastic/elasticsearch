@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
@@ -73,11 +74,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, RankEvalRequest::new,
-                indexNameExpressionResolver);
+    public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
+                                   TransportService transportService, ScriptService scriptService,
+                                   NamedXContentRegistry namedXContentRegistry) {
+        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, (Supplier<RankEvalRequest>) RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;

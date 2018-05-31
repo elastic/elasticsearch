@@ -23,6 +23,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -44,10 +46,9 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     @Inject
     public TransportDeleteCalendarEventAction(Settings settings, ThreadPool threadPool,
                            TransportService transportService, ActionFilters actionFilters,
-                           IndexNameExpressionResolver indexNameExpressionResolver,
                            Client client, JobProvider jobProvider, JobManager jobManager) {
         super(settings, DeleteCalendarEventAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, DeleteCalendarEventAction.Request::new);
+              DeleteCalendarEventAction.Request::new);
         this.client = client;
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;

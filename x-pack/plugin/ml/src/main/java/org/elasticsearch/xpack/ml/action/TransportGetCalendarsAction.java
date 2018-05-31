@@ -27,12 +27,10 @@ public class TransportGetCalendarsAction extends HandledTransportAction<GetCalen
     private final JobProvider jobProvider;
 
     @Inject
-    public TransportGetCalendarsAction(Settings settings, ThreadPool threadPool,
-                           TransportService transportService, ActionFilters actionFilters,
-                           IndexNameExpressionResolver indexNameExpressionResolver,
-                           JobProvider jobProvider) {
+    public TransportGetCalendarsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                       ActionFilters actionFilters, JobProvider jobProvider) {
         super(settings, GetCalendarsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetCalendarsAction.Request::new);
+            GetCalendarsAction.Request::new);
         this.jobProvider = jobProvider;
     }
 

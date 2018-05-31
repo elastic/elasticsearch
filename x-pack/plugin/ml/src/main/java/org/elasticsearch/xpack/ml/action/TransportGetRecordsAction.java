@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -27,10 +29,9 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
 
     @Inject
     public TransportGetRecordsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     JobProvider jobProvider, JobManager jobManager, Client client) {
-        super(settings, GetRecordsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetRecordsAction.Request::new);
+                                     ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager, Client client) {
+        super(settings, GetRecordsAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<GetRecordsAction.Request>) GetRecordsAction.Request::new);
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;
         this.client = client;

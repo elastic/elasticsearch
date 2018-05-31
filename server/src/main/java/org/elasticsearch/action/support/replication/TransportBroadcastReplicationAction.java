@@ -56,13 +56,15 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
 
     private final TransportReplicationAction replicatedBroadcastShardAction;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public TransportBroadcastReplicationAction(String name, Supplier<Request> request, Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                TransportService transportService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportReplicationAction replicatedBroadcastShardAction) {
-        super(settings, name, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        super(settings, name, threadPool, transportService, actionFilters, request);
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
 

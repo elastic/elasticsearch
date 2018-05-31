@@ -56,10 +56,9 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   WatchParser parser, ExecutionService executionService, Client client) {
-        super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, AckWatchRequest::new);
+                                   Clock clock, XPackLicenseState licenseState, WatchParser parser, ExecutionService executionService,
+                                   Client client) {
+        super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, AckWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.executionService = executionService;

@@ -24,13 +24,10 @@ public class TransportPutRoleMappingAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportPutRoleMappingAction(Settings settings, ThreadPool threadPool,
-                                         ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver,
-                                         TransportService transportService,
-                                         NativeRoleMappingStore roleMappingStore) {
+    public TransportPutRoleMappingAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+                                         TransportService transportService, NativeRoleMappingStore roleMappingStore) {
         super(settings, PutRoleMappingAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutRoleMappingRequest::new);
+            PutRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 

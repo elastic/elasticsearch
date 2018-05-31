@@ -89,7 +89,7 @@ The following parameters are accepted by `text` fields:
     What information should be stored in the index, for search and highlighting purposes.
     Defaults to `positions`.
 
-<<index-prefix-config,`index_prefix`>>::
+<<index-prefix-config,`index_prefixes`>>::
 
     If enabled, term prefixes of between 2 and 5 characters are indexed into a
     separate field.  This allows prefix searches to run more efficiently, at
@@ -138,7 +138,7 @@ The following parameters are accepted by `text` fields:
 [[index-prefix-config]]
 ==== Index Prefix configuration
 
-Text fields may also index term prefixes to speed up prefix searches. The `index_prefix`
+Text fields may also index term prefixes to speed up prefix searches. The `index_prefixes`
 parameter is configured as below. Either or both of `min_chars` and `max_chars` may be excluded.
 Both values are treated as inclusive
 
@@ -151,7 +151,7 @@ PUT my_index
       "properties": {
         "full_name": {
           "type":  "text",
-          "index_prefix" : {
+          "index_prefixes" : {
             "min_chars" : 1,    <1>
             "max_chars" : 10    <2>
           }

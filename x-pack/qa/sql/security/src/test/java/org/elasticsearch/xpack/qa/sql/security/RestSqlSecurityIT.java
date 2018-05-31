@@ -9,6 +9,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Nullable;
@@ -177,7 +178,9 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 request.addParameter("mode", mode);
             }
             if (asUser != null) {
-                request.addHeader("es-security-runas-user", asUser);
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.addHeader("es-security-runas-user", asUser);
+                request.setOptions(options);
             }
             request.setEntity(entity);
             return toMap(client().performRequest(request));

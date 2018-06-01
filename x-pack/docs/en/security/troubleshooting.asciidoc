@@ -20,7 +20,7 @@ answers for frequently asked questions.
 * <<trb-security-setup>>
 
 
-To get help, see <<xpack-help>>.
+To get help, see <<help>>.
 
 [[security-auth-failure-upgrade]]
 === Can't log in after upgrading to {version}

@@ -105,7 +105,9 @@ final class ESLoggingHandler extends LoggingHandler {
                                 context.readHeaders(in);
                             }
                             // now we decode the features
-                            in.readStringArray();
+                            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                                in.readStringArray();
+                            }
                             // now we can decode the action name
                             sb.append(", action: ").append(in.readString());
                         }

@@ -265,7 +265,12 @@ public class ClusterStateIT extends ESIntegTestCase {
 
     public static class NodePlugin extends CustomPlugin {
 
-        final String FEATURE = TcpTransport.FEATURE_PREFIX + "." + "node";
+        @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+        static final Optional<String> NODE_PLUGIN_FEATURE = Optional.of("node");
+
+        public Optional<String> getFeature() {
+            return NODE_PLUGIN_FEATURE;
+        }
 
         static final int VALUE = randomInt();
 
@@ -284,15 +289,17 @@ public class ClusterStateIT extends ESIntegTestCase {
             return new NodeCustom(VALUE);
         }
 
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put(super.additionalSettings()).put(FEATURE, true).build();
-        }
     }
 
     public static class NodeAndTransportClientPlugin extends CustomPlugin {
 
-        static final String FEATURE = TcpTransport.FEATURE_PREFIX + "." + "node-and-transport-client";
+        @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+        static final Optional<String> FEATURE = Optional.of("node-and-transport-client");
+
+        @Override
+        protected Optional<String> getFeature() {
+            return FEATURE;
+        }
 
         static final int VALUE = randomInt();
 
@@ -314,10 +321,6 @@ public class ClusterStateIT extends ESIntegTestCase {
             return new NodeAndTransportClientCustom(VALUE);
         }
 
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put(super.additionalSettings()).put(FEATURE, true).build();
-        }
     }
 
     @Override
@@ -328,11 +331,6 @@ public class ClusterStateIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Collections.singletonList(NodeAndTransportClientPlugin.class);
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings()).put(NodeAndTransportClientPlugin.FEATURE, true).build();
     }
 
     public void testOptionalCustoms() throws Exception {

@@ -63,6 +63,7 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
         return TYPE;
     }
 
+    
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // never render this to the user
@@ -94,7 +95,6 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
     public Version getMinimalSupportedVersion() {
         return Version.V_6_0_0_beta2;
     }
-
 
     @Override
     public boolean isPrivate() {

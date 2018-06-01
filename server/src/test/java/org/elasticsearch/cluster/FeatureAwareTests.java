@@ -108,22 +108,22 @@ public class FeatureAwareTests extends ESTestCase {
 
     public void testVersion() {
         final Version version = VersionUtils.randomVersion(random());
-        for (final Custom c : Arrays.asList(new NoRequiredFeatureCustom(version), new RequiredFeatureCustom(version))) {
+        for (final Custom custom : Arrays.asList(new NoRequiredFeatureCustom(version), new RequiredFeatureCustom(version))) {
             {
                 final BytesStreamOutput out = new BytesStreamOutput();
                 final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
                 out.setVersion(afterVersion);
-                if (c.getRequiredFeature().isPresent()) {
-                    out.setFeatures(Collections.singleton(c.getRequiredFeature().get()));
+                if (custom.getRequiredFeature().isPresent()) {
+                    out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
                 }
-                assertTrue(FeatureAware.shouldSerializeCustom(out, c));
+                assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
             }
             {
                 final BytesStreamOutput out = new BytesStreamOutput();
                 final Version beforeVersion =
                         randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(version));
                 out.setVersion(beforeVersion);
-                assertFalse(FeatureAware.shouldSerializeCustom(out, c));
+                assertFalse(FeatureAware.shouldSerializeCustom(out, custom));
             }
         }
     }
@@ -131,41 +131,41 @@ public class FeatureAwareTests extends ESTestCase {
     public void testFeature() {
         final Version version = VersionUtils.randomVersion(random());
         final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
-        final Custom c = new RequiredFeatureCustom(version);
+        final Custom custom = new RequiredFeatureCustom(version);
         {
             // the feature is present and the client is not a transport client
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
-            assertTrue(c.getRequiredFeature().isPresent());
-            out.setFeatures(Collections.singleton(c.getRequiredFeature().get()));
-            assertTrue(FeatureAware.shouldSerializeCustom(out, c));
+            assertTrue(custom.getRequiredFeature().isPresent());
+            out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
+            assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
         }
         {
             // the feature is present and the client is a transport client
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
-            assertTrue(c.getRequiredFeature().isPresent());
-            out.setFeatures(new HashSet<>(Arrays.asList(c.getRequiredFeature().get(), TransportClient.TRANSPORT_CLIENT_FEATURE)));
-            assertTrue(FeatureAware.shouldSerializeCustom(out, c));
+            assertTrue(custom.getRequiredFeature().isPresent());
+            out.setFeatures(new HashSet<>(Arrays.asList(custom.getRequiredFeature().get(), TransportClient.TRANSPORT_CLIENT_FEATURE)));
+            assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
         }
     }
 
     public void testMissingFeature() {
         final Version version = VersionUtils.randomVersion(random());
         final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
-        final Custom c = new RequiredFeatureCustom(version);
+        final Custom custom = new RequiredFeatureCustom(version);
         {
             // the feature is missing but we should serialize it anyway because the client is not a transport client
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
-            assertTrue(FeatureAware.shouldSerializeCustom(out, c));
+            assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
         }
         {
             // the feature is missing and we should not serialize it because the client is a transport client
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
             out.setFeatures(Collections.singleton(TransportClient.TRANSPORT_CLIENT_FEATURE));
-            assertFalse(FeatureAware.shouldSerializeCustom(out, c));
+            assertFalse(FeatureAware.shouldSerializeCustom(out, custom));
         }
     }
 

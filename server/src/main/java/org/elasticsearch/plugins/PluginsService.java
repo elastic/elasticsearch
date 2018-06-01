@@ -226,8 +226,8 @@ public class PluginsService extends AbstractComponent {
                 features.put(feature, plugin.v1().getName());
             }
         }
-        if (features.isEmpty() == false) {
-
+        for (final String feature : features.keySet()) {
+            builder.put(TcpTransport.FEATURE_PREFIX + "." + feature, true);
         }
         return builder.put(this.settings).build();
     }

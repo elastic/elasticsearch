@@ -261,8 +261,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             .putCustom(whiteListedClusterCustom, new RestoreInProgress())
             .putCustom("other", new RestoreInProgress())
             .metaData(MetaData.builder()
-                .putCustom(whiteListedMetaDataCustom, new RepositoriesMetaData(Collections.emptyList()))
-                .putCustom("other", new RepositoriesMetaData(Collections.emptyList()))
+                .putCustom(whiteListedMetaDataCustom, new RepositoriesMetaData())
+                .putCustom("other", new RepositoriesMetaData())
                 .build())
             .build();
 

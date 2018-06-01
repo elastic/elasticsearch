@@ -1,7 +1,7 @@
 [[ml-getting-started]]
-== Getting Started with Machine Learning
+== Getting started with machine learning
 ++++
-<titleabbrev>Getting Started</titleabbrev>
+<titleabbrev>Getting started</titleabbrev>
 ++++
 
 Ready to get some hands-on experience with the {xpackml} features? This
@@ -50,7 +50,8 @@ you can try all of the {xpack} features with a <<license-management,trial licens
 If you have multiple nodes in your cluster, you can optionally dedicate nodes to
 specific purposes. If you want to control which nodes are
 _machine learning nodes_ or limit which nodes run resource-intensive
-activity related to jobs, see <<xpack-settings>>.
+activity related to jobs, see 
+{ref}/modules-node.html#modules-node-xpack[{ml} node settings].
 
 [float]
 [[ml-gs-users]]

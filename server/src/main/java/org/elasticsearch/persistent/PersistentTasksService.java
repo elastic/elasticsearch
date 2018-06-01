@@ -137,8 +137,8 @@ public class PersistentTasksService extends AbstractComponent {
      * <p>
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
-    private <Req extends ActionRequest, Resp extends PersistentTaskResponse, Builder extends ActionRequestBuilder<Req, Resp, Builder>>
-        void execute(final Req request, final Action<Req, Resp, Builder> action, final ActionListener<PersistentTask<?>> listener) {
+    private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
+        void execute(final Req request, final Action<Req, Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);

@@ -29,7 +29,7 @@ import java.nio.CharBuffer;
  * Request to change a user's password.
  */
 public class ChangePasswordRequestBuilder
-        extends ActionRequestBuilder<ChangePasswordRequest, ChangePasswordResponse, ChangePasswordRequestBuilder>
+        extends ActionRequestBuilder<ChangePasswordRequest, ChangePasswordResponse>
         implements WriteRequestBuilder<ChangePasswordRequestBuilder> {
 
     public ChangePasswordRequestBuilder(ElasticsearchClient client) {

@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -34,11 +36,13 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -253,6 +257,76 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-pipeline-execute-async
             client.cluster().putPipelineAsync(request, listener); // <1>
             // end::put-pipeline-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetPipeline() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
+            // tag::get-pipeline-request
+            GetPipelineRequest request = new GetPipelineRequest("my-pipeline-id"); // <1>
+            // end::get-pipeline-request
+
+            // tag::get-pipeline-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::get-pipeline-request-masterTimeout
+
+            // tag::get-pipeline-execute
+            GetPipelineResponse response = client.cluster().getPipeline(request); // <1>
+            // end::get-pipeline-execute
+
+            // tag::get-pipeline-response
+            boolean successful = response.isFound(); // <1>
+            List<PipelineConfiguration> pipelines = response.pipelines(); // <2>
+            for(PipelineConfiguration pipeline: pipelines) {
+                Map<String, Object> config = pipeline.getConfigAsMap(); // <3>
+            }
+            // end::get-pipeline-response
+
+            assertTrue(successful);
+        }
+    }
+
+    public void testGetPipelineAsync() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
+            GetPipelineRequest request = new GetPipelineRequest("my-pipeline-id");
+
+            // tag::get-pipeline-execute-listener
+            ActionListener<GetPipelineResponse> listener =
+                new ActionListener<GetPipelineResponse>() {
+                    @Override
+                    public void onResponse(GetPipelineResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-pipeline-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-pipeline-execute-async
+            client.cluster().getPipelineAsync(request, listener); // <1>
+            // end::get-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

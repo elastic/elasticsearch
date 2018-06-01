@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -469,7 +470,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         assertEquals("no such remote cluster: [no such cluster]", ex.get().getMessage());
                     }
                     {
-
                         logger.info("closing all source nodes");
                         // close all targets and check for the transport level failure path
                         IOUtils.close(c1N1, c1N2, c2N1, c2N2);
@@ -559,7 +559,20 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             assertEquals(1, shardsResponse.getNodes().length);
                         }
                     }
-
+                    {
+                        final CountDownLatch latch = new CountDownLatch(1);
+                        AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                        AtomicReference<Exception> failure = new AtomicReference<>();
+                        remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), "index_not_found",
+                                null, remoteIndicesByCluster,
+                                new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
+                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        assertNull(response.get());
+                        assertNotNull(failure.get());
+                        assertThat(failure.get(), instanceOf(RemoteTransportException.class));
+                        RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
+                        assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
+                    }
                     int numDisconnectedClusters = randomIntBetween(1, numClusters);
                     Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
                     Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
@@ -593,8 +606,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         assertTrue(latch.await(1, TimeUnit.SECONDS));
                         assertNull(response.get());
                         assertNotNull(failure.get());
-                        assertThat(failure.get(), instanceOf(TransportException.class));
-                        assertThat(failure.get().getMessage(), containsString("unable to communicate with remote cluster"));
+                        assertThat(failure.get(), instanceOf(RemoteTransportException.class));
+                        assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
+                        assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
                     }
 
                     //setting skip_unavailable to true for all the disconnected clusters will make the request succeed again

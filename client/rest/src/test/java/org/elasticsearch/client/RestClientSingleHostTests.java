@@ -362,9 +362,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Request request = new Request(method, "/" + statusCode);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             for (Header requestHeader : requestHeaders) {
-                request.addHeader(requestHeader.getName(), requestHeader.getValue());
+                options.addHeader(requestHeader.getName(), requestHeader.getValue());
             }
+            request.setOptions(options);
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(request);
@@ -438,11 +440,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
             Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             for (Header header : headers) {
-                request.addHeader(header.getName(), header.getValue());
-                expectedRequest.addHeader(new Request.ReqHeader(header.getName(), header.getValue()));
+                options.addHeader(header.getName(), header.getValue());
+                expectedRequest.addHeader(new RequestOptions.ReqHeader(header.getName(), header.getValue()));
                 uniqueNames.add(header.getName());
             }
+            request.setOptions(options);
         }
         for (Header defaultHeader : defaultHeaders) {
             // request level headers override default headers

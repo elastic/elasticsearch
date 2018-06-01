@@ -69,9 +69,10 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
 
     @Override
     public Object getProperty(List<String> path, boolean allowMultiBucket) {
-        if (allowMultiBucket == false) {
+        boolean needsBucketCount = path.isEmpty() == false && path.get(0).equals("_bucket_count") ? true : false;
+        if (allowMultiBucket == false && needsBucketCount == false) {
             throw new AggregationExecutionException("[" + getName() + "] is a [" + getType()
-                + "], but only single bucket or numeric aggs are allowed.");
+                + "], but only number value or a single value numeric metric aggregations are allowed.");
         }
 
         if (path.isEmpty()) {
@@ -149,10 +150,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
                 throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
                         + "]");
             }
-            if (allowMultiBucket == false && aggregation instanceof InternalMultiBucketAggregation) {
-                throw new AggregationExecutionException("[" + aggName + "] is a [" + aggregation.getType()
-                    + "], but only number value or a single value numeric metric aggregations are allowed.");
-            }
+
             return aggregation.getProperty(path.subList(1, path.size()), allowMultiBucket);
         }
     }

@@ -89,6 +89,19 @@ public class BucketHelperTests extends AggregatorTestCase {
             equalTo("[histo2] is a [date_histogram], but only number value or a single value numeric metric aggregations are allowed."));
     }
 
+    public void testhMultiBucketBucketCount() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.subAggregation(new DateHistogramAggregationBuilder("histo2")
+            .dateHistogramInterval(DateHistogramInterval.HOUR)
+            .field(HISTO_FIELD).subAggregation(new AvgAggregationBuilder("the_avg").field(VALUE_FIELD)));
+        aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "histo2._bucket_count"));
+
+        executeTestCase(query, aggBuilder, histogram -> assertThat(((InternalDateHistogram)histogram).getBuckets().size(), equalTo(10)));
+    }
+
     public void testCountOnMultiBucket() {
         Query query = new MatchAllDocsQuery();
 

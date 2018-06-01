@@ -406,8 +406,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         /*
          * We don't want to change the list of nodes that the client communicates with
-         * because that'd just be rude. So instead we replace the nodes find the nodes
-         * returned by the sniffer that correspond with the nodes already the client
+         * because that'd just be rude. So instead we find the nodes
+         * returned by the sniffer that correspond with the nodes already in the client
          * and set the nodes to them. That *shouldn't* change the nodes that the client
          * communicates with.
          */

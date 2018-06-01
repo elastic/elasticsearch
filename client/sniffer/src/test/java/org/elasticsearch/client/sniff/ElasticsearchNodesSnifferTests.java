@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.client.sniff.SnifferTests.assertNodesEquals;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -120,7 +121,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 if (sniffResponse.isFailure) {
                     fail("sniffNodes should have failed");
                 }
-                assertEquals(sniffResponse.result, sniffedNodes);
+                assertNodesEquals(sniffResponse.result, sniffedNodes);
             } catch(ResponseException e) {
                 Response response = e.getResponse();
                 if (sniffResponse.isFailure) {

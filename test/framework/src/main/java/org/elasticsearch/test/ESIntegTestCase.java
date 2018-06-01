@@ -835,7 +835,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
             MapperService mapperService = indexService.mapperService();
             for (String fieldName : fieldNames) {
-                Collection<String> matches = mapperService.simpleMatchToIndexNames(fieldName);
+                Collection<String> matches = mapperService.simpleMatchToFullName(fieldName);
                 assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
             }
         }

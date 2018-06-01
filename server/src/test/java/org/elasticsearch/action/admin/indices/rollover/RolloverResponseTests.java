@@ -19,10 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -125,5 +128,10 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
             default:
                 throw new UnsupportedOperationException();
         }
+    }
+
+    public void testOldSerialisation() throws IOException {
+        RolloverResponse original = createTestInstance();
+        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0_alpha1));
     }
 }

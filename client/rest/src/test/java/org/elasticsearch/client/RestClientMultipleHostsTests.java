@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -310,9 +311,16 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void testNodeSelector() throws IOException {
         NodeSelector firstPositionOnly = new NodeSelector() {
             @Override
-            public List<Node> select(List<Node> restClientNodes) {
-                assertThat(restClientNodes, hasItem(nodes[0]));
-                return singletonList(nodes[0]);
+            public void select(Iterable<Node> restClientNodes) {
+                boolean found = false;
+                for (Iterator<Node> itr = restClientNodes.iterator(); itr.hasNext();) {
+                    if (nodes[0] == itr.next()) {
+                        found = true;
+                    } else {
+                        itr.remove();
+                    }
+                }
+                assertTrue(found);
             }
         };
         int rounds = between(1, 10);

@@ -34,6 +34,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -249,13 +250,12 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     private NodeSelector firstPositionNodeSelector() {
         return new NodeSelector() {
             @Override
-            public List<Node> select(List<Node> nodes) {
-                for (Node node : nodes) {
-                    if (httpHosts[0] == node.getHost()) {
-                        return singletonList(node);
+            public void select(Iterable<Node> nodes) {
+                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                    if (httpHosts[0] != itr.next().getHost()) {
+                        itr.remove();
                     }
                 }
-                return Collections.<Node>emptyList();
             }
         };
     }

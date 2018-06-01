@@ -40,6 +40,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -373,19 +374,18 @@ public class DoSection implements ExecutableSection {
             Version[] range = SkipSection.parseVersionRange(value);
             return new NodeSelector() {
                 @Override
-                public List<Node> select(List<Node> nodes) {
-                    List<Node> result = new ArrayList<>(nodes.size());
-                    for (Node node : nodes) {
+                public void select(Iterable<Node> nodes) {
+                    for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                        Node node = itr.next();
                         if (node.getVersion() == null) {
                             throw new IllegalStateException("expected [version] metadata to be set but got "
                                     + node);
                         }
                         Version version = Version.fromString(node.getVersion());
-                        if (version.onOrAfter(range[0]) && version.onOrBefore(range[1])) {
-                            result.add(node);
+                        if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
+                            itr.remove();
                         }
                     }
-                    return result;
                 }
 
                 @Override
@@ -413,8 +413,9 @@ public class DoSection implements ExecutableSection {
         }
 
         @Override
-        public List<Node> select(List<Node> nodes) {
-            return lhs.select(rhs.select(nodes));
+        public void select(Iterable<Node> nodes) {
+            rhs.select(nodes);
+            lhs.select(nodes);
         }
 
         @Override

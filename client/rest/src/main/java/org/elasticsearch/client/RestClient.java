@@ -650,8 +650,9 @@ public class RestClient implements Closeable {
              * them for the request.
              */
             // TODO this is going to send more requests to nodes right *after* a node that the selector removes
-            Collections.rotate(livingNodes, lastNodeIndex.getAndIncrement());
-            List<Node> selectedLivingNodes = nodeSelector.select(livingNodes);
+            List<Node> selectedLivingNodes = new ArrayList<>(livingNodes);
+            Collections.rotate(selectedLivingNodes, lastNodeIndex.getAndIncrement());
+            nodeSelector.select(selectedLivingNodes);
             if (false == selectedLivingNodes.isEmpty()) {
                 return selectedLivingNodes;
             }
@@ -680,7 +681,7 @@ public class RestClient implements Closeable {
             for (DeadNodeAndRevival n : deadNodes) {
                 selectedDeadNodes.add(n.node);
             }
-            selectedDeadNodes = nodeSelector.select(selectedDeadNodes);
+            nodeSelector.select(selectedDeadNodes);
             if (false == selectedDeadNodes.isEmpty()) {
                 return singletonList(selectedDeadNodes.get(0));
             }

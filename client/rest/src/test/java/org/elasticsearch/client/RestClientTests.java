@@ -26,10 +26,10 @@ import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -316,14 +316,12 @@ public class RestClientTests extends RestClientTestCase {
 
         NodeSelector not1 = new NodeSelector() {
             @Override
-            public List<Node> select(List<Node> nodes) {
-                List<Node> result = new ArrayList<>();
-                for (Node node : nodes) {
-                    if (false == "1".equals(node.getVersion())) {
-                        result.add(node);
+            public void select(Iterable<Node> nodes) {
+                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                    if ("1".equals(itr.next().getVersion())) {
+                        itr.remove();
                     }
                 }
-                return result;
             }
 
             @Override
@@ -333,8 +331,11 @@ public class RestClientTests extends RestClientTestCase {
         };
         NodeSelector noNodes = new NodeSelector() {
             @Override
-            public List<Node> select(List<Node> nodes) {
-                return Collections.<Node>emptyList();
+            public void select(Iterable<Node> nodes) {
+                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                    itr.next();
+                    itr.remove();
+                }
             }
 
             @Override

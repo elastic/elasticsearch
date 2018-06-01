@@ -36,7 +36,9 @@ public class NodeSelectorTests extends RestClientTestCase {
         for (int i = 0; i < size; i++) {
             nodes.add(dummyNode(randomBoolean(), randomBoolean(), randomBoolean()));
         }
-        assertEquals(nodes, NodeSelector.ANY.select(nodes));
+        List<Node> expected = new ArrayList<>(nodes);
+        NodeSelector.ANY.select(nodes);
+        assertEquals(expected, nodes);
     }
 
     public void testNotMasterOnly() {
@@ -44,11 +46,16 @@ public class NodeSelectorTests extends RestClientTestCase {
         Node masterAndData = dummyNode(true, true, randomBoolean());
         Node coordinatingOnly = dummyNode(false, false, randomBoolean());
         Node data = dummyNode(false, true, randomBoolean());
-        List<Node> nodes = Arrays.asList(masterOnly, masterAndData, coordinatingOnly, data);
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(masterOnly);
+        nodes.add(masterAndData);
+        nodes.add(coordinatingOnly);
+        nodes.add(data);
         Collections.shuffle(nodes, getRandom());
         List<Node> expected = new ArrayList<>(nodes);
         expected.remove(masterOnly);
-        assertEquals(expected, NodeSelector.NOT_MASTER_ONLY.select(nodes));
+        NodeSelector.NOT_MASTER_ONLY.select(nodes);
+        assertEquals(expected, nodes);
     }
 
     private Node dummyNode(boolean master, boolean data, boolean ingest) {

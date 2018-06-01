@@ -19,21 +19,18 @@
 
 package org.elasticsearch.test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
@@ -157,6 +154,19 @@ public class VersionUtils {
             }
         }
         throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
+    }
+
+    /**
+     * Get the released version after {@code version}.
+     */
+    public static Version getNextVersion(Version version) {
+        for (int i = 0; i < ALL_VERSIONS.size(); i++) {
+            Version v = ALL_VERSIONS.get(i);
+            if (v.after(version)) {
+                return v;
+            }
+        }
+        throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
     }
 
     /**

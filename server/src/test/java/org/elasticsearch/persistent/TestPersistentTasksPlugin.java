@@ -122,6 +122,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
         }
 
+        private final Version minVersion;
+        private final Optional<String> feature;
+
         private String executorNodeAttr = null;
 
         private String responseNode = null;
@@ -129,17 +132,25 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         private String testParam = null;
 
         public TestParams() {
-
+            this((String)null);
         }
 
         public TestParams(String testParam) {
+            this(testParam, Version.CURRENT, Optional.empty());
+        }
+
+        public TestParams(String testParam, Version minVersion, Optional<String> feature) {
             this.testParam = testParam;
+            this.minVersion = minVersion;
+            this.feature = feature;
         }
 
         public TestParams(StreamInput in) throws IOException {
             executorNodeAttr = in.readOptionalString();
             responseNode = in.readOptionalString();
             testParam = in.readOptionalString();
+            minVersion = Version.readVersion(in);
+            feature = Optional.ofNullable(in.readOptionalString());
         }
 
         @Override
@@ -168,6 +179,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             out.writeOptionalString(executorNodeAttr);
             out.writeOptionalString(responseNode);
             out.writeOptionalString(testParam);
+            Version.writeVersion(minVersion, out);
+            out.writeOptionalString(feature.orElse(null));
         }
 
         @Override
@@ -199,12 +212,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+            return minVersion;
         }
 
         @Override
         public Optional<String> getRequiredFeature() {
-            return Optional.empty();
+            return feature;
         }
     }
 

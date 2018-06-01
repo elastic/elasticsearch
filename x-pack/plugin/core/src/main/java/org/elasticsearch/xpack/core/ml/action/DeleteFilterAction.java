@@ -20,18 +20,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class DeleteFilterAction extends Action<DeleteFilterAction.Request, DeleteFilterAction.Response, DeleteFilterAction.RequestBuilder> {
+public class DeleteFilterAction extends Action<DeleteFilterAction.Request, DeleteFilterAction.Response> {
 
     public static final DeleteFilterAction INSTANCE = new DeleteFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/delete";
 
     private DeleteFilterAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override

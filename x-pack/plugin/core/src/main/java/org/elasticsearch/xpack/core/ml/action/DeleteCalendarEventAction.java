@@ -20,19 +20,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.Request, DeleteCalendarEventAction.Response,
-        DeleteCalendarEventAction.RequestBuilder> {
+public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.Request, DeleteCalendarEventAction.Response> {
 
     public static final DeleteCalendarEventAction INSTANCE = new DeleteCalendarEventAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/delete";
 
     private DeleteCalendarEventAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -95,7 +89,7 @@ public class DeleteCalendarEventAction extends Action<DeleteCalendarEventAction.
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteCalendarEventAction action) {
             super(client, action, new Request());

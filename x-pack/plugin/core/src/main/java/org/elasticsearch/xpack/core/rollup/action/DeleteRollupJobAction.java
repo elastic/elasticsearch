@@ -22,19 +22,13 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request, DeleteRollupJobAction.Response,
-        DeleteRollupJobAction.RequestBuilder> {
+public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request, DeleteRollupJobAction.Response> {
 
     public static final DeleteRollupJobAction INSTANCE = new DeleteRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/delete";
 
     private DeleteRollupJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override

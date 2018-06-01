@@ -21,8 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ValidateDetectorAction
-extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, ValidateDetectorAction.RequestBuilder> {
+public class ValidateDetectorAction extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response> {
 
     public static final ValidateDetectorAction INSTANCE = new ValidateDetectorAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate/detector";
@@ -32,16 +31,11 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         protected RequestBuilder(ElasticsearchClient client, ValidateDetectorAction action) {
             super(client, action, new Request());

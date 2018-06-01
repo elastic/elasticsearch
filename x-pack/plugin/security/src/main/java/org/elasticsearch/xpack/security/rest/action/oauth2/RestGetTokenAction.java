@@ -72,7 +72,7 @@ public final class RestGetTokenAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client)throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final CreateTokenRequest tokenRequest = PARSER.parse(parser, null);
-            final Action<CreateTokenRequest, CreateTokenResponse, CreateTokenRequestBuilder> action =
+            final Action<CreateTokenRequest, CreateTokenResponse> action =
                     "refresh_token".equals(tokenRequest.getGrantType()) ? RefreshTokenAction.INSTANCE : CreateTokenAction.INSTANCE;
             return channel -> client.execute(action, tokenRequest,
                     // this doesn't use the RestBuilderListener since we need to override the

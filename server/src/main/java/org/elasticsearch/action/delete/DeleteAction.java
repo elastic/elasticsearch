@@ -22,7 +22,7 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteAction extends Action<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
+public class DeleteAction extends Action<DeleteRequest, DeleteResponse> {
 
     public static final DeleteAction INSTANCE = new DeleteAction();
     public static final String NAME = "indices:data/write/delete";
@@ -34,10 +34,5 @@ public class DeleteAction extends Action<DeleteRequest, DeleteResponse, DeleteRe
     @Override
     public DeleteResponse newResponse() {
         return new DeleteResponse();
-    }
-
-    @Override
-    public DeleteRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new DeleteRequestBuilder(client, this);
     }
 }

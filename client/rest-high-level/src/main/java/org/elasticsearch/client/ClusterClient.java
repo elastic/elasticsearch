@@ -23,6 +23,8 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineResponse;
 
@@ -86,5 +88,27 @@ public final class ClusterClient {
     public void putPipelineAsync(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
             PutPipelineResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Get an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
+     */
+    public GetPipelineResponse getPipeline(GetPipelineRequest request, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline,
+            GetPipelineResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously get an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
+     */
+    public void getPipelineAsync(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline,
+            GetPipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 }

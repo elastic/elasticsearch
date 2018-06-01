@@ -1112,7 +1112,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
-            if (version.onOrAfter(Version.V_6_4_0)) {
+            if (version.onOrAfter(Version.V_6_3_0)) {
                 stream.writeStringArray(features);
             }
             stream.writeString(action);
@@ -1519,7 +1519,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                                    int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
         throws IOException {
         final Set<String> features;
-        if (version.onOrAfter(Version.V_6_4_0)) {
+        if (version.onOrAfter(Version.V_6_3_0)) {
             features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(stream.readStringArray())));
         } else {
             features = Collections.emptySet();

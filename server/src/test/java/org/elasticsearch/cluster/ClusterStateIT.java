@@ -106,25 +106,6 @@ public class ClusterStateIT extends ESIntegTestCase {
             out.writeInt(value);
         }
 
-        public static int fromXContent(final XContentParser parser) throws IOException {
-            XContentParser.Token token;
-            int value = 0;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                switch (token) {
-                    case FIELD_NAME:
-                        currentFieldName = parser.currentName();
-                        break;
-                    case VALUE_BOOLEAN:
-                        if (VALUE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.intValue();
-                        }
-                        break;
-                }
-            }
-            return value;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(VALUE.getPreferredName(), value);
@@ -276,7 +257,12 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         protected void registerBuiltinWritables() {
-            registerMetaDataCustom(NodeCustom.TYPE, NodeCustom::new, parser -> new NodeCustom(NodeCustom.fromXContent(parser)));
+            registerMetaDataCustom(
+                    NodeCustom.TYPE,
+                    NodeCustom::new,
+                    parser -> {
+                        throw new IOException(new UnsupportedOperationException());
+                    });
         }
 
         @Override
@@ -308,7 +294,9 @@ public class ClusterStateIT extends ESIntegTestCase {
             registerMetaDataCustom(
                     NodeAndTransportClientCustom.TYPE,
                     NodeAndTransportClientCustom::new,
-                    parser -> new NodeAndTransportClientCustom(NodeAndTransportClientCustom.fromXContent(parser)));
+                    parser -> {
+                        throw new IOException(new UnsupportedOperationException());
+                    });
         }
 
         @Override

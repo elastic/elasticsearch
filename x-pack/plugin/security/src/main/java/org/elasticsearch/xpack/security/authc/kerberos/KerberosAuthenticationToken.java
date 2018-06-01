@@ -50,11 +50,12 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         }
 
         boolean ignoreCase = true;
-        if (authHeader.regionMatches(ignoreCase, 0, NEGOTIATE_AUTH_HEADER, 0, NEGOTIATE_AUTH_HEADER.length()) == Boolean.FALSE) {
+        if (authHeader.regionMatches(ignoreCase, 0, NEGOTIATE_AUTH_HEADER.trim(), 0,
+                NEGOTIATE_AUTH_HEADER.trim().length()) == Boolean.FALSE) {
             return null;
         }
 
-        final String base64EncodedToken = authHeader.substring(NEGOTIATE_AUTH_HEADER.length()).trim();
+        final String base64EncodedToken = authHeader.substring(NEGOTIATE_AUTH_HEADER.trim().length()).trim();
         if (Strings.isEmpty(base64EncodedToken)) {
             throw unauthorized("invalid negotiate authentication header value, expected base64 encoded token but value is empty", null);
         }
@@ -63,8 +64,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         try {
             decodedKerberosTicket = Base64.getDecoder().decode(base64Token);
         } catch (IllegalArgumentException iae) {
-            throw unauthorized("invalid negotiate authentication header value, could not decode base64 token {}", iae,
-                    base64EncodedToken);
+            throw unauthorized("invalid negotiate authentication header value, could not decode base64 token {}", iae, base64EncodedToken);
         }
 
         return new KerberosAuthenticationToken(decodedKerberosTicket);
@@ -103,7 +103,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         return Objects.equals(otherKerbToken.credentials(), credentials());
     }
 
-    private static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
+    static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
         ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER.trim());
         return ese;

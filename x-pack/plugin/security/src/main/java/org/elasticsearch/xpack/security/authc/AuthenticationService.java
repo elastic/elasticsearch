@@ -266,13 +266,13 @@ public class AuthenticationService extends AbstractComponent {
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
                                 userListener.onResponse(result.getUser());
                             } else {
-                                // the user was not authenticated, call this so we can audit the correct event
-                                request.realmAuthenticationFailed(authenticationToken, realm.name());
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                                    logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
-                                            authenticationToken.principal(), realm.name(), result.getMessage());
-                                    userListener.onFailure(Exceptions.authenticationError(result.getMessage(), result.getException()));
+                                    logger.info("Authentication of [{}] was terminated by realm [{}] - {}", authenticationToken.principal(),
+                                            realm.name(), result.getMessage());
+                                    listener.onFailure(request.exceptionProcessingRequest(result.getException(), authenticationToken));
                                 } else {
+                                    // the user was not authenticated, call this so we can audit the correct event
+                                    request.realmAuthenticationFailed(authenticationToken, realm.name());
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
                                     }

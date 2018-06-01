@@ -61,7 +61,9 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
     }
 
     public void testExtractTokenForInvalidAuthorizationHeaderThrowsException() throws IOException {
-        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER);
+        final String header =
+                randomFrom(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER, "negotiate", "negotiate ", "Negotiate", "Negotiate        ");
+        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, header);
 
         thrown.expect(ElasticsearchSecurityException.class);
         thrown.expectMessage(
@@ -85,12 +87,10 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
     }
 
     public void testExtractTokenForNoAuthorizationHeaderShouldReturnNull() throws IOException {
-        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(threadContext);
-        assertNull(kerbAuthnToken);
-    }
-
-    public void testExtractTokenForBasicAuthorizationHeaderShouldReturnNull() throws IOException {
-        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, "Basic ");
+        final String header = randomFrom(" Negotiate", "Basic ", " Random ", null);
+        if (header != null) {
+            threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, header);
+        }
         final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(threadContext);
         assertNull(kerbAuthnToken);
     }

@@ -44,7 +44,7 @@ public interface UserRoleMapper {
      * the whole cluster depending on whether this role-mapper has node-local data or cluster-wide
      * data.
      */
-    void refreshRealmOnChange(CachingUsernamePasswordRealm realm);
+    void refreshRealmOnChange(CachingRealm realm);
 
     /**
      * A representation of a user for whom roles should be mapped.

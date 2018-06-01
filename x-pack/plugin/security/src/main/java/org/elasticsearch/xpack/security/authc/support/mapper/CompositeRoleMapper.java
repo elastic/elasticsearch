@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.xpack.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 
@@ -48,7 +48,7 @@ public class CompositeRoleMapper implements UserRoleMapper {
     }
 
     @Override
-    public void refreshRealmOnChange(CachingUsernamePasswordRealm realm) {
+    public void refreshRealmOnChange(CachingRealm realm) {
         this.delegates.forEach(mapper -> mapper.refreshRealmOnChange(realm));
     }
 

@@ -22,6 +22,7 @@ value will have a default value assigned implicitly based on the type.
 * If a variable is used prior to or without declaration.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 declaration : type ID assignment? (',' ID assignment?)*;
@@ -77,6 +78,7 @@ type.
 * If the type of value is unable to match the type of variable.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 assignment: ID '=' expression

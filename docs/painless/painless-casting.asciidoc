@@ -16,6 +16,7 @@ allowed casts.
 * If an implicit cast is given, but an explicit cast is required.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 cast: '(' TYPE ')' expression

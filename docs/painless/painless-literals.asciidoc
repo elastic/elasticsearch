@@ -16,6 +16,7 @@ to specify an integer literal as octal, and use `0x` or `0X` as a prefix to
 specify an integer literal as hex.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
@@ -53,6 +54,7 @@ single letter designations to specify the primitive type: `f` or `F` for `float`
 and `d` or `D` for `double`. If not specified, the type defaults to `double`.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? EXPONENT? [fFdD]?;
@@ -88,6 +90,7 @@ include a single-quote as part of a single-quoted string literal.  Use a `\\`
 token to include a backslash as part of any string literal.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )

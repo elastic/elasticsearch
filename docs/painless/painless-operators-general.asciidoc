@@ -10,6 +10,7 @@ prior to other expressions in inward-to-outward order. Use the *precedence
 operator* to guarantee the order of evaluation for an expression.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 precedence: '(' expression ')';
@@ -42,10 +43,11 @@ precedence: '(' expression ')';
 [[function-call-operator]]
 ==== Function Call
 
-A function call is defined within a script.  Use the *function call operator* to
-call an existing function.
+A <<painless-functions, function call>> is defined within a script.  Use the
+*function call operator* to call an existing function.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 function_call: ID '(' ( expression (',' expression)* )? ')'';
@@ -94,6 +96,7 @@ full if/else branch in certain expressions.
 * If the values for the second and third expressions cannot be promoted.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 conditional: expression '?' expression ':' expression;
@@ -166,6 +169,7 @@ See <<variable-assignment, variable assignment>> for examples using variables.
 * If the type of value is unable to match the type of variable or field.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 assignment: field '=' expression
@@ -247,7 +251,7 @@ V = (T)(V op expression);
 
 The table below shows the available operators for use in a compound assignment.
 Each operator follows the casting/promotion rules according to their regular
-definition.  For numeric operations their will be an extra implicit cast when
+definition.  For numeric operations there is an extra implicit cast when
 necessary to return the promoted numeric type value to the original numeric type
 value of the variable/field and can result in data loss.
 
@@ -275,6 +279,7 @@ value of the variable/field and can result in data loss.
 * If the type of value is unable to match the type of variable or field.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 compound_assignment: ( ID | field ) '$=' expression;

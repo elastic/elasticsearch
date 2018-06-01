@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -15,7 +14,6 @@ import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +24,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Objects;
 
-public class RetryAction extends Action<RetryAction.Request, RetryAction.Response, RetryAction.RequestBuilder> {
+public class RetryAction extends Action<RetryAction.Request, RetryAction.Response> {
     public static final RetryAction INSTANCE = new RetryAction();
     public static final String NAME = "indices:admin/xpack/index_lifecycle/_retry/post";
 
@@ -35,21 +33,8 @@ public class RetryAction extends Action<RetryAction.Request, RetryAction.Respons
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
-            super(client, action, new Request());
-        }
-
     }
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {

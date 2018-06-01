@@ -21,7 +21,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,12 +44,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -94,13 +91,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             return;
         }
 
-        // Check to see if the index pattern matches any existing rollup indices
-        ActionRequestValidationException validationException = validateIndexPattern(request, clusterState);
-        if (validationException != null) {
-            listener.onFailure(validationException);
-            return;
-        }
-
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
             .indices(request.getConfig().getIndexPattern())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
@@ -123,26 +113,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 listener.onFailure(e);
             }
         });
-    }
-
-    /**
-     * Ensure that the index pattern doesn't match any pre-existing rollup indices.  We don't need to check
-     * if the pattern would match it's own rollup index because the request already validated that.
-     */
-    private static ActionRequestValidationException validateIndexPattern(PutRollupJobAction.Request request, ClusterState clusterState) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
-        String[] indices = resolver.concreteIndexNames(clusterState, IndicesOptions.strictExpandOpenAndForbidClosed(),
-            request.getConfig().getIndexPattern());
-
-        ActionRequestValidationException validationException = new ActionRequestValidationException();
-
-        Arrays.stream(indices)
-            .forEach(index -> TransportGetRollupCapsAction.findRollupIndexCaps(index, clusterState.getMetaData().index(index))
-                .ifPresent(c -> validationException
-                    .addValidationError("Index pattern [" + request.getConfig().getIndexPattern() + "] matches existing rollup index ["
-                        + index + "] from jobs " + c.getJobCaps().stream().map(RollupJobCaps::getJobID).collect(Collectors.toList()))));
-
-        return validationException.validationErrors().size() > 0 ? validationException : null;
     }
 
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {

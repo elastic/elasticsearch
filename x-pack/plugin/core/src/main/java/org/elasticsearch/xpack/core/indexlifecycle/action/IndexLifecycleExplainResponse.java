@@ -101,8 +101,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return new IndexLifecycleExplainResponse(index, false, null, false, -1L, null, null, null, null, -1L, -1L, -1L, null);
     }
 
-    private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, boolean skip, long lifecycleDate, String phase,
-            String action, String step, String failedStep, long phaseTime, long actionTime, long stepTime, BytesReference stepInfo) {
+    private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, boolean skip, long lifecycleDate,
+            String phase, String action, String step, String failedStep, long phaseTime, long actionTime, long stepTime,
+            BytesReference stepInfo) {
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");

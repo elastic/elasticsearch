@@ -34,8 +34,7 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean(),
                 randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                randomBoolean() ? null
-                        : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()));
+                randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()));
     }
 
     @Override
@@ -124,8 +123,8 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, skip, policyTime, phase, action, step, failedStep, phaseTime,
-                    actionTime, stepTime, stepInfo);
+            return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, skip, policyTime, phase, action, step, failedStep,
+                    phaseTime, actionTime, stepTime, stepInfo);
         } else {
             switch (between(0, 1)) {
             case 0:

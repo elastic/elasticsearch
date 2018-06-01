@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +22,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class ExplainLifecycleAction
-        extends Action<ExplainLifecycleAction.Request, ExplainLifecycleAction.Response, ExplainLifecycleAction.RequestBuilder> {
+        extends Action<ExplainLifecycleAction.Request, ExplainLifecycleAction.Response> {
     public static final ExplainLifecycleAction INSTANCE = new ExplainLifecycleAction();
     public static final String NAME = "indices:admin/xpack/index_lifecycle/explain";
 
@@ -33,21 +31,8 @@ public class ExplainLifecycleAction
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
-            super(client, action, new Request());
-        }
-
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

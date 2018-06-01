@@ -30,6 +30,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -116,11 +118,24 @@ public abstract class StreamOutput extends OutputStream {
         this.version = version;
     }
 
+    /**
+     * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
+     * {@link MetaData.Custom}; see also {@link ClusterState.FeatureAware}.
+     *
+     * @param feature the feature to test
+     * @return true if the stream has the specified feature
+     */
     public boolean hasFeature(final String feature) {
         return this.features.contains(feature);
     }
 
+    /**
+     * Set the features on the stream. See {@link StreamOutput#hasFeature(String)}.
+     *
+     * @param features the features on the stream
+     */
     public void setFeatures(final Set<String> features) {
+        assert this.features.isEmpty() : this.features;
         this.features = Collections.unmodifiableSet(new HashSet<>(features));
     }
 

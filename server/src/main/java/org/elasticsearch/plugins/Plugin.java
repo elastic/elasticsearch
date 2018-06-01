@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -81,8 +82,8 @@ import java.util.function.UnaryOperator;
 public abstract class Plugin implements Closeable {
 
     /**
-     * A feature exposed by the plugin. This should be used if a plugin exposes {@link org.elasticsearch.cluster.ClusterState.Custom} or
-     * {@link MetaData.Custom}; see also {@link org.elasticsearch.cluster.ClusterState.FeatureAware}.
+     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link MetaData.Custom}; see
+     * also {@link ClusterState.FeatureAware}.
      *
      * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
      * customs

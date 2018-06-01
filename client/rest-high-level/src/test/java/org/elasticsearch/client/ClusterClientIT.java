@@ -25,7 +25,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -121,7 +122,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
             BytesReference.bytes(pipelineBuilder),
             pipelineBuilder.contentType());
 
-        PutPipelineResponse putPipelineResponse =
+        WritePipelineResponse putPipelineResponse =
             execute(request, highLevelClient().cluster()::putPipeline, highLevelClient().cluster()::putPipelineAsync);
         assertTrue(putPipelineResponse.isAcknowledged());
     }
@@ -147,5 +148,18 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         PipelineConfiguration expectedConfig =
             new PipelineConfiguration(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
         assertEquals(expectedConfig.getConfigAsMap(), response.pipelines().get(0).getConfigAsMap());
+    }
+
+    public void testDeletePipeline() throws IOException {
+        String id = "some_pipeline_id";
+        {
+            createPipeline(id);
+        }
+
+        DeletePipelineRequest request = new DeletePipelineRequest(id);
+
+        WritePipelineResponse response =
+            execute(request, highLevelClient().cluster()::deletePipeline, highLevelClient().cluster()::deletePipelineAsync);
+        assertTrue(response.isAcknowledged());
     }
 }

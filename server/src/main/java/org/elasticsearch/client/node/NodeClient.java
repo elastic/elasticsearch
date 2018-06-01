@@ -22,7 +22,6 @@ package org.elasticsearch.client.node;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.TransportAction;
@@ -68,10 +67,8 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public <    Request extends ActionRequest,
-                Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response>
-            > void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Request, Response> action,
+            Request request, ActionListener<Response> listener) {
         // Discard the task because the Client interface doesn't use it.
         executeLocally(action, request, listener);
     }

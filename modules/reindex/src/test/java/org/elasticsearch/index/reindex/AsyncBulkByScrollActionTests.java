@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -36,8 +35,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -66,6 +63,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -743,8 +742,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 Action<Request, Response> action, Request request, ActionListener<Response> listener) {
             if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
                 listener.onFailure(

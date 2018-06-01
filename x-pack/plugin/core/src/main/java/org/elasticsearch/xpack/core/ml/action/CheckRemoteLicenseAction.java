@@ -13,12 +13,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class CheckLicenseCssAction extends Action<CheckLicenseCssAction.Request, CheckLicenseCssAction.Response, CheckLicenseCssAction.RequestBuilder> {
+public class CheckRemoteLicenseAction extends Action<CheckRemoteLicenseAction.Request, CheckRemoteLicenseAction.Response, CheckRemoteLicenseAction.RequestBuilder> {
 
-    public static final CheckLicenseCssAction INSTANCE = new CheckLicenseCssAction();
+    public static final CheckRemoteLicenseAction INSTANCE = new CheckRemoteLicenseAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/checklic";
 
-    private CheckLicenseCssAction() {
+    private CheckRemoteLicenseAction() {
         super(NAME);
     }
 
@@ -49,7 +49,7 @@ public class CheckLicenseCssAction extends Action<CheckLicenseCssAction.Request,
 
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, CheckLicenseCssAction action) {
+        public RequestBuilder(ElasticsearchClient client, CheckRemoteLicenseAction action) {
             super(client, action, new Request());
         }
     }

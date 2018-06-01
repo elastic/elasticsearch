@@ -34,39 +34,39 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class CcsLicenseCheckerTests extends ESTestCase {
+public class MlRemoteLicenseCheckerTests extends ESTestCase {
 
     public void testIsRemoteIndex() {
         List<String> indices = Arrays.asList("local-index1", "local-index2");
-        assertFalse(CcsLicenseChecker.containsRemoteIndex(indices));
+        assertFalse(MlRemoteLicenseChecker.containsRemoteIndex(indices));
         indices = Arrays.asList("local-index1", "remote-cluster:remote-index2");
-        assertTrue(CcsLicenseChecker.containsRemoteIndex(indices));
+        assertTrue(MlRemoteLicenseChecker.containsRemoteIndex(indices));
     }
 
     public void testRemoteClusterNames() {
         List<String> indices = Arrays.asList("local-index1", "local-index2");
-        assertThat(CcsLicenseChecker.remoteClusterNames(indices), empty());
+        assertThat(MlRemoteLicenseChecker.remoteClusterNames(indices), empty());
         indices = Arrays.asList("local-index1", "remote-cluster1:remote-index2");
-        assertThat(CcsLicenseChecker.remoteClusterNames(indices), contains("remote-cluster1"));
+        assertThat(MlRemoteLicenseChecker.remoteClusterNames(indices), contains("remote-cluster1"));
         indices = Arrays.asList("remote-cluster1:index2", "index1", "remote-cluster2:index1");
-        assertThat(CcsLicenseChecker.remoteClusterNames(indices), contains("remote-cluster1", "remote-cluster2"));
+        assertThat(MlRemoteLicenseChecker.remoteClusterNames(indices), contains("remote-cluster1", "remote-cluster2"));
         indices = Arrays.asList("remote-cluster1:index2", "index1", "remote-cluster2:index1", "remote-cluster2:index2");
-        assertThat(CcsLicenseChecker.remoteClusterNames(indices), contains("remote-cluster1", "remote-cluster2"));
+        assertThat(MlRemoteLicenseChecker.remoteClusterNames(indices), contains("remote-cluster1", "remote-cluster2"));
     }
 
     public void testLicenseSupportsML() {
         XPackInfoResponse.LicenseInfo licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial",
                 License.Status.ACTIVE, randomNonNegativeLong());
-        assertTrue(CcsLicenseChecker.licenseSupportsML(licenseInfo));
+        assertTrue(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
 
         licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial", License.Status.EXPIRED, randomNonNegativeLong());
-        assertFalse(CcsLicenseChecker.licenseSupportsML(licenseInfo));
+        assertFalse(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
 
         licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "GOLD", "GOLD", License.Status.ACTIVE, randomNonNegativeLong());
-        assertFalse(CcsLicenseChecker.licenseSupportsML(licenseInfo));
+        assertFalse(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
 
         licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", License.Status.ACTIVE, randomNonNegativeLong());
-        assertTrue(CcsLicenseChecker.licenseSupportsML(licenseInfo));
+        assertTrue(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
     }
 
     public void testCheckRemoteClusterLicenses_givenValidLicenses() {
@@ -87,13 +87,13 @@ public class CcsLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
-        CcsLicenseChecker licenseChecker = new CcsLicenseChecker(client);
-        AtomicReference<CcsLicenseChecker.LicenseViolation> licCheckResponse = new AtomicReference<>();
+        MlRemoteLicenseChecker licenseChecker = new MlRemoteLicenseChecker(client);
+        AtomicReference<MlRemoteLicenseChecker.LicenseViolation> licCheckResponse = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(remoteClusterNames,
-                new ActionListener<CcsLicenseChecker.LicenseViolation>() {
+                new ActionListener<MlRemoteLicenseChecker.LicenseViolation>() {
             @Override
-            public void onResponse(CcsLicenseChecker.LicenseViolation response) {
+            public void onResponse(MlRemoteLicenseChecker.LicenseViolation response) {
                 licCheckResponse.set(response);
             }
 
@@ -125,13 +125,13 @@ public class CcsLicenseCheckerTests extends ESTestCase {
             return null;
         }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
-        CcsLicenseChecker licenseChecker = new CcsLicenseChecker(client);
-        AtomicReference<CcsLicenseChecker.LicenseViolation> licCheckResponse = new AtomicReference<>();
+        MlRemoteLicenseChecker licenseChecker = new MlRemoteLicenseChecker(client);
+        AtomicReference<MlRemoteLicenseChecker.LicenseViolation> licCheckResponse = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(remoteClusterNames,
-                new ActionListener<CcsLicenseChecker.LicenseViolation>() {
+                new ActionListener<MlRemoteLicenseChecker.LicenseViolation>() {
             @Override
-            public void onResponse(CcsLicenseChecker.LicenseViolation response) {
+            public void onResponse(MlRemoteLicenseChecker.LicenseViolation response) {
                 licCheckResponse.set(response);
             }
 
@@ -150,19 +150,19 @@ public class CcsLicenseCheckerTests extends ESTestCase {
 
     public void testBuildErrorMessage() {
         XPackInfoResponse.LicenseInfo platinumLicence = createPlatinumLicenseResponse();
-        CcsLicenseChecker.RemoteClusterLicenseInfo info = new CcsLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
-        assertEquals(Strings.toString(platinumLicence), CcsLicenseChecker.buildErrorMessage(info));
+        MlRemoteLicenseChecker.RemoteClusterLicenseInfo info = new MlRemoteLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
+        assertEquals(Strings.toString(platinumLicence), MlRemoteLicenseChecker.buildErrorMessage(info));
 
         XPackInfoResponse.LicenseInfo basicLicense = createBasicLicenseResponse();
-        info = new CcsLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
+        info = new MlRemoteLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
         String expected = "The license mode on cluster [basic-cluster] with mode [BASIC] does not enable Machine Learning. "
                 + Strings.toString(basicLicense);
-        assertEquals(expected, CcsLicenseChecker.buildErrorMessage(info));
+        assertEquals(expected, MlRemoteLicenseChecker.buildErrorMessage(info));
 
         XPackInfoResponse.LicenseInfo expiredLicense = createExpiredLicenseResponse();
-        info = new CcsLicenseChecker.RemoteClusterLicenseInfo("expired-cluster", expiredLicense);
+        info = new MlRemoteLicenseChecker.RemoteClusterLicenseInfo("expired-cluster", expiredLicense);
         expected = "The license on cluster [expired-cluster] is not active. " + Strings.toString(expiredLicense);
-        assertEquals(expected, CcsLicenseChecker.buildErrorMessage(info));
+        assertEquals(expected, MlRemoteLicenseChecker.buildErrorMessage(info));
     }
 
     private Client createMockClient() {

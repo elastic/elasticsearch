@@ -22,33 +22,30 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.action.CheckLicenseCssAction;
+import org.elasticsearch.xpack.core.ml.action.CheckRemoteLicenseAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.CcsLicenseChecker;
+import org.elasticsearch.xpack.ml.datafeed.MlRemoteLicenseChecker;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportCheckLicenseCcs extends TransportMasterNodeAction<CheckLicenseCssAction.Request, CheckLicenseCssAction.Response> {
+public class TransportCheckRemoteLicenseAction extends TransportMasterNodeAction<CheckRemoteLicenseAction.Request, CheckRemoteLicenseAction.Response> {
 
     private final Auditor auditor;
     private final Client client;
 
     @Inject
-    public TransportCheckLicenseCcs(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, ActionFilters actionFilters, Client client,
-                                    IndexNameExpressionResolver indexNameExpressionResolver, Auditor auditor) {
-        super(settings, CheckLicenseCssAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, CheckLicenseCssAction.Request::new);
+    public TransportCheckRemoteLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                             ThreadPool threadPool, ActionFilters actionFilters, Client client,
+                                             IndexNameExpressionResolver indexNameExpressionResolver, Auditor auditor) {
+        super(settings, CheckRemoteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, CheckRemoteLicenseAction.Request::new);
         this.auditor = auditor;
         this.client = client;
     }
@@ -59,17 +56,17 @@ public class TransportCheckLicenseCcs extends TransportMasterNodeAction<CheckLic
     }
 
     @Override
-    protected CheckLicenseCssAction.Response newResponse() {
-        return new CheckLicenseCssAction.Response();
+    protected CheckRemoteLicenseAction.Response newResponse() {
+        return new CheckRemoteLicenseAction.Response();
     }
 
     @Override
-    protected void masterOperation(CheckLicenseCssAction.Request request, ClusterState state, ActionListener<CheckLicenseCssAction.Response> listener) throws Exception {
+    protected void masterOperation(CheckRemoteLicenseAction.Request request, ClusterState state, ActionListener<CheckRemoteLicenseAction.Response> listener) throws Exception {
         checkoutCssLic(activeDatafeeds(state));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(CheckLicenseCssAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(CheckRemoteLicenseAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
@@ -84,9 +81,9 @@ public class TransportCheckLicenseCcs extends TransportMasterNodeAction<CheckLic
 
     private void checkoutCssLic(List<DatafeedConfig> activeDatafeeds) {
         for (DatafeedConfig datafeed: activeDatafeeds) {
-            List<String> remoteClusterNames = CcsLicenseChecker.remoteClusterNames(datafeed.getIndices());
+            List<String> remoteClusterNames = MlRemoteLicenseChecker.remoteClusterNames(datafeed.getIndices());
             if (remoteClusterNames.isEmpty() == false) {
-                CcsLicenseChecker remoteLicenseChecker = new CcsLicenseChecker(client);
+                MlRemoteLicenseChecker remoteLicenseChecker = new MlRemoteLicenseChecker(client);
                 remoteLicenseChecker.checkRemoteClusterLicenses(remoteClusterNames,
                         ActionListener.wrap(response -> checkLicense(response, datafeed.getJobId(), datafeed.getId()),
                                 e -> logger.error("Error checking remote datafeed cluster licenses", e)));
@@ -94,11 +91,11 @@ public class TransportCheckLicenseCcs extends TransportMasterNodeAction<CheckLic
         }
     }
 
-    private void checkLicense(CcsLicenseChecker.LicenseViolation licenseCheck, String jobId, String datafeedId) {
+    private void checkLicense(MlRemoteLicenseChecker.LicenseViolation licenseCheck, String jobId, String datafeedId) {
         if (licenseCheck.isViolated()) {
             String message = "[" + jobId + "] Stoppping datafeed and closing job because Machine Learning is not licenced "
                     + "on the remote cluster [" + licenseCheck.get().getClusterName() + "] used in cross cluster search. "
-                    + CcsLicenseChecker.buildErrorMessage(licenseCheck.get());
+                    + MlRemoteLicenseChecker.buildErrorMessage(licenseCheck.get());
             logger.info(message);
             auditor.warning(jobId, message);
 

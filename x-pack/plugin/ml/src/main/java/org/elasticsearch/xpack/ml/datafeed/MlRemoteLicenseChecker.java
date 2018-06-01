@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.action.XPackInfoRequest;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -30,7 +29,7 @@ import java.util.stream.Collectors;
  * The remote cluster should be licenced for ML this class performs that check
  * using the _xpack endpoint.
  */
-public class CcsLicenseChecker {
+public class MlRemoteLicenseChecker {
 
     private final Client client;
 
@@ -68,7 +67,7 @@ public class CcsLicenseChecker {
         }
     }
 
-    public CcsLicenseChecker(Client client) {
+    public MlRemoteLicenseChecker(Client client) {
         this.client = client;
     }
 
@@ -145,7 +144,7 @@ public class CcsLicenseChecker {
     }
 
     public static boolean containsRemoteIndex(List<String> indices) {
-        return indices.stream().anyMatch(CcsLicenseChecker::isRemoteIndex);
+        return indices.stream().anyMatch(MlRemoteLicenseChecker::isRemoteIndex);
     }
 
     /**
@@ -156,7 +155,7 @@ public class CcsLicenseChecker {
      */
     public static List<String> remoteClusterNames(List<String> indices) {
         return indices.stream()
-                .filter(CcsLicenseChecker::isRemoteIndex)
+                .filter(MlRemoteLicenseChecker::isRemoteIndex)
                 .map(index -> index.substring(0, index.indexOf(':')))
                 .distinct()
                 .collect(Collectors.toList());

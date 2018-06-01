@@ -43,12 +43,11 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.datafeed.CcsLicenseChecker;
+import org.elasticsearch.xpack.ml.datafeed.MlRemoteLicenseChecker;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -139,16 +138,16 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
             Job job = mlMetadata.getJobs().get(datafeed.getJobId());
 
-            if (CcsLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
-                CcsLicenseChecker remoteLicenseChecker = new CcsLicenseChecker(client);
-                remoteLicenseChecker.checkRemoteClusterLicenses(CcsLicenseChecker.remoteClusterNames(datafeed.getIndices()),
+            if (MlRemoteLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+                MlRemoteLicenseChecker remoteLicenseChecker = new MlRemoteLicenseChecker(client);
+                remoteLicenseChecker.checkRemoteClusterLicenses(MlRemoteLicenseChecker.remoteClusterNames(datafeed.getIndices()),
                         ActionListener.wrap(
                                 response -> {
                                     if (response.isViolated()) {
                                         String message = "Cannot start datafeed [" + datafeed.getId() + "] as it is configured to use "
                                                 + "indices on a remote cluster [" + response.get().getClusterName()
                                                 + "] that is not licensed for Machine Learning. "
-                                                + CcsLicenseChecker.buildErrorMessage(response.get());
+                                                + MlRemoteLicenseChecker.buildErrorMessage(response.get());
 
                                         listener.onFailure(new ElasticsearchException(message));
                                     } else {

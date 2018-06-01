@@ -11,8 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.core.ml.action.CheckLicenseCssAction;
+import org.elasticsearch.xpack.core.ml.action.CheckRemoteLicenseAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.junit.After;
 import org.junit.Before;
@@ -62,7 +61,7 @@ public class MlDailyManagementServiceTests extends ESTestCase {
         }
 
         verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(CheckLicenseCssAction.INSTANCE), any(), any());
+        verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(CheckRemoteLicenseAction.INSTANCE), any(), any());
     }
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {

@@ -290,22 +290,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(other, conflicts, strict);
-            if (strict) {
-                PrefixFieldType otherFieldType = (PrefixFieldType) other;
-                if (otherFieldType.minChars != this.minChars) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                        + "[index_prefixes.min_chars] across all types.");
-                }
-                if (otherFieldType.maxChars != this.maxChars) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                        + "[index_prefixes.max_chars] across all types.");
-                }
-            }
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException();
         }
@@ -408,6 +392,19 @@ public class TextFieldMapper extends FieldMapper {
                 List<String> conflicts, boolean strict) {
             super.checkCompatibility(other, conflicts, strict);
             TextFieldType otherType = (TextFieldType) other;
+            if (Objects.equals(this.prefixFieldType, otherType.prefixFieldType) == false) {
+                if (this.prefixFieldType == null) {
+                    conflicts.add("mapper [" + name()
+                        + "] has different [index_prefixes] settings, cannot change from disabled to enabled");
+                }
+                else if (otherType.prefixFieldType == null) {
+                    conflicts.add("mapper [" + name()
+                        + "] has different [index_prefixes] settings, cannot change from enabled to disabled");
+                }
+                else {
+                    conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
+                }
+            }
             if (strict) {
                 if (fielddata() != otherType.fielddata()) {
                     conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [fielddata] "
@@ -424,10 +421,6 @@ public class TextFieldMapper extends FieldMapper {
                 if (fielddataMinSegmentSize() != otherType.fielddataMinSegmentSize()) {
                     conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
                             + "[fielddata_frequency_filter.min_segment_size] across all types.");
-                }
-                if (Objects.equals(this.prefixFieldType, ((TextFieldType) other).prefixFieldType) == false) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                        + "[index_prefixes] across all types.");
                 }
             }
         }
@@ -521,6 +514,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }
+
     }
 
     private Boolean includeInAll;

@@ -255,6 +255,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     throw new IllegalArgumentException("feature settings must have default [true] value");
                 }
             });
+            // use a sorted set to present the features in a consistent order
             this.features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
         }
     }

@@ -19,7 +19,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -51,7 +50,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -120,8 +121,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         try {
             newService.registerRequestHandler(ClusterSearchShardsAction.NAME, ClusterSearchShardsRequest::new, ThreadPool.Names.SAME,
                     (request, channel) -> {
-                        channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
-                                knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
+                        if ("index_not_found".equals(request.preference())) {
+                            channel.sendResponse(new IndexNotFoundException("index"));
+                        } else {
+                            channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
+                                    knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
+                        }
                     });
             newService.registerRequestHandler(ClusterStateAction.NAME, ClusterStateRequest::new, ThreadPool.Names.SAME,
                     (request, channel) -> {

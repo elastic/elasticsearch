@@ -61,7 +61,6 @@ public class NioHttpRequest extends RestRequest {
         }
     }
 
-    @Override
     public Method method() {
         HttpMethod httpMethod = request.method();
         if (httpMethod == HttpMethod.GET)
@@ -84,7 +83,19 @@ public class NioHttpRequest extends RestRequest {
             return Method.OPTIONS;
         }
 
-        return Method.GET;
+        if (httpMethod == HttpMethod.PATCH) {
+            return Method.PATCH;
+        }
+
+        if (httpMethod == HttpMethod.TRACE) {
+            return Method.TRACE;
+        }
+
+        if (httpMethod == HttpMethod.CONNECT) {
+            return Method.CONNECT;
+        }
+
+        throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
     }
 
     @Override

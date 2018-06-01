@@ -191,7 +191,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
-    public static final String FEATURE_PREFIX = "client.features";
+    public static final String FEATURE_PREFIX = "transport.features";
     public static final Setting<Settings> DEFAULT_FEATURES_SETTING = Setting.groupSetting(FEATURE_PREFIX + ".", Setting.Property.NodeScope);
     private final String[] features;
 

@@ -70,6 +70,10 @@ You can update this setting through the
 
 Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
 
+`xpack.monitoring.collection.node.stats.timeout: 60s`::
+
+Sets the timeout for collecting the node statistics. Defaults to `10s`.
+
 `xpack.monitoring.collection.indices`::
 
 Controls which indices Monitoring collects data from. Defaults to all indices. Specify the index names
@@ -84,10 +88,6 @@ You can update this setting through the
 `xpack.monitoring.collection.index.stats.timeout`::
 
 Sets the timeout for collecting index statistics. Defaults to `10s`.
-
-`xpack.monitoring.collection.indices.stats.timeout`::
-
-Sets the timeout for collecting total indices statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.index.recovery.active_only`::
 

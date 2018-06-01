@@ -52,23 +52,23 @@ public class ExplainLifecycleAction
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<IndexExplainResponse> indexResponses;
+        private List<IndexLifecycleExplainResponse> indexResponses;
 
         public Response() {
         }
 
-        public Response(List<IndexExplainResponse> indexResponses) {
+        public Response(List<IndexLifecycleExplainResponse> indexResponses) {
             this.indexResponses = indexResponses;
         }
 
-        public List<IndexExplainResponse> getIndexResponses() {
+        public List<IndexLifecycleExplainResponse> getIndexResponses() {
             return indexResponses;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (IndexExplainResponse indexResponse : indexResponses) {
+            for (IndexLifecycleExplainResponse indexResponse : indexResponses) {
                 builder.field(indexResponse.getIndex(), indexResponse);
             }
             builder.endObject();
@@ -77,7 +77,7 @@ public class ExplainLifecycleAction
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            indexResponses = in.readList(IndexExplainResponse::new);
+            indexResponses = in.readList(IndexLifecycleExplainResponse::new);
         }
 
         @Override

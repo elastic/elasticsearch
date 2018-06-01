@@ -21,7 +21,7 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableTestCase<Ex
     
     @Override
     protected Response createTestInstance() {
-        List<IndexExplainResponse> indexResponses = new ArrayList<>();
+        List<IndexLifecycleExplainResponse> indexResponses = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
             indexResponses.add(IndexExplainResponseTests.randomIndexExplainResponse());
         }
@@ -41,7 +41,7 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableTestCase<Ex
 
     @Override
     protected Response mutateInstance(Response response) {
-        List<IndexExplainResponse> indexResponses = new ArrayList<>(response.getIndexResponses());
+        List<IndexLifecycleExplainResponse> indexResponses = new ArrayList<>(response.getIndexResponses());
         if (indexResponses.size() > 0) {
             if (randomBoolean()) {
                 indexResponses.add(IndexExplainResponseTests.randomIndexExplainResponse());

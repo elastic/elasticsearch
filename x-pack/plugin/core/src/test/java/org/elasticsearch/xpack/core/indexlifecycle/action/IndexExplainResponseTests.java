@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.RandomStepInfo;
 
 import java.io.IOException;
 
-public class IndexExplainResponseTests extends AbstractSerializingTestCase<IndexExplainResponse> {
+public class IndexExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
 
-    static IndexExplainResponse randomIndexExplainResponse() {
+    static IndexLifecycleExplainResponse randomIndexExplainResponse() {
         if (frequently()) {
             return randomManagedIndexExplainResponse();
         } else {
@@ -26,12 +26,12 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         }
     }
 
-    private static IndexExplainResponse randomUnmanagedIndexExplainResponse() {
-        return IndexExplainResponse.newUnmanagedIndexResponse(randomAlphaOfLength(10));
+    private static IndexLifecycleExplainResponse randomUnmanagedIndexExplainResponse() {
+        return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(randomAlphaOfLength(10));
     }
 
-    private static IndexExplainResponse randomManagedIndexExplainResponse() {
-        return IndexExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean(),
+    private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
+        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean(),
                 randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomBoolean() ? null
@@ -39,22 +39,22 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
     }
 
     @Override
-    protected IndexExplainResponse createTestInstance() {
+    protected IndexLifecycleExplainResponse createTestInstance() {
         return randomIndexExplainResponse();
     }
 
     @Override
-    protected Reader<IndexExplainResponse> instanceReader() {
-        return IndexExplainResponse::new;
+    protected Reader<IndexLifecycleExplainResponse> instanceReader() {
+        return IndexLifecycleExplainResponse::new;
     }
 
     @Override
-    protected IndexExplainResponse doParseInstance(XContentParser parser) throws IOException {
-        return IndexExplainResponse.PARSER.apply(parser, null);
+    protected IndexLifecycleExplainResponse doParseInstance(XContentParser parser) throws IOException {
+        return IndexLifecycleExplainResponse.PARSER.apply(parser, null);
     }
 
     @Override
-    protected IndexExplainResponse mutateInstance(IndexExplainResponse instance) throws IOException {
+    protected IndexLifecycleExplainResponse mutateInstance(IndexLifecycleExplainResponse instance) throws IOException {
         String index = instance.getIndex();
         String policy = instance.getPolicyName();
         String phase = instance.getPhase();
@@ -120,16 +120,16 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                 skip = skip == false;
                 break;
             case 12:
-                return IndexExplainResponse.newUnmanagedIndexResponse(index);
+                return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return IndexExplainResponse.newManagedIndexResponse(index, policy, skip, policyTime, phase, action, step, failedStep, phaseTime,
+            return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, skip, policyTime, phase, action, step, failedStep, phaseTime,
                     actionTime, stepTime, stepInfo);
         } else {
             switch (between(0, 1)) {
             case 0:
-                return IndexExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
+                return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
             case 1:
                 return randomManagedIndexExplainResponse();
             default:

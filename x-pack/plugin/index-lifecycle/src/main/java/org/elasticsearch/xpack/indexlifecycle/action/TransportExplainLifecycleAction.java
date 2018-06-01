@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction.Response;
-import org.elasticsearch.xpack.core.indexlifecycle.action.IndexExplainResponse;
+import org.elasticsearch.xpack.core.indexlifecycle.action.IndexLifecycleExplainResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,14 +59,14 @@ public class TransportExplainLifecycleAction
 
     @Override
     protected void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener) {
-        List<IndexExplainResponse> indexReponses = new ArrayList<>();
+        List<IndexLifecycleExplainResponse> indexReponses = new ArrayList<>();
         for (String index : concreteIndices) {
             IndexMetaData idxMetadata = state.metaData().index(index);
             Settings idxSettings = idxMetadata.getSettings();
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
-            final IndexExplainResponse indexResponse;
+            final IndexLifecycleExplainResponse indexResponse;
             if (Strings.hasLength(policyName)) {
-                indexResponse = IndexExplainResponse.newManagedIndexResponse(index, policyName,
+                indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
                         LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
                         LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(idxSettings),
                         LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(idxSettings),
@@ -78,7 +78,7 @@ public class TransportExplainLifecycleAction
                         LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(idxSettings),
                         new BytesArray(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(idxSettings)));
             } else {
-                indexResponse = IndexExplainResponse.newUnmanagedIndexResponse(index);
+                indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             }
             indexReponses.add(indexResponse);
         }

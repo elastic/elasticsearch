@@ -107,6 +107,7 @@ teardown:
       xpack.index_lifecycle.explain_lifecycle:
         index: "my_index"
 
+  - is_true: my_index.managed
   - match: { my_index.index: "my_index" }
   - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { my_index.phase: "new" }
@@ -127,6 +128,7 @@ teardown:
       xpack.index_lifecycle.explain_lifecycle:
         index: "my_*"
 
+  - is_true: my_index.managed
   - match: { my_index.index: "my_index" }
   - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { my_index.phase: "new" }
@@ -135,6 +137,7 @@ teardown:
   - is_false: my_index.failed_step
   - is_false: my_index.step_info
 
+  - is_true: my_index2.managed
   - match: { my_index2.index: "my_index2" }
   - match: { my_index2.policy: "my_moveable_timeseries_lifecycle" }
   - match: { my_index2.phase: "new" }
@@ -154,6 +157,7 @@ teardown:
       acknowledge: true
       xpack.index_lifecycle.explain_lifecycle: {}
 
+  - is_true: my_index.managed
   - match: { my_index.index: "my_index" }
   - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { my_index.phase: "new" }
@@ -162,6 +166,7 @@ teardown:
   - is_false: my_index.failed_step
   - is_false: my_index.step_info
 
+  - is_true: my_index2.managed
   - match: { my_index2.index: "my_index2" }
   - match: { my_index2.policy: "my_moveable_timeseries_lifecycle" }
   - match: { my_index2.phase: "new" }
@@ -170,6 +175,7 @@ teardown:
   - is_false: my_index2.failed_step
   - is_false: my_index2.step_info
   
+  - is_true: another_index.managed
   - match: { another_index.index: "another_index" }
   - match: { another_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { another_index.phase: "new" }
@@ -177,8 +183,15 @@ teardown:
   - match: { another_index.step: "after" }
   - is_false: another_index.failed_step
   - is_false: another_index.step_info
-
-  - is_false: unmanaged_index
+  
+  - match: { unmanaged_index.index: "unmanaged_index" }
+  - is_false: unmanaged_index.managed
+  - is_false: unmanaged_index.policy
+  - is_false: unmanaged_index.phase
+  - is_false: unmanaged_index.action
+  - is_false: unmanaged_index.step
+  - is_false: another_index.failed_step
+  - is_false: another_index.step_info
 
 ---
 "Test Unmanaged Index Lifecycle Explain":
@@ -188,7 +201,14 @@ teardown:
       xpack.index_lifecycle.explain_lifecycle:
         index: "unmanaged_index"
 
+  - match: { unmanaged_index.index: "unmanaged_index" }
+  - is_false: unmanaged_index.managed
+  - is_false: unmanaged_index.policy
+  - is_false: unmanaged_index.phase
+  - is_false: unmanaged_index.action
+  - is_false: unmanaged_index.step
+  - is_false: another_index.failed_step
+  - is_false: another_index.step_info
   - is_false: my_index
   - is_false: my_index2
   - is_false: another_index
-  - is_false: unmanaged_index

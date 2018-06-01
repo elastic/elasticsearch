@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * Selects nodes that can receive requests. Used to keep requests away
  * from master nodes or to send them to nodes with a particular attribute.
- * Use with {@link Request#setNodeSelector(NodeSelector)}.
+ * Use with {@link RequestOptions.Builder#setNodeSelector(NodeSelector)}.
  */
 public interface NodeSelector {
     /**

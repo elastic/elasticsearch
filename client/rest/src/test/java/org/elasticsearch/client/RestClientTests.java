@@ -237,13 +237,13 @@ public class RestClientTests extends RestClientTestCase {
             restClient.setNodes((Node[]) null);
             fail("setNodes should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("node must not be null nor empty", e.getMessage());
+            assertEquals("nodes must not be null or empty", e.getMessage());
         }
         try (RestClient restClient = createRestClient()) {
             restClient.setNodes();
             fail("setNodes should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("node must not be null nor empty", e.getMessage());
+            assertEquals("nodes must not be null or empty", e.getMessage());
         }
         try (RestClient restClient = createRestClient()) {
             restClient.setNodes((Node) null);

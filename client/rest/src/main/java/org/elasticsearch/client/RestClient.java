@@ -65,6 +65,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -152,14 +154,17 @@ public class RestClient implements Closeable {
         }
         AuthCache authCache = new BasicAuthCache();
 
+        Map<HttpHost, Node> nodeSet = new LinkedHashMap<>();
         for (Node node : nodes) {
             if (node == null) {
-                throw new IllegalArgumentException("node cannot be null");
+                throw new NullPointerException("node cannot be null");
             }
+            // TODO should we throw an IAE if this happens?
+            nodeSet.put(node.getHost(), node);
             authCache.put(node.getHost(), new BasicScheme());
         }
-        this.nodeTuple = new NodeTuple<>(Collections.unmodifiableList(
-            Arrays.asList(nodes)), authCache);
+        this.nodeTuple = new NodeTuple<>(
+                Collections.unmodifiableList(new ArrayList<>(nodeSet.values())), authCache);
         this.blacklist.clear();
     }
 

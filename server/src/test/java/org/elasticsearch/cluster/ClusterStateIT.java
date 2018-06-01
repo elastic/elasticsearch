@@ -155,9 +155,16 @@ public class ClusterStateIT extends ESIntegTestCase {
             return TYPE;
         }
 
+        /*
+         * This custom should always be returned yet we randomize whether it has a required feature that the client is expected to have
+         * versus not requiring any feature. We use a field to make the random choice exactly once.
+         */
+        @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+        private final Optional<String> requiredFeature = randomBoolean() ? Optional.empty() : Optional.of("node-and-transport-client");
+
         @Override
         public Optional<String> getRequiredFeature() {
-            return Optional.of("node-and-transport-client");
+            return requiredFeature;
         }
 
     }

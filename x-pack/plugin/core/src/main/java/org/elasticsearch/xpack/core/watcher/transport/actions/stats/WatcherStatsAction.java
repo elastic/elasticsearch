@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This Action gets the stats for the watcher plugin
  */
-public class WatcherStatsAction extends Action<WatcherStatsRequest, WatcherStatsResponse, WatcherStatsRequestBuilder> {
+public class WatcherStatsAction extends Action<WatcherStatsRequest, WatcherStatsResponse> {
 
     public static final WatcherStatsAction INSTANCE = new WatcherStatsAction();
     public static final String NAME = "cluster:monitor/xpack/watcher/stats/dist";
@@ -24,10 +23,4 @@ public class WatcherStatsAction extends Action<WatcherStatsRequest, WatcherStats
     public WatcherStatsResponse newResponse() {
         return new WatcherStatsResponse();
     }
-
-    @Override
-    public WatcherStatsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new WatcherStatsRequestBuilder(client);
-    }
-
 }

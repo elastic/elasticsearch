@@ -31,7 +31,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
+public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
@@ -39,11 +39,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     private OpenJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -286,7 +281,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());

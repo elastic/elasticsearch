@@ -155,26 +155,28 @@ reference type instance is required to use a non-static member field.
 
 static member method::
 
-A static member method is a function called on a reference type *object*. Use
-the <<method-call-operator, method call operator>> in correspondence with the
-reference type object name to call a static member method. No reference type
-instance allocation is necessary to use a static member method.
+A static member method is a <<painless-functions, function>> called on a
+reference type *object*. Use the <<method-call-operator, method call operator>>
+in correspondence with the reference type object name to call a static member
+method. No reference type instance allocation is necessary to use a static
+member method.
 
 non-static member method::
 
-A non-static member method is a function called on a reference type *instance*.
-A non-static member method called on a reference type instance can load from and
-store to non-static member fields of that specific reference type instance. Use
-the <<method-call-operator, method call operator>> in correspondence with a
-specific reference type instance to call a non-static member method. An
-allocated reference type instance is required to use a non-static member method.
+A non-static member method is a <<painless-functions, function>> called on a
+reference type *instance*. A non-static member method called on a reference type
+instance can load from and store to non-static member fields of that specific
+reference type instance. Use the <<method-call-operator, method call operator>>
+in correspondence with a specific reference type instance to call a non-static
+member method. An allocated reference type instance is required to use a
+non-static member method.
 
 constructor::
 
-A constructor is a special type of function used to allocate a reference type
-*instance* defined by a specific reference type *object*. Use the
-<<new-instance-operator, new instance operator>> to allocate a reference type
-instance.
+A constructor is a special type of <<painless-functions, function>> used to
+allocate a reference type *instance* defined by a specific reference type
+*object*. Use the <<new-instance-operator, new instance operator>> to allocate
+a reference type instance.
 
 A reference type object follows a basic inheritance model. Consider types A and
 B. Type A is considered to be a parent of B, and B a child of A, if B inherits

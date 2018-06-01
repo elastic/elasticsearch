@@ -4,221 +4,440 @@
 [[method-call-operator]]
 ==== Method Call
 
-You call reference type methods using the dot operator and the method id:
-`.method_id(arg1,...,argn)`. The parentheses are required even if there are no
-arguments.
+Use the *method call operator* to call a member method on a
+<<reference-types, reference type>> value. Implicit
+<<boxing-unboxing, boxing/unboxing>> is evaluated as necessary per argument.
+When a method call is made on a `def` type value, the parameters and return
+type value are considered to also be of the `def` type and are evaluated at
+run-time.
 
-If the reference type is not type `def`, the argument types for the method
-can be resolved at compile time. An error occurs if appropriate type
-conversions (casting) cannot be performed. If the reference type is type `def`, the argument types for the method are all considered to be the type `def`. The
-appropriate type conversions are performed at run-time.
+An overloaded method is one that shares the same name with two or more methods.
+A method is overloaded based on arity where the same name is re-used for
+multiple methods as long as the number of parameters differs.
 
-Automatic <<boxing-unboxing,boxing and unboxing>> is performed when you pass in
-arguments to a method.
+*Errors*
 
-Method calls can be overloaded based on arity in Painless. The same method
-name can be re-used for different methods as long as the number of arguments
-differs. This differs from Java method overloading, where only the types must
-differ. This has an effect on some of the provided reference type methods in
-the <<painless-api-reference,Painless API>>. Where there are overloaded methods with
-the same arity for a reference type in Java, Painless chooses a single method
-to be provided.
+* If the reference type value is `null`.
+* If the member method name doesn't exist for a given reference type value.
+* If the number of arguments passed in is different from the number of specified
+  parameters.
+* If the arguments cannot be implicitly cast or implicitly boxed/unboxed to the
+  correct type values for the parameters.
 
-*Grammar:*
+*Grammar*
+
 [source,ANTLR4]
 ----
-method_call: ID '.' ID '(' (expression (',' expression)*)? ')';
+method_call: callable '.' ID arguments;
+callable: (variable | field | type);
+arguments: '(' (expression (',' expression)*)? ')';
 ----
 
-*Examples:*
-[source,Java]
-----
-Map m = new HashMap();         // Declare Map variable m and set it a newly
-                               //   allocated HashMap
-x.put(1, 2);                   // Call the put method on variable x to add key 1
-                               //   with the value 2 to the Map
-int z = x.get(1);              // Declare int variable z, call the get method to
-                               //   retrieve the value of key 1, and assign the
-                               //   return value of the method call to variable z
-def d = new ArrayList();       // Declare def variable m and set it a newly
-                               //   allocated ArrayList
-d.add(1);                      // Call the add method on variable d and add the
-                               //   literal int 1 to the ArrayList. Note that
-                               //   the argument type is considered to be of
-                               //   type def since the reference type is also def
-int i = Integer.parseInt('2'); // Declare int variable i and set it to the
-                               //   value returned by the static method parseInt
-----
+*Examples*
 
-**************************
-Painless describes the Map method arguments using the `def` type:
-
-[source,Java]
+* Uses of method calls.
++
+[source,Painless]
 ----
-put(def, def)
-get(def)
+<1> Map m = new HashMap();
+<2> m.put(1, 2);
+<3> int z = m.get(1);
+<4> def d = new ArrayList();
+<5> d.add(1);
+<6> int i = Integer.parseInt(d.get(0).toString());
 ----
-
-When you call `x.put(1, 2)`, the key and value are implicitly converted from
-the int type to the def type.
-
-Assume for a minute that the Map method arguments were described as Integers:
-
-[source,Java]
-----
-put(Integer, Integer)
-get(Integer)
-----
-
-In this case, the key and value would implicitly be _boxed_ from the primitive
-int type to the Integer reference type. For more information about how Painless
-casts between primitive types and reference types, see <<boxing-unboxing, Boxing
-and Unboxing>>.
-**************************
++
+<1> declare `Map m`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    store `HashMap reference` to `m`
+<2> load from `m` -> `Map reference`;
+    implicit cast `int 1` to `def` -> `def`;
+    implicit cast `int 2` to `def` -> `def`;
+    call `put` on `Map reference` with arguments (`int 1`, `int 2`)
+<3> declare `int z`;
+    load from `m` -> `Map reference`;
+    call `get` on `Map reference` with arguments (`int 1`) -> `def`;
+    implicit cast `def` to `int 2` -> `int 2`;
+    store `int 2` to `z`
+<4> declare `def d`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList` to `def` -> `def`;
+    store `def` to `d`
+<5> load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`
+    call `add` on `ArrayList reference` with arguments (`int 1`);
+<6> declare `int i`;
+    load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`
+    call `get` on `ArrayList reference` with arguments (`int 1`) -> `def`;
+    implicit cast `def` to `Integer 1 reference` -> `Integer 1 reference`;
+    call `toString` on `Integer 1 reference` -> `String '1'`;
+    call `parseInt` on `Integer` with arguments (`String '1'`) -> `int 1`;
+    store `int 1` in `i`;
 
 [[field-access-operator]]
 ==== Field Access
-You access primitive and reference type members in a reference type using the
-dot operator '.' followed by the id of the member. The accessed member behaves
-the same way as the type it represents with one exception: if the reference
-type is of type `def`, the member is also considered to be of type `def` and
-resolved at runtime.
 
-*Grammar:*
+Use the *field access operator* to store a value to or load a value from a
+<<reference-types, reference type>> member field.
+
+*Errors*
+
+* If the reference type value is `null`.
+* If the member field name doesn't exist for a given reference type value.
+
+*Grammar*
+
 [source,ANTLR4]
 ----
-field_access: ID '.' ID;
+field_access: accessible '.' ID;
+accessible: (variable | field | type);
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+The examples use the following reference type definition:
+
 ----
-FeatureTest ft = new FeatureTest(); // Declare FeatureTest variable ft and
-                                    //   set it to a newly allocated FeatureTest
-ft.x = 5;                           // Access int member x from ft and assign
-                                    //   it the literal int value 5
-ft.y = ft.x;                        // Access int member y from ft and assign
-                                    //   it the value of ft member x
-int value = ft.x + ft.y;            // Declare variable value as an int,
-                                    //   add ft members x and y together,
-                                    //   assign the sum to the variable value
+name:
+  Example
+
+non-static member fields:
+  * int x
+  * def y
+  * List z
 ----
+
+* Uses of the *field access operator*.
++
+[source,Painless]
+----
+<1> Example example = new Example();
+<2> example.x = 1;
+<3> example.y = example.x;
+<4> example.z = new ArrayList();
+<5> example.z.add(1);
+<6> example.x = example.z.get(0);
+----
++
+<1> declare `Example example`;
+    allocate `Example` instance -> `Example reference`;
+    store `Example reference` to `example`
+<2> load from `example` -> `Example reference`;
+    store `int 1` to `x` of `Example reference`
+<3> load from `example` -> `Example reference @0`;
+    load from `example` -> `Example reference @1`;
+    load from `x` of `Example reference @1` -> `int 1`;
+    implicit cast `int 1` to `def` -> `def`;
+    store `def` to `y` of `Example reference @0`;
+    (note `Example reference @0` and `Example reference @1` are the same)
+<4> load from `example` -> `Example reference`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `z` of `Example reference`
+<5> load from `example` -> `Example reference`;
+    load from `z` of `Example reference` -> `List reference`;
+    call `add` on `List reference` with arguments (`int 1`)
+<6> load from `example` -> `Example reference @0`;
+    load from `example` -> `Example reference @1`;
+    load from `z` of `Example reference @1` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 0`) -> `int 1`;
+    store `int 1` in `x` of `List reference @0`;
+    (note `Example reference @0` and `Example reference @1` are the same)
 
 [[null-safe-operator]]
 ==== Null Safe
 
-The null safe operator `?.` can be used in place of the dot operator
-to check if a reference type instance is `null` before attempting to access
-a field or make a method call against it. When using the null safe operator,
-if the instance is `null`, the returned value is `null`. If the reference
-type instance is non-null, it returns the value of the field or result of
-the method call normally.
+Use the *null safe operator* instead of the *method call operator* or *field
+access operator* to ensure a reference type value is not `null` before
+a method call or field access. A `null` value will be returned if the reference
+type value is `null`, otherwise the method call or field access is evaluated.
 
-// REVIEWER NOTE: The following paragraph doesn't make sense to me. Do you
-All resultant types must be a reference type or be able to be implicitly cast
-to a reference type or an error will occur.
+*Errors*
 
-*Grammar:*
+* If the method call return type value or the field access type value is not
+  a reference type value and is not implicitly castable to a reference type
+  value.
+
+*Grammar*
+
 [source,ANTLR4]
 ----
 null_safe: null_safe_field_access
          | null_safe_method_call;
-null_safe_field_access: ID '?.' ID;
-null_safe_method_call: ID '?.' ID '(' (expression (',' expression)*)? ')';
+
+null_safe_field_access: accessible '?.' ID;
+accessible: (variable | field | type);
+
+null_safe_method_call: callable '?.' ID arguments;
+callable: (variable | field | type);
+arguments: '(' (expression (',' expression)*)? ')';
 ----
 
-*Examples:*
-[source,Java]
-----
-Map x = new HashMap(); // Declare the Map variable x and set it to a newly
-                       //   allocated HashMap
-Map y = null;          // Declare the Map variable y and set it to null
-def z = new HashMap(); // Declares the def variable z and set it to a newly
-                       // allocated HashMap
+*Examples*
 
-x.put(1, 2);           // Put the key-value pair 1 and 2 into x
-z.put(5, 6);           // Put the key-value pair 5 and 6 into z
+The examples use the following reference type definition:
 
-def value = x?.get(1); // Declare the def variable value and set it to the
-                       //   result of .get(1) since x is not null
-value = y?.get(3);     // Sets value to null since y is null
-value = z?.get(5);     // Sets value to the result of .get(5) since z is not null
 ----
+name:
+  Example
+
+non-static member methods:
+  * List factory()
+
+non-static member fields:
+  * List x
+----
+
+* Use of the *null safe operator* without a `null` value.
++
+[source,Painless]
+----
+<1> Example example = new Example();
+<2> List x = example?.factory();
+----
++
+<1> declare `Example example`;
+    allocate `Example` instance -> `Example reference`;
+    store `Example reference` to `example`
+<2> declare `List x`;
+    load from `example` -> `Example reference`;
+    null safe call `factory` on `Example reference` -> `List reference`;
+    store `List reference` to `x`;
++
+* Use of the *null safe operator* with a `null` value;
++
+[source,Painless]
+----
+<1> Example example = null;
+<2> List x = example?.x;
+----
+<1> declare `Example example`;
+    store `null` to `example`
+<2> declare `List x`;
+    load from `example` -> `Example reference`;
+    null safe access `x` on `Example reference` -> `null`;
+    store `null` to `x`;
+    (note the *null safe operator* returned `null` because `example` is `null`)
 
 [[list-initialization-operator]]
 ==== List Initialization
 
-You create and initialize lists using the brackets `[]` operator. The values
-you want to initialize the list with are specified as a comma-separated list
-of expressions enclosed in brackets. For example, `List l = [1, 2, 3]` creates
-a new three item list. Each expression used to initialize the list is converted
-a `def` type when the value is inserted into the list. The order of the
-expressions is maintained.
+Use the *list initialization operator* to allocate an ArrayList type value with
+a set of pre-defined values. Each value used to initialize the ArrayList type
+value is converted to a `def` type value when inserted into the ArrayList type
+value using the `add` method. The order of specified values is maintained upon
+insertion.
 
-*Grammar:*
+*Grammar*
+
 [source,ANTLR4]
 ----
 list_initialization: '[' expression (',' expression)* ']'
                    | '[' ']';
 ----
 
-*Examples:*
-[source,Java]
-----
-List empty = [];          // declares the List variable empty and sets it to a newly initialized empty List
-List l0 = [1, 2, 3];      // declares the List variable l0 and sets it to a newly initialized List with the values 1, 2, and 3
+*Examples*
 
-int i = 1;
-long l = 2L;
-float f = 3.0F;
-double d = 4.0;
-String s = "5";
-List l1 = [i, l, f*d, s]; // declares the List variable l1 and sets it to a newly initialized List with the values of i, l, and f*d and s
+* Use of the *list initialization operator* to create an empty List type value.
++
+[source,Painless]
 ----
+<1> List empty = [];
+----
++
+<1> declare `List empty`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `empty`
++
+* Use of the *list initialization operator* with static values.
++
+[source,Painless]
+----
+<1> List list = [1, 2, 3];
+----
++
+<1> declare `List list`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    call `add` on `ArrayList reference` with arguments(`int 1`);
+    call `add` on `ArrayList reference` with arguments(`int 2`);
+    call `add` on `ArrayList reference` with arguments(`int 3`);
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `list`
++
+* Use of the *list initialization operator* with non-static values.
++
+[source,Painless]
+----
+<1> int i = 1;
+<2> long l = 2L;
+<3> float f = 3.0F;
+<4> double d = 4.0;
+<5> String s = "5";
+<6> List list = [i, l, f*d, s];
+----
++
+<1> declare `int i`;
+    store `int 1` to `i`
+<2> declare `long l`;
+    store `long 2` to `l`
+<3> declare `float f`;
+    store `float 3.0` to `f`
+<4> declare `double d`;
+    store `double 4.0` to `d`
+<5> declare `String s`;
+    store `String "5"` to `s`
+<6> declare `List list`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    load from `i` -> `int 1`;
+    call `add` on `ArrayList reference` with arguments(`int 1`);
+    load from `l` -> `long 2`;
+    call `add` on `ArrayList reference` with arguments(`long 2`);
+    load from `f` -> `float 3.0`;
+    load from `d` -> `double 4.0`;
+    promote `float 3.0` and `double 4.0`: result `double`;
+    implicit cast `float 3.0` to `double 3.0` -> `double 3.0`;
+    multiply `double 3.0` and `double 4.0` -> `double 12.0`;
+    call `add` on `ArrayList reference` with arguments(`double 12.0`);
+    load from `s` -> `String "5"`;
+    call `add` on `ArrayList reference` with arguments(`String "5"`);
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `list`
 
 [[list-access-operator]]
 ==== List Access
 
-Elements in a List are stored or accessed using the brackets operator.  The format begins with an opening bracket, followed by an expression, and finishes with a closing bracket.  Storing elements in a List is equivalent to invoking a List's set method.  Accessing elements in a List is equivalent to invoking a List's get method.  Using this operator is strictly a shortcut for the previously mentioned methods.  The range of elements within a List that can be accessed is [0, size) where size is the number of elements currently in the List.  Elements may also be accessed from the last element in a List using a negative numeric value from [-size, -1].  The expression used to determine which element is accessed must be able to be implicitly cast to an int.  An error will occur if the expression is outside of the legal range or is not of type int.
+Use the *list access operator* as a shortcut for an `set` method call or `get`
+method call made on a List type value.
 
-*Grammar:*
+*Errors*
+
+* Use of the *list access operator* on a value that is not a List type value.
+* Use of a non-integer type value as an index for an `set` method call or `get`
+  method call.
+
+*Grammar*
+
 [source,ANTLR4]
 ----
 list_access: '[' expression ']'
 ----
 
-*Examples:*
-[source,Java]
-----
-List x = new ArrayList(); // declares a List variable x and sets it to a newly allocated ArrayList
-x.add(1);                 // invokes the add method on the variable x and adds the constant int 1 to the List
-x.add(2);                 // invokes the add method on the variable x and adds the constant int 2 to the List
-x.add(3);                 // invokes the add method on the variable x and adds the constant int 3 to the List
-x[0] = 2;                 // sets the 0th element of the variable x to the constant int 2
-x[1] = 5;                 // sets the 1st element of the variable x to the constant int 2
-int y = x[0] + x[1];      // declares the int variable y and sets it to the sum of the first two elements of the variable x
-int z = 1;                // declares the int variable z and sets it to the constant int 1
-return x[z];              // accesses the 1st element of the variable x using the variable z as an expression and returns the value
+*Examples*
 
-def d = new ArrayList(); // declares a def variable d and sets it to a newly allocated ArrayList
-d.add(1);                // invokes the add method on the variable d and adds the constant int 1 to the List
-d.add(2);                // invokes the add method on the variable d and adds the constant int 2 to the List
-d.add(3);                // invokes the add method on the variable d and adds the constant int 3 to the List
-d[0] = 2;                // sets the 0th element of the variable d to the constant int 2
-d[1] = 5;                // sets the 1st element of the variable d to the constant int 2
-def y = d[0] + d[1];     // declares the def variable y and sets it to the sum of the first two elements of the variable d
-def z = 1;               // declares the def variable z and sets it to the constant int 1
-return d[z];             // accesses the 1st element of the variable d using the variable z as an expression and returns the value
+* Uses of the *list access operator*.
++
+[source,Painless]
 ----
-
-Note in the first example above all types can be resolved at compile-time, while in the second example all types must wait to be resolved until run-time.
+<1> List list = new ArrayList();
+<2> list.add(1);
+<3> list.add(2);
+<4> list.add(3);
+<5> list[0] = 2;
+<6> list[1] = 5;
+<7> int x = list[0] + list[1];
+<8> int y = 1;
+<9> int z = list[y];
+----
++
+<1> declare `List list`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `list`
+<2> load from `list` -> `List reference`;
+    call `add` on `List reference` with arguments(`int 1`)
+<3> load from `list` -> `List reference`;
+    call `add` on `List reference` with arguments(`int 2`)
+<4> load from `list` -> `List reference`;
+    call `add` on `List reference` with arguments(`int 3`)
+<5> load from `list` -> `List reference`;
+    call `set` on `List reference` with arguments(`int 0`, `int 2`)
+<6> load from `list` -> `List reference`;
+    call `set` on `List reference` with arguments(`int 1`, `int 5`)
+<7> declare `int x`;
+    load from `list` -> `List reference`;
+    call `get` on `List reference` with arguments(`int 0`); -> `def`;
+    implicit cast `def` to `int 2` -> `int 2`;
+    load from `list` -> `List reference`;
+    call `get` on `List reference` with arguments(`int 1`); -> `def`;
+    implicit cast `def` to `int 5` -> `int 5`;
+    add `int 2` and `int 5` -> `int 7`;
+    store `int 7` to `x`
+<8> declare `int y`;
+    store `int 1` int `y`
+<9> declare `int z`;
+    load from `list` -> `List reference`;
+    load from `y` -> `int 1`;
+    call `get` on `List reference` with arguments(`int 1`); -> `def`;
+    implicit cast `def` to `int 5` -> `int 5`;
+    store `int 5` to `z`
++
+* Uses of the *list access operator* with the `def` type.
++
+[source,Painless]
+----
+<1> def d = new ArrayList();
+<2> d.add(1);
+<3> d.add(2);
+<4> d.add(3);
+<5> d[0] = 2;
+<6> d[1] = 5;
+<7> def x = d[0] + d[1];
+<8> def y = 1;
+<9> def z = d[y];
+----
++
+<1> declare `List d`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `def` -> `def`;
+    store `def` to `d`
+<2> load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `add` on `ArrayList reference` with arguments(`int 1`)
+<3> load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `add` on `ArrayList reference` with arguments(`int 2`)
+<4> load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `add` on `ArrayList reference` with arguments(`int 3`)
+<5> load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `set` on `ArrayList reference` with arguments(`int 0`, `int 2`)
+<6> load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `set` on `ArrayList reference` with arguments(`int 1`, `int 5`)
+<7> declare `def x`;
+    load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `get` on `ArrayList reference` with arguments(`int 0`); -> `def`;
+    implicit cast `def` to `int 2` -> `int 2`;
+    load from `d` -> `def`;
+    implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
+    call `get` on `ArrayList reference` with arguments(`int 1`); -> `def`;
+    implicit cast `def` to `int 2` -> `int 2`;
+    add `int 2` and `int 5` -> `int 7`;
+    store `int 7` to `x`
+<8> declare `int y`;
+    store `int 1` int `y`
+<9> declare `int z`;
+    load from `d` -> `ArrayList reference`;
+    load from `y` -> `def`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    call `get` on `ArrayList reference` with arguments(`int 1`); -> `def`;
+    store `def` to `z`
 
 [[map-initialization-operator]]
 ==== Map Initialization
 
-A Map can be created and initialized using the brackets operator.  The format begins with a bracket, followed by an arbitrary number of key-value pairs delimited with commas (except the last), and ends with a closing bracket.  Each key-value pair is a set of two expressions separate by a colon.  If there is only a single colon with no expressions, a new empty Map is created.
+Use the *map initialization operator* to allocate a HashMap type value with
+a set of pre-defined values. Each pair of values used to initialize the HashMap
+type value are converted to `def` type values when inserted into the HashMap
+type value using the `put` method. The order of specified values is maintained
+upon insertion.
 
-*Grammar:*
+*Grammar*
+
 [source,ANTLR4]
 ----
 map_initialization: '[' key_pair (',' key_pair)* ']'
@@ -226,10 +445,10 @@ map_initialization: '[' key_pair (',' key_pair)* ']'
 key_pair: expression ':' expression
 ----
 
-Each expression used as part of the initialization is converted to a `def` type
-for insertion into the map.
+*Examples*
 
-*Examples:*
+
+
 [source,Java]
 ----
 Map empty = [:];            // declares the Map variable empty and sets it to a newly initialized empty Map

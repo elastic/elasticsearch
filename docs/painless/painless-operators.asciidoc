@@ -9,7 +9,7 @@ is evaluated.  The following table lists all available operators:
 
 [cols="<6,<3,^3,^2,^4"]
 |====
-| *Operator*                                       | *Category*                                  | *Symbol(s)* | *Precedence* | *Associativity*
+| *Operator*                                                | *Category*                                  | *Symbol(s)* | *Precedence* | *Associativity*
 | <<precedence-operator, Precedence>>                       | <<painless-operators-general, General>>     | ()          | 0            | left -> right
 | <<method-call-operator, Method Call>>                     | <<painless-operators-reference, Reference>> | . ()        | 1            | left -> right
 | <<field-access-operator, Field Access>>                   | <<painless-operators-reference, Reference>> | .           | 1            | left -> right

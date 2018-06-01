@@ -177,8 +177,8 @@ or the target type is a descendant of the original type.
 <3> declare `ArrayList y`;
     load from `x` -> `List reference`;
     *error* -> cannot explicit cast `List reference` to `Map reference`;
-    (note no cast would be valid since neither `List` nor `Map` is a descendant
-            of the other)
+    (note no cast is valid since neither `List` nor `Map` is a descendant of the
+            other)
 
 [[dynamic-type-casting]]
 ==== Dynamic Type Casting
@@ -252,8 +252,8 @@ based on the current type value the `def` type value represents.
     implicit cast `def` to `double 1.0` -> `double 1.0`;
     explicit cast `double 1.0` to `int 1` -> `int 1`;
     store `int 1` to `i`;
-    (note the explicit cast is necessary since a `double` value cannot be
-     converted to an `int` value implicitly)
+    (note the explicit cast is necessary since a `double` type value is not
+            converted to an `int` type value implicitly)
 <3> store `int 1` to `d`;
     (note the switch in the type `d` represents from `double` to `int`)
 <4> declare `float i`;
@@ -294,8 +294,8 @@ based on the current type value the `def` type value represents.
     load from `d` -> `def`;
     implicit cast `def` to `HashMap reference`;
     *error* -> cannot implicit cast `HashMap reference` to `List reference`;
-    (note no cast would be valid since neither `HashMap` nor `List` is a
-            descendant of the other)
+    (note no cast is valid since neither `HashMap` nor `List` is a descendant of
+            the other)
 
 [[string-character-casting]]
 ==== String to Character Casting
@@ -324,7 +324,7 @@ Use the *cast operator* to convert a <<string-type, `String` type>> value into a
 <2> explicit cast `String 'c'` to `char c` -> `char c`;
     store `char c` to `c`
 +
-* Casting a `String` reference into a `char` value.
+* Casting a `String` reference into a `char` type value.
 +
 [source,Painless]
 ----
@@ -347,12 +347,12 @@ reference type to its corresponding primitive type.
 
 Implicit boxing/unboxing occurs during the following operations:
 
-* Conversions between a `def` type and a primitive type will be implicitly
+* Conversions between a `def` type and a primitive type are implicitly
   boxed/unboxed as necessary, though this is referred to as an implicit cast
   throughout the documentation.
-* Method/function call arguments will be implicitly boxed/unboxed as necessary.
-* A primitive type value will be implicitly boxed when a reference type method
-  call is invoked on it.
+* Method/function call arguments are implicitly boxed/unboxed as necessary.
+* A primitive type value is implicitly boxed when a reference type method call
+  is invoked on it.
 
 Explicit boxing/unboxing is not allowed. Use the reference type API to
 explicitly convert a primitive type value to its respective reference type
@@ -423,8 +423,8 @@ Promotion is when a single value is implicitly cast to a certain type or
 multiple values are implicitly cast to the same type as required for evaluation
 by certain operations. Each operation that requires promotion has a promotion
 table that shows all required implicit casts based on the type(s) of value(s). A
-value can be promoted to a `def` type at compile-time; however, the promoted
-type value is derived from what the `def` type value represents at run-time.
+value is promoted to a `def` type at compile-time; however, the promoted type
+value is derived from what the `def` type value represents at run-time.
 
 *Errors*
 

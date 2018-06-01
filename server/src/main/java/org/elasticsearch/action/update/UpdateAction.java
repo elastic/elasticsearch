@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.GenericAction;
 
-public class UpdateAction extends Action<UpdateRequest, UpdateResponse> {
+public class UpdateAction extends GenericAction<UpdateResponse> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();
     public static final String NAME = "indices:data/write/update";

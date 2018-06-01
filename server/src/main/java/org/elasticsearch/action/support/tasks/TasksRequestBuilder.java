@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.support.tasks;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,7 +33,7 @@ public class TasksRequestBuilder<
             RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
         > extends ActionRequestBuilder<Request, Response> {
 
-    protected TasksRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected TasksRequestBuilder(ElasticsearchClient client, GenericAction<Response> action, Request request) {
         super(client, action, request);
     }
 

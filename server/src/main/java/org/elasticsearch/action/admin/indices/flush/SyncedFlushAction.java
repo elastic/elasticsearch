@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 
-public class SyncedFlushAction extends Action<SyncedFlushRequest, SyncedFlushResponse> {
+public class SyncedFlushAction extends GenericAction<SyncedFlushResponse> {
 
     public static final SyncedFlushAction INSTANCE = new SyncedFlushAction();
     public static final String NAME = "indices:admin/synced_flush";

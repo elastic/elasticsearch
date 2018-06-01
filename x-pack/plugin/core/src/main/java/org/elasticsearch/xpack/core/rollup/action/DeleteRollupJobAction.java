@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request, DeleteRollupJobAction.Response> {
+public class DeleteRollupJobAction extends GenericAction<DeleteRollupJobAction.Response> {
 
     public static final DeleteRollupJobAction INSTANCE = new DeleteRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/delete";

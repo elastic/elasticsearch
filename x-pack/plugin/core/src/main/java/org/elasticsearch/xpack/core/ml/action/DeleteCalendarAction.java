@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, DeleteCalendarAction.Response> {
+public class DeleteCalendarAction extends GenericAction<DeleteCalendarAction.Response> {
 
     public static final DeleteCalendarAction INSTANCE = new DeleteCalendarAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/delete";

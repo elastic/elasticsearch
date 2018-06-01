@@ -328,7 +328,7 @@ public class AuthorizationService extends AbstractComponent {
         if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
             // is this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
-                    : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
+                    : "GenericAction " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
 
             authorizeBulkItems(authentication, (BulkShardRequest) request, permission, metaData, localIndices, authorizedIndices);
         }
@@ -523,7 +523,7 @@ public class AuthorizationService extends AbstractComponent {
             }
 
             assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action) || sameUsername == false
-                    : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
+                    : "GenericAction '" + action + "' should not be possible when sameUsername=" + sameUsername;
             return sameUsername;
         }
         return false;

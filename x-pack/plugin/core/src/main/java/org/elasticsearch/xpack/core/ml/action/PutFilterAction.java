@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response> {
+public class PutFilterAction extends GenericAction<PutFilterAction.Response> {
 
     public static final PutFilterAction INSTANCE = new PutFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/put";

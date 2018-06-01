@@ -106,7 +106,7 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
             headers.add("Content-Type", "text/xml; charset=UTF-8");
             String action = null;
             for (NameValuePair parse : URLEncodedUtils.parse(IOUtils.toString(s.getRequestBody()), StandardCharsets.UTF_8)) {
-                if ("Action".equals(parse.getName())) {
+                if ("GenericAction".equals(parse.getName())) {
                     action = parse.getValue();
                     break;
                 }

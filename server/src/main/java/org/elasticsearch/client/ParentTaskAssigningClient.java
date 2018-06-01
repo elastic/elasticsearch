@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -61,7 +61,7 @@ public class ParentTaskAssigningClient extends FilterClient {
     protected <     Request extends ActionRequest,
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response>
-              > void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+              > void doExecute(GenericAction<Response> action, Request request, ActionListener<Response> listener) {
         request.setParentTask(parentTask);
         super.doExecute(action, request, listener);
     }

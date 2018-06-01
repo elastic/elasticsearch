@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
-public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
+public class PreviewDatafeedAction extends GenericAction<PreviewDatafeedAction.Response> {
 
     public static final PreviewDatafeedAction INSTANCE = new PreviewDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class NodesStatsAction extends Action<NodesStatsRequest, NodesStatsResponse> {
+public class NodesStatsAction extends GenericAction<NodesStatsResponse> {
 
     public static final NodesStatsAction INSTANCE = new NodesStatsAction();
     public static final String NAME = "cluster:monitor/nodes/stats";

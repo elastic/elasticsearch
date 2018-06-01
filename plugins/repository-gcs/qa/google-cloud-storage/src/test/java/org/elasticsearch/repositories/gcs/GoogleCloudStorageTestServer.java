@@ -375,7 +375,7 @@ public class GoogleCloudStorageTestServer {
                 (params, headers, body) -> {
                     final String action = params.get("action");
                     if ((action.equals("rewriteTo") == false) && (action.equals("copyTo") == false)) {
-                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "Action not implemented. None of \"rewriteTo\" or \"copyTo\".");
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "GenericAction not implemented. None of \"rewriteTo\" or \"copyTo\".");
                     }
                     final String source = params.get("src");
                     if (Strings.hasText(source) == false) {

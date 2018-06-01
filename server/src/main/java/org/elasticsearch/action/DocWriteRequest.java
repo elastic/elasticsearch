@@ -31,7 +31,7 @@ import java.util.Locale;
 
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
- * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
+ * GenericAction requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
 public interface DocWriteRequest<T> extends IndicesRequest {
 

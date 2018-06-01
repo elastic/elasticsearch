@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class SqlClearCursorAction extends Action<SqlClearCursorRequest, SqlClearCursorResponse> {
+public class SqlClearCursorAction extends GenericAction<SqlClearCursorResponse> {
 
     public static final SqlClearCursorAction INSTANCE = new SqlClearCursorAction();
     public static final String NAME = "indices:data/read/sql/close_cursor";

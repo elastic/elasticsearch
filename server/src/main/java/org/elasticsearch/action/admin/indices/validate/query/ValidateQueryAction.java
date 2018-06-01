@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class ValidateQueryAction extends Action<ValidateQueryRequest, ValidateQueryResponse> {
+public class ValidateQueryAction extends GenericAction<ValidateQueryResponse> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();
     public static final String NAME = "indices:admin/validate/query";

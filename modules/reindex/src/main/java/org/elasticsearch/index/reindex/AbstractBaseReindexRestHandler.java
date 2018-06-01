@@ -29,7 +29,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
@@ -39,7 +38,7 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                A extends GenericAction<Request, BulkByScrollResponse>
+                A extends GenericAction<BulkByScrollResponse>
             > extends BaseRestHandler {
 
     private final A action;

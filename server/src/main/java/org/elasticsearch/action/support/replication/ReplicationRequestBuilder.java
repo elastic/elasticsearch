@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -29,7 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 public abstract class ReplicationRequestBuilder<Request extends ReplicationRequest<Request>, Response extends ActionResponse, RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected ReplicationRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected ReplicationRequestBuilder(ElasticsearchClient client, GenericAction<Response> action, Request request) {
         super(client, action, request);
     }
 

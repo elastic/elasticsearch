@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.xpack.core.graph.action;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.GenericAction;
 
-public class GraphExploreAction extends Action<GraphExploreRequest, GraphExploreResponse> {
+public class GraphExploreAction extends GenericAction<GraphExploreResponse> {
 
     public static final GraphExploreAction INSTANCE = new GraphExploreAction();
     public static final String NAME = "indices:data/read/xpack/graph/explore";

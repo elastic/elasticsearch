@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 
-public class RethrottleAction extends Action<RethrottleRequest, ListTasksResponse> {
+public class RethrottleAction extends GenericAction<ListTasksResponse> {
     public static final RethrottleAction INSTANCE = new RethrottleAction();
     public static final String NAME = "cluster:admin/reindex/rethrottle";
 

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class DeleteFilterAction extends Action<DeleteFilterAction.Request, DeleteFilterAction.Response> {
+public class DeleteFilterAction extends GenericAction<DeleteFilterAction.Response> {
 
     public static final DeleteFilterAction INSTANCE = new DeleteFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/delete";

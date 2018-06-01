@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * Action for retrieving a list of currently running tasks
+ * GenericAction for retrieving a list of currently running tasks
  */
-public class ListTasksAction extends Action<ListTasksRequest, ListTasksResponse> {
+public class ListTasksAction extends GenericAction<ListTasksResponse> {
 
     public static final ListTasksAction INSTANCE = new ListTasksAction();
     public static final String NAME = "cluster:monitor/tasks/lists";

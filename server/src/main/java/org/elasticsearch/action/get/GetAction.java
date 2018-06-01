@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class GetAction extends Action<GetRequest, GetResponse> {
+public class GetAction extends GenericAction<GetResponse> {
 
     public static final GetAction INSTANCE = new GetAction();
     public static final String NAME = "indices:data/read/get";

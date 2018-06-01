@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse> {
 
-    public RankEvalRequestBuilder(ElasticsearchClient client, Action<RankEvalRequest, RankEvalResponse> action,
+    public RankEvalRequestBuilder(ElasticsearchClient client, GenericAction<RankEvalResponse> action,
             RankEvalRequest request) {
         super(client, action, request);
     }

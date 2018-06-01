@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class ClusterStateAction extends Action<ClusterStateRequest, ClusterStateResponse> {
+public class ClusterStateAction extends GenericAction<ClusterStateResponse> {
 
     public static final ClusterStateAction INSTANCE = new ClusterStateAction();
     public static final String NAME = "cluster:monitor/state";

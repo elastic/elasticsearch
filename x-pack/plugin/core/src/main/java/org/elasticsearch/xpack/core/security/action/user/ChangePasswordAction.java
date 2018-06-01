@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class ChangePasswordAction extends Action<ChangePasswordRequest, ChangePasswordResponse> {
+public class ChangePasswordAction extends GenericAction<ChangePasswordResponse> {
 
     public static final ChangePasswordAction INSTANCE = new ChangePasswordAction();
     public static final String NAME = "cluster:admin/xpack/security/user/change_password";

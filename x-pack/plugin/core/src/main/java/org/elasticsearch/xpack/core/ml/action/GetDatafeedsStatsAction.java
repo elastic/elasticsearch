@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Request, GetDatafeedsStatsAction.Response> {
+public class GetDatafeedsStatsAction extends GenericAction<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/stats/get";

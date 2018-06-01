@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class PutPipelineAction extends Action<PutPipelineRequest, WritePipelineResponse> {
+public class PutPipelineAction extends GenericAction<WritePipelineResponse> {
 
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/put";

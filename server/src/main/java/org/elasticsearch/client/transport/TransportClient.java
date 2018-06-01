@@ -21,7 +21,6 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
@@ -204,7 +203,7 @@ public abstract class TransportClient extends AbstractClient {
             final List<GenericAction> clientActions =
                     actionPlugins.stream().flatMap(p -> p.getClientActions().stream()).collect(Collectors.toList());
             // add all the base actions
-            final List<? extends GenericAction<?, ?>> baseActions =
+            final List<? extends GenericAction<?>> baseActions =
                     actionModule.getActions().values().stream().map(ActionPlugin.ActionHandler::getAction).collect(Collectors.toList());
             clientActions.addAll(baseActions);
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService, clientActions);
@@ -370,7 +369,7 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(GenericAction<Response> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 

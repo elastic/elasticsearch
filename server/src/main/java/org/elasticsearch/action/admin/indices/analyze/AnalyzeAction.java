@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class AnalyzeAction extends Action<AnalyzeRequest, AnalyzeResponse> {
+public class AnalyzeAction extends GenericAction<AnalyzeResponse> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
     public static final String NAME = "indices:admin/analyze";

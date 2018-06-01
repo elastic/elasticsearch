@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Request, DeleteExpiredDataAction.Response> {
+public class DeleteExpiredDataAction extends GenericAction<DeleteExpiredDataAction.Response> {
 
     public static final DeleteExpiredDataAction INSTANCE = new DeleteExpiredDataAction();
     public static final String NAME = "cluster:admin/xpack/ml/delete_expired_data";

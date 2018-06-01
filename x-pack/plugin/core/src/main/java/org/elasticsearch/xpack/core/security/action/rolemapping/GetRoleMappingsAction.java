@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * Action to retrieve one or more role-mappings from X-Pack security
+ * GenericAction to retrieve one or more role-mappings from X-Pack security
 
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class GetRoleMappingsAction extends Action<GetRoleMappingsRequest, GetRoleMappingsResponse> {
+public class GetRoleMappingsAction extends GenericAction<GetRoleMappingsResponse> {
 
     public static final GetRoleMappingsAction INSTANCE = new GetRoleMappingsAction();
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/get";

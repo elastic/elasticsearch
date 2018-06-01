@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        A extends GenericAction<Request, BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+        A extends GenericAction<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
     protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
         super(settings, action);

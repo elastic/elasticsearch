@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GetInfluencersAction
-extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response> {
+extends GenericAction<GetInfluencersAction.Response> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/influencers/get";

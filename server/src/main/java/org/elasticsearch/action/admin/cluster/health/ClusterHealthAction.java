@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class ClusterHealthAction extends Action<ClusterHealthRequest, ClusterHealthResponse> {
+public class ClusterHealthAction extends GenericAction<ClusterHealthResponse> {
 
     public static final ClusterHealthAction INSTANCE = new ClusterHealthAction();
     public static final String NAME = "cluster:monitor/health";

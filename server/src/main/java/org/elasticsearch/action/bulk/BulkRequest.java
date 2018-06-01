@@ -369,7 +369,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else {
-                                throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
+                                throw new IllegalArgumentException("GenericAction/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line +

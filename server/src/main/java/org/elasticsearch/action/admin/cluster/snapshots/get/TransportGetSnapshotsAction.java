@@ -50,7 +50,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Transport Action for get snapshots operation
+ * Transport GenericAction for get snapshots operation
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
     private final SnapshotsService snapshotsService;

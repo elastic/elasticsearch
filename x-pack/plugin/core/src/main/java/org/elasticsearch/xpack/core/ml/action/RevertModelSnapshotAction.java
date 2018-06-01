@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class RevertModelSnapshotAction
-extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Response> {
+extends GenericAction<RevertModelSnapshotAction.Response> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";

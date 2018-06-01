@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class NodesHotThreadsAction extends Action<NodesHotThreadsRequest, NodesHotThreadsResponse> {
+public class NodesHotThreadsAction extends GenericAction<NodesHotThreadsResponse> {
 
     public static final NodesHotThreadsAction INSTANCE = new NodesHotThreadsAction();
     public static final String NAME = "cluster:monitor/nodes/hot_threads";

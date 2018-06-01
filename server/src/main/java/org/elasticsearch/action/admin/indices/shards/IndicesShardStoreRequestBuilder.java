@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.shards;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
  */
 public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardStoreRequestBuilder> {
 
-    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, Action<IndicesShardStoresRequest, IndicesShardStoresResponse> action, String... indices) {
+    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, GenericAction<IndicesShardStoresResponse> action, String... indices) {
         super(client, action, new IndicesShardStoresRequest(indices));
     }
 

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionAction.Request, FinalizeJobExecutionAction.Response> {
+public class FinalizeJobExecutionAction extends GenericAction<FinalizeJobExecutionAction.Response> {
 
     public static final FinalizeJobExecutionAction INSTANCE = new FinalizeJobExecutionAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";

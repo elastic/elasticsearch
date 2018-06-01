@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class FlushAction extends Action<FlushRequest, FlushResponse> {
+public class FlushAction extends GenericAction<FlushResponse> {
 
     public static final FlushAction INSTANCE = new FlushAction();
     public static final String NAME = "indices:admin/flush";

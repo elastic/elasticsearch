@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * Action for invalidating a given token
+ * GenericAction for invalidating a given token
  */
-public final class InvalidateTokenAction extends Action<InvalidateTokenRequest, InvalidateTokenResponse> {
+public final class InvalidateTokenAction extends GenericAction<InvalidateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/invalidate";
     public static final InvalidateTokenAction INSTANCE = new InvalidateTokenAction();

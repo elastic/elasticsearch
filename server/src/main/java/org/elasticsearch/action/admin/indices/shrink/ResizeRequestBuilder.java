@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse,
     ResizeRequestBuilder> {
-    public ResizeRequestBuilder(ElasticsearchClient client, Action<ResizeRequest, ResizeResponse> action) {
+    public ResizeRequestBuilder(ElasticsearchClient client, GenericAction<ResizeResponse> action) {
         super(client, action, new ResizeRequest());
     }
 

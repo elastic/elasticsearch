@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -127,7 +127,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response>>
-            void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(GenericAction<Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;

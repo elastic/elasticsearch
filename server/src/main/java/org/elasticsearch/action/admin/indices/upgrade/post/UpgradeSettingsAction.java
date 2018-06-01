@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class UpgradeSettingsAction extends Action<UpgradeSettingsRequest, UpgradeSettingsResponse> {
+public class UpgradeSettingsAction extends GenericAction<UpgradeSettingsResponse> {
 
     public static final UpgradeSettingsAction INSTANCE = new UpgradeSettingsAction();
     public static final String NAME = "internal:indices/admin/upgrade";

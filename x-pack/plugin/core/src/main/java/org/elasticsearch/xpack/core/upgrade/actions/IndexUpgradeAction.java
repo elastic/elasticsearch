@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.upgrade.actions;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.upgrade.IndexUpgradeServiceFields.UPGRADE_INDEX_OPTIONS;
 
-public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkByScrollResponse> {
+public class IndexUpgradeAction extends GenericAction<BulkByScrollResponse> {
 
     public static final IndexUpgradeAction INSTANCE = new IndexUpgradeAction();
     public static final String NAME = "cluster:admin/xpack/upgrade";

@@ -7,48 +7,27 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
  * Response to perform an sql query
  */
 public class SqlQueryResponse extends ActionResponse implements ToXContentObject {
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SqlQueryResponse, Void> PARSER = new ConstructingObjectParser<>("sql", true,
-            objects -> new SqlQueryResponse(
-                    objects[0] == null ? "" : (String) objects[0],
-                    (List<ColumnInfo>) objects[1],
-                    (List<List<Object>>) objects[2]));
-
-    public static final ParseField CURSOR = new ParseField("cursor");
-    public static final ParseField COLUMNS = new ParseField("columns");
-    public static final ParseField ROWS = new ParseField("rows");
-
-    static {
-        PARSER.declareString(optionalConstructorArg(), CURSOR);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ColumnInfo.fromXContent(p), COLUMNS);
-        PARSER.declareField(constructorArg(), (p, c) -> parseRows(p), ROWS, ValueType.OBJECT_ARRAY);
-    }
 
     // TODO: Simplify cursor handling
     private String cursor;
@@ -109,7 +88,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             int columnCount = in.readVInt();
             List<ColumnInfo> columns = new ArrayList<>(columnCount);
             for (int c = 0; c < columnCount; c++) {
-                columns.add(new ColumnInfo(in));
+                columns.add(readColumnInfo(in));
             }
             this.columns = unmodifiableList(columns);
         } else {
@@ -139,7 +118,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             out.writeBoolean(true);
             out.writeVInt(columns.size());
             for (ColumnInfo column : columns) {
-                column.writeTo(out);
+                writeColumnInfo(out, column);
             }
         }
         out.writeVInt(rows.size());
@@ -155,7 +134,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        AbstractSqlRequest.Mode mode = AbstractSqlRequest.Mode.fromString(params.param("mode"));
+        Mode mode = Mode.fromString(params.param("mode"));
         builder.startObject();
         {
             if (columns != null) {
@@ -187,8 +166,8 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     /**
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
-    public static XContentBuilder value(XContentBuilder builder, AbstractSqlRequest.Mode mode, Object value) throws IOException {
-        if (mode == AbstractSqlRequest.Mode.JDBC && value instanceof ReadableDateTime) {
+    public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
+        if (mode == Mode.JDBC && value instanceof ReadableDateTime) {
             // JDBC cannot parse dates in string format
             builder.value(((ReadableDateTime) value).getMillis());
         } else {
@@ -197,34 +176,33 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         return builder;
     }
 
-    public static SqlQueryResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static ColumnInfo readColumnInfo(StreamInput in) throws IOException {
+        String table = in.readString();
+        String name = in.readString();
+        String esType = in.readString();
+        JDBCType jdbcType;
+        int displaySize;
+        if (in.readBoolean()) {
+            jdbcType = JDBCType.valueOf(in.readVInt());
+            displaySize = in.readVInt();
+        } else {
+            jdbcType = null;
+            displaySize = 0;
+        }
+        return new ColumnInfo(table, name, esType, jdbcType, displaySize);
     }
 
-    public static List<List<Object>> parseRows(XContentParser parser) throws IOException {
-        List<List<Object>> list = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                list.add(parseRow(parser));
-            } else {
-                throw new IllegalStateException("expected start array but got [" + parser.currentToken() + "]");
-            }
+    public static void writeColumnInfo(StreamOutput out, ColumnInfo columnInfo) throws IOException {
+        out.writeString(columnInfo.table());
+        out.writeString(columnInfo.name());
+        out.writeString(columnInfo.esType());
+        if (columnInfo.jdbcType() != null) {
+            out.writeBoolean(true);
+            out.writeVInt(columnInfo.jdbcType().getVendorTypeNumber());
+            out.writeVInt(columnInfo.displaySize());
+        } else {
+            out.writeBoolean(false);
         }
-        return list;
-    }
-
-    public static List<Object> parseRow(XContentParser parser) throws IOException {
-        List<Object> list = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (parser.currentToken().isValue()) {
-                list.add(parseFieldsValue(parser));
-            } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                list.add(null);
-            } else {
-                throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
-            }
-        }
-        return list;
     }
 
     @Override

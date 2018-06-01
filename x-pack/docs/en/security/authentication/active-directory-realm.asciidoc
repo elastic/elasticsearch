@@ -1,3 +1,4 @@
+[role="xpack"]
 [[active-directory-realm]]
 === Active Directory user authentication
 

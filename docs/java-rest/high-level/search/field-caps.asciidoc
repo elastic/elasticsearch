@@ -76,7 +76,7 @@ information about how each index contributes to the field's capabilities.
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-response]
 --------------------------------------------------
-<1> The `user` field has two possible types, `keyword` and `text`.
-<2> This field only has type `keyword` in the `authors` and `contributors` indices.
-<3> Null, since the field is searchable in all indices for which it has the `keyword` type.
-<4> The `user` field is not aggregatable in the `authors` index.
+<1> A map with entries for the field's possible types, in this case `keyword` and `text`.
+<2> All indices where the `user` field has type `keyword`.
+<3> The subset of these indices where the `user` field isn't searchable, or null if it's always searchable.
+<4> Another subset of these indices where the `user` field isn't aggregatable, or null if it's always aggregatable.

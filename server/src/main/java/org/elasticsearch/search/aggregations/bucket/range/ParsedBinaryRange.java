@@ -98,18 +98,16 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (isKeyed()) {
-                builder.startObject(key != null ? key : rangeKey(from, to));
+                builder.startObject(key);
             } else {
                 builder.startObject();
-                if (key != null) {
-                    builder.field(CommonFields.KEY.getPreferredName(), key);
-                }
+                builder.field(CommonFields.KEY.getPreferredName(), key);
             }
             if (from != null) {
-                builder.field(CommonFields.FROM.getPreferredName(), getFrom());
+                builder.field(CommonFields.FROM.getPreferredName(), from);
             }
             if (to != null) {
-                builder.field(CommonFields.TO.getPreferredName(), getTo());
+                builder.field(CommonFields.TO.getPreferredName(), to);
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             getAggregations().toXContentInternal(builder, params);
@@ -123,10 +121,9 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
 
-            String rangeKey = null;
             if (keyed) {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-                rangeKey = currentFieldName;
+                bucket.key = currentFieldName;
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             }
 
@@ -150,19 +147,7 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));
-
-            if (keyed) {
-                if (rangeKey(bucket.from, bucket.to).equals(rangeKey)) {
-                    bucket.key = null;
-                } else {
-                    bucket.key = rangeKey;
-                }
-            }
             return bucket;
-        }
-
-        private static String rangeKey(String from, String to) {
-            return (from == null ? "*" : from) + '-' + (to == null ? "*" : to);
         }
     }
 }

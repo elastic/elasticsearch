@@ -194,18 +194,16 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
-
-        String createIndexBody = "{\n" +
+        Request request = new Request("PUT", "/test-ro");
+        request.setJsonEntity("{\n" +
                 "    \"settings\" : {\n" +
                 "        \"index\" : {\n" +
                 "            \"blocks.write\" : true\n" +
                 "        }\n" +
                 "    }\n" +
                 "    \n" +
-                "}";
-
-        NStringEntity entity = new NStringEntity(createIndexBody, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest("PUT", "/test-ro", Collections.emptyMap(), entity);
+                "}");
+        Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
         int bulkActions = randomIntBetween(10, 100);

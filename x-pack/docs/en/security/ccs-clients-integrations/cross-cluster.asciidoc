@@ -108,9 +108,7 @@ On cluster `two`, this role allows the user to query local indices called
 -----------------------------------------------------------
 POST /_xpack/security/role/cluster_two_logs
 {
-  "cluster": [
-    "transport_client"
-  ],
+  "cluster": [],
   "indices": [
     {
       "names": [
@@ -157,4 +155,5 @@ GET two:logs-2017.04/_search <1>
 // TEST[skip:todo]
 //TBD: Is there a missing description of the <1> callout above?
 
-include::{xkb-repo-dir}/security/cross-cluster-kibana.asciidoc[]
+:edit_url: https://github.com/elastic/kibana/edit/{branch}/docs/security/cross-cluster-kibana.asciidoc
+include::{kib-repo-dir}/security/cross-cluster-kibana.asciidoc[]

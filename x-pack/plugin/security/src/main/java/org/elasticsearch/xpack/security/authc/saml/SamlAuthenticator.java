@@ -87,6 +87,14 @@ class SamlAuthenticator extends SamlRequestHandler {
         if (logger.isTraceEnabled()) {
             logger.trace(SamlUtils.describeSamlObject(response));
         }
+        final boolean requireSignedAssertions;
+        if (response.isSigned()) {
+            validateSignature(response.getSignature());
+            requireSignedAssertions = false;
+        } else {
+            requireSignedAssertions = true;
+        }
+
         if (Strings.hasText(response.getInResponseTo()) && allowedSamlRequestIds.contains(response.getInResponseTo()) == false) {
             logger.debug("The SAML Response with ID {} is unsolicited. A user might have used a stale URL or the Identity Provider " +
                     "incorrectly populates the InResponseTo attribute", response.getID());
@@ -102,10 +110,10 @@ class SamlAuthenticator extends SamlRequestHandler {
             throw samlException("SAML Response is not a 'success' response: Code={} Message={} Detail={}",
                     status.getStatusCode().getValue(), getMessage(status), getDetail(status));
         }
-
+        checkIssuer(response.getIssuer(), response);
         checkResponseDestination(response);
 
-        Tuple<Assertion, List<Attribute>> details = extractDetails(response, allowedSamlRequestIds);
+        Tuple<Assertion, List<Attribute>> details = extractDetails(response, allowedSamlRequestIds, requireSignedAssertions);
         final Assertion assertion = details.v1();
         final SamlNameId nameId = SamlNameId.forSubject(assertion.getSubject());
         final String session = getSessionIndex(assertion);
@@ -156,17 +164,8 @@ class SamlAuthenticator extends SamlRequestHandler {
         }
     }
 
-    private Tuple<Assertion, List<Attribute>> extractDetails(Response response, Collection<String> allowedSamlRequestIds) {
-        final boolean requireSignedAssertions;
-        if (response.isSigned()) {
-            validateSignature(response.getSignature());
-            requireSignedAssertions = false;
-        } else {
-            requireSignedAssertions = true;
-        }
-
-        checkIssuer(response.getIssuer(), response);
-
+    private Tuple<Assertion, List<Attribute>> extractDetails(Response response, Collection<String> allowedSamlRequestIds,
+                                                             boolean requireSignedAssertions) {
         final int assertionCount = response.getAssertions().size() + response.getEncryptedAssertions().size();
         if (assertionCount > 1) {
             throw samlException("Expecting only 1 assertion, but response contains multiple (" + assertionCount + ")");
@@ -328,5 +327,4 @@ class SamlAuthenticator extends SamlRequestHandler {
     private void checkLifetimeRestrictions(SubjectConfirmationData subjectConfirmationData) {
         validateNotOnOrAfter(subjectConfirmationData.getNotOnOrAfter());
     }
-
 }

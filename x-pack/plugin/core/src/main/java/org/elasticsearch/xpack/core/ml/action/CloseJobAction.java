@@ -27,18 +27,13 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
+public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response> {
 
     public static final CloseJobAction INSTANCE = new CloseJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/close";
 
     private CloseJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -204,7 +199,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
             super(client, action, new Request());

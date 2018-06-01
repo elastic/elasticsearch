@@ -159,7 +159,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 get = indexShard.get(new Engine.Get(realtime, readFromTranslog, type, id, uidTerm)
                         .version(version).versionType(versionType));
                 if (get.exists() == false) {
-                    get.release();
+                    get.close();
                 }
             }
         }
@@ -172,7 +172,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
         } finally {
-            get.release();
+            get.close();
         }
     }
 

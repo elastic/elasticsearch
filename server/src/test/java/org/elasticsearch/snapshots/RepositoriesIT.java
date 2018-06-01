@@ -40,7 +40,6 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -61,7 +60,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> verify the repository");
         int numberOfFiles = FileSystemUtils.files(location).length;
         VerifyRepositoryResponse verifyRepositoryResponse = client.admin().cluster().prepareVerifyRepository("test-repo-1").get();
-        assertThat(verifyRepositoryResponse.getNodes().length, equalTo(cluster().numDataAndMasterNodes()));
+        assertThat(verifyRepositoryResponse.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
 
         logger.info("--> verify that we didn't leave any files as a result of verification");
         assertThat(FileSystemUtils.files(location).length, equalTo(numberOfFiles));

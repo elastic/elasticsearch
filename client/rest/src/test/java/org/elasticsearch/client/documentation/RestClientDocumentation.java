@@ -27,9 +27,7 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
@@ -40,6 +38,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -52,8 +51,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
-import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -168,19 +165,29 @@ public class RestClientDocumentation {
             request.addParameter("pretty", "true");
             //end::rest-client-parameters
             //tag::rest-client-body
-            request.setEntity(new StringEntity(
+            request.setEntity(new NStringEntity(
                     "{\"json\":\"text\"}",
                     ContentType.APPLICATION_JSON));
             //end::rest-client-body
-            //tag::rest-client-headers
-            request.setHeaders(
-                    new BasicHeader("Accept", "text/plain"),
-                    new BasicHeader("Cache-Control", "no-cache"));
-            //end::rest-client-headers
-            //tag::rest-client-response-consumer
-            request.setHttpAsyncResponseConsumerFactory(
-                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024));
-            //end::rest-client-response-consumer
+            //tag::rest-client-body-shorter
+            request.setJsonEntity("{\"json\":\"text\"}");
+            //end::rest-client-body-shorter
+            {
+                //tag::rest-client-headers
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.addHeader("Accept", "text/plain");
+                options.addHeader("Cache-Control", "no-cache");
+                request.setOptions(options);
+                //end::rest-client-headers
+            }
+            {
+                //tag::rest-client-response-consumer
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.setHttpAsyncResponseConsumerFactory(
+                        new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024));
+                request.setOptions(options);
+                //end::rest-client-response-consumer
+            }
         }
         {
             HttpEntity[] documents = new HttpEntity[10];

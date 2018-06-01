@@ -298,8 +298,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 final MetaData.Custom custom = cursor.value;
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
+            sb.append("\n");
         }
-        sb.append("\n");
         sb.append(blocks());
         sb.append(nodes());
         sb.append(routingTable());

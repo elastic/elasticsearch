@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -24,13 +25,15 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.LongSupplier;
 
 public class StartDatafeedAction extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response> {
@@ -229,6 +232,16 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
         @Override
         public String getWriteableName() {
             return TASK_NAME;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_5_4_0;
+        }
+
+        @Override
+        public Optional<String> getRequiredFeature() {
+            return XPackPlugin.X_PACK_FEATURE;
         }
 
         @Override

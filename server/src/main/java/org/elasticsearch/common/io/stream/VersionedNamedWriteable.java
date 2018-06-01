@@ -17,15 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.persistent;
+package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.Version;
 
 /**
- * Parameters used to start persistent task
+ * A {@link NamedWriteable} that has a minimum version associated with it.
  */
-public interface PersistentTaskParams extends VersionedNamedWriteable, ToXContentObject, ClusterState.FeatureAware {
+public interface VersionedNamedWriteable extends NamedWriteable {
 
+    /**
+     * Returns the name of the writeable object
+     */
+    String getWriteableName();
+
+    /**
+     * The minimal version of the recipient this object can be sent to
+     */
+    Version getMinimalSupportedVersion();
 }

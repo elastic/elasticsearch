@@ -156,7 +156,7 @@ import java.util.function.Supplier;
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
+    public static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
 
     @Override
     protected Optional<String> getFeature() {

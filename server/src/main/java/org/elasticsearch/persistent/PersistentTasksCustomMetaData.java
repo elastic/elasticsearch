@@ -49,8 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -500,7 +500,10 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(lastAllocationId);
-        out.writeMap(tasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
+        Map<String, PersistentTask<?>> filteredTasks = tasks.values().stream()
+            .filter(t -> ClusterState.FeatureAware.shouldSerialize(out, t.getParams()))
+            .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
+        out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }
 
     public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {

@@ -384,6 +384,11 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_5_0_0;
+    }
+
+    @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.ALL_CONTEXTS;
     }

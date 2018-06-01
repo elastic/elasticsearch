@@ -192,6 +192,7 @@ public class RestHighLevelClient implements Closeable {
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final ClusterClient clusterClient = new ClusterClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
+    private final TasksClient tasksClient = new TasksClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -265,10 +266,30 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Provides a {@link TasksClient} which can be used to access the Tasks API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
+     */
+    public final TasksClient tasks() {
+        return tasksClient;
+    }
+
+    /**
      * Executes a bulk request using the Bulk API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
+    public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Executes a bulk request using the Bulk API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @deprecated Prefer {@link #bulk(BulkRequest, RequestOptions)}
+     */
+    @Deprecated
     public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, emptySet(), headers);
     }
@@ -278,6 +299,17 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
+    public final void bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
+        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a bulk request using the Bulk API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @deprecated Prefer {@link #bulkAsync(BulkRequest, RequestOptions, ActionListener)}
+     */
+    @Deprecated
     public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
     }
@@ -574,6 +606,7 @@ public class RestHighLevelClient implements Closeable {
             FieldCapabilitiesResponse::fromXContent, listener, emptySet(), headers);
     }
 
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -581,16 +614,34 @@ public class RestHighLevelClient implements Closeable {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
+    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            RequestOptions options,
+                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                            Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), ignores);
+    }
+
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
+        return performRequest(request, requestConverter, optionsForHeaders(headers), responseConverter, ignores);
+    }
+
+    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                          RequestOptions options,
+                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                          Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
-        addHeaders(req, headers);
+        req.setOptions(options);
         Response response;
         try {
             response = client.performRequest(req);
@@ -616,6 +667,7 @@ public class RestHighLevelClient implements Closeable {
         }
     }
 
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -624,10 +676,28 @@ public class RestHighLevelClient implements Closeable {
                 listener, ignores, headers);
     }
 
+    protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                 CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                 RequestOptions options,
+                                                                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
+        performRequestAsync(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    }
+
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
+        performRequestAsync(request, requestConverter, optionsForHeaders(headers), responseConverter, listener, ignores);
+    }
+
+    protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+                                                               CheckedFunction<Req, Request, IOException> requestConverter,
+                                                               RequestOptions options,
+                                                               CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                               ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -640,17 +710,10 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return;
         }
-        addHeaders(req, headers);
+        req.setOptions(options);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);
-    }
-
-    private static void addHeaders(Request request, Header... headers) {
-        Objects.requireNonNull(headers, "headers cannot be null");
-        for (Header header : headers) {
-            request.addHeader(header.getName(), header.getValue());
-        }
     }
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -734,6 +797,15 @@ public class RestHighLevelClient implements Closeable {
             LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
             return entityParser.apply(parser);
         }
+    }
+
+    private static RequestOptions optionsForHeaders(Header[] headers) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        for (Header header : headers) {
+            Objects.requireNonNull(header, "header cannot be null");
+            options.addHeader(header.getName(), header.getValue());
+        }
+        return options.build();
     }
 
     static boolean convertExistsResponse(Response response) {

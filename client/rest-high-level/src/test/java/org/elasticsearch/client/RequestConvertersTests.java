@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -43,6 +44,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -639,6 +641,29 @@ public class RequestConvertersTests extends ESTestCase {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_flush");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+    }
+
+    public void testSyncedFlush() {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        SyncedFlushRequest syncedFlushRequest;
+        if (randomBoolean()) {
+            syncedFlushRequest = new SyncedFlushRequest(indices);
+        } else {
+            syncedFlushRequest = new SyncedFlushRequest();
+            syncedFlushRequest.indices(indices);
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(syncedFlushRequest::indicesOptions, syncedFlushRequest::indicesOptions, expectedParams);
+        Request request = RequestConverters.flushSynced(syncedFlushRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+                endpoint.add(String.join(",", indices));
+            }
+        endpoint.add("_flush/synced");
         assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
@@ -1606,6 +1631,21 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
         assertNull(request.getEntity());
+    }
+
+    public void testVerifyRepository() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String endpoint = "/_snapshot/" + repository + "/_verify";
+
+        VerifyRepositoryRequest verifyRepositoryRequest = new VerifyRepositoryRequest(repository);
+        setRandomMasterTimeout(verifyRepositoryRequest, expectedParams);
+        setRandomTimeout(verifyRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.verifyRepository(verifyRepositoryRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
     public void testPutTemplateRequest() throws Exception {

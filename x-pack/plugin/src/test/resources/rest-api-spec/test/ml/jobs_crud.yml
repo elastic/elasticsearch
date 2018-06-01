@@ -548,10 +548,9 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.state:
-        metric: [ metadata ]
-        filter_path: metadata.persistent_tasks
-  - match: {"metadata.persistent_tasks.tasks.0.task.xpack/ml/job.status.state": opened}
+      xpack.ml.get_job_stats:
+        job_id: jobs-crud-close-job
+  - match: {"jobs.0.state": opened}
 
   - do:
       xpack.ml.close_job:
@@ -561,11 +560,9 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.state:
-        metric: [ metadata ]
-        filter_path: metadata.persistent_tasks
-  - match:
-      metadata.persistent_tasks.tasks: []
+      xpack.ml.get_job_stats:
+        job_id: jobs-crud-close-job
+  - match: {"jobs.0.state": closed}
 
 ---
 "Test closing a closed job isn't an error":
@@ -789,10 +786,9 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.state:
-        metric: [ metadata ]
-        filter_path: metadata.persistent_tasks
-  - match: {"metadata.persistent_tasks.tasks.0.task.xpack/ml/job.status.state": opened}
+      xpack.ml.get_job_stats:
+        job_id: jobs-crud-force-close-job
+  - match: {"jobs.0.state": opened}
 
   - do:
       xpack.ml.close_job:
@@ -803,11 +799,9 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      cluster.state:
-        metric: [ metadata ]
-        filter_path: metadata.persistent_tasks
-  - match:
-      metadata.persistent_tasks.tasks: []
+      xpack.ml.get_job_stats:
+        job_id: jobs-crud-force-close-job
+  - match: {"jobs.0.state": closed}
 
 ---
 "Test force closing a closed job isn't an error":

@@ -33,8 +33,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class StartDatafeedAction
-        extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response, StartDatafeedAction.RequestBuilder> {
+public class StartDatafeedAction extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -46,11 +45,6 @@ public class StartDatafeedAction
 
     private StartDatafeedAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -313,7 +307,7 @@ public class StartDatafeedAction
 
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, StartDatafeedAction action) {
             super(client, action, new Request());

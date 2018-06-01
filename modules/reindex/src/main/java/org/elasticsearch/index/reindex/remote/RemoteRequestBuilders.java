@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.lucene.util.BytesRef;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
@@ -151,8 +149,7 @@ final class RemoteRequestBuilders {
             }
 
             entity.endObject();
-            BytesRef bytes = BytesReference.bytes(entity).toBytesRef();
-            request.setEntity(new ByteArrayEntity(bytes.bytes, bytes.offset, bytes.length, ContentType.APPLICATION_JSON));
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("unexpected error building entity", e);
         }
@@ -199,7 +196,7 @@ final class RemoteRequestBuilders {
 
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
+            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
         }
 
@@ -207,7 +204,7 @@ final class RemoteRequestBuilders {
             entity.startObject()
                     .field("scroll_id", scroll)
                 .endObject();
-            request.setEntity(new StringEntity(Strings.toString(entity), ContentType.APPLICATION_JSON));
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build scroll entity", e);
         }
@@ -219,14 +216,14 @@ final class RemoteRequestBuilders {
 
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
+            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
             entity.startObject()
                     .array("scroll_id", scroll)
                 .endObject();
-            request.setEntity(new StringEntity(Strings.toString(entity), ContentType.APPLICATION_JSON));
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build clear scroll entity", e);
         }

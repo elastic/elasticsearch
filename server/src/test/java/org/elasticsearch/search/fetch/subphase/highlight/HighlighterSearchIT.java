@@ -50,14 +50,15 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.MockKeywordPlugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -105,7 +106,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class);
     }
 
     public void testHighlightingWithStoredKeyword() throws IOException {
@@ -1359,7 +1360,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testPhrasePrefix() throws IOException {
         Builder builder = Settings.builder()
                 .put(indexSettings())
-                .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.synonym.tokenizer", "standard")
                 .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
@@ -2804,7 +2805,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testSynonyms() throws IOException {
         Builder builder = Settings.builder()
             .put(indexSettings())
-            .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
+            .put("index.analysis.analyzer.synonym.tokenizer", "standard")
             .putList("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
             .put("index.analysis.filter.synonym.type", "synonym")
             .putList("index.analysis.filter.synonym.synonyms", "fast,quick");

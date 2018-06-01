@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -259,16 +260,15 @@ public class HoltWintersModel extends MovAvgModel {
      *
      * @param values            Collection of numerics to movingAvg, usually windowed
      * @param numPredictions    Number of newly generated predictions to return
-     * @param <T>               Type of numeric
      * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
      */
     @Override
-    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+    protected double[] doPredict(Collection<Double> values, int numPredictions) {
         return next(values, numPredictions);
     }
 
     @Override
-    public <T extends Number> double next(Collection<T> values) {
+    public double next(Collection<Double> values) {
         return next(values, 1)[0];
     }
 
@@ -278,88 +278,11 @@ public class HoltWintersModel extends MovAvgModel {
      * @param values Collection of values to calculate avg for
      * @param numForecasts number of forecasts into the future to return
      *
-     * @param <T>    Type T extending Number
      * @return       Returns a Double containing the moving avg for the window
      */
-    public <T extends Number> double[] next(Collection<T> values, int numForecasts) {
-
-        if (values.size() < period * 2) {
-            // We need at least two full "seasons" to use HW
-            // This should have been caught earlier, we can't do anything now...bail
-            throw new AggregationExecutionException("Holt-Winters aggregation requires at least (2 * period == 2 * "
-                    + period + " == "+(2 * period)+") data-points to function.  Only [" + values.size() + "] were provided.");
-        }
-
-        // Smoothed value
-        double s = 0;
-        double last_s;
-
-        // Trend value
-        double b = 0;
-        double last_b = 0;
-
-        // Seasonal value
-        double[] seasonal = new double[values.size()];
-
-        int counter = 0;
-        double[] vs = new double[values.size()];
-        for (T v : values) {
-            vs[counter] = v.doubleValue() + padding;
-            counter += 1;
-        }
-
-        // Initial level value is average of first season
-        // Calculate the slopes between first and second season for each period
-        for (int i = 0; i < period; i++) {
-            s += vs[i];
-            b += (vs[i + period] - vs[i]) / period;
-        }
-        s /= period;
-        b /= period;
-        last_s = s;
-
-        // Calculate first seasonal
-        if (Double.compare(s, 0.0) == 0 || Double.compare(s, -0.0) == 0) {
-            Arrays.fill(seasonal, 0.0);
-        } else {
-            for (int i = 0; i < period; i++) {
-                seasonal[i] = vs[i] / s;
-            }
-        }
-
-        for (int i = period; i < vs.length; i++) {
-            // TODO if perf is a problem, we can specialize a subclass to avoid conditionals on each iteration
-            if (seasonalityType.equals(SeasonalityType.MULTIPLICATIVE)) {
-                s = alpha * (vs[i] / seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
-            } else {
-                s = alpha * (vs[i] - seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
-            }
-
-            b = beta * (s - last_s) + (1 - beta) * last_b;
-
-            if (seasonalityType.equals(SeasonalityType.MULTIPLICATIVE)) {
-                seasonal[i] = gamma * (vs[i] / (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
-            } else {
-                seasonal[i] = gamma * (vs[i] - (last_s - last_b )) + (1 - gamma) * seasonal[i - period];
-            }
-
-            last_s = s;
-            last_b = b;
-        }
-
-        double[] forecastValues = new double[numForecasts];
-        for (int i = 1; i <= numForecasts; i++) {
-            int idx = values.size() - period + ((i - 1) % period);
-
-            // TODO perhaps pad out seasonal to a power of 2 and use a mask instead of modulo?
-            if (seasonalityType.equals(SeasonalityType.MULTIPLICATIVE)) {
-                forecastValues[i-1] = (s + (i * b)) * seasonal[idx];
-            } else {
-                forecastValues[i-1] = s + (i * b) + seasonal[idx];
-            }
-        }
-
-        return forecastValues;
+    public double[] next(Collection<Double> values, int numForecasts) {
+        return MovingFunctions.holtWintersForecast(values.stream().mapToDouble(Double::doubleValue).toArray(),
+            alpha, beta, gamma, period, padding, seasonalityType.equals(SeasonalityType.MULTIPLICATIVE), numForecasts);
     }
 
     @Override

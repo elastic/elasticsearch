@@ -432,7 +432,15 @@ Remote hosts have to be explicitly whitelisted in elasticsearch.yaml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations (e.g.
 `otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is
-ignored by the whitelist - only host and port are used.
+ignored by the whitelist - only host and port are used, for example:
+
+
+[source,yaml]
+--------------------------------------------------
+reindex.remote.whitelist: "otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"
+--------------------------------------------------
+
+The whitelist must be configured on any nodes that will coordinate the reindex.
 
 This feature should work with remote clusters of any version of Elasticsearch
 you are likely to find. This should allow you to upgrade from any version of
@@ -740,9 +748,10 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/task_id
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -761,9 +770,10 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/task_id/_cancel
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
 The `task_id` can be found using the Tasks API.
 
@@ -780,9 +790,10 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/task_id:1/_rethrottle?requests_per_second=-1
+POST _reindex/task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
 The `task_id` can be found using the Tasks API above.
 

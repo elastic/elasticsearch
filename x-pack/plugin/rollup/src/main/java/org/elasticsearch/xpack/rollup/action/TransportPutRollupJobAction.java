@@ -205,7 +205,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     static void startPersistentTask(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
                                     PersistentTasksService persistentTasksService) {
 
-        persistentTasksService.startPersistentTask(job.getConfig().getId(), RollupField.TASK_NAME, job,
+        persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
                 ActionListener.wrap(
                         rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService),
                         e -> {
@@ -220,8 +220,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
     private static void waitForRollupStarted(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
                                              PersistentTasksService persistentTasksService) {
-        persistentTasksService.waitForPersistentTaskStatus(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
-                new PersistentTasksService.WaitForPersistentTaskStatusListener<RollupJob>() {
+        persistentTasksService.waitForPersistentTaskCondition(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
+                new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {
                         listener.onResponse(new PutRollupJobAction.Response(true));

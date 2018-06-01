@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class RolloverAction extends Action<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
+public class RolloverAction extends Action<RolloverRequest, RolloverResponse> {
 
     public static final RolloverAction INSTANCE = new RolloverAction();
     public static final String NAME = "indices:admin/rollover";
@@ -34,10 +33,5 @@ public class RolloverAction extends Action<RolloverRequest, RolloverResponse, Ro
     @Override
     public RolloverResponse newResponse() {
         return new RolloverResponse();
-    }
-
-    @Override
-    public RolloverRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RolloverRequestBuilder(client, this);
     }
 }

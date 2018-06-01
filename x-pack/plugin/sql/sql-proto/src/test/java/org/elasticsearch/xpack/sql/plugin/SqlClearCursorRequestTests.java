@@ -8,17 +8,18 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.function.Consumer;
 
 public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlClearCursorRequest> {
-    public AbstractSqlRequest.Mode testMode;
+    public Mode testMode;
 
     @Before
     public void setup() {
-        testMode = randomFrom(AbstractSqlRequest.Mode.values());
+        testMode = randomFrom(Mode.values());
     }
 
     @Override
@@ -40,7 +41,7 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
     protected SqlClearCursorRequest mutateInstance(SqlClearCursorRequest instance) throws IOException {
         @SuppressWarnings("unchecked")
         Consumer<SqlClearCursorRequest> mutator = randomFrom(
-                request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(AbstractSqlRequest.Mode.values()))),
+                request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(Mode.values()))),
                 request -> request.setCursor(randomValueOtherThan(request.getCursor(), SqlQueryResponseTests::randomStringCursor))
         );
         SqlClearCursorRequest newRequest = new SqlClearCursorRequest(instance.mode(), instance.getCursor());

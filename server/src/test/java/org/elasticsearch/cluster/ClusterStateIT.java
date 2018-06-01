@@ -246,11 +246,8 @@ public class ClusterStateIT extends ESIntegTestCase {
 
     public static class NodePlugin extends CustomPlugin {
 
-        @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-        static final Optional<String> NODE_PLUGIN_FEATURE = Optional.of("node");
-
         public Optional<String> getFeature() {
-            return NODE_PLUGIN_FEATURE;
+            return Optional.of("node");
         }
 
         static final int VALUE = randomInt();
@@ -279,12 +276,9 @@ public class ClusterStateIT extends ESIntegTestCase {
 
     public static class NodeAndTransportClientPlugin extends CustomPlugin {
 
-        @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-        static final Optional<String> FEATURE = Optional.of("node-and-transport-client");
-
         @Override
         protected Optional<String> getFeature() {
-            return FEATURE;
+            return Optional.of("node-and-transport-client");
         }
 
         static final int VALUE = randomInt();

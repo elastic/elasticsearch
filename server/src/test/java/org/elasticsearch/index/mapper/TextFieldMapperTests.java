@@ -734,25 +734,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             Query q6 = mapper.mappers().getMapper("field").fieldType().prefixQuery("goings",
                 CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q6, instanceOf(PrefixQuery.class));
-
-            indexService.mapperService().merge("type", json, MergeReason.MAPPING_UPDATE);
-
-            String badUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                .field("type", "text")
-                .field("analyzer", "english")
-                .startObject("index_prefixes")
-                .field("min_chars", 1)
-                .field("max_chars", 10)
-                .endObject()
-                .endObject().endObject()
-                .endObject().endObject());
-
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-                indexService.mapperService()
-                    .merge("type", new CompressedXContent(badUpdate), MergeReason.MAPPING_UPDATE);
-            });
-            assertThat(e.getMessage(), containsString("mapper [field._index_prefix] has different min_chars values"));
         }
 
         {

@@ -61,6 +61,7 @@ public class NioHttpRequest extends RestRequest {
         }
     }
 
+    @Override
     public Method method() {
         HttpMethod httpMethod = request.method();
         if (httpMethod == HttpMethod.GET)

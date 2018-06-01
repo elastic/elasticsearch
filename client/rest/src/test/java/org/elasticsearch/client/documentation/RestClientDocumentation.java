@@ -38,6 +38,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -171,14 +172,22 @@ public class RestClientDocumentation {
             //tag::rest-client-body-shorter
             request.setJsonEntity("{\"json\":\"text\"}");
             //end::rest-client-body-shorter
-            //tag::rest-client-headers
-            request.addHeader("Accept", "text/plain");
-            request.addHeader("Cache-Control", "no-cache");
-            //end::rest-client-headers
-            //tag::rest-client-response-consumer
-            request.setHttpAsyncResponseConsumerFactory(
-                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024));
-            //end::rest-client-response-consumer
+            {
+                //tag::rest-client-headers
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.addHeader("Accept", "text/plain");
+                options.addHeader("Cache-Control", "no-cache");
+                request.setOptions(options);
+                //end::rest-client-headers
+            }
+            {
+                //tag::rest-client-response-consumer
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.setHttpAsyncResponseConsumerFactory(
+                        new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024));
+                request.setOptions(options);
+                //end::rest-client-response-consumer
+            }
         }
         {
             HttpEntity[] documents = new HttpEntity[10];

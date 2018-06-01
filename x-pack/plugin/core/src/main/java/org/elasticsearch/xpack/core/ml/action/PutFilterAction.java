@@ -25,18 +25,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response, PutFilterAction.RequestBuilder> {
+public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response> {
 
     public static final PutFilterAction INSTANCE = new PutFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/put";
 
     private PutFilterAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -113,7 +108,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

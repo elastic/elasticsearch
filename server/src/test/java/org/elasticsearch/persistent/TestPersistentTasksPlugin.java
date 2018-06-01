@@ -360,7 +360,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends Action<TestTasksRequest, TestTasksResponse, TestTasksRequestBuilder> {
+    public static class TestTaskAction extends Action<TestTasksRequest, TestTasksResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/persistent/task_test";
@@ -372,11 +372,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         @Override
         public TestTasksResponse newResponse() {
             return new TestTasksResponse();
-        }
-
-        @Override
-        public TestTasksRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-            return new TestTasksRequestBuilder(client);
         }
     }
 

@@ -12,7 +12,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * A builder for requests to delete a role from the security index
  */
-public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleRequest, DeleteRoleResponse, DeleteRoleRequestBuilder>
+public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleRequest, DeleteRoleResponse>
         implements WriteRequestBuilder<DeleteRoleRequestBuilder> {
 
     public DeleteRoleRequestBuilder(ElasticsearchClient client) {

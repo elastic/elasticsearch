@@ -297,10 +297,40 @@ GET /test/_doc/1
 // CONSOLE
 // TEST[continued]
 
+To swap which index is the write index for an alias, the Aliases API can be leveraged to
+do an atomic swap.
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias1",
+                 "is_write_index" : false
+            }
+        }, {
+            "add" : {
+                 "index" : "test2",
+                 "alias" : "alias1",
+                 "is_write_index" : true
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\nPUT test2\n/]
+
+It is important to note that the order of these actions is important. The original write index
+must be unset, so that `test2` can be set as the write index.
+
 
 [IMPORTANT]
 =====================================
-`is_write_index` will default to `true` for an alias on a newly created index that does not point to any other
+`is_write_index` will default to `true` for an alias on a newly alias that does not point to any other
 write indices already.
 =====================================
 

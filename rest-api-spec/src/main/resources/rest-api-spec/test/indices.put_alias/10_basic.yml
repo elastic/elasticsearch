@@ -26,7 +26,7 @@
       indices.get_alias:
         name: test_alias
 
-  - match: {test_index.aliases.test_alias: { is_write_index: false }}
+  - match: {test_index.aliases.test_alias: { is_write_index: true }}
 
 ---
 "Can't create alias with invalid characters":

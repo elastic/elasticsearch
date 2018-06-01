@@ -523,10 +523,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
 
                 aliases.forEach((aliasName, aliasMetaData) -> {
-                    if (aliasMetaData.writeIndex() == null
-                            && currentState.metaData().getWriteIndex(aliasName) == null) {
+                    // if request does not explicitly configure is_write_index, default to true or false accordingly
+                    if (aliasMetaData.writeIndex() == null) {
+                        boolean defaultedIsWriteIndex = currentState.metaData().getWriteIndex(aliasName) == null;
                         indexMetaDataBuilder.putAlias(AliasMetaData.builder(aliasName).filter(aliasMetaData.getFilter())
-                            .indexRouting(aliasMetaData.getIndexRouting()).searchRouting(aliasMetaData.searchRouting()).writeIndex(true));
+                            .indexRouting(aliasMetaData.getIndexRouting()).searchRouting(aliasMetaData.searchRouting())
+                            .writeIndex(defaultedIsWriteIndex));
                     } else {
                         aliasValidator.validateAliasWriteOnly(aliasMetaData.alias(), Boolean.TRUE.equals(aliasMetaData.writeIndex()),
                             currentState.metaData());

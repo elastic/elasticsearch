@@ -119,10 +119,13 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
-            boolean isWriteIndex = writeIndex == null ? false : writeIndex;
-            if (writeIndex == null && metadata.getWriteIndex(alias) == null) {
-                isWriteIndex = true;
+            final boolean isWriteIndex;
+            if (writeIndex == null) {
+                isWriteIndex = metadata.getWriteIndex(alias) == null;
+            } else {
+                isWriteIndex = writeIndex;
             }
+
             aliasValidator.validate(alias, indexRouting, filter, isWriteIndex);
 
             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).filter(filter).indexRouting(indexRouting)

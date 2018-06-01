@@ -56,6 +56,21 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
     }
 
     @Override
+    protected void assertEqualInstances(AliasMetaData expectedInstance, AliasMetaData newInstance) {
+        assertNotSame(newInstance, expectedInstance);
+        if (expectedInstance.writeIndex() == null) {
+            expectedInstance = AliasMetaData.builder(expectedInstance.alias())
+                .filter(expectedInstance.filter())
+                .indexRouting(expectedInstance.indexRouting())
+                .searchRouting(expectedInstance.searchRouting())
+                .writeIndex(Boolean.FALSE)
+                .build();
+        }
+        assertEquals(expectedInstance, newInstance);
+        assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
+    }
+
+    @Override
     protected AliasMetaData createTestInstance() {
         return createTestItem();
     }
@@ -96,6 +111,7 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
         if (randomBoolean()) {
             builder.filter("{\"term\":{\"year\":2016}}");
         }
+        builder.writeIndex(randomBoolean());
         return builder.build();
     }
 

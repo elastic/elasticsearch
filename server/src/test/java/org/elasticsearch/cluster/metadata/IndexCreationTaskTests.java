@@ -297,7 +297,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testWriteIndex() throws Exception {
-        Boolean writeIndex = randomBoolean() ? null : randomBoolean();
+        Boolean writeIndex = randomBoolean();
         doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
         setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
         setupRequestMapping("mapping1", createMapping());
@@ -305,10 +305,8 @@ public class IndexCreationTaskTests extends ESTestCase {
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
-
-        Boolean expectedWriteIndex = writeIndex == null ? Boolean.TRUE : writeIndex;
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
-        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(expectedWriteIndex));
+        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(writeIndex));
     }
 
     public void testWriteIndexValidationException() throws Exception {
@@ -320,11 +318,36 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequestMapping("mapping1", createMapping());
         setupRequestCustom("custom1", createCustom());
         reqSettings.put("key1", "value1");
-        Boolean isWriteIndex = randomBoolean() ? true : null;
-        setupRequestAlias(new Alias("alias1").writeIndex(isWriteIndex));
+        setupRequestAlias(new Alias("alias1").writeIndex(true));
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> executeTask());
         assertThat(exception.getMessage(), equalTo("alias [alias1] already has a write index [test2]"));
+    }
+
+    public void testWriteIndexDefaultToTrue() throws Exception {
+        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
+        setupRequestAlias(new Alias("alias1"));
+        setupRequestMapping("mapping1", createMapping());
+        setupRequestCustom("custom1", createCustom());
+        reqSettings.put("key1", "value1");
+        ClusterState result = executeTask();
+        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(true));
+
+    }
+
+    public void testWriteIndexDefaultToFalse() throws Exception {
+        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
+        setupRequestAlias(new Alias("alias1"));
+        setupRequestMapping("mapping1", createMapping());
+        setupRequestCustom("custom1", createCustom());
+        reqSettings.put("key1", "value1");
+        IndexMetaData existingWriteIndex = IndexMetaData.builder("test2")
+            .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
+            .numberOfShards(1).numberOfReplicas(0).build();
+        idxBuilder.put("test2", existingWriteIndex);
+        ClusterState result = executeTask();
+        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(false));
+        assertThat(result.metaData().index("test2").getAliases().get("alias1").writeIndex(), equalTo(true));
     }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {

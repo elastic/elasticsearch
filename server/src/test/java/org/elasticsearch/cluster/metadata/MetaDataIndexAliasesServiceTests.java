@@ -136,6 +136,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
         after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, null)));
+        assertTrue(after.metaData().index("test").getAliases().get("alias").writeIndex());
         assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
             equalTo(after.metaData().index("test")));
 
@@ -156,13 +157,10 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
         ClusterState after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, null)));
+        assertFalse(after.metaData().index("test").getAliases().get("alias").writeIndex());
         assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
             equalTo(after.metaData().index("test2")));
 
-        after = service.innerExecute(before, Arrays.asList(
-            new AliasAction.Add("test", "alias", null, null, null, null)));
-        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
-            equalTo(after.metaData().index("test2")));
         Exception exception = expectThrows(IllegalArgumentException.class, () -> service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, true))));
         assertThat(exception.getMessage(), equalTo("alias [alias] already has a write index [test2]"));

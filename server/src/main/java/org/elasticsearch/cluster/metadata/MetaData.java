@@ -565,7 +565,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             IndexMetaData indexMetaData = cursor.value;
             for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                 AliasMetaData aliasMetaData = aliasCursor.value;
-                if (aliasMetaData.getAlias().equals(alias) && aliasMetaData.writeIndex()) {
+                if (aliasMetaData.getAlias().equals(alias) && Boolean.TRUE.equals(aliasMetaData.writeIndex())) {
                     return indexMetaData.getIndex();
                 }
             }
@@ -1027,7 +1027,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 IndexMetaData indexMetaData = cursor.value;
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    if (aliasMetaData.getAlias().equals(alias) && aliasMetaData.writeIndex()) {
+                    if (aliasMetaData.getAlias().equals(alias) && Boolean.TRUE.equals(aliasMetaData.writeIndex())) {
                         return indexMetaData.getIndex();
                     }
                 }

@@ -439,7 +439,7 @@ public class MetaDataTests extends ESTestCase {
         MetaData.Builder builder = MetaData.builder().put(indexMetaDataBuilder);
         Index writeIndex = builder.getWriteIndex("alias");
         if (hasAlias && Boolean.TRUE.equals(isWriteIndex)) {
-            assertThat(writeIndex, equalTo(indexMetaDataBuilder.build().getIndex()));
+            assertThat(writeIndex.getName(), equalTo("index"));
         } else {
             assertNull(writeIndex);
         }
@@ -456,7 +456,7 @@ public class MetaDataTests extends ESTestCase {
         MetaData metaData = MetaData.builder().put(indexMetaDataBuilder).build();
         Index writeIndex = metaData.getWriteIndex("alias");
         if (hasAlias && Boolean.TRUE.equals(isWriteIndex)) {
-            assertThat(writeIndex, equalTo(indexMetaDataBuilder.build().getIndex()));
+            assertThat(writeIndex.getName(), equalTo("index"));
         } else {
             assertNull(writeIndex);
         }

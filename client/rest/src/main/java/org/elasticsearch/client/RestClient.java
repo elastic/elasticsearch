@@ -995,8 +995,8 @@ public class RestClient implements Closeable {
         }
 
         @Override
-        public int compareTo(DeadNodeAndRevival lhs) {
-            return Long.compare(nanosUntilRevival, lhs.nanosUntilRevival);
+        public int compareTo(DeadNodeAndRevival rhs) {
+            return Long.compare(rhs.nanosUntilRevival, nanosUntilRevival);
         }
     }
 

@@ -1,0 +1,24 @@
+{
+  "xpack.index_lifecycle.explain_lifecycle": {
+    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/{index}/_index_lifecycle/explain",
+      "paths": ["/{index}/_index_lifecycle/explain", "/_index_lifecycle/explain"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "description" : "The name of the index to explain"
+        }
+      },
+      "params": {
+        "human": {
+          "type" : "boolean",
+          "default" : "false",
+          "description" : "Return data such as dates in a human readable format"
+        }
+      }
+    },
+    "body": null
+  }
+}

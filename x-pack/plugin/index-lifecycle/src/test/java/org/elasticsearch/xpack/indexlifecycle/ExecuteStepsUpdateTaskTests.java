@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.RandomStepInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
@@ -181,7 +182,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     public void testExecuteIncompleteWaitStepWithInfo() throws IOException {
         secondStep.setWillComplete(false);
-        IndexLifecycleRunnerTests.RandomStepInfo stepInfo = new IndexLifecycleRunnerTests.RandomStepInfo();
+        RandomStepInfo stepInfo = new RandomStepInfo(() -> randomAlphaOfLength(10));
         secondStep.expectedInfo(stepInfo);
         setStateToKey(secondStepKey);
         Step startStep = policyStepsRegistry.getStep(mixedPolicyName, secondStepKey);

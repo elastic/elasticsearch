@@ -198,13 +198,13 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(response.getActivePrimaryShards(), equalTo(10));
+        assertThat(response.getActivePrimaryShards(), equalTo(2));
         assertThat(response.getNumberOfDataNodes(), equalTo(1));
         assertThat(response.getNumberOfNodes(), equalTo(1));
-        assertThat(response.getActiveShards(), equalTo(10));
+        assertThat(response.getActiveShards(), equalTo(2));
         assertThat(response.getDelayedUnassignedShards(), equalTo(0));
         assertThat(response.getInitializingShards(), equalTo(0));
-        assertThat(response.getUnassignedShards(), equalTo(10));
+        assertThat(response.getUnassignedShards(), equalTo(2));
         assertThat(response.getActiveShardsPercent(), equalTo(50d));
     }
 
@@ -220,13 +220,13 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(response.getActivePrimaryShards(), equalTo(5));
+        assertThat(response.getActivePrimaryShards(), equalTo(1));
         assertThat(response.getNumberOfDataNodes(), equalTo(1));
         assertThat(response.getNumberOfNodes(), equalTo(1));
-        assertThat(response.getActiveShards(), equalTo(5));
+        assertThat(response.getActiveShards(), equalTo(1));
         assertThat(response.getDelayedUnassignedShards(), equalTo(0));
         assertThat(response.getInitializingShards(), equalTo(0));
-        assertThat(response.getUnassignedShards(), equalTo(5));
+        assertThat(response.getUnassignedShards(), equalTo(1));
         assertThat(response.getActiveShardsPercent(), equalTo(50d));
         assertThat(response.getIndices().size(), equalTo(1));
         Map.Entry<String, ClusterIndexHealth> index = response.getIndices().entrySet().iterator().next();
@@ -236,17 +236,17 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
     private static void assertYellowIndex(String indexName, ClusterIndexHealth indexHealth, boolean emptyShards) {
         assertThat(indexHealth, notNullValue());
         assertThat(indexHealth.getIndex(),equalTo(indexName));
-        assertThat(indexHealth.getActivePrimaryShards(),equalTo(5));
-        assertThat(indexHealth.getActiveShards(),equalTo(5));
+        assertThat(indexHealth.getActivePrimaryShards(),equalTo(1));
+        assertThat(indexHealth.getActiveShards(),equalTo(1));
         assertThat(indexHealth.getNumberOfReplicas(),equalTo(1));
         assertThat(indexHealth.getInitializingShards(),equalTo(0));
-        assertThat(indexHealth.getUnassignedShards(),equalTo(5));
+        assertThat(indexHealth.getUnassignedShards(),equalTo(1));
         assertThat(indexHealth.getRelocatingShards(),equalTo(0));
         assertThat(indexHealth.getStatus(),equalTo(ClusterHealthStatus.YELLOW));
         if (emptyShards) {
             assertThat(indexHealth.getShards().size(), equalTo(0));
         } else {
-            assertThat(indexHealth.getShards().size(), equalTo(5));
+            assertThat(indexHealth.getShards().size(), equalTo(1));
             for (Map.Entry<Integer, ClusterShardHealth> entry : indexHealth.getShards().entrySet()) {
                 assertYellowShard(entry.getKey(), entry.getValue());
             }

@@ -21,18 +21,13 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class MlInfoAction extends Action<MlInfoAction.Request, MlInfoAction.Response, MlInfoAction.RequestBuilder> {
+public class MlInfoAction extends Action<MlInfoAction.Request, MlInfoAction.Response> {
 
     public static final MlInfoAction INSTANCE = new MlInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ml/info/get";
 
     private MlInfoAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -56,7 +51,7 @@ public class MlInfoAction extends Action<MlInfoAction.Request, MlInfoAction.Resp
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, MlInfoAction action) {
             super(client, action, new Request());

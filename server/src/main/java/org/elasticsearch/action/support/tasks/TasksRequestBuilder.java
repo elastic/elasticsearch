@@ -31,9 +31,9 @@ public class TasksRequestBuilder<
             Request extends BaseTasksRequest<Request>,
             Response extends BaseTasksResponse,
             RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
-        > extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+        > extends ActionRequestBuilder<Request, Response> {
 
-    protected TasksRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+    protected TasksRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
         super(client, action, request);
     }
 

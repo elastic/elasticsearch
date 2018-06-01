@@ -80,26 +80,26 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         }
 
         // Add _agg to params map for backwards compatibility (redundant with context variables on the scripts created below).
-        // When this is removed, agg (as passed to ScriptedMetricAggregator) can be changed to Map<String, Object>, since
+        // When this is removed, aggState (as passed to ScriptedMetricAggregator) can be changed to Map<String, Object>, since
         // it won't be possible to completely replace it with another type as is possible when it's an entry in params.
         if (aggParams.containsKey("_agg") == false) {
             aggParams.put("_agg", new HashMap<String, Object>());
         }
-        Object agg = aggParams.get("_agg");
+        Object aggState = aggParams.get("_agg");
 
         final ScriptedMetricAggContexts.InitScript initScript = this.initScript.newInstance(
-            mergeParams(aggParams, initScriptParams), agg);
+            mergeParams(aggParams, initScriptParams), aggState);
         final ScriptedMetricAggContexts.MapScript.LeafFactory mapScript = this.mapScript.newFactory(
-            mergeParams(aggParams, mapScriptParams), agg, lookup);
+            mergeParams(aggParams, mapScriptParams), aggState, lookup);
         final ScriptedMetricAggContexts.CombineScript combineScript = this.combineScript.newInstance(
-            mergeParams(aggParams, combineScriptParams), agg);
+            mergeParams(aggParams, combineScriptParams), aggState);
 
         final Script reduceScript = deepCopyScript(this.reduceScript, context);
         if (initScript != null) {
             initScript.execute();
         }
         return new ScriptedMetricAggregator(name, mapScript,
-                combineScript, reduceScript, agg, context, parent,
+                combineScript, reduceScript, aggState, context, parent,
                 pipelineAggregators, metaData);
     }
 

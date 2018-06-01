@@ -193,21 +193,21 @@ public class MockScriptEngine implements ScriptEngine {
             return new MockMovingFunctionScript();
         }
 
-        public ScriptedMetricAggContexts.InitScript createMetricAggInitScript(Map<String, Object> params, Object agg) {
-            return new MockMetricAggInitScript(params, agg, script != null ? script : ctx -> 42d);
+        public ScriptedMetricAggContexts.InitScript createMetricAggInitScript(Map<String, Object> params, Object state) {
+            return new MockMetricAggInitScript(params, state, script != null ? script : ctx -> 42d);
         }
 
-        public ScriptedMetricAggContexts.MapScript.LeafFactory createMetricAggMapScript(Map<String, Object> params, Object agg,
+        public ScriptedMetricAggContexts.MapScript.LeafFactory createMetricAggMapScript(Map<String, Object> params, Object state,
                                                                                         SearchLookup lookup) {
-            return new MockMetricAggMapScript(params, agg, lookup, script != null ? script : ctx -> 42d);
+            return new MockMetricAggMapScript(params, state, lookup, script != null ? script : ctx -> 42d);
         }
 
-        public ScriptedMetricAggContexts.CombineScript createMetricAggCombineScript(Map<String, Object> params, Object agg) {
-            return new MockMetricAggCombineScript(params, agg, script != null ? script : ctx -> 42d);
+        public ScriptedMetricAggContexts.CombineScript createMetricAggCombineScript(Map<String, Object> params, Object state) {
+            return new MockMetricAggCombineScript(params, state, script != null ? script : ctx -> 42d);
         }
 
-        public ScriptedMetricAggContexts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> aggs) {
-            return new MockMetricAggReduceScript(params, aggs, script != null ? script : ctx -> 42d);
+        public ScriptedMetricAggContexts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> states) {
+            return new MockMetricAggReduceScript(params, states, script != null ? script : ctx -> 42d);
         }
     }
 
@@ -366,9 +366,9 @@ public class MockScriptEngine implements ScriptEngine {
     public static class MockMetricAggInitScript extends ScriptedMetricAggContexts.InitScript {
         private final Function<Map<String, Object>, Object> script;
 
-        MockMetricAggInitScript(Map<String, Object> params, Object agg,
+        MockMetricAggInitScript(Map<String, Object> params, Object state,
                                 Function<Map<String, Object>, Object> script) {
-            super(params, agg);
+            super(params, state);
             this.script = script;
         }
 
@@ -380,28 +380,28 @@ public class MockScriptEngine implements ScriptEngine {
                 map.put("params", getParams());
             }
 
-            map.put("agg", getAgg());
+            map.put("state", getState());
             script.apply(map);
         }
     }
 
     public static class MockMetricAggMapScript implements ScriptedMetricAggContexts.MapScript.LeafFactory {
         private final Map<String, Object> params;
-        private final Object agg;
+        private final Object state;
         private final SearchLookup lookup;
         private final Function<Map<String, Object>, Object> script;
 
-        MockMetricAggMapScript(Map<String, Object> params, Object agg, SearchLookup lookup,
+        MockMetricAggMapScript(Map<String, Object> params, Object state, SearchLookup lookup,
                                Function<Map<String, Object>, Object> script) {
             this.params = params;
-            this.agg = agg;
+            this.state = state;
             this.lookup = lookup;
             this.script = script;
         }
 
         @Override
         public ScriptedMetricAggContexts.MapScript newInstance(LeafReaderContext context) {
-            return new ScriptedMetricAggContexts.MapScript(params, agg, lookup, context) {
+            return new ScriptedMetricAggContexts.MapScript(params, state, lookup, context) {
                 @Override
                 public void execute() {
                     Map<String, Object> map = new HashMap<>();
@@ -411,7 +411,7 @@ public class MockScriptEngine implements ScriptEngine {
                         map.put("params", getParams());
                     }
 
-                    map.put("agg", getAgg());
+                    map.put("state", getState());
                     map.put("doc", getDoc());
                     map.put("_score", get_score());
 
@@ -424,9 +424,9 @@ public class MockScriptEngine implements ScriptEngine {
     public static class MockMetricAggCombineScript extends ScriptedMetricAggContexts.CombineScript {
         private final Function<Map<String, Object>, Object> script;
 
-        MockMetricAggCombineScript(Map<String, Object> params, Object agg,
+        MockMetricAggCombineScript(Map<String, Object> params, Object state,
                                 Function<Map<String, Object>, Object> script) {
-            super(params, agg);
+            super(params, state);
             this.script = script;
         }
 
@@ -438,7 +438,7 @@ public class MockScriptEngine implements ScriptEngine {
                 map.put("params", getParams());
             }
 
-            map.put("agg", getAgg());
+            map.put("state", getState());
             return script.apply(map);
         }
     }
@@ -446,9 +446,9 @@ public class MockScriptEngine implements ScriptEngine {
     public static class MockMetricAggReduceScript extends ScriptedMetricAggContexts.ReduceScript {
         private final Function<Map<String, Object>, Object> script;
 
-        MockMetricAggReduceScript(Map<String, Object> params, List<Object> aggs,
+        MockMetricAggReduceScript(Map<String, Object> params, List<Object> states,
                                   Function<Map<String, Object>, Object> script) {
-            super(params, aggs);
+            super(params, states);
             this.script = script;
         }
 
@@ -460,7 +460,7 @@ public class MockScriptEngine implements ScriptEngine {
                 map.put("params", getParams());
             }
 
-            map.put("aggs", getAggs());
+            map.put("states", getStates());
             return script.apply(map);
         }
     }
@@ -475,15 +475,15 @@ public class MockScriptEngine implements ScriptEngine {
             return MovingFunctions.unweightedAvg(values);
         }
     }
-    
+
     public class MockScoreScript implements ScoreScript.Factory {
-    
+
         private final Function<Map<String, Object>, Object> scripts;
-        
+
         MockScoreScript(Function<Map<String, Object>, Object> scripts) {
             this.scripts = scripts;
         }
-        
+
         @Override
         public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
             return new ScoreScript.LeafFactory() {
@@ -491,7 +491,7 @@ public class MockScriptEngine implements ScriptEngine {
                 public boolean needs_score() {
                     return true;
                 }
-    
+
                 @Override
                 public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
                     Scorer[] scorerHolder = new Scorer[1];
@@ -505,7 +505,7 @@ public class MockScriptEngine implements ScriptEngine {
                             }
                             return ((Number) scripts.apply(vars)).doubleValue();
                         }
-    
+
                         @Override
                         public void setScorer(Scorer scorer) {
                             scorerHolder[0] = scorer;

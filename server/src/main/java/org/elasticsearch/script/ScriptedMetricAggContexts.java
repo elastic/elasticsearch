@@ -33,31 +33,31 @@ import java.util.Map;
 public class ScriptedMetricAggContexts {
     private abstract static class ParamsAndAggBase {
         private final Map<String, Object> params;
-        private final Object agg;
+        private final Object state;
 
-        ParamsAndAggBase(Map<String, Object> params, Object agg) {
+        ParamsAndAggBase(Map<String, Object> params, Object state) {
             this.params = params;
-            this.agg = agg;
+            this.state = state;
         }
 
         public Map<String, Object> getParams() {
             return params;
         }
 
-        public Object getAgg() {
-            return agg;
+        public Object getState() {
+            return state;
         }
     }
 
     public abstract static class InitScript extends ParamsAndAggBase {
-        public InitScript(Map<String, Object> params, Object agg) {
-            super(params, agg);
+        public InitScript(Map<String, Object> params, Object state) {
+            super(params, state);
         }
 
         public abstract void execute();
 
         public interface Factory {
-            InitScript newInstance(Map<String, Object> params, Object agg);
+            InitScript newInstance(Map<String, Object> params, Object state);
         }
 
         public static String[] PARAMETERS = {};
@@ -68,8 +68,8 @@ public class ScriptedMetricAggContexts {
         private final LeafSearchLookup leafLookup;
         private Scorer scorer;
 
-        public MapScript(Map<String, Object> params, Object agg, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(params, agg);
+        public MapScript(Map<String, Object> params, Object state, SearchLookup lookup, LeafReaderContext leafContext) {
+            super(params, state);
 
             this.leafLookup = leafContext == null ? null : lookup.getLeafSearchLookup(leafContext);
         }
@@ -110,7 +110,7 @@ public class ScriptedMetricAggContexts {
         }
 
         public interface Factory {
-            LeafFactory newFactory(Map<String, Object> params, Object agg, SearchLookup lookup);
+            LeafFactory newFactory(Map<String, Object> params, Object state, SearchLookup lookup);
         }
 
         public static String[] PARAMETERS = new String[] {};
@@ -118,14 +118,14 @@ public class ScriptedMetricAggContexts {
     }
 
     public abstract static class CombineScript extends ParamsAndAggBase {
-        public CombineScript(Map<String, Object> params, Object agg) {
-            super(params, agg);
+        public CombineScript(Map<String, Object> params, Object state) {
+            super(params, state);
         }
 
         public abstract Object execute();
 
         public interface Factory {
-            CombineScript newInstance(Map<String, Object> params, Object agg);
+            CombineScript newInstance(Map<String, Object> params, Object state);
         }
 
         public static String[] PARAMETERS = {};
@@ -134,25 +134,25 @@ public class ScriptedMetricAggContexts {
 
     public abstract static class ReduceScript {
         private final Map<String, Object> params;
-        private final List<Object> aggs;
+        private final List<Object> states;
 
-        public ReduceScript(Map<String, Object> params, List<Object> aggs) {
+        public ReduceScript(Map<String, Object> params, List<Object> states) {
             this.params = params;
-            this.aggs = aggs;
+            this.states = states;
         }
 
         public Map<String, Object> getParams() {
             return params;
         }
 
-        public List<Object> getAggs() {
-            return aggs;
+        public List<Object> getStates() {
+            return states;
         }
 
         public abstract Object execute();
 
         public interface Factory {
-            ReduceScript newInstance(Map<String, Object> params, List<Object> aggs);
+            ReduceScript newInstance(Map<String, Object> params, List<Object> states);
         }
 
         public static String[] PARAMETERS = {};

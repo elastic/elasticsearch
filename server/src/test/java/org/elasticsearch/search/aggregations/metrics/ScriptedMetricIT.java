@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -195,20 +194,20 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 return newAggregation;
             });
 
-            scripts.put("agg.items = new ArrayList()", vars ->
-                aggContextScript(vars, agg -> ((HashMap) agg).put("items", new ArrayList())));
+            scripts.put("state.items = new ArrayList()", vars ->
+                aggContextScript(vars, state -> ((HashMap) state).put("items", new ArrayList())));
 
-            scripts.put("agg.items.add(1)", vars ->
-                aggContextScript(vars, agg -> {
-                    HashMap aggMap = (HashMap) agg;
-                    List items = (List) aggMap.get("items");
+            scripts.put("state.items.add(1)", vars ->
+                aggContextScript(vars, state -> {
+                    HashMap stateMap = (HashMap) state;
+                    List items = (List) stateMap.get("items");
                     items.add(1);
                 }));
 
-            scripts.put("sum context agg values", vars -> {
+            scripts.put("sum context state values", vars -> {
                 int sum = 0;
-                HashMap agg = (HashMap) vars.get("agg");
-                List items = (List) agg.get("items");
+                HashMap state = (HashMap) vars.get("state");
+                List items = (List) state.get("items");
 
                 for (Object x : items) {
                     sum += (Integer)x;
@@ -217,12 +216,12 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 return sum;
             });
 
-            scripts.put("sum context aggs of agg values", vars -> {
+            scripts.put("sum context states", vars -> {
                 Integer sum = 0;
 
-                List<?> aggs = (List<?>) vars.get("aggs");
-                for (Object agg : (List) aggs) {
-                    sum += ((Number) agg).intValue();
+                List<?> states = (List<?>) vars.get("states");
+                for (Object state : states) {
+                    sum += ((Number) state).intValue();
                 }
 
                 return sum;
@@ -236,14 +235,14 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         }
 
         static <T> Object aggContextScript(Map<String, Object> vars, Consumer<T> fn) {
-            return aggScript(vars, fn, "agg");
+            return aggScript(vars, fn, "state");
         }
 
         @SuppressWarnings("unchecked")
-        private static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn, String aggVarName) {
-            T agg = (T) vars.get(aggVarName);
-            fn.accept(agg);
-            return agg;
+        private static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn, String stateVarName) {
+            T aggState = (T) vars.get(stateVarName);
+            fn.accept(aggState);
+            return aggState;
         }
     }
 
@@ -1060,11 +1059,11 @@ public class ScriptedMetricIT extends ESIntegTestCase {
     }
 
     public void testAggFromContext() {
-        Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "agg.items = new ArrayList()", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "agg.items.add(1)", Collections.emptyMap());
-        Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context agg values", Collections.emptyMap());
+        Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.items = new ArrayList()", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.items.add(1)", Collections.emptyMap());
+        Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context state values", Collections.emptyMap());
         Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context aggs of agg values",
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context states",
                 Collections.emptyMap());
 
         SearchResponse response = client()

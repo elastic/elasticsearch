@@ -17,10 +17,10 @@ POST ledger/_search?size=0
     "aggs": {
         "profit": {
             "scripted_metric": {
-                "init_script" : "agg.transactions = []",
-                "map_script" : "agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
-                "combine_script" : "double profit = 0; for (t in agg.transactions) { profit += t } return profit",
-                "reduce_script" : "double profit = 0; for (a in aggs) { profit += a } return profit"
+                "init_script" : "state.transactions = []",
+                "map_script" : "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
+                "combine_script" : "double profit = 0; for (t in state.transactions) { profit += t } return profit",
+                "reduce_script" : "double profit = 0; for (a in states) { profit += a } return profit"
             }
         }
     }
@@ -108,7 +108,7 @@ For more details on specifying scripts see <<modules-scripting, script documenta
 
 ==== Allowed return types
 
-Whilst any valid script object can be used within a single script, the scripts must return or store in the `agg` object only the following types:
+Whilst any valid script object can be used within a single script, the scripts must return or store in the `state` object only the following types:
 
 * primitive types
 * String
@@ -121,10 +121,10 @@ The scripted metric aggregation uses scripts at 4 stages of its execution:
 
 init_script::       Executed prior to any collection of documents. Allows the aggregation to set up any initial state.
 +
-In the above example, the `init_script` creates an array `transactions` in the `agg` object.
+In the above example, the `init_script` creates an array `transactions` in the `state` object.
 
 map_script::        Executed once per document collected. This is the only required script. If no combine_script is specified, the resulting state
-                    needs to be stored in an object named `agg`.
+                    needs to be stored in the `state` object.
 +
 In the above example, the `map_script` checks the value of the type field. If the value is 'sale' the value of the amount field
 is added to the transactions array. If the value of the type field is not 'sale' the negated value of the amount field is added
@@ -137,8 +137,8 @@ In the above example, the `combine_script` iterates through all the stored trans
 and finally returns `profit`.
 
 reduce_script::     Executed once on the coordinating node after all shards have returned their results. The script is provided with access to a
-                    variable `aggs` which is an array of the result of the combine_script on each shard. If a reduce_script is not provided
-                    the reduce phase will return the `aggs` variable.
+                    variable `states` which is an array of the result of the combine_script on each shard. If a reduce_script is not provided
+                    the reduce phase will return the `states` variable.
 +
 In the above example, the `reduce_script` iterates through the `profit` returned by each shard summing the values before returning the
 final combined profit which will be returned in the response of the aggregation.
@@ -166,11 +166,11 @@ at each stage of the example above.
 
 ===== Before init_script
 
-`agg` is initialized as a new empty object.
+`state` is initialized as a new empty object.
 
 [source,js]
 --------------------------------------------------
-"agg" : {}
+"state" : {}
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -182,7 +182,7 @@ Shard A::
 +
 [source,js]
 --------------------------------------------------
-"agg" : {
+"state" : {
     "transactions" : []
 }
 --------------------------------------------------
@@ -192,7 +192,7 @@ Shard B::
 +
 [source,js]
 --------------------------------------------------
-"agg" : {
+"state" : {
     "transactions" : []
 }
 --------------------------------------------------
@@ -206,7 +206,7 @@ Shard A::
 +
 [source,js]
 --------------------------------------------------
-"agg" : {
+"state" : {
     "transactions" : [ 80, -30 ]
 }
 --------------------------------------------------
@@ -216,7 +216,7 @@ Shard B::
 +
 [source,js]
 --------------------------------------------------
-"agg" : {
+"state" : {
     "transactions" : [ -10, 130 ]
 }
 --------------------------------------------------
@@ -232,11 +232,11 @@ Shard B::        120
 
 ===== After reduce_script
 
-The reduce_script receives an `aggs` array containing the result of the combine script for each shard:
+The reduce_script receives a `states` array containing the result of the combine script for each shard:
 
 [source,js]
 --------------------------------------------------
-"aggs" : [
+"states" : [
     50,
     120
 ]
@@ -276,5 +276,5 @@ params::           Optional. An object whose contents will be passed as variable
 ==== Empty Buckets
 
 If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
-shard with a `null` value. In this case the `reduce_script`'s `aggs` variable will contain `null` as a response from that shard.
+shard with a `null` value. In this case the `reduce_script`'s `states` variable will contain `null` as a response from that shard.
 `reduce_script`'s should therefore expect and deal with `null` responses from shards.  

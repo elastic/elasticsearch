@@ -44,26 +44,26 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
     public void testInitBasic() {
         ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile("test",
-            "agg.testField = params.initialVal", ScriptedMetricAggContexts.InitScript.CONTEXT, Collections.emptyMap());
+            "state.testField = params.initialVal", ScriptedMetricAggContexts.InitScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
-        Map<String, Object> agg = new HashMap<>();
+        Map<String, Object> state = new HashMap<>();
 
         params.put("initialVal", 10);
 
-        ScriptedMetricAggContexts.InitScript script = factory.newInstance(params, agg);
+        ScriptedMetricAggContexts.InitScript script = factory.newInstance(params, state);
         script.execute();
 
-        assert(agg.containsKey("testField"));
-        assertEquals(10, agg.get("testField"));
+        assert(state.containsKey("testField"));
+        assertEquals(10, state.get("testField"));
     }
 
     public void testMapBasic() {
         ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
-            "agg.testField = 2*_score", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
+            "state.testField = 2*_score", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
-        Map<String, Object> agg = new HashMap<>();
+        Map<String, Object> state = new HashMap<>();
 
         Scorer scorer = new Scorer(null) {
             @Override
@@ -76,50 +76,50 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
             public DocIdSetIterator iterator() { return null; }
         };
 
-        ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, agg, null);
+        ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, null);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(null);
 
         script.setScorer(scorer);
         script.execute();
 
-        assert(agg.containsKey("testField"));
-        assertEquals(1.0, agg.get("testField"));
+        assert(state.containsKey("testField"));
+        assertEquals(1.0, state.get("testField"));
     }
 
     public void testCombineBasic() {
         ScriptedMetricAggContexts.CombineScript.Factory factory = scriptEngine.compile("test",
-            "agg.testField = params.initialVal; return agg.testField + params.inc", ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            "state.testField = params.initialVal; return state.testField + params.inc", ScriptedMetricAggContexts.CombineScript.CONTEXT,
             Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
-        Map<String, Object> agg = new HashMap<>();
+        Map<String, Object> state = new HashMap<>();
 
         params.put("initialVal", 10);
         params.put("inc", 2);
 
-        ScriptedMetricAggContexts.CombineScript script = factory.newInstance(params, agg);
+        ScriptedMetricAggContexts.CombineScript script = factory.newInstance(params, state);
         Object res = script.execute();
 
-        assert(agg.containsKey("testField"));
-        assertEquals(10, agg.get("testField"));
+        assert(state.containsKey("testField"));
+        assertEquals(10, state.get("testField"));
         assertEquals(12, res);
     }
 
     public void testReduceBasic() {
         ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptEngine.compile("test",
-            "aggs[0].testField + aggs[1].testField", ScriptedMetricAggContexts.ReduceScript.CONTEXT, Collections.emptyMap());
+            "states[0].testField + states[1].testField", ScriptedMetricAggContexts.ReduceScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
-        List<Object> aggs = new ArrayList<>();
+        List<Object> states = new ArrayList<>();
 
-        Map<String, Object> agg1 = new HashMap<>(), agg2 = new HashMap<>();
-        agg1.put("testField", 1);
-        agg2.put("testField", 2);
+        Map<String, Object> state1 = new HashMap<>(), state2 = new HashMap<>();
+        state1.put("testField", 1);
+        state2.put("testField", 2);
 
-        aggs.add(agg1);
-        aggs.add(agg2);
+        states.add(state1);
+        states.add(state2);
 
-        ScriptedMetricAggContexts.ReduceScript script = factory.newInstance(params, aggs);
+        ScriptedMetricAggContexts.ReduceScript script = factory.newInstance(params, states);
         Object res = script.execute();
         assertEquals(3, res);
     }

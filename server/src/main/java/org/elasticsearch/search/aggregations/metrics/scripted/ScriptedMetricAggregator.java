@@ -41,14 +41,14 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     private final ScriptedMetricAggContexts.MapScript.LeafFactory mapScript;
     private final ScriptedMetricAggContexts.CombineScript combineScript;
     private final Script reduceScript;
-    private Object agg;
+    private Object aggState;
 
     protected ScriptedMetricAggregator(String name, ScriptedMetricAggContexts.MapScript.LeafFactory mapScript, ScriptedMetricAggContexts.CombineScript combineScript,
-                                       Script reduceScript, Object agg, SearchContext context, Aggregator parent,
+                                       Script reduceScript, Object aggState, SearchContext context, Aggregator parent,
                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                                        throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
-        this.agg = agg;
+        this.aggState = aggState;
         this.mapScript = mapScript;
         this.combineScript = combineScript;
         this.reduceScript = reduceScript;
@@ -86,7 +86,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
             aggregation = combineScript.execute();
             CollectionUtils.ensureNoSelfReferences(aggregation);
         } else {
-            aggregation = agg;
+            aggregation = aggState;
         }
         return new InternalScriptedMetric(name, aggregation, reduceScript, pipelineAggregators(),
                 metaData());

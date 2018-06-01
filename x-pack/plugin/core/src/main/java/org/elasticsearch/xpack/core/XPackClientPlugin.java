@@ -28,6 +28,13 @@ import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.PostStartBasicAction;
 import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PutLicenseAction;
+import org.elasticsearch.persistent.CompletionPersistentTaskAction;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksNodeService;
+import org.elasticsearch.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.persistent.StartPersistentTaskAction;
+import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -52,6 +59,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
@@ -76,7 +84,6 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
-import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -84,6 +91,7 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
+import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
@@ -148,6 +156,8 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -158,8 +168,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -318,7 +326,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // ILM
                 DeleteLifecycleAction.INSTANCE,
                 GetLifecycleAction.INSTANCE,
-                PutLifecycleAction.INSTANCE
+                PutLifecycleAction.INSTANCE, 
+                ExplainLifecycleAction.INSTANCE
         );
     }
 

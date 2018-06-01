@@ -585,14 +585,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query nullValueQuery() {
-            if (nullValue() == null) {
-                return null;
-            }
-            return termQuery(nullValue(), null);
-        }
-
-        @Override
         public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
 
             if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {

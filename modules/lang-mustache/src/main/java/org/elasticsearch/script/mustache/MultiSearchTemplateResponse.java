@@ -20,12 +20,14 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -107,12 +109,14 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     }
 
     private Item[] items;
-
+    private long tookInMillis; 
+    
     MultiSearchTemplateResponse() {
     }
 
-    public MultiSearchTemplateResponse(Item[] items) {
+    public MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;
+        this.tookInMillis = tookInMillis;
     }
 
     @Override
@@ -126,6 +130,13 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public Item[] getResponses() {
         return this.items;
     }
+    
+    /**
+     * How long the msearch_template took.
+     */
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -133,6 +144,9 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         items = new Item[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            tookInMillis = in.readVLong();
         }
     }
 
@@ -143,11 +157,15 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         for (Item item : items) {
             item.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVLong(tookInMillis);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
+        builder.field("took", tookInMillis);       
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
             if (item.isFailure()) {

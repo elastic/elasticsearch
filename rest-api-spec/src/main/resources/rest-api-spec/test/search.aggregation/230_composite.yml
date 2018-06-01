@@ -327,8 +327,8 @@ setup:
 ---
 "Composite aggregation and array size":
   - skip:
-      version: " - 6.99.99"
-      reason:  starting in 7.0 the composite sources do not allocate arrays eagerly.
+      version: " - 6.3.99"
+      reason:  starting in 6.4 the composite sources do not allocate arrays eagerly.
 
   - do:
         search:

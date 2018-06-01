@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -41,6 +42,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -59,6 +61,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -208,6 +211,14 @@ final class RequestConverters {
         parameters.withIndicesOptions(flushRequest.indicesOptions());
         parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
         parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return request;
+    }
+
+    static Request flushSynced(SyncedFlushRequest syncedFlushRequest) {
+        String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_flush/synced"));
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
         return request;
     }
 
@@ -610,6 +621,18 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addCommaSeparatedPathParts(getPipelineRequest.getIds())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
+        return request;
+    }
+
     static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
@@ -735,6 +758,19 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(deleteRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(deleteRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(verifyRepositoryRequest.name())
+            .addPathPartAsIs("_verify")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(verifyRepositoryRequest.timeout());
         return request;
     }
 

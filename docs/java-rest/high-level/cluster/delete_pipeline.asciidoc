@@ -36,7 +36,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[delete-pipeline-re
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[delete-pipeline-execute]
 --------------------------------------------------
-<1> Execute the request and get back the response in a DeletePipelineResponse object.
+<1> Execute the request and get back the response in a `WritePipelineResponse` object.
 
 [[java-rest-high-cluster-delete-pipeline-async]]
 ==== Asynchronous Execution
@@ -57,7 +57,7 @@ completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
 it failed.
 
-A typical listener for `DeletePipelineResponse` looks like:
+A typical listener for `WritePipelineResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -70,7 +70,7 @@ provided as an argument
 [[java-rest-high-cluster-delete-pipeline-response]]
 ==== Delete Pipeline Response
 
-The returned `DeletePipelineResponse` allows to retrieve information about the executed
+The returned `WritePipelineResponse` allows to retrieve information about the executed
  operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

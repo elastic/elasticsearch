@@ -30,7 +30,6 @@ import org.junit.Before;
 import java.io.IOException;
 
 public class FieldAliasMapperTests extends ESSingleNodeTestCase {
-
     private MapperService mapperService;
     private DocumentMapperParser parser;
 

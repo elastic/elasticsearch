@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -262,7 +263,8 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType.tokenized() == false && noForcedAnalyzer) {
+        if (fieldType.tokenized() == false && noForcedAnalyzer &&
+                fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 

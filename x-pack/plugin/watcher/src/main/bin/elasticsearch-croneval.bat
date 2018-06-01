@@ -10,7 +10,7 @@ setlocal enableextensions
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-watcher-env
 call "%~dp0elasticsearch-cli.bat" ^
   org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool ^
-  %* ^
+  %%* ^
   || exit /b 1
 
 endlocal

@@ -60,7 +60,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -620,6 +622,18 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addCommaSeparatedPathParts(getPipelineRequest.getIds())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
+        return request;
+    }
+
     static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
@@ -632,6 +646,20 @@ final class RequestConverters {
         parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(putPipelineRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addPathPart(deletePipelineRequest.getId())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withTimeout(deletePipelineRequest.timeout());
+        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
+
         return request;
     }
 

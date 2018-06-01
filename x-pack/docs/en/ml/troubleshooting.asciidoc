@@ -10,7 +10,7 @@ answers for frequently asked questions.
 * <<ml-rollingupgrade>>
 * <<ml-mappingclash>>
 
-To get help, see <<xpack-help>>.
+To get help, see <<help>>.
 
 [[ml-rollingupgrade]]
 === Machine learning features unavailable after rolling upgrade

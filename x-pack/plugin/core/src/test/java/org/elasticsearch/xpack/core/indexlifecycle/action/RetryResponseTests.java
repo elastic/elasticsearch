@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction.Response;
 
-public class ReRunResponseTests extends AbstractStreamableTestCase<Response> {
+public class RetryResponseTests extends AbstractStreamableTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {

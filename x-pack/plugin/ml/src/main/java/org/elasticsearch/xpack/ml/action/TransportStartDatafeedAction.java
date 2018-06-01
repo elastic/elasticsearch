@@ -43,10 +43,12 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.CcsLicenseChecker;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -111,7 +113,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                    ActionListener<StartDatafeedAction.Response> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
         if (licenseState.isMachineLearningAllowed()) {
-            ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> finalListener =
+
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
@@ -135,14 +138,46 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             validate(params.getDatafeedId(), mlMetadata, tasks);
             DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
             Job job = mlMetadata.getJobs().get(datafeed.getJobId());
-            DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
-                    dataExtractorFactory ->
-                            persistentTasksService.sendStartRequest(MLMetadataField.datafeedTaskId(params.getDatafeedId()),
-                            StartDatafeedAction.TASK_NAME, params, finalListener)
-                    , listener::onFailure));
+
+            if (CcsLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+                CcsLicenseChecker remoteLicenseChecker = new CcsLicenseChecker(client);
+                remoteLicenseChecker.checkRemoteClusterLicenses(CcsLicenseChecker.remoteClusterNames(datafeed.getIndices()),
+                        ActionListener.wrap(
+                                response -> {
+                                    if (response.isViolated()) {
+                                        String message = "Cannot start datafeed [" + datafeed.getId() + "] as it is configured to use "
+                                                + "indices on a remote cluster [" + response.get().getClusterName()
+                                                + "] that is not licensed for Machine Learning. "
+                                                + CcsLicenseChecker.buildErrorMessage(response.get());
+
+                                        listener.onFailure(new ElasticsearchException(message));
+                                    } else {
+                                        createDataExtractor(job, datafeed, params, waitForTaskListener);
+                                    }
+                                },
+                                e -> {
+                                    String message = "Cannot start datafeed [" + datafeed.getId() + "] as it is configured to use "
+                                            + "indices on a remote cluster" + datafeed.getRemoteIndices()
+                                            + " and the license type could not be verified";
+                                    ElasticsearchException wrappedException = new ElasticsearchException(message, e);
+                                    listener.onFailure(wrappedException);
+                                }));
+            } else {
+                createDataExtractor(job, datafeed, params, waitForTaskListener);
+            }
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }
+    }
+
+    private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,
+                                     ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>
+                                             listener) {
+        DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
+                dataExtractorFactory ->
+                        persistentTasksService.sendStartRequest(MLMetadataField.datafeedTaskId(params.getDatafeedId()),
+                                StartDatafeedAction.TASK_NAME, params, listener)
+                , listener::onFailure));
     }
 
     @Override

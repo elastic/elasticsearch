@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,7 +23,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import java.io.IOException;
 import java.util.Objects;
 
-public class MoveToStepAction extends Action<MoveToStepAction.Request, MoveToStepAction.Response, MoveToStepAction.RequestBuilder> {
+public class MoveToStepAction extends Action<MoveToStepAction.Request, MoveToStepAction.Response> {
     public static final MoveToStepAction INSTANCE = new MoveToStepAction();
     public static final String NAME = "cluster:admin/xpack/index_lifecycle/_move/post";
 
@@ -34,21 +32,8 @@ public class MoveToStepAction extends Action<MoveToStepAction.Request, MoveToSte
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
-            super(client, action, new Request());
-        }
-
     }
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {

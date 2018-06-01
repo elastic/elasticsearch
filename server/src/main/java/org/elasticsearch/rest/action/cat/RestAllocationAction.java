@@ -88,7 +88,7 @@ public class RestAllocationAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        final Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
         table.addCell("disk.indices", "alias:di,diskIndices;text-align:right;desc:disk used by ES indices");

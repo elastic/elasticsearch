@@ -63,7 +63,7 @@ public class RestHealthAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table t = new Table();
+        final Table t = getTable(request);
         t.startHeadersWithTimestamp();
         t.addCell("cluster", "alias:cl;desc:cluster name");
         t.addCell("status", "alias:st;desc:health status");

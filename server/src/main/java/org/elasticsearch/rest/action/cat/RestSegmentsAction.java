@@ -89,7 +89,7 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("index", "default:true;alias:i,idx;desc:index name");
         table.addCell("shard", "default:true;alias:s,sh;desc:shard name");

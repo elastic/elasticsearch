@@ -70,7 +70,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        return new Table()
+        return getTable(request)
                 .startHeaders()
                 .addCell("id", "alias:id,repoId;desc:unique repository id")
                 .addCell("type", "alias:t,type;text-align:right;desc:repository type")

@@ -72,7 +72,7 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        final Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("alias", "alias:a;desc:alias name");
         table.addCell("index", "alias:i,idx;desc:index alias points to");

@@ -86,7 +86,7 @@ public class RestCountAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeadersWithTimestamp();
         table.addCell("count", "alias:dc,docs.count,docsCount;desc:the document count");
         table.endHeaders();

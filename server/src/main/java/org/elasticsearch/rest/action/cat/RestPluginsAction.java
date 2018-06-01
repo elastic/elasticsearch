@@ -78,7 +78,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("id", "default:false;desc:unique node id");
         table.addCell("name", "alias:n;desc:node name");

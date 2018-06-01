@@ -82,7 +82,7 @@ public class RestRecoveryAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        Table t = new Table();
+        final Table t = getTable(request);
         t.startHeaders()
                 .addCell("index", "alias:i,idx;desc:index name")
                 .addCell("shard", "alias:s,sh;desc:shard name")

@@ -71,7 +71,7 @@ public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("name", "alias:n;desc:template name");
         table.addCell("index_patterns", "alias:t;desc:template index patterns");

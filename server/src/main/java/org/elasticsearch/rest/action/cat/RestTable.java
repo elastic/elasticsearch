@@ -332,7 +332,7 @@ public class RestTable {
         }
     }
 
-    private static String renderValue(RestRequest request, Object value) {
+    protected static String renderValue(RestRequest request, Object value) {
         if (value == null) {
             return null;
         }

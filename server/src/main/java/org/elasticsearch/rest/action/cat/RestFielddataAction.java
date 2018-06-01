@@ -74,7 +74,7 @@ public class RestFielddataAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders()
                 .addCell("id", "desc:node id")
                 .addCell("host", "alias:h;desc:host name")

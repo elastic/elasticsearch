@@ -112,7 +112,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        final Table table = new Table();
+        final Table table = getTable(request);
         table.startHeaders();
         table.addCell("node_name", "default:true;alias:nn;desc:node name");
         table.addCell("node_id", "default:false;alias:id;desc:persistent node id");

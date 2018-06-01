@@ -20,8 +20,18 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-public class WritePipelineResponse extends AcknowledgedResponse {
+public class WritePipelineResponse extends AcknowledgedResponse implements ToXContentObject {
+
+    private static final ConstructingObjectParser<WritePipelineResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "write_pipeline_response", true, args -> new WritePipelineResponse((boolean) args[0]));
+
+    static {
+        declareAcknowledgedField(PARSER);
+    }
 
     WritePipelineResponse() {
 
@@ -29,5 +39,9 @@ public class WritePipelineResponse extends AcknowledgedResponse {
 
     public WritePipelineResponse(boolean acknowledged) {
         super(acknowledged);
+    }
+
+    public static WritePipelineResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

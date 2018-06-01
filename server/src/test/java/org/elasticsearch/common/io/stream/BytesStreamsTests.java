@@ -355,6 +355,57 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
+    public void testSkippableNamedWriteable() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10));
+            out.writeSkippableNamedWriteable(namedWriteableIn);
+            byte[] bytes = BytesReference.toBytes(out.bytes());
+
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
+                new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)));
+
+            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
+                assertEquals(in.available(), bytes.length);
+                BaseNamedWriteable namedWriteableOut = in.readSkippableNamedWriteable(BaseNamedWriteable.class);
+                assertEquals(namedWriteableIn, namedWriteableOut);
+                assertEquals(0, in.available());
+            }
+
+            NamedWriteableRegistry skippableNamedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
+                new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)),
+                BaseNamedWriteable.class);
+
+            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), skippableNamedWriteableRegistry)) {
+                assertEquals(in.available(), bytes.length);
+                BaseNamedWriteable namedWriteableOut = in.readSkippableNamedWriteable(BaseNamedWriteable.class);
+                assertEquals(namedWriteableIn, namedWriteableOut);
+                assertEquals(0, in.available());
+            }
+
+            NamedWriteableRegistry skippedNamedWriteableRegistry1 = new NamedWriteableRegistry(Collections.singletonList(
+                new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, "other", TestNamedWriteable::new)),
+                BaseNamedWriteable.class);
+
+            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), skippedNamedWriteableRegistry1)) {
+                assertEquals(in.available(), bytes.length);
+                BaseNamedWriteable namedWriteableOut = in.readSkippableNamedWriteable(BaseNamedWriteable.class);
+                assertNull(namedWriteableOut);
+                assertEquals(0, in.available());
+            }
+
+            NamedWriteableRegistry skippedNamedWriteableRegistry2 = new NamedWriteableRegistry(Collections.emptyList(),
+                BaseNamedWriteable.class);
+
+            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), skippedNamedWriteableRegistry2)) {
+                assertEquals(in.available(), bytes.length);
+                BaseNamedWriteable namedWriteableOut = in.readSkippableNamedWriteable(BaseNamedWriteable.class);
+                assertNull(namedWriteableOut);
+                assertEquals(0, in.available());
+            }
+        }
+    }
+
     public void testNamedWriteableList() throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
             new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)

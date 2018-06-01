@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -760,8 +761,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
-            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
+            final Custom customMetaData;
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                customMetaData = in.readSkippableNamedWriteable(Custom.class);
+            } else {
+                customMetaData = in.readNamedWriteable(Custom.class);
+            }
+            if (customMetaData != null) {
+                builder.putCustom(customMetaData.getWriteableName(), customMetaData);
+            }
         }
         return builder.build();
     }
@@ -790,7 +798,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         out.writeVInt(numberOfCustoms);
         for (ObjectCursor<Custom> cursor : customs.values()) {
             if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
-                out.writeNamedWriteable(cursor.value);
+                if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                    out.writeSkippableNamedWriteable(cursor.value);
+                } else {
+                    out.writeNamedWriteable(cursor.value);
+                }
             }
         }
     }

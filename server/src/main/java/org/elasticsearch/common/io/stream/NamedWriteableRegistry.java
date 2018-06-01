@@ -19,12 +19,16 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.set.Sets;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A registry for {@link org.elasticsearch.common.io.stream.Writeable.Reader} readers of {@link NamedWriteable}.
@@ -60,10 +64,13 @@ public class NamedWriteableRegistry {
      */
     private final Map<Class<?>, Map<String, Writeable.Reader<?>>> registry;
 
+    private final Set<Class<?>> skippableCategories;
+
     /**
-     * Constructs a new registry from the given entries.
+     * Constructs a new registry from the given entries and set of skippable categories.
      */
-    public NamedWriteableRegistry(List<Entry> entries) {
+    public NamedWriteableRegistry(List<Entry> entries, Class<?>... skippableCategories) {
+        this.skippableCategories = Collections.synchronizedSet(Sets.newHashSet(skippableCategories));
         if (entries.isEmpty()) {
             registry = Collections.emptyMap();
             return;
@@ -102,15 +109,29 @@ public class NamedWriteableRegistry {
      * name provided as argument and its category.
      */
     public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
+        return getReader(categoryClass, name, false);
+    }
+
+    /**
+     * Returns a reader for a {@link NamedWriteable} object identified by the
+     * name provided as argument and its category. Returns null if skippable
+     * is true and the registry allows leniency for the given category class.
+     */
+    @Nullable
+    public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name, boolean skippable) {
         Map<String, Writeable.Reader<?>> readers = registry.get(categoryClass);
         if (readers == null) {
+            if (skippable && skippableCategories.contains(categoryClass)) {
+                return null;
+            }
             throw new IllegalArgumentException("Unknown NamedWriteable category [" + categoryClass.getName() + "]");
         }
         @SuppressWarnings("unchecked")
         Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>)readers.get(name);
-        if (reader == null) {
+        if (reader == null && (skippable == false || skippableCategories.contains(categoryClass) == false)) {
             throw new IllegalArgumentException("Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]");
         }
         return reader;
     }
+
 }

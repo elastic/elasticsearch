@@ -911,6 +911,20 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a {@link NamedWriteable} to the current stream that allows deserialization to be skipped
+     */
+    public void writeSkippableNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+        writeString(namedWriteable.getWriteableName());
+
+        // write size first so that it can be skipped
+        final CountBytesStreamOutput countBytesStreamOutput = new CountBytesStreamOutput();
+        namedWriteable.writeTo(countBytesStreamOutput);
+        writeVLong(countBytesStreamOutput.getNumBytes());
+
+        namedWriteable.writeTo(this);
+    }
+
+    /**
      * Write an optional {@link NamedWriteable} to the stream.
      */
     public void writeOptionalNamedWriteable(@Nullable NamedWriteable namedWriteable) throws IOException {

@@ -407,8 +407,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                     final long high = nextTransition;
 
                     final DocValueFormat format = ft.docValueFormat(null, null);
-                    final String formattedLow = format.format(low);
-                    final String formattedHigh = format.format(high);
+                    final Object formattedLow = format.format(low);
+                    final Object formattedHigh = format.format(high);
                     if (ft.isFieldWithinQuery(reader, formattedLow, formattedHigh,
                             true, false, tz, null, context) == Relation.WITHIN) {
                         // All values in this reader have the same offset despite daylight saving times.

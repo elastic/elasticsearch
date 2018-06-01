@@ -19,38 +19,30 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * This class is used to generate the Java Cluster API documentation.
@@ -80,19 +72,19 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request
 
         // tag::put-settings-create-settings
-        String transientSettingKey = 
+        String transientSettingKey =
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int transientSettingValue = 10;
-        Settings transientSettings = 
+        Settings transientSettings =
                 Settings.builder()
                 .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES)
                 .build(); // <1>
 
-        String persistentSettingKey = 
+        String persistentSettingKey =
                 EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
-        String persistentSettingValue = 
+        String persistentSettingValue =
                 EnableAllocationDecider.Allocation.NONE.name();
-        Settings persistentSettings = 
+        Settings persistentSettings =
                 Settings.builder()
                 .put(persistentSettingKey, persistentSettingValue)
                 .build(); // <2>
@@ -105,9 +97,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-settings-settings-builder
-            Settings.Builder transientSettingsBuilder = 
+            Settings.Builder transientSettingsBuilder =
                     Settings.builder()
-                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES); 
+                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES);
             request.transientSettings(transientSettingsBuilder); // <1>
             // end::put-settings-settings-builder
         }
@@ -164,7 +156,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
             // tag::put-settings-execute-listener
-            ActionListener<ClusterUpdateSettingsResponse> listener = 
+            ActionListener<ClusterUpdateSettingsResponse> listener =
                     new ActionListener<ClusterUpdateSettingsResponse>() {
                 @Override
                 public void onResponse(ClusterUpdateSettingsResponse response) {
@@ -190,84 +182,77 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testListTasks() throws IOException {
+    public void testPutPipeline() throws IOException {
         RestHighLevelClient client = highLevelClient();
+
         {
-            // tag::list-tasks-request
-            ListTasksRequest request = new ListTasksRequest();
-            // end::list-tasks-request
+            // tag::put-pipeline-request
+            String source =
+                "{\"description\":\"my set of processors\"," +
+                    "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
+            PutPipelineRequest request = new PutPipelineRequest(
+                "my-pipeline-id", // <1>
+                new BytesArray(source.getBytes(StandardCharsets.UTF_8)), // <2>
+                XContentType.JSON // <3>
+            );
+            // end::put-pipeline-request
 
-            // tag::list-tasks-request-filter
-            request.setActions("cluster:*"); // <1>
-            request.setNodes("nodeId1", "nodeId2"); // <2>
-            request.setParentTaskId(new TaskId("parentTaskId", 42)); // <3>
-            // end::list-tasks-request-filter
+            // tag::put-pipeline-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::put-pipeline-request-timeout
 
-            // tag::list-tasks-request-detailed
-            request.setDetailed(true); // <1>
-            // end::list-tasks-request-detailed
+            // tag::put-pipeline-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::put-pipeline-request-masterTimeout
 
-            // tag::list-tasks-request-wait-completion
-            request.setWaitForCompletion(true); // <1>
-            request.setTimeout(TimeValue.timeValueSeconds(50)); // <2>
-            request.setTimeout("50s"); // <3>
-            // end::list-tasks-request-wait-completion
+            // tag::put-pipeline-execute
+            PutPipelineResponse response = client.cluster().putPipeline(request); // <1>
+            // end::put-pipeline-execute
+
+            // tag::put-pipeline-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::put-pipeline-response
+            assertTrue(acknowledged);
         }
-
-        ListTasksRequest request = new ListTasksRequest();
-
-        // tag::list-tasks-execute
-        ListTasksResponse response = client.cluster().listTasks(request);
-        // end::list-tasks-execute
-
-        assertThat(response, notNullValue());
-
-        // tag::list-tasks-response-tasks
-        List<TaskInfo> tasks = response.getTasks(); // <1>
-        // end::list-tasks-response-tasks
-
-        // tag::list-tasks-response-calc
-        Map<String, List<TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
-        List<TaskGroup> groups = response.getTaskGroups(); // <2>
-        // end::list-tasks-response-calc
-
-        // tag::list-tasks-response-failures
-        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
-        List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
-        // end::list-tasks-response-failures
-
-        assertThat(response.getNodeFailures(), equalTo(emptyList()));
-        assertThat(response.getTaskFailures(), equalTo(emptyList()));
-        assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
     }
 
-    public void testListTasksAsync() throws Exception {
+    public void testPutPipelineAsync() throws Exception {
         RestHighLevelClient client = highLevelClient();
+
         {
-            ListTasksRequest request = new ListTasksRequest();
+            String source =
+                "{\"description\":\"my set of processors\"," +
+                    "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
+            PutPipelineRequest request = new PutPipelineRequest(
+                "my-pipeline-id",
+                new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON
+            );
 
-            // tag::list-tasks-execute-listener
-            ActionListener<ListTasksResponse> listener =
-                    new ActionListener<ListTasksResponse>() {
-                        @Override
-                        public void onResponse(ListTasksResponse response) {
-                            // <1>
-                        }
+            // tag::put-pipeline-execute-listener
+            ActionListener<PutPipelineResponse> listener =
+                new ActionListener<PutPipelineResponse>() {
+                    @Override
+                    public void onResponse(PutPipelineResponse response) {
+                        // <1>
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            // <2>
-                        }
-                    };
-            // end::list-tasks-execute-listener
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-pipeline-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::list-tasks-execute-async
-            client.cluster().listTasksAsync(request, listener); // <1>
-            // end::list-tasks-execute-async
+            // tag::put-pipeline-execute-async
+            client.cluster().putPipelineAsync(request, listener); // <1>
+            // end::put-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

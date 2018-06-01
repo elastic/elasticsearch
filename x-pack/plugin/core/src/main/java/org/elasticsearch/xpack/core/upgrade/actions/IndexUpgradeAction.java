@@ -26,19 +26,13 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.upgrade.IndexUpgradeServiceFields.UPGRADE_INDEX_OPTIONS;
 
-public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkByScrollResponse,
-        IndexUpgradeAction.RequestBuilder> {
+public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkByScrollResponse> {
 
     public static final IndexUpgradeAction INSTANCE = new IndexUpgradeAction();
     public static final String NAME = "cluster:admin/xpack/upgrade";
 
     private IndexUpgradeAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -151,8 +145,8 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
 
     public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, BulkByScrollResponse, RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, IndexUpgradeAction action) {
-            super(client, action, new Request());
+        public RequestBuilder(ElasticsearchClient client) {
+            super(client, INSTANCE, new Request());
         }
 
         public RequestBuilder setIndex(String index) {

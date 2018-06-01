@@ -22,9 +22,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class FieldCapabilitiesRequestBuilder extends
-    ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse,
-        FieldCapabilitiesRequestBuilder> {
+public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public FieldCapabilitiesRequestBuilder(ElasticsearchClient client,
                                            FieldCapabilitiesAction action,
                                            String... indices) {

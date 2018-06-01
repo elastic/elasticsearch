@@ -27,7 +27,7 @@ import java.util.function.BiConsumer;
  */
 public interface WriteOperation {
 
-    BiConsumer<Void, Throwable> getListener();
+    BiConsumer<Void, Exception> getListener();
 
     SocketChannelContext getChannel();
 

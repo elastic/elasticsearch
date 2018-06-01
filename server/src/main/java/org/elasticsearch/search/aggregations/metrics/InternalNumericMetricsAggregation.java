@@ -49,7 +49,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
 
         @Override
         public String getValueAsString() {
-            return format.format(value());
+            return format.format(value()).toString();
         }
 
         @Override
@@ -80,7 +80,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         public abstract double value(String name);
 
         public String valueAsString(String name) {
-            return format.format(value(name));
+            return format.format(value(name)).toString();
         }
 
         @Override

@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
+public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
     public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();
     public static final String NAME = "cluster:admin/settings/update";
@@ -34,10 +33,5 @@ public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsReq
     @Override
     public ClusterUpdateSettingsResponse newResponse() {
         return new ClusterUpdateSettingsResponse();
-    }
-
-    @Override
-    public ClusterUpdateSettingsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ClusterUpdateSettingsRequestBuilder(client, this);
     }
 }

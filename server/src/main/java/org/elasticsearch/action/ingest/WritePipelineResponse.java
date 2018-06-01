@@ -22,10 +22,20 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class WritePipelineResponse extends AcknowledgedResponse {
+public class WritePipelineResponse extends AcknowledgedResponse implements ToXContentObject {
+
+    private static final ConstructingObjectParser<WritePipelineResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "write_pipeline_response", true, args -> new WritePipelineResponse((boolean) args[0]));
+
+    static {
+        declareAcknowledgedField(PARSER);
+    }
 
     WritePipelineResponse() {
 
@@ -45,5 +55,9 @@ public class WritePipelineResponse extends AcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+    }
+
+    public static WritePipelineResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

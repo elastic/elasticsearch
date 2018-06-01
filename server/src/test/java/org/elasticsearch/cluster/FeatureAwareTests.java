@@ -123,6 +123,9 @@ public class FeatureAwareTests extends ESTestCase {
                 final Version beforeVersion =
                         randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(version));
                 out.setVersion(beforeVersion);
+                if (custom.getRequiredFeature().isPresent() && randomBoolean()) {
+                    out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
+                }
                 assertFalse(FeatureAware.shouldSerializeCustom(out, custom));
             }
         }

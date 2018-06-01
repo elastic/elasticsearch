@@ -109,6 +109,11 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_5_0_0;
+    }
+
+    @Override
     public EnumSet<MetaData.XContentContext> context() {
         return EnumSet.of(MetaData.XContentContext.GATEWAY);
     }

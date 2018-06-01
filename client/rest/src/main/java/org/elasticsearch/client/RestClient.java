@@ -126,7 +126,7 @@ public class RestClient implements Closeable {
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
      * Creates a new builder instance and sets the hosts that the client will send requests to.
      * <p>
-     * Prefer this to {@link #builder(Node...)} if you have metadata up front about the nodes.
+     * Prefer this to {@link #builder(HttpHost...)} if you have metadata up front about the nodes.
      * If you don't either one is fine.
      */
     public static RestClientBuilder builder(Node... nodes) {
@@ -670,12 +670,7 @@ public class RestClient implements Closeable {
          * node.
          */
         if (false == deadNodes.isEmpty()) {
-            Collections.sort(deadNodes, new Comparator<DeadNodeAndRevival>() {
-                @Override
-                public int compare(DeadNodeAndRevival lhs, DeadNodeAndRevival rhs) {
-                    return Long.compare(rhs.nanosUntilRevival, lhs.nanosUntilRevival);
-                }
-            });
+            Collections.sort(deadNodes);
 
             List<Node> selectedDeadNodes = new ArrayList<>(deadNodes.size());
             for (DeadNodeAndRevival n : deadNodes) {
@@ -985,7 +980,7 @@ public class RestClient implements Closeable {
      * Contains a reference to a blacklisted node and the time until it is
      * revived. We use this so we can do a single pass over the blacklist.
      */
-    private static class DeadNodeAndRevival {
+    private static class DeadNodeAndRevival implements Comparable<DeadNodeAndRevival> {
         final Node node;
         final long nanosUntilRevival;
 
@@ -997,6 +992,11 @@ public class RestClient implements Closeable {
         @Override
         public String toString() {
             return node.toString();
+        }
+
+        @Override
+        public int compareTo(DeadNodeAndRevival lhs) {
+            return Long.compare(nanosUntilRevival, lhs.nanosUntilRevival);
         }
     }
 

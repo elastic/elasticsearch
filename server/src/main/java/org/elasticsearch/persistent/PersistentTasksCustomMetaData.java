@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -189,7 +190,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0;
+        return Version.V_6_3_0;
     }
 
     @Override

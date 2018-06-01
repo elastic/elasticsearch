@@ -56,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
@@ -78,6 +79,17 @@ import java.util.function.UnaryOperator;
  * plugin author at the new extension syntax. We hope that these make the process of upgrading a plugin from 2.x to 5.x only mildly painful.
  */
 public abstract class Plugin implements Closeable {
+
+    /**
+     * A feature exposed by the plugin. This should be used if a plugin exposes {@link org.elasticsearch.cluster.ClusterState.Custom} or
+     * {@link MetaData.Custom}; see also {@link org.elasticsearch.cluster.ClusterState.FeatureAware}.
+     *
+     * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
+     * customs
+     */
+    protected Optional<String> getFeature() {
+        return Optional.empty();
+    }
 
     /**
      * Node level guice modules.

@@ -378,18 +378,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            PrefixFieldType otherFieldType = (PrefixFieldType) other;
-            if (otherFieldType.minChars != this.minChars) {
-                conflicts.add("mapper [" + name() + "] has different min_chars values");
-            }
-            if (otherFieldType.maxChars != this.maxChars) {
-                conflicts.add("mapper [" + name() + "] has different max_chars values");
-            }
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException();
         }
@@ -687,6 +675,19 @@ public class TextFieldMapper extends FieldMapper {
             TextFieldType tft = (TextFieldType) other;
             if (tft.indexPhrases != this.indexPhrases) {
                 conflicts.add("mapper [" + name() + "] has different [index_phrases] values");
+            }
+            if (Objects.equals(this.prefixFieldType, tft.prefixFieldType) == false) {
+                if (this.prefixFieldType == null) {
+                    conflicts.add("mapper [" + name()
+                        + "] has different [index_prefixes] settings, cannot change from disabled to enabled");
+                }
+                else if (tft.prefixFieldType == null) {
+                    conflicts.add("mapper [" + name()
+                        + "] has different [index_prefixes] settings, cannot change from enabled to disabled");
+                }
+                else {
+                    conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
+                }
             }
         }
     }

@@ -18,19 +18,19 @@
  */
 package org.elasticsearch.index.mapper;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -75,7 +75,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
                 tft.setIndexPhrases(true);
             }
         });
-        addModifier(new Modifier("index_prefixes", true) {
+        addModifier(new Modifier("index_prefixes", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;

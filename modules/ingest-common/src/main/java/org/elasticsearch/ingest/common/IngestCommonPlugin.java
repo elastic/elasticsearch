@@ -25,15 +25,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.ThreadInterrupter;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,6 +49,10 @@ import java.util.function.Supplier;
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     static final Map<String, String> GROK_PATTERNS = Grok.getBuiltinPatterns();
+    static final Setting<TimeValue> GUARD_INTERVAL =
+        Setting.timeSetting("ingest.grok.guard.interval", TimeValue.timeValueSeconds(3), Setting.Property.NodeScope);
+    static final Setting<TimeValue> GUARD_MAX_EXECUTION_TIME =
+        Setting.timeSetting("ingest.grok.guard.max_execution_time", TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
 
     public IngestCommonPlugin() {
     }
@@ -68,7 +76,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory());
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory());
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
-        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS));
+        ThreadInterrupter threadInterrupter = createGrokThreadInterrupter(parameters);
+        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS, threadInterrupter));
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
@@ -88,6 +97,19 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
+    }
+    
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(GUARD_INTERVAL, GUARD_MAX_EXECUTION_TIME);
+    }
+    
+    private static ThreadInterrupter createGrokThreadInterrupter(Processor.Parameters parameters) {
+        long intervalMillis = GUARD_INTERVAL.get(parameters.env.settings()).getMillis();
+        long maxExecutionTimeMillis = GUARD_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();
+        ThreadPool threadPool = parameters.threadPool;
+        return ThreadInterrupter.newInstance(intervalMillis, maxExecutionTimeMillis, threadPool::relativeTimeInMillis,
+            (delay, command) -> threadPool.schedule(TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, command));
     }
 
 }

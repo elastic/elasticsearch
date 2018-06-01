@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
@@ -94,13 +95,20 @@ public interface Processor {
          * instances that have run prior to in ingest.
          */
         public final ThreadContext threadContext;
+    
+        /**
+         * Provides a thread pool
+         */
+        // TODO: do we really want to expose ThreadPool here? Or a BiFunction<Long, Runnable, ScheduledFuture<?>> to just handle scheduling?
+        public final ThreadPool threadPool;
 
         public Parameters(Environment env, ScriptService scriptService,
-                          AnalysisRegistry analysisRegistry, ThreadContext threadContext) {
+                          AnalysisRegistry analysisRegistry, ThreadPool threadPool) {
             this.env = env;
             this.scriptService = scriptService;
-            this.threadContext = threadContext;
+            this.threadContext = threadPool.getThreadContext();
             this.analysisRegistry = analysisRegistry;
+            this.threadPool = threadPool;
         }
 
     }

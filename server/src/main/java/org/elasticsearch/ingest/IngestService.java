@@ -43,7 +43,7 @@ public class IngestService {
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
         Processor.Parameters parameters = new Processor.Parameters(env, scriptService,
-            analysisRegistry, threadPool.getThreadContext());
+            analysisRegistry, threadPool);
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
             Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);

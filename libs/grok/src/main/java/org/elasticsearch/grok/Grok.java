@@ -76,15 +76,24 @@ public final class Grok {
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
+    private final ThreadInterrupter threadInterrupter;
 
     public Grok(Map<String, String> patternBank, String grokPattern) {
-        this(patternBank, grokPattern, true);
+        this(patternBank, grokPattern, true, ThreadInterrupter.noop());
+    }
+    
+    public Grok(Map<String, String> patternBank, String grokPattern, ThreadInterrupter threadInterrupter) {
+        this(patternBank, grokPattern, true, threadInterrupter);
+    }
+    
+    Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures) {
+        this(patternBank, grokPattern, namedCaptures, ThreadInterrupter.noop());
     }
 
-    @SuppressWarnings("unchecked")
-    Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures) {
+    private Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures, ThreadInterrupter threadInterrupter) {
         this.patternBank = patternBank;
         this.namedCaptures = namedCaptures;
+        this.threadInterrupter = threadInterrupter;
 
         for (Map.Entry<String, String> entry : patternBank.entrySet()) {
             String name = entry.getKey();
@@ -163,7 +172,13 @@ public final class Grok {
         byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
         Matcher matcher = GROK_PATTERN_REGEX.matcher(grokPatternBytes);
 
-        int result = matcher.search(0, grokPatternBytes.length, Option.NONE);
+        int result;
+        try {
+            threadInterrupter.register();
+            result = matcher.search(0, grokPatternBytes.length, Option.NONE);
+        } finally {
+            threadInterrupter.deregister();
+        }
         if (result != -1) {
             Region region = matcher.getEagerRegion();
             String namedPatternRef = groupMatch(NAME_GROUP, region, grokPattern);
@@ -205,7 +220,13 @@ public final class Grok {
      */
     public boolean match(String text) {
         Matcher matcher = compiledExpression.matcher(text.getBytes(StandardCharsets.UTF_8));
-        int result = matcher.search(0, text.length(), Option.DEFAULT);
+        int result;
+        try {
+            threadInterrupter.register();
+            result = matcher.search(0, text.length(), Option.DEFAULT);
+        } finally {
+            threadInterrupter.deregister();
+        }
         return (result != -1);
     }
 
@@ -220,8 +241,19 @@ public final class Grok {
         byte[] textAsBytes = text.getBytes(StandardCharsets.UTF_8);
         Map<String, Object> fields = new HashMap<>();
         Matcher matcher = compiledExpression.matcher(textAsBytes);
-        int result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
-        if (result != -1 && compiledExpression.numberOfNames() > 0) {
+        int result;
+        try {
+            threadInterrupter.register();
+            result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
+        } finally {
+            threadInterrupter.deregister();
+        }
+        if (result == Matcher.INTERRUPTED) {
+            throw new IllegalArgumentException("grok pattern matching is too complex and takes too long to execute");
+        } else if (result == Matcher.FAILED) {
+            // I think we should throw an error here?
+            return null;
+        } else if (compiledExpression.numberOfNames() > 0) {
             Region region = matcher.getEagerRegion();
             for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
                 NameEntry e = entry.next();
@@ -235,13 +267,10 @@ public final class Grok {
                         break;
                     }
                 }
-
+        
             }
-            return fields;
-        } else if (result != -1) {
-            return fields;
         }
-        return null;
+        return fields;
     }
 
     public static Map<String, String> getBuiltinPatterns() {

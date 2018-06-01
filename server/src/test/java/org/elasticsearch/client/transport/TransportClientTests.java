@@ -75,8 +75,6 @@ public class TransportClientTests extends ESTestCase {
             final Settings settings = TcpTransport.DEFAULT_FEATURES_SETTING.get(client.settings());
             assertThat(settings.keySet(), hasItem("transport_client"));
             assertThat(settings.get("transport_client"), equalTo("true"));
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
-            assertEquals("true", threadContext.getHeader("test"));
         }
     }
 

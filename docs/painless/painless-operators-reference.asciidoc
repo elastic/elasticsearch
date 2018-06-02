@@ -313,8 +313,8 @@ method call made on a List type value.
 
 * If the *list access operator* is used on a value that is not a List type
   value.
-* If a value other than an int type value or a value that is castable to an int
-  type value is provided as an index for a `set` method call or `get` method
+* If a value other than an `int` type value or a value that is castable to an
+  `int` type value is given as an index for a `set` method call or `get` method
   call.
 
 *Grammar*

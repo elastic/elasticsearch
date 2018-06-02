@@ -89,16 +89,16 @@ expression_list: expression (',' expression);
 
 Use the *array access operator* to store a value to or load a value from an
 <<array-type, array type>> value. Each value of an array type value is accessed
-with an int type value to specify the index to store/load. The range of values
+with an `int` type value to specify the index to store/load. The range of values
 within an array that are accessible is `[0, size)` where size is the number of
-values specified at the time of allocation. Use a negative int type value as an
-index to access an value in reverse from the end of an array type value within a
-range of `[-size, -1]`.
+values specified at the time of allocation. Use a negative `int` type value as
+an index to access an value in reverse from the end of an array type value
+within a range of `[-size, -1]`.
 
 *Errors*
 
-* If a value other than an int type value or a value that is castable to an int
-  type value is provided as an index.
+* If a value other than an `int` type value or a value that is castable to an
+  `int` type value is provided as an index.
 * If a value is accessed outside of the valid ranges.
 
 *Grammar*
@@ -219,7 +219,7 @@ brace_access: '[' expression ']'
 ==== Array Length
 
 Array type values contain a read-only member field named `length`.  The field
-`length` is an int type value storing the size of the array.  Use the
+`length` is an `int` type value storing the size of the array.  Use the
 <<field-access-operator, *field access operator*>> to load the field `length`
 from an array type value.
 
@@ -246,13 +246,13 @@ from an array type value.
 
 Use the *new array operator* to allocate a new array type instance to the heap.
 Specify each dimension with the `[` and `]` tokens following the type name. The
-size of each dimension is specified by an int type value in between the `[` and
-`]` tokens.
+size of each dimension is specified by an `int` type value in between the `[`
+and `]` tokens.
 
 *Errors*
 
-* If a value other than an int type value or a value that is castable to an int
-  type value is specified for for a dimension's size.
+* If a value other than an `int` type value or a value that is castable to an
+  `int` type value is specified for for a dimension's size.
 
 *Grammar*
 

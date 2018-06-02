@@ -446,7 +446,7 @@ if a bit is `1` it becomes `0` and if a bit is `0` it becomes `1`.
 
 *Bits*
 
-[options="header",cols="^1,^1,"]
+[options="header",cols="<1,<1"]
 |====
 | original | result
 | 1        | 0
@@ -881,7 +881,7 @@ side integer type value.
 *Errors*
 
 * If either of the evaluated values is a non-integer type.
-* If the evaluated right-hand side value cannot be cast to an int type.
+* If the evaluated right-hand side value cannot be cast to an `int` type.
 
 *Grammar*
 
@@ -894,7 +894,7 @@ left_shift: expression '<<' expression;
 
 The left-hand side integer type value is promoted as specified in the table
 below. The right-hand side integer type value is always implicitly cast to an
-int type value and truncated to the number of bits of the promoted type value.
+`int` type value and truncated to the number of bits of the promoted type value.
 
 [options="header",cols="<1,<1"]
 |====
@@ -956,7 +956,7 @@ type value is preserved.
 *Errors*
 
 * If either of the evaluated values is a non-integer type.
-* If the evaluated right-hand side value cannot be cast to an int type.
+* If the evaluated right-hand side value cannot be cast to an `int` type.
 
 *Grammar*
 
@@ -969,7 +969,7 @@ right_shift: expression '>>' expression;
 
 The left-hand side integer type value is promoted as specified in the table
 below. The right-hand side integer type value is always implicitly cast to an
-int type value and truncated to the number of bits of the promoted type value.
+`int` type value and truncated to the number of bits of the promoted type value.
 
 [options="header",cols="<1,<1"]
 |====
@@ -1031,7 +1031,8 @@ integer type value is *not* preserved.
 *Errors*
 
 * If either of the evaluated values is a non-integer type.
-* If the evaluated right-hand side value cannot be cast to an int type.
+* If the evaluated right-hand side is a value other than an `int` type value or
+  a value that is castable to an `int` type value.
 
 *Grammar*
 
@@ -1044,7 +1045,7 @@ unsigned_right_shift: expression '>>>' expression;
 
 The left-hand side integer type value is promoted as specified in the table
 below. The right-hand side integer type value is always implicitly cast to an
-int type value and truncated to the number of bits of the promoted type value.
+`int` type value and truncated to the number of bits of the promoted type value.
 
 [options="header",cols="<1,<1"]
 |====

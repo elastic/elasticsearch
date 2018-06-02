@@ -20,13 +20,13 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -35,18 +35,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -117,65 +114,52 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
     }
 
-    public void testListTasks() throws IOException {
-        ListTasksRequest request = new ListTasksRequest();
-        ListTasksResponse response = execute(request, highLevelClient().cluster()::listTasks, highLevelClient().cluster()::listTasksAsync);
-
-        assertThat(response, notNullValue());
-        assertThat(response.getNodeFailures(), equalTo(emptyList()));
-        assertThat(response.getTaskFailures(), equalTo(emptyList()));
-        // It's possible that there are other tasks except 'cluster:monitor/tasks/lists[n]' and 'action":"cluster:monitor/tasks/lists'
-        assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
-        boolean listTasksFound = false;
-        for (TaskGroup taskGroup : response.getTaskGroups()) {
-            TaskInfo parent = taskGroup.getTaskInfo();
-            if ("cluster:monitor/tasks/lists".equals(parent.getAction())) {
-                assertThat(taskGroup.getChildTasks().size(), equalTo(1));
-                TaskGroup childGroup = taskGroup.getChildTasks().iterator().next();
-                assertThat(childGroup.getChildTasks().isEmpty(), equalTo(true));
-                TaskInfo child = childGroup.getTaskInfo();
-                assertThat(child.getAction(), equalTo("cluster:monitor/tasks/lists[n]"));
-                assertThat(child.getParentTaskId(), equalTo(parent.getTaskId()));
-                listTasksFound = true;
-            }
-        }
-        assertTrue("List tasks were not found", listTasksFound);
-    }
-
     public void testPutPipeline() throws IOException {
         String id = "some_pipeline_id";
-        XContentType xContentType = randomFrom(XContentType.values());
-        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
-        pipelineBuilder.startObject();
-        {
-            pipelineBuilder.field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
-            pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
-            {
-                pipelineBuilder.startObject().startObject("set");
-                {
-                    pipelineBuilder
-                        .field("field", "foo")
-                        .field("value", "bar");
-                }
-                pipelineBuilder.endObject().endObject();
-                pipelineBuilder.startObject().startObject("convert");
-                {
-                    pipelineBuilder
-                        .field("field", "rank")
-                        .field("type", "integer");
-                }
-                pipelineBuilder.endObject().endObject();
-            }
-            pipelineBuilder.endArray();
-        }
-        pipelineBuilder.endObject();
+        XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
         PutPipelineRequest request = new PutPipelineRequest(
             id,
             BytesReference.bytes(pipelineBuilder),
             pipelineBuilder.contentType());
 
-        PutPipelineResponse putPipelineResponse =
+        WritePipelineResponse putPipelineResponse =
             execute(request, highLevelClient().cluster()::putPipeline, highLevelClient().cluster()::putPipelineAsync);
         assertTrue(putPipelineResponse.isAcknowledged());
+    }
+
+    public void testGetPipeline() throws IOException {
+        String id = "some_pipeline_id";
+        XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
+        {
+            PutPipelineRequest request = new PutPipelineRequest(
+                id,
+                BytesReference.bytes(pipelineBuilder),
+                pipelineBuilder.contentType()
+            );
+            createPipeline(request);
+        }
+
+        GetPipelineRequest request = new GetPipelineRequest(id);
+
+        GetPipelineResponse response =
+            execute(request, highLevelClient().cluster()::getPipeline, highLevelClient().cluster()::getPipelineAsync);
+        assertTrue(response.isFound());
+        assertEquals(response.pipelines().get(0).getId(), id);
+        PipelineConfiguration expectedConfig =
+            new PipelineConfiguration(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
+        assertEquals(expectedConfig.getConfigAsMap(), response.pipelines().get(0).getConfigAsMap());
+    }
+
+    public void testDeletePipeline() throws IOException {
+        String id = "some_pipeline_id";
+        {
+            createPipeline(id);
+        }
+
+        DeletePipelineRequest request = new DeletePipelineRequest(id);
+
+        WritePipelineResponse response =
+            execute(request, highLevelClient().cluster()::deletePipeline, highLevelClient().cluster()::deletePipelineAsync);
+        assertTrue(response.isAcknowledged());
     }
 }

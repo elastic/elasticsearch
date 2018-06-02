@@ -23,6 +23,16 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureList;
+import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
@@ -37,12 +47,14 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -59,8 +71,10 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -115,7 +129,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     static final int PLUGIN_EXISTS = 1;
     /** The plugin zip is not properly structured. */
     static final int PLUGIN_MALFORMED = 2;
-
 
     /** The builtin modules, which are plugins, but cannot be installed or removed. */
     static final Set<String> MODULES;
@@ -241,7 +254,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
             final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadZipAndChecksum(terminal, url, tmpDir, false);
+            return downloadAndValidate(terminal, url, tmpDir, true);
         }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
@@ -249,7 +262,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadZipAndChecksum(terminal, mavenUrl, tmpDir, true);
+            return downloadAndValidate(terminal, mavenUrl, tmpDir, false);
         }
 
         // fall back to plain old URL
@@ -406,16 +419,44 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
     }
 
-    /** Downloads a zip from the url, as well as a SHA512 (or SHA1) checksum, and checks the checksum. */
-    // pkg private for tests
-    @SuppressForbidden(reason = "We use openStream to download plugins")
-    private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir, boolean allowSha1) throws Exception {
+    @SuppressForbidden(reason = "URL#openStream")
+    private InputStream urlOpenStream(final URL url) throws IOException {
+        return url.openStream();
+    }
+
+    /**
+     * Downloads a ZIP from the URL. This method also validates the downloaded plugin ZIP via the following means:
+     * <ul>
+     * <li>
+     * For an official plugin we download the SHA-512 checksum and validate the integrity of the downloaded ZIP. We also download the
+     * armored signature and validate the authenticity of the downloaded ZIP.
+     * </li>
+     * <li>
+     * For a non-official plugin we download the SHA-512 checksum and fallback to the SHA-1 checksum and validate the integrity of the
+     * downloaded ZIP.
+     * </li>
+     * </ul>
+     *
+     * @param terminal       a terminal to log messages to
+     * @param urlString      the URL of the plugin ZIP
+     * @param tmpDir         a temporary directory to write downloaded files to
+     * @param officialPlugin true if the plugin is an official plugin
+     * @return the path to the downloaded plugin ZIP
+     * @throws IOException   if an I/O exception occurs download or reading files and resources
+     * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
+     * @throws UserException if checksum validation fails
+     */
+    private Path downloadAndValidate(
+            final Terminal terminal,
+            final String urlString,
+            final Path tmpDir,
+            final boolean officialPlugin) throws IOException, PGPException, UserException {
         Path zip = downloadZip(terminal, urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
         URL checksumUrl = openUrl(checksumUrlString);
         String digestAlgo = "SHA-512";
-        if (checksumUrl == null && allowSha1) {
+        if (checksumUrl == null && officialPlugin == false) {
             // fallback to sha1, until 7.0, but with warning
             terminal.println("Warning: sha512 not found, falling back to sha1. This behavior is deprecated and will be removed in a " +
                              "future release. Please update the plugin to use a sha512 checksum.");
@@ -427,7 +468,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.IO_ERROR, "Plugin checksum missing: " + checksumUrlString);
         }
         final String expectedChecksum;
-        try (InputStream in = checksumUrl.openStream()) {
+        try (InputStream in = urlOpenStream(checksumUrl)) {
             /*
              * The supported format of the SHA-1 files is a single-line file containing the SHA-1. The supported format of the SHA-512 files
              * is a single-line file containing the SHA-512 and the filename, separated by two spaces. For SHA-1, we verify that the hash
@@ -465,14 +506,110 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
 
-        byte[] zipbytes = Files.readAllBytes(zip);
-        String gotChecksum = MessageDigests.toHexString(MessageDigest.getInstance(digestAlgo).digest(zipbytes));
-        if (expectedChecksum.equals(gotChecksum) == false) {
-            throw new UserException(ExitCodes.IO_ERROR,
-                digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
+        try {
+            final byte[] zipBytes = Files.readAllBytes(zip);
+            final String actualChecksum = MessageDigests.toHexString(MessageDigest.getInstance(digestAlgo).digest(zipBytes));
+            if (expectedChecksum.equals(actualChecksum) == false) {
+                throw new UserException(
+                        ExitCodes.IO_ERROR,
+                        digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + actualChecksum);
+            }
+        } catch (final NoSuchAlgorithmException e) {
+            // this should never happen as we are using SHA-1 and SHA-512 here
+            throw new AssertionError(e);
+        }
+
+        if (officialPlugin) {
+            verifySignature(zip, urlString);
         }
 
         return zip;
+    }
+
+    /**
+     * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
+     * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
+     *
+     * @param zip       the path to the downloaded plugin ZIP
+     * @param urlString the URL source of the downloade plugin ZIP
+     * @throws IOException  if an I/O exception occurs reading from various input streams
+     * @throws PGPException if the PGP implementation throws an internal exception during verification
+     */
+    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
+        final String ascUrlString = urlString + ".asc";
+        final URL ascUrl = openUrl(ascUrlString);
+        try (
+                // fin is a file stream over the downloaded plugin zip whose signature to verify
+                InputStream fin = pluginZipInputStream(zip);
+                // sin is a URL stream to the signature corresponding to the downloaded plugin zip
+                InputStream sin = urlOpenStream(ascUrl);
+                // pin is a input stream to the public key in ASCII-Armor format (RFC4880); the Armor data is in RFC2045 format
+                InputStream pin = getPublicKey()) {
+            final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
+            final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
+
+            // validate the signature has key ID matching our public key ID
+            final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
+            if (getPublicKeyId().equals(keyId) == false) {
+                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
+            }
+
+            // compute the signature of the downloaded plugin zip
+            final List<String> lines =
+                    new BufferedReader(new InputStreamReader(pin, StandardCharsets.UTF_8)).lines().collect(Collectors.toList());
+            // skip armor headers and possible blank line
+            int index = 1;
+            for (; index < lines.size(); index++) {
+                if (lines.get(index).matches(".*: .*") == false && lines.get(index).matches("\\s*") == false) {
+                    break;
+                }
+            }
+            final byte[] armoredData =
+                    lines.subList(index, lines.size() - 1).stream().collect(Collectors.joining("\n")).getBytes(StandardCharsets.UTF_8);
+            final InputStream ain = Base64.getMimeDecoder().wrap(new ByteArrayInputStream(armoredData));
+            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleProvider()), key);
+            final byte[] buffer = new byte[1024];
+            int read;
+            while ((read = fin.read(buffer)) != -1) {
+                signature.update(buffer, 0, read);
+            }
+
+            // finally we verify the signature of the downloaded plugin zip matches the expected signature
+            if (signature.verify() == false) {
+                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
+            }
+        }
+    }
+
+    /**
+     * An input stream to the raw bytes of the plugin ZIP.
+     *
+     * @param zip the path to the downloaded plugin ZIP
+     * @return an input stream to the raw bytes of the plugin ZIP.
+     * @throws IOException if an I/O exception occurs preparing the input stream
+     */
+    InputStream pluginZipInputStream(final Path zip) throws IOException {
+        return Files.newInputStream(zip);
+    }
+
+    /**
+     * Return the public key ID of the signing key that is expected to have signed the official plugin.
+     *
+     * @return the public key ID
+     */
+    String getPublicKeyId() {
+        return "D27D666CD88E42B4";
+    }
+
+    /**
+     * An input stream to the public key of the signing key.
+     *
+     * @return an input stream to the public key
+     */
+    InputStream getPublicKey() {
+        return InstallPluginCommand.class.getResourceAsStream("/public_key.asc");
     }
 
     /**
@@ -481,7 +618,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests
-    URL openUrl(String urlString) throws Exception {
+    URL openUrl(String urlString) throws IOException {
         URL checksumUrl = new URL(urlString);
         HttpURLConnection connection = (HttpURLConnection)checksumUrl.openConnection();
         if (connection.getResponseCode() == 404) {
@@ -605,11 +742,27 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return info;
     }
 
+    private static final String LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR;
+
+    static {
+        LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR =
+                String.format(Locale.ROOT, ".+%1$slib%1$stools%1$splugin-cli%1$s[^%1$s]+\\.jar", "(/|\\\\)");
+    }
+
     /** check a candidate plugin for jar hell before installing it */
     void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
         // create list of current jars in classpath
-        final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
-
+        final Set<URL> classpath =
+                JarHell.parseClassPath()
+                        .stream()
+                        .filter(url -> {
+                            try {
+                                return url.toURI().getPath().matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR) == false;
+                            } catch (final URISyntaxException e) {
+                                throw new AssertionError(e);
+                            }
+                        })
+                        .collect(Collectors.toSet());
 
         // read existing bundles. this does some checks on the installation too.
         Set<PluginsService.Bundle> bundles = new HashSet<>(PluginsService.getPluginBundles(pluginsDir));
@@ -621,7 +774,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // TODO: optimize to skip any bundles not connected to the candidate plugin?
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         for (PluginsService.Bundle bundle : sortedBundles) {
-            PluginsService.checkBundleJarHell(bundle, transitiveUrls);
+            PluginsService.checkBundleJarHell(classpath, bundle, transitiveUrls);
         }
 
         // TODO: no jars should be an error

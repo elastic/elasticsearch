@@ -39,18 +39,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ShardChangesAction extends Action<ShardChangesAction.Request, ShardChangesAction.Response, ShardChangesAction.RequestBuilder> {
+public class ShardChangesAction extends Action<ShardChangesAction.Request, ShardChangesAction.Response> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
 
     private ShardChangesAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -209,7 +204,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     static class RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
+        RequestBuilder(ElasticsearchClient client, Action<Request, Response> action) {
             super(client, action, new Request());
         }
     }

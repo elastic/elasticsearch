@@ -40,19 +40,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
-public class FollowIndexAction extends Action<FollowIndexAction.Request,
-        FollowIndexAction.Response, FollowIndexAction.RequestBuilder> {
+public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowIndexAction.Response> {
 
     public static final FollowIndexAction INSTANCE = new FollowIndexAction();
     public static final String NAME = "cluster:admin/xpack/ccr/follow_index";
 
     private FollowIndexAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -134,9 +128,9 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, FollowIndexAction.RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
+        RequestBuilder(ElasticsearchClient client, Action<Request, Response> action) {
             super(client, action, new Request());
         }
     }

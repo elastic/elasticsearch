@@ -48,19 +48,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response,
-    CreateAndFollowIndexAction.RequestBuilder> {
+public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response> {
 
     public static final CreateAndFollowIndexAction INSTANCE = new CreateAndFollowIndexAction();
     public static final String NAME = "cluster:admin/xpack/ccr/create_and_follow_index";
 
     private CreateAndFollowIndexAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -155,7 +149,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, CreateAndFollowIndexAction.RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());
@@ -254,7 +248,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     IndexMetaData.Builder imdBuilder = IndexMetaData.builder(followIndex);
-    
+
                     // Copy all settings, but overwrite a few settings.
                     Settings.Builder settingsBuilder = Settings.builder();
                     settingsBuilder.put(leaderIndexMetaData.getSettings());
@@ -263,7 +257,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followIndex);
                     settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
                     imdBuilder.settings(settingsBuilder);
-    
+
                     // Copy mappings from leader IMD to follow IMD
                     for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
                         imdBuilder.putMapping(cursor.value);
@@ -281,10 +275,10 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     updatedState = allocationService.reroute(
                         ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
                         "follow index [" + request.getFollowRequest().getFollowIndex() + "] created");
-    
+
                     logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
                         followIndex, followIMD.getNumberOfShards(), followIMD.getNumberOfReplicas());
-                    
+
                     return updatedState;
                 }
             });

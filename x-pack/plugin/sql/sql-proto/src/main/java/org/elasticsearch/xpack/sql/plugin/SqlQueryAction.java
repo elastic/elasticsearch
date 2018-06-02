@@ -6,20 +6,14 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class SqlQueryAction extends Action<SqlQueryRequest, SqlQueryResponse, SqlQueryRequestBuilder> {
+public class SqlQueryAction extends Action<SqlQueryRequest, SqlQueryResponse> {
 
     public static final SqlQueryAction INSTANCE = new SqlQueryAction();
     public static final String NAME = "indices:data/read/sql";
 
     private SqlQueryAction() {
         super(NAME);
-    }
-
-    @Override
-    public SqlQueryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SqlQueryRequestBuilder(client, this);
     }
 
     @Override

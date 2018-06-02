@@ -19,19 +19,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Request,
-        DeleteModelSnapshotAction.Response, DeleteModelSnapshotAction.RequestBuilder> {
+public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Request, DeleteModelSnapshotAction.Response> {
 
     public static final DeleteModelSnapshotAction INSTANCE = new DeleteModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/delete";
 
     private DeleteModelSnapshotAction() {
         super(NAME);
-    }
-
-    @Override
-    public DeleteModelSnapshotAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -102,7 +96,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
 
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteModelSnapshotAction action) {
             super(client, action, new Request());

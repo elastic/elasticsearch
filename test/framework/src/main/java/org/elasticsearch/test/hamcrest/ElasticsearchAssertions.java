@@ -490,14 +490,14 @@ public class ElasticsearchAssertions {
     /**
      * Run the request from a given builder and check that it throws an exception of the right type
      */
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass) {
         assertThrows(builder.execute(), exceptionClass);
     }
 
     /**
      * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link org.elasticsearch.rest.RestStatus}
      */
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass, RestStatus status) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass, RestStatus status) {
         assertThrows(builder.execute(), exceptionClass, status);
     }
 
@@ -506,7 +506,7 @@ public class ElasticsearchAssertions {
      *
      * @param extraInfo extra information to add to the failure message
      */
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass, String extraInfo) {
         assertThrows(builder.execute(), exceptionClass, extraInfo);
     }
 
@@ -570,11 +570,11 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, RestStatus status) {
         assertThrows(builder.execute(), status);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status, String extraInfo) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
         assertThrows(builder.execute(), status, extraInfo);
     }
 

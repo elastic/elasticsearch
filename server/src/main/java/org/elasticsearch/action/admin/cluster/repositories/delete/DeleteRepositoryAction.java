@@ -20,12 +20,11 @@
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Unregister repository action
  */
-public class DeleteRepositoryAction extends Action<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder> {
+public class DeleteRepositoryAction extends Action<DeleteRepositoryRequest, DeleteRepositoryResponse> {
 
     public static final DeleteRepositoryAction INSTANCE = new DeleteRepositoryAction();
     public static final String NAME = "cluster:admin/repository/delete";
@@ -37,11 +36,6 @@ public class DeleteRepositoryAction extends Action<DeleteRepositoryRequest, Dele
     @Override
     public DeleteRepositoryResponse newResponse() {
         return new DeleteRepositoryResponse();
-    }
-
-    @Override
-    public DeleteRepositoryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new DeleteRepositoryRequestBuilder(client, this);
     }
 }
 

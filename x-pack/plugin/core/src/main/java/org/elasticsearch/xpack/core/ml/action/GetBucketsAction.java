@@ -30,18 +30,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response, GetBucketsAction.RequestBuilder> {
+public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response> {
 
     public static final GetBucketsAction INSTANCE = new GetBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/buckets/get";
 
     private GetBucketsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -294,7 +289,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

@@ -351,13 +351,6 @@ public abstract class MappedFieldType extends FieldType {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query nullValueQuery() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
     public abstract Query existsQuery(QueryShardContext context);
 
     /**
@@ -380,12 +373,6 @@ public abstract class MappedFieldType extends FieldType {
         boolean includeLower, boolean includeUpper,
         DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
-    }
-
-    /** A term query to use when parsing a query string. Can return {@code null}. */
-    @Nullable
-    public Query queryStringTermQuery(Term term) {
-        return null;
     }
 
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.

@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -94,7 +95,11 @@ public class ClusterStateResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         clusterName.writeTo(out);
-        clusterState.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            clusterState.writeTo(out);
+        } else {
+            ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
+        }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize.writeTo(out);
         }

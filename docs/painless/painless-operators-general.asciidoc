@@ -88,7 +88,7 @@ with an expected `boolean` result type. If the first expression evaluates to
 evaluates to `false` then the third expression is evaluated. The second and
 third expressions are <<promotion, promoted>> if the evaluated values are not
 the same type. Use the *conditional operator* as a shortcut to avoid the need
-for a full if/else branch in certain expressions.
+for a full if/else branch.
 
 *Errors*
 

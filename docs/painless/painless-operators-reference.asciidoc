@@ -6,10 +6,10 @@
 
 Use the *method call operator* to call a member method on a
 <<reference-types, reference type>> value. Implicit
-<<boxing-unboxing, boxing/unboxing>> is evaluated as necessary per argument.
-When a method call is made on a `def` type value, the parameters and return
-type value are considered to also be of the `def` type and are evaluated at
-run-time.
+<<boxing-unboxing, boxing/unboxing>> is evaluated as necessary per argument
+during the method call. When a method call is made on a `def` type value, the
+parameters and return type value are considered to also be of the `def` type and
+are evaluated at run-time.
 
 An overloaded method is one that shares the same name with two or more methods.
 A method is overloaded based on arity where the same name is re-used for
@@ -28,8 +28,7 @@ multiple methods as long as the number of parameters differs.
 
 [source,ANTLR4]
 ----
-method_call: callable '.' ID arguments;
-callable: (variable | field | type);
+method_call: '.' ID arguments;
 arguments: '(' (expression (',' expression)*)? ')';
 ----
 
@@ -90,8 +89,7 @@ Use the *field access operator* to store a value to or load a value from a
 
 [source,ANTLR4]
 ----
-field_access: accessible '.' ID;
-accessible: (variable | field | type);
+field_access: '.' ID;
 ----
 
 *Examples*
@@ -163,15 +161,14 @@ type value is `null`, otherwise the method call or field access is evaluated.
 
 [source,ANTLR4]
 ----
-null_safe: null_safe_field_access
-         | null_safe_method_call;
+null_safe: null_safe_method_call
+         | null_safe_field_access
+         ;
 
-null_safe_field_access: accessible '?.' ID;
-accessible: (variable | field | type);
-
-null_safe_method_call: callable '?.' ID arguments;
-callable: (variable | field | type);
+null_safe_method_call: '?.' ID arguments;
 arguments: '(' (expression (',' expression)*)? ')';
+
+null_safe_field_access: '?.' ID;
 ----
 
 *Examples*
@@ -239,7 +236,8 @@ list_initialization: '[' expression (',' expression)* ']'
 
 *Examples*
 
-* Use of the *list initialization operator* to create an empty List type value.
+* Use of the *list initialization operator* to create an empty ArrayList type
+  value.
 +
 [source,Painless]
 ----
@@ -308,7 +306,7 @@ list_initialization: '[' expression (',' expression)* ']'
 [[list-access-operator]]
 ==== List Access
 
-Use the *list access operator* as a shortcut for an `set` method call or `get`
+Use the *list access operator* as a shortcut for a `set` method call or `get`
 method call made on a List type value.
 
 *Errors*
@@ -357,10 +355,10 @@ list_access: '[' expression ']'
     call `set` on `List reference` with arguments(`int 1`, `int 5`)
 <7> declare `int x`;
     load from `list` -> `List reference`;
-    call `get` on `List reference` with arguments(`int 0`); -> `def`;
+    call `get` on `List reference` with arguments(`int 0`) -> `def`;
     implicit cast `def` to `int 2` -> `int 2`;
     load from `list` -> `List reference`;
-    call `get` on `List reference` with arguments(`int 1`); -> `def`;
+    call `get` on `List reference` with arguments(`int 1`) -> `def`;
     implicit cast `def` to `int 5` -> `int 5`;
     add `int 2` and `int 5` -> `int 7`;
     store `int 7` to `x`
@@ -369,7 +367,7 @@ list_access: '[' expression ']'
 <9> declare `int z`;
     load from `list` -> `List reference`;
     load from `y` -> `int 1`;
-    call `get` on `List reference` with arguments(`int 1`); -> `def`;
+    call `get` on `List reference` with arguments(`int 1`) -> `def`;
     implicit cast `def` to `int 5` -> `int 5`;
     store `int 5` to `z`
 +
@@ -410,11 +408,11 @@ list_access: '[' expression ']'
 <7> declare `def x`;
     load from `d` -> `def`;
     implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
-    call `get` on `ArrayList reference` with arguments(`int 0`); -> `def`;
+    call `get` on `ArrayList reference` with arguments(`int 0`) -> `def`;
     implicit cast `def` to `int 2` -> `int 2`;
     load from `d` -> `def`;
     implicit cast `def` to `ArrayList reference` -> `ArrayList reference`;
-    call `get` on `ArrayList reference` with arguments(`int 1`); -> `def`;
+    call `get` on `ArrayList reference` with arguments(`int 1`) -> `def`;
     implicit cast `def` to `int 2` -> `int 2`;
     add `int 2` and `int 5` -> `int 7`;
     store `int 7` to `x`
@@ -424,7 +422,7 @@ list_access: '[' expression ']'
     load from `d` -> `ArrayList reference`;
     load from `y` -> `def`;
     implicit cast `def` to `int 1` -> `int 1`;
-    call `get` on `ArrayList reference` with arguments(`int 1`); -> `def`;
+    call `get` on `ArrayList reference` with arguments(`int 1`) -> `def`;
     store `def` to `z`
 
 [[map-initialization-operator]]
@@ -447,114 +445,331 @@ key_pair: expression ':' expression
 
 *Examples*
 
-
-
-[source,Java]
+* Use of the *map initialization operator* to create an empty HashMap type
+value.
++
+[source,Painless]
 ----
-Map empty = [:];            // declares the Map variable empty and sets it to a newly initialized empty Map
-Map m0 = [1:2, 3:4, 5:6];   // declares the Map variable m0 and sets it to a newly initialized Map with the keys 1, 3, 5 and values 2, 4, 6, respectively
-
-byte b = 0;
-int i = 1;
-long l = 2L;
-float f = 3.0F;
-double d = 4.0;
-String s = "5";
-Map m1 = [b:i, l:f*d, d:s]; // declares the Map variable m1 and sets it to a newly initialized Map with the keys b, l, d and values i, f*d, s, respectively
+<1> Map empty = [:];
 ----
++
+<1> declare `Map empty`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
+    store `Map reference` to `empty`
++
+* Use of the *map initialization operator* with non-static values.
++
+[source,Painless]
+----
+<1> Map map = [1:2, 3:4, 5:6];
+----
++
+<1> declare `Map map`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    call `put` on `HashMap reference` with arguments(`int 1`, `int 2`);
+    call `put` on `HashMap reference` with arguments(`int 3`, `int 4`);
+    call `put` on `HashMap reference` with arguments(`int 5`, `int 6`);
+    implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
+    store `Map reference` to `map`
++
+* Use of the *map initialization operator* with non-static values.
++
+[source,Painless]
+----
+<1> byte b = 0;
+<2> int i = 1;
+<3> long l = 2L;
+<4> float f = 3.0F;
+<5> double d = 4.0;
+<6> String s = "5";
+<7> Map map = [b:i, l:f*d, d:s];
+----
++
+<1> declare `byte b`;
+    store `byte 0` to `b`
+<2> declare `int i`;
+    store `int 1` to `i`
+<3> declare `long l`;
+    store `long 2` to `l`
+<4> declare `float f`;
+    store `float 3.0` to `f`
+<5> declare `double d`;
+    store `double 4.0` to `d`
+<6> declare `String s`;
+    store `String "5"` to `s`
+<7> declare `Map map`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    load from `b` -> `byte 0`;
+    load from `i` -> `int 1`;
+    call `put` on `HashMap reference` with arguments(`byte 0`, `int 1`);
+    load from `l` -> `long 2`;
+    load from `f` -> `float 3.0`;
+    load from `d` -> `double 4.0`;
+    promote `float 3.0` and `double 4.0`: result `double`;
+    implicit cast `float 3.0` to `double 3.0` -> `double 3.0`;
+    multiply `double 3.0` and `double 4.0` -> `double 12.0`;
+    call `put` on `HashMap reference` with arguments(`long 2`, `double 12.0`);
+    load from `d` -> `double 4.0`;
+    load from `s` -> `String "5"`;
+    call `put` on `HashMap reference` with
+            arguments(`double 4.0`, `String "5"`);
+    implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
+    store `Map reference` to `map`
 
 [[map-access-operator]]
 ==== Map Access
 
-Elements in a Map can be stored or accessed using the brackets operator.  The format begins with an opening bracket, followed by an expression, and finishes with a closing bracket.  Storing values in a Map is equivalent to invoking a Map's put method.  Accessing values in a Map is equivalent to invoking a Map's get method.  Using this operator is strictly a shortcut for the previously mentioned methods.  Any element from a Map can be stored/accessed where the expression is the key.  If a key has no corresponding value when accessing a Map then the value will be null.
+Use the *map access operator* as a shortcut for a `put` method call or `get`
+method call made on a Map type value.
 
-*Grammar:*
+*Errors*
+
+* Use of the *map access operator* on a value that is not a Map type value.
+
+*Grammar*
 [source,ANTLR4]
 ----
 map_access: '[' expression ']'
 ----
 
-*Examples:*
-[source,Java]
-----
-Map x = new HashMap();             // declares a Map variable x and sets it to a newly allocated HashMap
-x['value2'] = 2;                   // puts the value of the key constant String value2 of the variable x to the constant int 2
-x['value5'] = 5;                   // puts the value of the key constant String value5 of the variable x to the constant int 5
-int y = x['value2'] + x['value5']; // declares the int variable y and sets it to the sum of the two values of the variable x
-String z = 'value5';               // declares the String variable z and sets it to the constant String value5
-return x[z];                       // accesses the value for the key value5 of the variable x using the variable z as an expression and returns the value
+*Examples*
 
-def d = new HashMap();             // declares a def variable d and sets it to a newly allocated HashMap
-d['value2'] = 2;                   // puts the value of the key constant String value2 of the variable d to the constant int 2
-d['value5'] = 5;                   // puts the value of the key constant String value5 of the variable d to the constant int 5
-int y = d['value2'] + d['value5']; // declares the int variable y and sets it to the sum of the two values of the variable d
-String z = 'value5';               // declares the String variable z and sets it to the constant String value5
-return d[z];                       // accesses the value for the key value5 of the variable x using the variable z as an expression and returns the value
+* Uses of the *map access operator*.
++
+[source,Painless]
 ----
-
-Note in the first example above all types can be resolved at compile-time, while in the second example all types must wait to be resolved until run-time.
+<1> Map map = new HashMap();
+<2> map['value2'] = 2;
+<3> map['value5'] = 5;
+<4> int x = map['value2'] + map['value5'];
+<5> String y = 'value5';
+<6> int z = x[z];
+----
++
+<1> declare `Map map`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
+    store `Map reference` to `map`
+<2> load from `map` -> `Map reference`;
+    call `put` on `Map reference` with arguments(`String 'value2'`, `int 2`)
+<3> load from `map` -> `Map reference`;
+    call `put` on `Map reference` with arguments(`String 'value5'`, `int 5`)
+<4> declare `int x`;
+    load from `map` -> `Map reference`;
+    call `get` on `Map reference` with arguments(`String 'value2'`) -> `def`;
+    implicit cast `def` to `int 2` -> `int 2`;
+    load from `map` -> `Map reference`;
+    call `get` on `Map reference` with arguments(`String 'value5'`) -> `def`;
+    implicit cast `def` to `int 5` -> `int 5`;
+    add `int 2` and `int 5` -> `int 7`;
+    store `int 7` to `x`
+<5> declare `String y`;
+    store `String 'value5'` to `y`
+<6> declare `int z`;
+    load from `map` -> `Map reference`;
+    load from `y` -> `String 'value5'`;
+    call `get` on `Map reference` with arguments(`String 'value5'`) -> `def`;
+    implicit cast `def` to `int 5` -> `int 5`;
+    store `int 5` to `z`
++
+* Uses of the *map access operator* using the `def` type.
++
+[source,Painless]
+----
+<1> def d = new HashMap();
+<2> d['value2'] = 2;
+<3> d['value5'] = 5;
+<4> int x = d['value2'] + d['value5'];
+<5> String y = 'value5';
+<6> def z = d[y];
+----
++
+<1> declare `def d`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast `HashMap reference` to `def` -> `def`;
+    store `def` to `d`
+<2> load from `d` -> `def`;
+    implicit cast `def` to `HashMap reference` -> `HashMap reference`;
+    call `put` on `HashMap reference` with arguments(`String 'value2'`, `int 2`)
+<3> load from `d` -> `def`;
+    implicit cast `def` to `HashMap reference` -> `HashMap reference`;
+    call `put` on `HashMap reference` with arguments(`String 'value5'`, `int 5`)
+<4> declare `int x`;
+    load from `d` -> `def`;
+    implicit cast `def` to `HashMap reference` -> `HashMap reference`;
+    call `get` on `HashMap reference` with arguments(`String 'value2'`)
+            -> `def`;
+    implicit cast `def` to `int 2` -> `int 2`;
+    load from `d` -> `def`;
+    call `get` on `HashMap reference` with arguments(`String 'value5'`)
+            -> `def`;
+    implicit cast `def` to `int 5` -> `int 5`;
+    add `int 2` and `int 5` -> `int 7`;
+    store `int 7` to `x`
+<5> declare `String y`;
+    store `String 'value5'` to `y`
+<6> declare `def z`;
+    load from `d` -> `def`;
+    load from `y` -> `String 'value5'`;
+    call `get` on `HashMap reference` with arguments(`String 'value5'`)
+            -> `def`;
+    store `def` to `z`
 
 [[new-instance-operator]]
 ==== New Instance
 
-A constructor call is a special type of method call [MARK] used to allocate a reference type instance using the new operator.  The format is the new operator followed by a type, an opening parenthesis, arguments if any, and a closing parenthesis.  Arguments are a series of zero-to-many expressions delimited by commas.  Auto-boxing and auto-unboxing will be applied automatically for arguments passed into a constructor call.  See boxing and unboxing [MARK] for more information on this topic.  Constructor argument types can always be resolved at run-time; if appropriate type conversions (casting) cannot be applied an error will occur.  Once a reference type instance has been allocated, its members may be used as part of other expressions.
+Use the *new instance operator* to allocate a
+<<reference-types, reference type>> instance to the heap and call a specified
+constructor. Implicit <<boxing-unboxing, boxing/unboxing>> is evaluated as
+necessary per argument during the constructor call.
 
-Constructor calls may be overloaded based on arity in Painless.  This means the same reference type may have multiple constructors as long as the number of arguments differs for each one.  This does have an effect on some of the provided reference type constructors in the Painless API [MARK].  When there are overloaded constructors with the same arity for a reference type in Java a single constructor must be chosen to be provided in Painless.
+An overloaded constructor is one that shares the same name with two or more
+constructors. A constructor is overloaded based on arity where the same
+reference type name is re-used for multiple constructors as long as the number
+of parameters differs.
 
-*Grammar:*
+*Errors*
+
+* If the reference type name doesn't exist for instance allocation.
+* If the number of arguments passed in is different from the number of specified
+  parameters.
+* If the arguments cannot be implicitly cast or implicitly boxed/unboxed to the
+  correct type values for the parameters.
+
+*Grammar*
+
 [source,ANTLR4]
 ----
-constructor_call: 'new' TYPE '(' (expression (',' expression)*)? ')';
+new_instance: 'new' type '(' (expression (',' expression)*)? ')';
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Uses of the *new instance operator*.
+
+[source,Painless]
 ----
-Map m = new HashMap();   // declares the Map variable m and sets it to a newly allocated HashMap using an empty constructor
-m.put(3, 3);             // invokes the method call member put and adds the key-value pair of 3 to Map variable m
-def d = new ArrayList(); // declares the def variable d and sets it to a newly allocated ArrayList using an empty constructor
-def e;                   // declares the def variable e
-e = new HashMap(m);      // sets e to a newly allocated HashMap using the constructor with a single argument m
+<1> Map m = new HashMap();
+<2> def d = new ArrayList();
+<3> def e = new HashMap(m);
 ----
+<1> declare `Map m`;
+    allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
+    store `Map reference` to `m`;
+<2> declare `def d`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `def` -> `def`;
+    store `def` to `d`;
+<3> declare `def e`;
+    load from `m` -> `Map reference`;
+    allocate `HashMap` instance with arguments (`Map reference`)
+            -> `HashMap reference`;
+    implicit cast `HashMap reference` to `def` -> `def`;
+    store `def` to `e`;
 
 [[string-concatenation-operator]]
 ==== String Concatenation
 
-Concatenates two expressions together as a single String where at least of one of the expressions is a String to begin with.  The format is an expression, followed by a plus operator, and a closing expression.
+Use the *string concatenation operator* to concatenate two values together where
+at least one of the values is of the <<string-type, `String` type>>.
 
-*Grammar:*
+*Grammar*
+
 [source,ANTLR4]
 ----
 concatenate: expression '+' expression;
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Uses of the *string concatenation operator*.
++
+[source,Painless]
 ----
-String x = "con";          // declares the String variable x and sets it to the String constant "con"
-String y = x + "cat";      // declares the String variable y and sets it to the concatenation of the String variable x and the String constant "cat"
-String z = 4 + x;          // declares the String variable z and sets it to the concatenation of the int constant 4 and the String variable x (4 is implicitly cast to a String)
-def d = 2;                 // declares the def variable d and sets it to the int constant 2
-z = z + d;                 // sets the String variable z to the concatenation of the String variable z
-d = "con" + x + y + "cat"; // sets the def variable d to the concatenation of String constant "con", x, y, and the String constant "cat"
+<1> String x = "con";
+<2> String y = x + "cat";
+<3> String z = 4 + 5 + x;
 ----
++
+<1> declare `String x`;
+    store `String "con"` to `x`;
+<2> declare `String y`;
+    load from `x` -> `String "con"`;
+    concat `String "con"` and `String "cat"` -> `String "concat"`;
+    store `String "concat"` to `y`
+<3> declare `String z`;
+    add `int 4` and `int 5` -> `int 9`;
+    concat `int 9` and `String "9concat"`;
+    store `String "9concat"` to `z`;
+    (note the addition is done prior to the concatenation due to precedence and
+            associativity of the specific operations)
++
+* Uses of the *string concatenation operator* with the `def` type.
++
+[source,Painless]
+----
+<1> def d = 2;
+<2> d = "con" + d + "cat";
+----
++
+<1> declare `def`;
+    implicit cast `int 2` to `def` -> `def`;
+    store `def` in `d`;
+<2> concat `String "con"` and `int 9` -> `String "con9"`;
+    concat `String "con9"` and `String "con"` -> `String "con9cat"`
+    implicit cast `String "con9cat"` to `def` -> `def`;
+    store `def` to `d`;
+    (note the switch in type of `d` from `int` to `String`)
 
 [[elvis-operator]]
 ==== Elvis
 
-The elvis operator consists of two expressions.  If the first expression is a non-null value then the resultant value will be the evaluated first expression otherwise the resultant value will be the evaluated second expression.  This is typically used as a shortcut for a null check in a conditional.  An error will occur if the expected result is a primitive type.  The format is an expression, followed by the question-mark-colon operator, and finishes with an expression.
+An elvis consists of two expressions. The first expression is evaluated
+with to check for a `null` value. If the first expression evaluates to
+`null` then the second expression is evaluated and its value used. If the first
+expression evaluates to not `null` then the resultant value of the first
+expression is used. Use the *elvis operator* as a shortcut for the *conditional
+operator*.
 
-*Grammar:*
+*Errors*
+
+* If the first expression or second expression cannot produce a `null` value.
+
+*Grammar*
+
 [source,ANTLR4]
 ----
 elvis: expression '?:' expression;
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Uses of the *elvis operator*.
++
+[source,Painless]
 ----
-List l = new ArrayList();      // declares the List variable l and sets it to a newly allocated ArrayList
-List y = l ?: new ArrayList(); // declares the List variable y and sets it to l since l is not null
-y = null;                      // sets y to null
-def z = y ?: new HashMap();    // declares the def variable z and sets it to a newly allocated HashMap since y is null
+<1> List x = new ArrayList();
+<2> List y = x ?: new ArrayList();
+<3> y = null;
+<4> List z = y ?: new ArrayList();
 ----
++
+<1> declare `List x`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `x`;
+<2> declare `List y`;
+    load `x` -> `List reference`;
+    `List reference` equals `null` -> `false`;
+    evaluate 1st expression: `List reference` -> `List reference`;
+    store `List reference` to `y`
+<3> store `null` to `y`;
+<4> declare `List z`;
+    load `y` -> `List reference`;
+    `List reference` equals `null` -> `true`;
+    evaluate 2nd expression:
+            allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast `ArrayList reference` to `List reference` -> `List reference`;
+    store `List reference` to `z`;

@@ -24,8 +24,7 @@ package org.elasticsearch.painless;
 public class AdditionTests extends ScriptTestCase {
 
     public void testBasics() throws Exception {
-        assertEquals(3.0, exec("int i = 1; long l = 2L; float f = 3.0F; " +
-                "double d = 4.0; String s = '5'; def array = new def[] {i, l, f*d, s}; return array[0]"));
+        assertEquals(false, exec("HashMap x = null; ArrayList y = null; x == y"));
         assertEquals(3.0, exec("double x = 1; byte y = 2; return x + y;"));
     }
 

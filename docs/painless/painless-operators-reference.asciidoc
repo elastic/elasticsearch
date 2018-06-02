@@ -4,12 +4,12 @@
 [[method-call-operator]]
 ==== Method Call
 
-Use the *method call operator* to call a member method on a
+Use the *method call operator* to call a member method on a target
 <<reference-types, reference type>> value. Implicit
 <<boxing-unboxing, boxing/unboxing>> is evaluated as necessary per argument
-during the method call. When a method call is made on a `def` type value, the
-parameters and return type value are considered to also be of the `def` type and
-are evaluated at run-time.
+during the method call. When a method call is made on a target `def` type value,
+the parameters and return type value are considered to also be of the `def` type
+and are evaluated at run-time.
 
 An overloaded method is one that shares the same name with two or more methods.
 A method is overloaded based on arity where the same name is re-used for

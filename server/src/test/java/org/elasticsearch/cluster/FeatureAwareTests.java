@@ -107,7 +107,7 @@ public class FeatureAwareTests extends ESTestCase {
     }
 
     public void testVersion() {
-        final Version version = VersionUtils.randomVersion(random());
+        final Version version = randomValueOtherThan(VersionUtils.getFirstVersion(), () -> VersionUtils.randomVersion(random()));
         for (final Custom custom : Arrays.asList(new NoRequiredFeatureCustom(version), new RequiredFeatureCustom(version))) {
             {
                 final BytesStreamOutput out = new BytesStreamOutput();

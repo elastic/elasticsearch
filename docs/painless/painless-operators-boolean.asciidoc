@@ -1185,71 +1185,180 @@ identity_not_equals: expression '!==' expression;
 [[boolean-xor-operator]]
 ==== Boolean Xor
 
-Boolean xor will xor together two boolean expressions.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
+Use the *boolean xor operator* to boolean xor together two `boolean` type values
+where if one `boolean` type value is `true` and the other is `false` the
+resultant `boolean` type value is `true` and `false` otherwise.
 
+*Errors*
+
+* If either evaluated value is a value other than a `boolean` type value or
+  a value that is castable to a `boolean` type value.
+
+*Truth*
+
+[cols="^1,^1,^1"]
 |====
-||true|false
-|true|false|true
-|false|true|false
+|       | true  | false
+| true  | false | true
+| false | true  | false
 |====
 
-The format starts with an expression, follows with the carrot operator, and finishes with an expression.
+*Grammar*
 
-*Grammar:*
 [source,ANTLR4]
 ----
 boolean_xor: expression '^' expression;
 ----
 
-Note that def types will be assumed to be of the boolean type.  Any def type evaluated at run-time that does not represent a boolean will result in an error.  Non-boolean expressions will result in an error.
+*Examples*
 
-*Examples:*
+* Uses of the *boolean xor operator*.
++
 [source,Java]
 ----
-boolean x = false;    // declares the boolean variable x and sets the constant boolean false
-boolean y = x ^ true; // declares the boolean variable y and sets it the result of x xor true
-def z = y ^ x;        // declares the def variable z and sets it to the result of y xor x
+<1> boolean x = false;
+<2> boolean y = x ^ true;
+<3> y = y ^ x;
 ----
++
+<1> declare `boolean x`;
+    store `boolean false` to `x`
+<2> declare `boolean y`;
+    load from `x` -> `boolean false`
+    boolean xor `boolean false` and `boolean true` -> `boolean true`;
+    store `boolean true` to `y`
+<3> load from `y` -> `boolean true @0`;
+    load from `x` -> `boolean true @1`;
+    boolean xor `boolean true @0` and `boolean true @1` -> `boolean false`;
+    store `boolean false` to `y`
++
+* Uses of the *boolean xor operator* with the `def` type.
++
+[source,Java]
+----
+<1> def x = false;
+<2> def y = x ^ true;
+<3> y = y ^ x;
+----
++
+<1> declare `def x`;
+    implicit cast `boolean false` to `def` -> `def`;
+    store `def` to `x`
+<2> declare `def y`;
+    load from `x` -> `def`;
+    implicit cast `def` to `boolean false` -> `boolean false`;
+    boolean xor `boolean false` and `boolean true` -> `boolean true`;
+    implicit cast `boolean true` to `def` -> `def`;
+    store `def` to `y`
+<3> load from `y` -> `def`;
+    implicit cast `def` to `boolean true @0` -> `boolean true @0`;
+    load from `x` -> `def`;
+    implicit cast `def` to `boolean true @1` -> `boolean true @1`;
+    boolean xor `boolean true @0` and `boolean true @1` -> `boolean false`;
+    implicit cast `boolean false` -> `def`;
+    store `def` to `y`
 
 [[boolean-and-operator]]
 ==== Boolean And
 
-Boolean and will and together two boolean expressions.  If the first expression is found to be false then it is known that the result will also be false, so evaluation of the second expression will be skipped.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
+Use the *boolean and operator* to boolean and together two `boolean` type values
+where if both `boolean` type values are `true` the resultant `boolean` type
+value is `true` and `false` otherwise.
 
-||true|false
-|true|true|false
-|false|false|false
+*Errors*
 
-The format starts with an expression, follows with the ampersand-ampersand operator, and finishes with an expression.
+* If either evaluated value is a value other than a `boolean` type value or
+  a value that is castable to a `boolean` type value.
 
-*Grammar:*
+*Truth*
+
+[cols="^1,^1,^1"]
+|====
+|       | true  | false
+| true  | true  | false
+| false | false | false
+|====
+
+*Grammar*
+
 [source,ANTLR4]
 ----
 boolean_and: expression '&&' expression;
 ----
 
-Note that def types will be assumed to be of the boolean type.  Any def type evaluated at run-time that does not represent a boolean will result in an error.  Non-boolean expressions will result in an error.
+*Examples*
 
-*Examples:*
+* Uses of the *boolean and operator*.
++
 [source,Java]
 ----
-boolean x = false;     // declares the boolean variable x and sets the constant boolean false
-boolean y = x && true; // declares the boolean variable y and sets it the result of x and true
-def z = y && x;        // declares the def variable z and sets it to the result of y and x
+<1> boolean x = true;
+<2> boolean y = x && true;
+<3> x = false;
+<4> y = y && x;
 ----
++
+<1> declare `boolean x`;
+    store `boolean true` to `x`
+<2> declare `boolean y`;
+    load from `x` -> `boolean true @0`;
+    boolean and `boolean true @0` and `boolean true @1` -> `boolean true`;
+    store `boolean true` to `y`
+<3> store `boolean false` to `x`
+<4> load from `y` -> `boolean true`;
+    load from `x` -> `boolean false`;
+    boolean and `boolean true` and `boolean false` -> `boolean false`;
+    store `boolean false` to `y`
++
+* Uses of the *boolean and operator* with the `def` type.
++
+[source,Java]
+----
+<1> def x = true;
+<2> def y = x && true;
+<3> x = false;
+<4> y = y && x;
+----
++
+<1> declare `def x`;
+    implicit cast `boolean true` to `def` -> `def`;
+    store `def` to `x`
+<2> declare `def y`;
+    load from `x` -> `def`;
+    implicit cast `def` to `boolean true @0` -> `boolean true @0`;
+    boolean and `boolean true @0` and `boolean true @1` -> `boolean true`;
+    implicit cast `boolean true` to `def` -> `def`;
+    store `def` to `y`
+<3> implicit cast `boolean false` to `def` -> `def`;
+    store `def` to `x`;
+<4> load from `y` -> `def`;
+    implicit cast `def` to `boolean true` -> `boolean true`;
+    load from `x` -> `def`;
+    implicit cast `def` to `boolean false` -> `boolean false`;
+    boolean and `boolean true` and `boolean false` -> `boolean false`;
+    implicit cast `boolean false` -> `def`;
+    store `def` to `y`
 
 [[boolean-or-operator]]
 ==== Boolean Or
 
-Boolean or will or together two boolean expressions.  If the first expression is found to be true then it is known that the result will also be true, so evaluation of the second expression will be skipped.  The table below shows what the resultant boolean value will be based on the two boolean expressions.
+Use the *boolean or operator* to boolean or together two `boolean` type values
+where if either one of the `boolean` type values is `true` the resultant
+`boolean` type value is `true` and `false` otherwise.
 
-|====
-||true|false
-|true|true|true
-|false|true|false
-|====
+*Errors*
 
-The format starts with an expression, follows with the pipe-pipe operator, and finishes with an expression.
+* If either evaluated value is a value other than a `boolean` type value or
+  a value that is castable to a `boolean` type value.
+
+*Truth*
+
+[cols="^1,^1,^1"]
+|====
+|       | true | false
+| true  | true | true
+| false | true | false
+|====
 
 *Grammar:*
 [source,ANTLR4]
@@ -1257,12 +1366,55 @@ The format starts with an expression, follows with the pipe-pipe operator, and f
 boolean_and: expression '||' expression;
 ----
 
-Note that def types will be assumed to be of the boolean type.  Any def type evaluated at run-time that does not represent a boolean will result in an error.  Non-boolean expressions will result in an error.
+*Examples*
 
-*Examples:*
+* Uses of the *boolean or operator*.
++
 [source,Java]
 ----
-boolean x = false;     // declares the boolean variable x and sets the constant boolean false
-boolean y = x || true; // declares the boolean variable y and sets it the result of x or true
-def z = y || x;        // declares the def variable z and sets it to the result of y or x
+<1> boolean x = false;
+<2> boolean y = x || true;
+<3> y = false;
+<4> y = y || x;
 ----
++
+<1> declare `boolean x`;
+    store `boolean false` to `x`
+<2> declare `boolean y`;
+    load from `x` -> `boolean false`;
+    boolean or `boolean false` and `boolean true` -> `boolean true`;
+    store `boolean true` to `y`
+<3> store `boolean false` to `y`
+<4> load from `y` -> `boolean false @0`;
+    load from `x` -> `boolean false @1`;
+    boolean or `boolean false @0` and `boolean false @1` -> `boolean false`;
+    store `boolean false` to `y`
++
+* Uses of the *boolean or operator* with the `def` type.
++
+[source,Java]
+----
+<1> def x = false;
+<2> def y = x || true;
+<3> y = false;
+<4> y = y || x;
+----
++
+<1> declare `def x`;
+    implicit cast `boolean false` to `def` -> `def`;
+    store `def` to `x`
+<2> declare `def y`;
+    load from `x` -> `def`;
+    implicit cast `def` to `boolean false` -> `boolean true`;
+    boolean or `boolean false` and `boolean true` -> `boolean true`;
+    implicit cast `boolean true` to `def` -> `def`;
+    store `def` to `y`
+<3> implicit cast `boolean false` to `def` -> `def`;
+    store `def` to `y`;
+<4> load from `y` -> `def`;
+    implicit cast `def` to `boolean false @0` -> `boolean false @0`;
+    load from `x` -> `def`;
+    implicit cast `def` to `boolean false @1` -> `boolean false @1`;
+    boolean or `boolean false @0` and `boolean false @1` -> `boolean false`;
+    implicit cast `boolean false` -> `def`;
+    store `def` to `y`

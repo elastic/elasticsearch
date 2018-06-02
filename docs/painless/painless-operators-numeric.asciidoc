@@ -1101,15 +1101,13 @@ below. The right-hand side integer type value is always implicitly cast to an
 
 Use the *bitwise and operator* to bitwise and together each bit within two
 integer type values where if both bits at the same index are `1` the resultant
-bit is `1` otherwise the resultant bit is `0`.
+bit is `1` and `0` otherwise.
 
 *Errors*
 
 * If either of the evaluated values is a non-integer type.
 
 *Bits*
-
-The following table illustrates the resultant bit from the anding of two bits.
 
 [cols="^1,^1,^1"]
 |====
@@ -1181,15 +1179,13 @@ bitwise_and: expression '&' expression;
 
 Use the *bitwise xor operator* to bitwise xor together each bit within two
 integer type values where if one bit is a `1` and the other bit is a `0` at the
-same index the resultant bit is `1` otherwise the resultant bit is `0`.
+same index the resultant bit is `1` and `0` otherwise.
 
 *Errors*
 
 * If either of the evaluated values is a non-integer type.
 
 *Bits*
-
-The following table illustrates the resultant bit from the anding of two bits.
 
 [cols="^1,^1,^1"]
 |====
@@ -1261,15 +1257,13 @@ bitwise_and: expression '^' expression;
 
 Use the *bitwise or operator* to bitwise or together each bit within two integer
 type values where if at least one bit is a `1`  at the same index the resultant
-bit is `1` otherwise the resultant bit is `0`.
+bit is `1` and `0` otherwise.
 
 *Errors*
 
 * If either of the evaluated values is a non-integer type.
 
 *Bits*
-
-The following table illustrates the resultant bit from the anding of two bits.
 
 [cols="^1,^1,^1"]
 |====

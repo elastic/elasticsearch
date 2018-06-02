@@ -222,8 +222,8 @@ non-static member fields:
 
 Use the *list initialization operator* to allocate an ArrayList type value with
 a set of pre-defined values. Each value used to initialize the ArrayList type
-value is converted to a `def` type value when inserted into the ArrayList type
-value using the `add` method. The order of specified values is maintained upon
+value is cast to a `def` type value when inserted into the ArrayList type value
+using the `add` method. The order of specified values is maintained upon
 insertion.
 
 *Grammar*
@@ -311,9 +311,11 @@ method call made on a List type value.
 
 *Errors*
 
-* Use of the *list access operator* on a value that is not a List type value.
-* Use of a non-integer type value as an index for an `set` method call or `get`
-  method call.
+* If the *list access operator* is used on a value that is not a List type
+  value.
+* If a value other than an int type value or a value that is castable to an int
+  type value is provided as an index for a `set` method call or `get` method
+  call.
 
 *Grammar*
 
@@ -430,9 +432,9 @@ list_access: '[' expression ']'
 
 Use the *map initialization operator* to allocate a HashMap type value with
 a set of pre-defined values. Each pair of values used to initialize the HashMap
-type value are converted to `def` type values when inserted into the HashMap
-type value using the `put` method. The order of specified values is maintained
-upon insertion.
+type value are cast to `def` type values when inserted into the HashMap type
+value using the `put` method. The order of specified values is maintained upon
+insertion.
 
 *Grammar*
 
@@ -641,7 +643,7 @@ of parameters differs.
 
 [source,ANTLR4]
 ----
-new_instance: 'new' type '(' (expression (',' expression)*)? ')';
+new_instance: 'new' TYPE '(' (expression (',' expression)*)? ')';
 ----
 
 *Examples*

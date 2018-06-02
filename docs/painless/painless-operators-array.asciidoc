@@ -4,130 +4,289 @@
 [[array-initialization-operator]]
 ==== Array Initialization
 
-You create and initialize arrays using the brackets `[]` and braces `{}`
-operators. Each set of brackets represents a dimension. The values you want to
-initialize each dimension with are specified as a comma-separated list enclosed
-in braces. For example, `new int[] {1, 2, 3}` creates a one dimensional `int`
-array with a size of 3 and the values 1, 2, and 3.
+Use the *array initialization operator* to allocate a single-dimensional
+<<array-type, array type>> value with a set of pre-defined values. Each value
+used to initialize the array type value is cast to the specified type value when
+inserted into the array type value. The order of specified values is maintained
+upon insertion.
 
-To allocate an array, you use the `new` keyword followed by the type and a
-set of brackets for each dimension. You can explicitly define the size of each dimension by specifying an expression within the brackets, or initialize each
-dimension with the desired number of values. The allocated size of each
-dimension is its permanent size.
+*Errors*
 
-To initialize an array, specify the values you want to initialize
-each dimension with as a comma-separated list of expressions enclosed in braces.
-For example, `new int[] {1, 2, 3}` creates a one-dimensional `int` array with a
-size of 3 and the values 1, 2, and 3.
+* If a value is not castable to the specified type value.
 
-When you initialize an array, the order of the expressions is maintained. Each expression used as part of the initialization is converted to the
-array's type. An error occurs if the types do not match.
+*Grammar*
 
-*Grammar:*
 [source,ANTLR4]
 ----
-declare_array: TYPE ('[' ']')+;
-
-array_initialization: 'new' TYPE '[' ']' '{' expression (',' expression) '}'
+array_initialization: 'new' TYPE '[' ']' '{' expression_list '}'
                     | 'new' TYPE '[' ']' '{' '}';
+expression_list: expression (',' expression);
 ----
 
-*Examples:*
-[source,Java]
+*Example:*
+
+* Use of the *array initialization operator* with static values.
++
+[source,Painless]
 ----
-int[] x = new int[5];          // Declare int array x and assign it a newly
-                               //   allocated int array with a size of 5
-def[][] y = new def[5][5];     // Declare the 2-dimensional def array y and
-                               //   assign it a newly allocated 2-dimensional
-                               //   array where both dimensions have a size of 5
-int[] x = new int[] {1, 2, 3}; // Declare int array x and set it to an int
-                               //   array with values 1, 2, 3 and a size of 3
-int i = 1;
-long l = 2L;
-float f = 3.0F;
-double d = 4.0;
-String s = "5";
-def[] da = new def[] {i, l, f*d, s}; // Declare def array da and set it to
-                                     // a def array with a size of 4 and the
-                                     // values i, l, f*d, and s
+<1> int[] x = new int[] {1, 2, 3};
 ----
++
+<1> declare `int[] x`;
+    allocate `1-d int array` instance with `length [3]`
+            -> `1-d int array reference`;
+    store `int 1` to `index [0]` of `1-d int array reference`;
+    store `int 2` to `index [1]` of `1-d int array reference`;
+    store `int 3` to `index [2]` of `1-d int array reference`;
+    store `1-d int array reference` to `x`;
++
+* Use of the *array initialization operator* with non-static values.
++
+[source,Painless]
+----
+<1> int i = 1;
+<2> long l = 2L;
+<3> float f = 3.0F;
+<4> double d = 4.0;
+<5> String s = "5";
+<6> def array = new def[] {i, l, f*d, s};
+----
++
+<1> declare `int i`;
+    store `int 1` to `i`
+<2> declare `long l`;
+    store `long 2` to `l`
+<3> declare `float f`;
+    store `float 3.0` to `f`
+<4> declare `double d`;
+    store `double 4.0` to `d`
+<5> declare `String s`;
+    store `String "5"` to `s`
+<6> declare `def array`;
+    allocate `1-d def array` instance with `length [4]`
+            -> `1-d def array reference`;
+    load from `i` -> `int 1`;
+    implicit cast `int 1` to `def` -> `def`;
+    store `def` to `index [0]` of `1-d def array reference`;
+    load from `l` -> `long 2`;
+    implicit cast `long 2` to `def` -> `def`;
+    store `def` to `index [1]` of `1-d def array reference`;
+    load from `f` -> `float 3.0`;
+    load from `d` -> `double 4.0`;
+    promote `float 3.0` and `double 4.0`: result `double`;
+    implicit cast `float 3.0` to `double 3.0` -> `double 3.0`;
+    multiply `double 3.0` and `double 4.0` -> `double 12.0`;
+    implicit cast `double 12.0` to `def` -> `def`;
+    store `def` to `index [2]` of `1-d def array reference`;
+    load from `s` -> `String "5"`;
+    implicit cast `String "5"` to `def` -> `def`;
+    store `def` to `index [3]` of `1-d def array reference`;
+    implicit cast `1-d int array reference` to `def` -> `def`;
+    store `def` to `array`
 
 [[array-access-operator]]
 ==== Array Access
 
-Elements in an array are stored and accessed using the brackets `[]` operator.
-Elements are referenced by an expression enclosed in brackets. An error
-occurs if the expression used to reference an element cannot be implicitly
-cast to an `int`.
+Use the *array access operator* to store a value to or load a value from an
+<<array-type, array type>> value. Each value of an array type value is accessed
+with an int type value to specify the index to store/load. The range of values
+within an array that are accessible is `[0, size)` where size is the number of
+values specified at the time of allocation. Use a negative int type value as an
+index to access an value in reverse from the end of an array type value within a
+range of `[-size, -1]`.
 
-The range of elements within an array that can be accessed is `[0, size)` where
-size is the originally allocated size of the array. To access elements relative
-to the last element in an array, you can use a negative numeric value from
-`[-size, -1]`. An error occurs if you attempt to reference an element outside
-of the array's range.
+*Errors*
 
-*Grammar:*
+* If a value other than an int type value or a value that is castable to an int
+  type value is provided as an index.
+* If a value is accessed outside of the valid ranges.
+
+*Grammar*
+
 [source,ANTLR4]
 ----
 brace_access: '[' expression ']'
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Uses of the *array access operator*.
++
+[source,Painless]
 ----
-
-int[] x = new int[2];     // Declare int array x and set it to a newly allocated
-                          //   array with a size of 2
-x[0] = 2;                 // Set the 0th element of array x to 2
-x[1] = 5;                 // Set the 1st element of array x to 5
-int y = x[0] + x[1];      // Declare the int variable y and set it to the sum
-                          //   of the first two elements of array x
-int z = 1;                // Declare the int variable z and set it to 1
-return x[z];              // Access the 1st element of array x using the
-                          //   variable z as an expression and return the value
-
-def d = new int[2];       // Declare def variable d and set it to a newly
-                          //   allocated array with a size of 2
-d[0] = 2;                 // Set the 0th element of array d to 2
-d[1] = 5;                 // Set the 1st element of array d to 2
-def y = d[0] + d[1];      // Declare def variable y and set it to the sum
-                          //   of the first two elements of array d
-def z = 1;                // Declare def variable z and set it to 1
-return d[z];              // Access the 1st element of array d using the
-                          //   variable z as an expression and return the value
+<1> int[] x = new int[2];
+<2> x[0] = 2;
+<3> x[1] = 5;
+<4> int y = x[0] + x[1];
+<5> int z = 1;
+<6> int i = x[z];
 ----
-
-NOTE: The use of the `def` type in the second example means that the types
-cannot be resolved until runtime.
++
+<1> declare `int[] x`;
+    allocate `1-d int array` instance with `length [2]`
+            -> `1-d int array reference`;
+    store `1-d int array reference` to `x`
+<2> load from `x` -> `1-d int array reference`;
+    store `int 2` to `index [0]` of `1-d int array reference`;
+<3> load from `x` -> `1-d int array reference`;
+    store `int 5` to `index [1]` of `1-d int array reference`;
+<4> declare `int y`;
+    load from `x` -> `1-d int array reference`;
+    load from `index [0]` of `1-d int array reference` -> `int 2`;
+    load from `x` -> `1-d int array reference`;
+    load from `index [1]` of `1-d int array reference` -> `int 5`;
+    add `int 2` and `int 5` -> `int 7`;
+    store `int 7` to `y`
+<5> declare `int z`;
+    store `int 1` to `z`;
+<6> declare `int i`;
+    load from `x` -> `1-d int array reference`;
+    load from `z` -> `int 1`;
+    load from `index [1]` of `1-d int array reference` -> `int 5`;
+    store `int 5` to `i`;
++
+* Uses of the *array access operator* with the `def` type.
++
+[source,Painless]
+----
+<1> def d = new int[2];
+<2> d[0] = 2;
+<3> d[1] = 5;
+<4> def x = d[0] + d[1];
+<5> def y = 1;
+<6> def z = d[y];
+----
++
+<1> declare `def d`;
+    allocate `1-d int array` instance with `length [2]`
+            -> `1-d int array reference`;
+    implicit cast `1-d int array reference` to `def` -> `def`;
+    store `def` to `d`
+<2> load from `d` -> `def`
+    implicit cast `def` to `1-d int array reference`
+            -> `1-d int array reference`;
+    store `int 2` to `index [0]` of `1-d int array reference`;
+<3> load from `d` -> `def`
+    implicit cast `def` to `1-d int array reference`
+            -> `1-d int array reference`;
+    store `int 5` to `index [1]` of `1-d int array reference`;
+<4> declare `int x`;
+    load from `d` -> `def`
+    implicit cast `def` to `1-d int array reference`
+            -> `1-d int array reference`;
+    load from `index [0]` of `1-d int array reference` -> `int 2`;
+    load from `d` -> `def`
+    implicit cast `def` to `1-d int array reference`
+            -> `1-d int array reference`;
+    load from `index [1]` of `1-d int array reference` -> `int 5`;
+    add `int 2` and `int 5` -> `int 7`;
+    implicit cast `int 7` to `def` -> `def`;
+    store `def` to `x`
+<5> declare `def y`;
+    implicit cast `int 1` to `def` -> `def`;
+    store `def ` to `y`;
+<6> declare `int i`;
+    load from `d` -> `def`
+    implicit cast `def` to `1-d int array reference`
+            -> `1-d int array reference`;
+    load from `y` -> `def`;
+    implicit cast `def` to `int 1` -> `int 1`;
+    load from `index [1]` of `1-d int array reference` -> `int 5`;
+    implicit cast `int 5` to `def`;
+    store `def` to `z`;
++
+* Uses of the *array access operator* with a multi-dimensional array.
++
+[source,Painless]
+----
+<1> int[][][] ia3 = new int[2][3][4];
+<2> ia3[1][2][3] = 99;
+<3> int i = ia3[1][2][3];
+----
++
+<1> declare `int[][][] ia`;
+    allocate `3-d int array` instance with length `[2, 3, 4]`
+            -> `3-d int array reference`;
+    store `3-d int array reference` to `ia3`
+<2> load from `ia3` -> `3-d int array reference`;
+    store `int 99` to `index [1, 2, 3]` of `3-d int array reference`
+<3> declare `int i`;
+    load from `ia3` -> `3-d int array reference`;
+    load from `index [1, 2, 3]` of `3-d int array reference` -> `int 99`;
+    store `int 99` to `i`
 
 [[array-length-operator]]
 ==== Array Length
 
-Arrays contain a special member known as 'length' that is a read-only value that contains the size of the array.  This member can be accessed from an array using the dot operator.
+Array type values contain a read-only member field named `length`.  The field
+`length` is an int type value storing the size of the array.  Use the
+<<field-access-operator, *field access operator*>> to load the field `length`
+from an array type value.
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Use of the `length` field.
++
+[source,Painless]
 ----
-int[] x = new int[10]; // declares an int array variable x and sets it to a newly allocated array with a size of 10
-int l = x.length;      // declares and int variable l and sets it to the field length of variable x
+<1> int[] x = new int[10];
+<2> int l = x.length;
 ----
+<1> declare `int[] x`;
+    allocate `1-d int array` instance with `length [2]`
+            -> `1-d int array reference`;
+    store `1-d int array reference` to `x`
+<2> declare `int l`;
+    load `x` -> `1-d int array reference`;
+    load `length` from `1-d int array reference` -> `int 10`;
+    store `int 10` to `l`;
 
 [[new-array-operator]]
 ==== New Array
 
-An array type instance can be allocated using the new operator. The format starts with the new operator followed by the type followed by a series of opening and closing braces each containing an expression for the size of the dimension.
+Use the *new array operator* to allocate a new array type instance to the heap.
+Specify each dimension with the `[` and `]` tokens following the type name. The
+size of each dimension is specified by an int type value in between the `[` and
+`]` tokens.
 
-*Grammar:*
+*Errors*
+
+* If a value other than an int type value or a value that is castable to an int
+  type value is specified for for a dimension's size.
+
+*Grammar*
+
 [source,ANTLR4]
 ----
 new_array: 'new' TYPE ('[' expression ']')+;
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Uses of the *new array operator*.
++
+[source,Painless]
 ----
-int[] x = new int[5];      // declares an int array variable x and sets it to a newly allocated array with a size of 5
-x = new int[10];           // sets the int array variable x to a newly allocated array with a size of 10
-def[][] y = new def[5][5]; // declares a 2-dimensional def array variable y and set it to a newly
-                           // allocated 2-dimensional array where both dimensions have a size of 5
+<1> int[] x = new int[5];
+<2> x = new int[10];
+<3> int y = 2;
+<4> def z = new def[y][y*2];
 ----
++
+<1> declare `int[] x`;
+    allocate `1-d int array` instance with `length [5]`
+            -> `1-d int array reference`;
+    store `1-d int array reference` to `x`
+<2> allocate `1-d int array` instance with `length [10]`
+            -> `1-d int array reference`;
+    store `1-d int array reference` to `x`
+<3> declare `int y`;
+    store `int 2` to `y`;
+<4> declare `def z`;
+    load from `y` -> `int 2 @0`;
+    load from `y` -> `int 2 @1`;
+    multiply `int 2 @1` by `int 2 @2` -> `int 4`;
+    allocate `2-d int array` instance with length `[2, 4]`
+            -> `2-d int array reference`;
+    implicit cast `2-d int array reference` to `def` -> `def`;
+    store `def` to `z`;

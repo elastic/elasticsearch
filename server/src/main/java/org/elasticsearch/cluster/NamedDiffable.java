@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 
 /**
- * Diff that also support NamedWriteable interface
+ * Diff that also support {@link VersionedNamedWriteable} interface
  */
 public interface NamedDiffable<T> extends Diffable<T>, VersionedNamedWriteable {
 }

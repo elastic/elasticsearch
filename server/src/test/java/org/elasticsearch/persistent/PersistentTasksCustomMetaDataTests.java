@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -267,8 +268,11 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         }
         tasks.build().writeTo(out);
 
-        PersistentTasksCustomMetaData read = new PersistentTasksCustomMetaData(
-            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
+        final StreamInput input = out.bytes().streamInput();
+        input.setVersion(streamVersion);
+        PersistentTasksCustomMetaData read =
+            new PersistentTasksCustomMetaData(new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry()));
+
         Set<String> expectedIds = new HashSet<>(tasks.getCurrentTaskIds());
         expectedIds.remove("test_incompatible_version");
         assertThat(read.taskMap().keySet(), equalTo(expectedIds));

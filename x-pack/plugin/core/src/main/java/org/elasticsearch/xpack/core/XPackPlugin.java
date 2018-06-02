@@ -40,6 +40,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
@@ -329,6 +330,14 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
             return XPackClientPlugin.X_PACK_FEATURE;
         }
 
+    }
+
+    public interface XPackPersistentTaskParams extends PersistentTaskParams {
+
+        @Override
+        default Optional<String> getRequiredFeature() {
+            return XPackClientPlugin.X_PACK_FEATURE;
+        }
     }
 
 }

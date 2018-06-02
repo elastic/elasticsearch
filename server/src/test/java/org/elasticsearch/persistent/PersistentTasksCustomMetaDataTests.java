@@ -266,6 +266,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         if (randomBoolean()) {
             features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
         }
+        out.setFeatures(features);
         tasks.build().writeTo(out);
 
         final StreamInput input = out.bytes().streamInput();
@@ -273,8 +274,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetaData read =
             new PersistentTasksCustomMetaData(new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry()));
 
-        Set<String> expectedIds = new HashSet<>(tasks.getCurrentTaskIds());
-        expectedIds.remove("test_incompatible_version");
+        Set<String> expectedIds = Collections.singleton("test_compatible_version");
         assertThat(read.taskMap().keySet(), equalTo(expectedIds));
     }
 
@@ -299,8 +299,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
         PersistentTasksCustomMetaData read = new PersistentTasksCustomMetaData(
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
-        Set<String> expectedIds = new HashSet<>(tasks.getCurrentTaskIds());
-        expectedIds.remove("test_incompatible");
+        Set<String> expectedIds = Collections.singleton("test_compatible");
         assertThat(read.taskMap().keySet(), equalTo(expectedIds));
     }
 

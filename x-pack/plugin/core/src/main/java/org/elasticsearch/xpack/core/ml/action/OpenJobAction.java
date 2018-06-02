@@ -22,16 +22,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response> {
 
@@ -129,7 +127,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
     }
 
-    public static class JobParams implements PersistentTaskParams {
+    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
@@ -243,11 +241,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         public Version getMinimalSupportedVersion() {
             return Version.V_5_4_0;
-        }
-
-        @Override
-        public Optional<String> getRequiredFeature() {
-            return XPackClientPlugin.X_PACK_FEATURE;
         }
     }
 

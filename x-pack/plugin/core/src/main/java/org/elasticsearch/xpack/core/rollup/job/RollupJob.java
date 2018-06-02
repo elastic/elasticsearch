@@ -14,21 +14,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * This class is the main wrapper object that is serialized into the PersistentTask's cluster state.
  * It holds the config (RollupJobConfig) and a map of authentication headers.  Only RollupJobConfig
  * is ever serialized to the user, so the headers should never leak
  */
-public class RollupJob extends AbstractDiffable<RollupJob> implements PersistentTaskParams {
+public class RollupJob extends AbstractDiffable<RollupJob> implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final String NAME = "xpack/rollup/job";
 
@@ -117,10 +115,5 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_6_3_0;
-    }
-
-    @Override
-    public Optional<String> getRequiredFeature() {
-        return XPackClientPlugin.X_PACK_FEATURE;
     }
 }

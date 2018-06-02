@@ -157,7 +157,7 @@ public class VersionUtils {
     }
 
     /**
-     * Get the released version after {@code version}.
+     * Get the next version after {@code version}.
      */
     public static Version getNextVersion(Version version) {
         for (int i = 0; i < ALL_VERSIONS.size(); i++) {

@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.LongSupplier;
 
 public class StartDatafeedAction extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response> {
@@ -141,7 +139,7 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
         }
     }
 
-    public static class DatafeedParams implements PersistentTaskParams {
+    public static class DatafeedParams implements XPackPlugin.XPackPersistentTaskParams {
 
         public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, DatafeedParams::new);
 
@@ -237,11 +235,6 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
         @Override
         public Version getMinimalSupportedVersion() {
             return Version.V_5_4_0;
-        }
-
-        @Override
-        public Optional<String> getRequiredFeature() {
-            return XPackPlugin.X_PACK_FEATURE;
         }
 
         @Override

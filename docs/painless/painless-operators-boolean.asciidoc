@@ -1214,7 +1214,7 @@ boolean_xor: expression '^' expression;
 
 * Uses of the *boolean xor operator*.
 +
-[source,Java]
+[source,Painless]
 ----
 <1> boolean x = false;
 <2> boolean y = x ^ true;
@@ -1234,7 +1234,7 @@ boolean_xor: expression '^' expression;
 +
 * Uses of the *boolean xor operator* with the `def` type.
 +
-[source,Java]
+[source,Painless]
 ----
 <1> def x = false;
 <2> def y = x ^ true;
@@ -1290,7 +1290,7 @@ boolean_and: expression '&&' expression;
 
 * Uses of the *boolean and operator*.
 +
-[source,Java]
+[source,Painless]
 ----
 <1> boolean x = true;
 <2> boolean y = x && true;
@@ -1312,7 +1312,7 @@ boolean_and: expression '&&' expression;
 +
 * Uses of the *boolean and operator* with the `def` type.
 +
-[source,Java]
+[source,Painless]
 ----
 <1> def x = true;
 <2> def y = x && true;
@@ -1370,7 +1370,7 @@ boolean_and: expression '||' expression;
 
 * Uses of the *boolean or operator*.
 +
-[source,Java]
+[source,Painless]
 ----
 <1> boolean x = false;
 <2> boolean y = x || true;
@@ -1392,7 +1392,7 @@ boolean_and: expression '||' expression;
 +
 * Uses of the *boolean or operator* with the `def` type.
 +
-[source,Java]
+[source,Painless]
 ----
 <1> def x = false;
 <2> def y = x || true;

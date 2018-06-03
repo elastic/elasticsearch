@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.precommit
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
+import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
@@ -65,6 +66,9 @@ class PrecommitTasks {
             precommitTasks.add(configureLoggerUsage(project))
         }
 
+        if (project.path.startsWith(":x-pack:plugin")) {
+            precommitTasks.add(configureFeatureAware(project))
+        }
 
         Map<String, Object> precommitOptions = [
             name: 'precommit',
@@ -176,4 +180,20 @@ class PrecommitTasks {
 
         return loggerUsageTask
     }
+
+    private static Task configureFeatureAware(final Project project) {
+        final Task featureAwareTask = project.tasks.create('featureAwareCheck', FeatureAwareTask.class)
+
+        project.configurations.create('featureAwarePlugin')
+        project.dependencies.add(
+                'featureAwarePlugin',
+                "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+
+        featureAwareTask.configure { FeatureAwareTask fat ->
+            fat.classpath = project.configurations.featureAwarePlugin
+        }
+
+        return featureAwareTask
+    }
+
 }

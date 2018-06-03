@@ -1,0 +1,20 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compile 'org.ow2.asm:asm:6.2'
+  compile "org.elasticsearch:elasticsearch:${version}"
+  compile "org.elasticsearch.plugin:x-pack-core:${version}"
+  testCompile "org.elasticsearch.test:framework:${version}"
+}
+
+forbiddenApisMain.enabled = true
+forbiddenApisMain {
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')] // does not depend on core, only jdk signatures
+}
+
+dependencyLicenses.enabled = false
+
+jarHell.enabled = false
+thirdPartyAudit.enabled = false

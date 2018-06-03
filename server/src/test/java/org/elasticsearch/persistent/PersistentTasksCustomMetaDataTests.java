@@ -274,8 +274,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetaData read =
             new PersistentTasksCustomMetaData(new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry()));
 
-        Set<String> expectedIds = Collections.singleton("test_compatible_version");
-        assertThat(read.taskMap().keySet(), equalTo(expectedIds));
+        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
     }
 
     public void testFeatureSerialization() throws IOException {
@@ -299,8 +298,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
 
         PersistentTasksCustomMetaData read = new PersistentTasksCustomMetaData(
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
-        Set<String> expectedIds = Collections.singleton("test_compatible");
-        assertThat(read.taskMap().keySet(), equalTo(expectedIds));
+        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible")));
     }
 
     private Assignment randomAssignment() {

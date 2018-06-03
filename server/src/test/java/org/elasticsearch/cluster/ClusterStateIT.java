@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -73,7 +74,8 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = TEST)
 public class ClusterStateIT extends ESIntegTestCase {
 
-    public abstract static class Custom implements MetaData.Custom {
+    public abstract static
+    class Custom implements MetaData.Custom {
 
         private static final ParseField VALUE = new ParseField("value");
 
@@ -132,6 +134,11 @@ public class ClusterStateIT extends ESIntegTestCase {
         }
 
         @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
+        @Override
         public Optional<String> getRequiredFeature() {
             return Optional.of("node");
         }
@@ -153,6 +160,11 @@ public class ClusterStateIT extends ESIntegTestCase {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         /*

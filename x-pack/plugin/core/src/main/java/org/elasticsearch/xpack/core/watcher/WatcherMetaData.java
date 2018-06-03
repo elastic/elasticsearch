@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -36,6 +37,11 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

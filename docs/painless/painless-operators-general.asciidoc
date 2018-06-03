@@ -175,6 +175,7 @@ assignment: field '=' expression
 
 The examples use the following reference type definition:
 
+[source,Painless]
 ----
 name:
   Example

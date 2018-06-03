@@ -1,4 +1,6 @@
 [[painless-metric-agg-map-context]]
 === Metric Aggregation Map Context
 
-test
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

@@ -1,4 +1,6 @@
 [[painless-metric-agg-reduce-context]]
 === Metric Aggregation Reduce Context
 
-test
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

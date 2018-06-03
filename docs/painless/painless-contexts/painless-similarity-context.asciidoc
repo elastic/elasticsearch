@@ -1,4 +1,6 @@
 [[painless-similarity-context]]
 === Similarity Context
 
-test
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

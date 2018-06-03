@@ -1,4 +1,6 @@
 [[painless-bucket-agg-context]]
 === Bucket Aggregation Context
 
-test
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

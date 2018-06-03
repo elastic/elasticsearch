@@ -107,7 +107,7 @@ public class FeatureAwareTests extends ESTestCase {
     }
 
     public void testVersion() {
-        final Version version = VersionUtils.randomVersion(random());
+        final Version version = randomValueOtherThan(VersionUtils.getFirstVersion(), () -> VersionUtils.randomVersion(random()));
         for (final Custom custom : Arrays.asList(new NoRequiredFeatureCustom(version), new RequiredFeatureCustom(version))) {
             {
                 final BytesStreamOutput out = new BytesStreamOutput();
@@ -116,7 +116,7 @@ public class FeatureAwareTests extends ESTestCase {
                 if (custom.getRequiredFeature().isPresent()) {
                     out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
                 }
-                assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
+                assertTrue(FeatureAware.shouldSerialize(out, custom));
             }
             {
                 final BytesStreamOutput out = new BytesStreamOutput();
@@ -126,7 +126,7 @@ public class FeatureAwareTests extends ESTestCase {
                 if (custom.getRequiredFeature().isPresent() && randomBoolean()) {
                     out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
                 }
-                assertFalse(FeatureAware.shouldSerializeCustom(out, custom));
+                assertFalse(FeatureAware.shouldSerialize(out, custom));
             }
         }
     }
@@ -141,7 +141,7 @@ public class FeatureAwareTests extends ESTestCase {
             out.setVersion(afterVersion);
             assertTrue(custom.getRequiredFeature().isPresent());
             out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
-            assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
+            assertTrue(FeatureAware.shouldSerialize(out, custom));
         }
         {
             // the feature is present and the client is a transport client
@@ -149,7 +149,7 @@ public class FeatureAwareTests extends ESTestCase {
             out.setVersion(afterVersion);
             assertTrue(custom.getRequiredFeature().isPresent());
             out.setFeatures(new HashSet<>(Arrays.asList(custom.getRequiredFeature().get(), TransportClient.TRANSPORT_CLIENT_FEATURE)));
-            assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
+            assertTrue(FeatureAware.shouldSerialize(out, custom));
         }
     }
 
@@ -161,14 +161,14 @@ public class FeatureAwareTests extends ESTestCase {
             // the feature is missing but we should serialize it anyway because the client is not a transport client
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
-            assertTrue(FeatureAware.shouldSerializeCustom(out, custom));
+            assertTrue(FeatureAware.shouldSerialize(out, custom));
         }
         {
             // the feature is missing and we should not serialize it because the client is a transport client
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
             out.setFeatures(Collections.singleton(TransportClient.TRANSPORT_CLIENT_FEATURE));
-            assertFalse(FeatureAware.shouldSerializeCustom(out, custom));
+            assertFalse(FeatureAware.shouldSerialize(out, custom));
         }
     }
 

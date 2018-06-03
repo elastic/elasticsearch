@@ -130,7 +130,7 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     public enum Method {
-        GET, POST, PUT, DELETE, OPTIONS, HEAD
+        GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
     }
 
     public abstract Method method();

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -24,10 +25,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -138,7 +139,7 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
         }
     }
 
-    public static class DatafeedParams implements PersistentTaskParams {
+    public static class DatafeedParams implements XPackPlugin.XPackPersistentTaskParams {
 
         public static ObjectParser<DatafeedParams, Void> PARSER = new ObjectParser<>(TASK_NAME, DatafeedParams::new);
 
@@ -229,6 +230,11 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
         @Override
         public String getWriteableName() {
             return TASK_NAME;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
 
         @Override

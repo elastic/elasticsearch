@@ -105,7 +105,7 @@ final class ESLoggingHandler extends LoggingHandler {
                                 context.readHeaders(in);
                             }
                             // now we decode the features
-                            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
                                 in.readStringArray();
                             }
                             // now we can decode the action name

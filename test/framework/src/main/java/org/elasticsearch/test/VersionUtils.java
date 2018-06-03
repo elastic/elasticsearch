@@ -157,19 +157,6 @@ public class VersionUtils {
     }
 
     /**
-     * Get the next version after {@code version}.
-     */
-    public static Version getNextVersion(Version version) {
-        for (int i = 0; i < ALL_VERSIONS.size(); i++) {
-            Version v = ALL_VERSIONS.get(i);
-            if (v.after(version)) {
-                return v;
-            }
-        }
-        throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
-    }
-
-    /**
      * Get the released version before {@link Version#CURRENT}.
      */
     public static Version getPreviousVersion() {
@@ -235,6 +222,13 @@ public class VersionUtils {
     public static Version incompatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
         assert opt.isPresent() : "no future incompatible version for " + version;
+        return opt.get();
+    }
+
+    /** returns the first future compatible version */
+    public static Version compatibleFutureVersion(Version version) {
+        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
+        assert opt.isPresent() : "no future compatible version for " + version;
         return opt.get();
     }
 

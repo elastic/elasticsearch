@@ -59,8 +59,8 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
+import static org.elasticsearch.test.VersionUtils.compatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.getFirstVersion;
-import static org.elasticsearch.test.VersionUtils.getNextVersion;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -254,7 +254,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 randomBoolean() ? Optional.empty() : Optional.of("test")),
             randomAssignment());
         tasks.addTask("test_incompatible_version", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), getNextVersion(streamVersion), Version.CURRENT),
+            new TestParams(null, randomVersionBetween(random(), compatibleFutureVersion(streamVersion), Version.CURRENT),
                 randomBoolean() ? Optional.empty() : Optional.of("test")),
             randomAssignment());
         final BytesStreamOutput out = new BytesStreamOutput();

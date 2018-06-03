@@ -66,7 +66,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public static final String INDEX_NAME = ".security";
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
-    private Map<Action<?, ?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
+    private Map<Action<?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
 
     @Before
     public void setUpManager() {
@@ -82,8 +82,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             @Override
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-            void doExecute(Action<Request, Response, RequestBuilder> action, Request request,
+                    RequestBuilder extends ActionRequestBuilder<Request, Response>>
+            void doExecute(Action<Request, Response> action, Request request,
                            ActionListener<Response> listener) {
                 final Map<ActionRequest, ActionListener<?>> map = actions.getOrDefault(action, new HashMap<>());
                 map.put(request, listener);

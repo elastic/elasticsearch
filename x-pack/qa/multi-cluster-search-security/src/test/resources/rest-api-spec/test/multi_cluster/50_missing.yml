@@ -56,13 +56,13 @@ teardown:
   - match: { hits.total: 0 }
 
   - do:
-      catch: "request"
+      catch: "forbidden"
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
         index: "*:foo-bar"
 
   - do:
-      catch: "request"
+      catch: "forbidden"
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
         index: "my_remote_cluster:foo-bar"

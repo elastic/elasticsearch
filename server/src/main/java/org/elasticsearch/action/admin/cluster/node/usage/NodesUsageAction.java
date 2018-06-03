@@ -20,20 +20,14 @@
 package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class NodesUsageAction extends Action<NodesUsageRequest, NodesUsageResponse, NodesUsageRequestBuilder> {
+public class NodesUsageAction extends Action<NodesUsageRequest, NodesUsageResponse> {
 
     public static final NodesUsageAction INSTANCE = new NodesUsageAction();
     public static final String NAME = "cluster:monitor/nodes/usage";
 
     protected NodesUsageAction() {
         super(NAME);
-    }
-
-    @Override
-    public NodesUsageRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new NodesUsageRequestBuilder(client, this);
     }
 
     @Override

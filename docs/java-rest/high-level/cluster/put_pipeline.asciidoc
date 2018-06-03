@@ -22,8 +22,8 @@ The following arguments can optionally be provided:
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-pipeline-request-timeout]
 --------------------------------------------------
-<1> Timeout to wait for the all the nodes to acknowledge the index creation as a `TimeValue`
-<2> Timeout to wait for the all the nodes to acknowledge the index creation as a `String`
+<1> Timeout to wait for the all the nodes to acknowledge the pipeline creation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the pipeline creation as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -39,7 +39,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-pipeline-reque
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-pipeline-execute]
 --------------------------------------------------
-<1> Execute the request and get back the response in a PutPipelineResponse object.
+<1> Execute the request and get back the response in a WritePipelineResponse object.
 
 [[java-rest-high-cluster-put-pipeline-async]]
 ==== Asynchronous Execution
@@ -60,7 +60,7 @@ completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
 it failed.
 
-A typical listener for `PutPipelineResponse` looks like:
+A typical listener for `WritePipelineResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -73,7 +73,7 @@ provided as an argument
 [[java-rest-high-cluster-put-pipeline-response]]
 ==== Put Pipeline Response
 
-The returned `PutPipelineResponse` allows to retrieve information about the executed
+The returned `WritePipelineResponse` allows to retrieve information about the executed
  operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

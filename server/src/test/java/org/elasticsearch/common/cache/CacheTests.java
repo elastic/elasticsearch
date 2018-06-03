@@ -471,7 +471,7 @@ public class CacheTests extends ESTestCase {
                     keys.add(key);
                 } else {
                     // invalidate with incorrect value
-                    cache.invalidate(key, Integer.toString(key * randomIntBetween(2, 10)));
+                    cache.invalidate(key, Integer.toString(key + randomIntBetween(2, 10)));
                 }
             }
         }
@@ -506,7 +506,7 @@ public class CacheTests extends ESTestCase {
                     invalidated.add(i);
                 } else {
                     // invalidate with incorrect value
-                    cache.invalidate(i, Integer.toString(i * randomIntBetween(2, 10)));
+                    cache.invalidate(i, Integer.toString(i + randomIntBetween(2, 10)));
                 }
             }
         }

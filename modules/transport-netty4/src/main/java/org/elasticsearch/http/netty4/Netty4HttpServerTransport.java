@@ -56,6 +56,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpStats;

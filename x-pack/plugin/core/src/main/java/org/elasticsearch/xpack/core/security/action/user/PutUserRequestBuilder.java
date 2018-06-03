@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse, PutUserRequestBuilder>
+public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse>
         implements WriteRequestBuilder<PutUserRequestBuilder> {
 
     private final Hasher hasher = Hasher.BCRYPT;

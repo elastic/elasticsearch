@@ -19,17 +19,15 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -39,21 +37,17 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * This class is used to generate the Java Cluster API documentation.
@@ -193,89 +187,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testListTasks() throws IOException {
-        RestHighLevelClient client = highLevelClient();
-        {
-            // tag::list-tasks-request
-            ListTasksRequest request = new ListTasksRequest();
-            // end::list-tasks-request
-
-            // tag::list-tasks-request-filter
-            request.setActions("cluster:*"); // <1>
-            request.setNodes("nodeId1", "nodeId2"); // <2>
-            request.setParentTaskId(new TaskId("parentTaskId", 42)); // <3>
-            // end::list-tasks-request-filter
-
-            // tag::list-tasks-request-detailed
-            request.setDetailed(true); // <1>
-            // end::list-tasks-request-detailed
-
-            // tag::list-tasks-request-wait-completion
-            request.setWaitForCompletion(true); // <1>
-            request.setTimeout(TimeValue.timeValueSeconds(50)); // <2>
-            request.setTimeout("50s"); // <3>
-            // end::list-tasks-request-wait-completion
-        }
-
-        ListTasksRequest request = new ListTasksRequest();
-
-        // tag::list-tasks-execute
-        ListTasksResponse response = client.cluster().listTasks(request);
-        // end::list-tasks-execute
-
-        assertThat(response, notNullValue());
-
-        // tag::list-tasks-response-tasks
-        List<TaskInfo> tasks = response.getTasks(); // <1>
-        // end::list-tasks-response-tasks
-
-        // tag::list-tasks-response-calc
-        Map<String, List<TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
-        List<TaskGroup> groups = response.getTaskGroups(); // <2>
-        // end::list-tasks-response-calc
-
-        // tag::list-tasks-response-failures
-        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
-        List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
-        // end::list-tasks-response-failures
-
-        assertThat(response.getNodeFailures(), equalTo(emptyList()));
-        assertThat(response.getTaskFailures(), equalTo(emptyList()));
-        assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
-    }
-
-    public void testListTasksAsync() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-        {
-            ListTasksRequest request = new ListTasksRequest();
-
-            // tag::list-tasks-execute-listener
-            ActionListener<ListTasksResponse> listener =
-                    new ActionListener<ListTasksResponse>() {
-                        @Override
-                        public void onResponse(ListTasksResponse response) {
-                            // <1>
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // <2>
-                        }
-                    };
-            // end::list-tasks-execute-listener
-
-            // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::list-tasks-execute-async
-            client.cluster().listTasksAsync(request, listener); // <1>
-            // end::list-tasks-execute-async
-
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-    }
-
     public void testPutPipeline() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
@@ -302,7 +213,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::put-pipeline-request-masterTimeout
 
             // tag::put-pipeline-execute
-            PutPipelineResponse response = client.cluster().putPipeline(request); // <1>
+            WritePipelineResponse response = client.cluster().putPipeline(request); // <1>
             // end::put-pipeline-execute
 
             // tag::put-pipeline-response
@@ -326,10 +237,10 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             );
 
             // tag::put-pipeline-execute-listener
-            ActionListener<PutPipelineResponse> listener =
-                new ActionListener<PutPipelineResponse>() {
+            ActionListener<WritePipelineResponse> listener =
+                new ActionListener<WritePipelineResponse>() {
                     @Override
-                    public void onResponse(PutPipelineResponse response) {
+                    public void onResponse(WritePipelineResponse response) {
                         // <1>
                     }
 
@@ -347,6 +258,146 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-pipeline-execute-async
             client.cluster().putPipelineAsync(request, listener); // <1>
             // end::put-pipeline-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetPipeline() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
+            // tag::get-pipeline-request
+            GetPipelineRequest request = new GetPipelineRequest("my-pipeline-id"); // <1>
+            // end::get-pipeline-request
+
+            // tag::get-pipeline-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::get-pipeline-request-masterTimeout
+
+            // tag::get-pipeline-execute
+            GetPipelineResponse response = client.cluster().getPipeline(request); // <1>
+            // end::get-pipeline-execute
+
+            // tag::get-pipeline-response
+            boolean successful = response.isFound(); // <1>
+            List<PipelineConfiguration> pipelines = response.pipelines(); // <2>
+            for(PipelineConfiguration pipeline: pipelines) {
+                Map<String, Object> config = pipeline.getConfigAsMap(); // <3>
+            }
+            // end::get-pipeline-response
+
+            assertTrue(successful);
+        }
+    }
+
+    public void testGetPipelineAsync() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
+            GetPipelineRequest request = new GetPipelineRequest("my-pipeline-id");
+
+            // tag::get-pipeline-execute-listener
+            ActionListener<GetPipelineResponse> listener =
+                new ActionListener<GetPipelineResponse>() {
+                    @Override
+                    public void onResponse(GetPipelineResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-pipeline-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-pipeline-execute-async
+            client.cluster().getPipelineAsync(request, listener); // <1>
+            // end::get-pipeline-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeletePipeline() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
+            // tag::delete-pipeline-request
+            DeletePipelineRequest request = new DeletePipelineRequest("my-pipeline-id"); // <1>
+            // end::delete-pipeline-request
+
+            // tag::delete-pipeline-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::delete-pipeline-request-timeout
+
+            // tag::delete-pipeline-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::delete-pipeline-request-masterTimeout
+
+            // tag::delete-pipeline-execute
+            WritePipelineResponse response = client.cluster().deletePipeline(request); // <1>
+            // end::delete-pipeline-execute
+
+            // tag::delete-pipeline-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::delete-pipeline-response
+            assertTrue(acknowledged);
+        }
+    }
+
+    public void testDeletePipelineAsync() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createPipeline("my-pipeline-id");
+        }
+
+        {
+            DeletePipelineRequest request = new DeletePipelineRequest("my-pipeline-id");
+
+            // tag::delete-pipeline-execute-listener
+            ActionListener<WritePipelineResponse> listener =
+                new ActionListener<WritePipelineResponse>() {
+                    @Override
+                    public void onResponse(WritePipelineResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-pipeline-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-pipeline-execute-async
+            client.cluster().deletePipelineAsync(request, listener); // <1>
+            // end::delete-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

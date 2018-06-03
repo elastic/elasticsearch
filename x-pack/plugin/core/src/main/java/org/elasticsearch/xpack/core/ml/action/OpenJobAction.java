@@ -240,7 +240,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return Version.V_5_4_0;
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
     }
 

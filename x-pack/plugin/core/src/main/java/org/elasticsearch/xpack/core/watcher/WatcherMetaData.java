@@ -41,7 +41,7 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_3_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

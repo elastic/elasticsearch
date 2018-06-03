@@ -234,7 +234,7 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return Version.V_5_4_0;
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
 
         @Override

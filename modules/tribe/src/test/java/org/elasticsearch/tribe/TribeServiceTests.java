@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.MergableCustomMetaData;
 import org.elasticsearch.cluster.NamedDiff;
@@ -238,6 +239,11 @@ public class TribeServiceTests extends ESTestCase {
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
         public static MergableCustomMetaData1 readFrom(StreamInput in) throws IOException {
             return readFrom(MergableCustomMetaData1::new, in);
         }
@@ -268,6 +274,11 @@ public class TribeServiceTests extends ESTestCase {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
 
         public static MergableCustomMetaData2 readFrom(StreamInput in) throws IOException {

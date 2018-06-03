@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -993,6 +994,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
         public static SnapshottableMetadata readFrom(StreamInput in) throws IOException {
             return readFrom(SnapshottableMetadata::new, in);
         }
@@ -1022,6 +1028,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         public static NonSnapshottableMetadata readFrom(StreamInput in) throws IOException {
@@ -1054,6 +1065,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
         public static SnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
             return readFrom(SnapshottableGatewayMetadata::new, in);
         }
@@ -1082,6 +1098,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         public static NonSnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
@@ -1113,6 +1134,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         public static SnapshotableGatewayNoApiMetadata readFrom(StreamInput in) throws IOException {

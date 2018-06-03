@@ -37,10 +37,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -66,7 +66,7 @@ public class PersistentTasksService extends AbstractComponent {
      * Creates the specified persistent task and attempts to assign it to a node.
      */
     @SuppressWarnings("unchecked")
-    public <Params extends PersistentTaskParams> void startPersistentTask(String taskId, String taskName, @Nullable Params params,
+    public <Params extends PersistentTaskParams> void startPersistentTask(String taskId, String taskName, Params params,
                                                                           ActionListener<PersistentTask<Params>> listener) {
         StartPersistentTaskAction.Request createPersistentActionRequest =
                 new StartPersistentTaskAction.Request(taskId, taskName, params);

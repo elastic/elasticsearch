@@ -96,6 +96,7 @@ field_access: '.' ID;
 
 The examples use the following reference type definition:
 
+[source,Painless]
 ----
 name:
   Example
@@ -175,6 +176,7 @@ null_safe_field_access: '?.' ID;
 
 The examples use the following reference type definition:
 
+[source,Painless]
 ----
 name:
   Example

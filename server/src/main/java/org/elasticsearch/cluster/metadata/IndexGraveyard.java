@@ -97,7 +97,7 @@ public final class IndexGraveyard implements MetaData.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_0_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

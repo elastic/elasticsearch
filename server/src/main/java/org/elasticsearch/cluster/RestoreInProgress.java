@@ -385,7 +385,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_0_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {

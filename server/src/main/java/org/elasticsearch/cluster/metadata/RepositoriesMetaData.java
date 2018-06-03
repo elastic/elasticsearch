@@ -106,7 +106,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_0_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     public RepositoriesMetaData(StreamInput in) throws IOException {

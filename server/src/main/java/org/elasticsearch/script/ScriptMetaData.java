@@ -385,7 +385,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_0_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

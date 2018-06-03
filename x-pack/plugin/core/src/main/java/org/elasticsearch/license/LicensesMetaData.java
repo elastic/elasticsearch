@@ -110,7 +110,7 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_0_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

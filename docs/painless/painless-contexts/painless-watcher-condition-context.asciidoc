@@ -1,0 +1,4 @@
+[[painless-watcher-condition-context]]
+=== Watcher Condition Context
+
+test

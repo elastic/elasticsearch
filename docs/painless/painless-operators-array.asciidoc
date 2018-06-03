@@ -184,7 +184,7 @@ brace_access: '[' expression ']'
     store `def` to `x`
 <5> declare `def y`;
     implicit cast `int 1` to `def` -> `def`;
-    store `def ` to `y`;
+    store `def` to `y`;
 <6> declare `int i`;
     load from `d` -> `def`
     implicit cast `def` to `1-d int array reference`

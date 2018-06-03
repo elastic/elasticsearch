@@ -1,0 +1,4 @@
+[[painless-bucket-agg-context]]
+=== Bucket Aggregation Context
+
+test

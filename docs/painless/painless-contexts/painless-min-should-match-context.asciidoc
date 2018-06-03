@@ -1,0 +1,4 @@
+[[painless-min-should-match-context]]
+=== Minimum Should Match Context
+
+test

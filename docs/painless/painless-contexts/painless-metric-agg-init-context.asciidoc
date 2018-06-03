@@ -1,0 +1,4 @@
+[[painless-metric-agg-init-context]]
+=== Metric Aggregation Initialization Context
+
+test

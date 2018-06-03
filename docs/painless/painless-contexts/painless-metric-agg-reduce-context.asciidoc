@@ -1,0 +1,4 @@
+[[painless-metric-agg-reduce-context]]
+=== Metric Aggregation Reduce Context
+
+test

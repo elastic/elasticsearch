@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -50,6 +49,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -122,7 +122,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * @param <T>    the type of the custom
          * @return true if the custom should be serialized and false otherwise
          */
-        static <T extends NamedDiffable & FeatureAware> boolean shouldSerializeCustom(final StreamOutput out, final T custom) {
+        static <T extends VersionedNamedWriteable & FeatureAware> boolean shouldSerialize(final StreamOutput out, final T custom) {
             if (out.getVersion().before(custom.getMinimalSupportedVersion())) {
                 return false;
             }
@@ -748,13 +748,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerializeCustom(out, cursor.value)) {
+            if (FeatureAware.shouldSerialize(out, cursor.value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
         for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerializeCustom(out, cursor.value)) {
+            if (FeatureAware.shouldSerialize(out, cursor.value)) {
                 out.writeNamedWriteable(cursor.value);
             }
         }

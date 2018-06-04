@@ -61,6 +61,14 @@ final class DeadHostState implements Comparable<DeadHostState> {
     }
 
     /**
+     * The number of nanoseconds until this host should be revived.
+     * Negative values mean that we can revive the host now.
+     */
+    long nanosUntilRevival(long nowInNanos) {
+        return nowInNanos - deadUntilNanos;
+    }
+
+    /**
      * Returns the timestamp (nanos) till the host is supposed to stay dead without being retried.
      * After that the host should be retried.
      */

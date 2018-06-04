@@ -632,7 +632,7 @@ public class RestClient implements Closeable {
                 livingNodes.add(node);
                 continue;
             }
-            long nanosUntilRevival = now - deadness.getDeadUntilNanos();
+            long nanosUntilRevival = deadness.nanosUntilRevival(now);
             if (nanosUntilRevival > 0) {
                 livingNodes.add(node);
                 continue;

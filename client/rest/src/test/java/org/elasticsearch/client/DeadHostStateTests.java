@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class DeadHostStateTests extends RestClientTestCase {
 
@@ -62,6 +63,28 @@ public class DeadHostStateTests extends RestClientTestCase {
         for (int k = 1; k < deadHostStates.length; k++) {
             assertThat(deadHostStates[k - 1].getDeadUntilNanos(), lessThan(deadHostStates[k].getDeadUntilNanos()));
             assertThat(deadHostStates[k - 1], lessThan(deadHostStates[k]));
+        }
+    }
+
+    public void testNanosUntilRevival() {
+        DeadHostState deadHostState = null;
+        for (int i = 0; i < EXPECTED_TIMEOUTS_SECONDS.length; i++) {
+            long expectedTimeoutSecond = EXPECTED_TIMEOUTS_SECONDS[i];
+            long now = 0;
+            if (i == 0) {
+                deadHostState = new DeadHostState(0);
+            } else {
+                deadHostState = new DeadHostState(deadHostState, 0);
+            }
+            for (int j = 0; j < expectedTimeoutSecond; j++) {
+                now += TimeUnit.SECONDS.toNanos(1);
+                assertThat(deadHostState.nanosUntilRevival(now), lessThanOrEqualTo(0L));
+            }
+            int iters = randomIntBetween(5, 30);
+            for (int j = 0; j < iters; j++) {
+                now += TimeUnit.SECONDS.toNanos(1);
+                assertThat(deadHostState.nanosUntilRevival(now), greaterThan(0L));
+            }
         }
     }
 

@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -42,13 +41,13 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -468,19 +467,15 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
     }
 
-    private PreSyncedFlushResponse performPreSyncedFlush(PreShardSyncedFlushRequest request) throws IOException {
+    private PreSyncedFlushResponse performPreSyncedFlush(PreShardSyncedFlushRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         logger.trace("{} performing pre sync flush", request.shardId());
         indexShard.flush(flushRequest);
-        try (Engine.IndexCommitRef commitRef = indexShard.acquireLastIndexCommit(false)) {
-            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(commitRef.getIndexCommit());
-            final int numDocs = Lucene.getExactNumDocs(commitRef.getIndexCommit());
-            final Engine.CommitId commitId = new Engine.CommitId(segmentInfos.getId());
-            final String syncId = segmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
-            logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, numDocs);
-            return new PreSyncedFlushResponse(commitId, numDocs, syncId);
-        }
+        final CommitStats commitStats = indexShard.commitStats();
+        final Engine.CommitId commitId = commitStats.getRawCommitId();
+        logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
+        return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs(), commitStats.syncId());
     }
 
     private ShardSyncedFlushResponse performSyncedFlush(ShardSyncedFlushRequest request) {

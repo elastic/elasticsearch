@@ -55,6 +55,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -815,6 +816,17 @@ final class RequestConverters {
             params.putParam("cause", putIndexTemplateRequest.cause());
         }
         request.setEntity(createEntity(putIndexTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
+        String endpoint = endpoint(validateQueryRequest.indices(), validateQueryRequest.types(),"_validate/query");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.putParam("explain", Boolean.toString(validateQueryRequest.explain()));
+        params.putParam("all_shards", Boolean.toString(validateQueryRequest.allShards()));
+        params.putParam("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
+        request.setEntity(createEntity(validateQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

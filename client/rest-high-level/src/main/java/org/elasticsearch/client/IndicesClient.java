@@ -56,6 +56,8 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -1058,5 +1060,28 @@ public final class IndicesClient {
                                  ActionListener<PutIndexTemplateResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate, options,
             PutIndexTemplateResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Validate a potentially expensive query without executing it.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
+     * on elastic.co</a>
+     */
+    public ValidateQueryResponse validateQuery(ValidateQueryRequest validateQueryRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(validateQueryRequest, RequestConverters::validateQuery,
+            ValidateQueryResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously validate a potentially expensive query without executing it.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
+     * on elastic.co</a>
+     */
+    public void validateQueryAsync(ValidateQueryRequest validateQueryRequest,
+                                   ActionListener<ValidateQueryResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest, RequestConverters::validateQuery,
+            ValidateQueryResponse::fromXContent, listener, emptySet(), headers);
     }
 }

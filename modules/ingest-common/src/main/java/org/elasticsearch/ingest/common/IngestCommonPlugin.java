@@ -49,9 +49,9 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
 
     static final Map<String, String> GROK_PATTERNS = Grok.getBuiltinPatterns();
     static final Setting<TimeValue> WATCHDOG_INTERVAL =
-        Setting.timeSetting("ingest.grok.watchdog.interval", TimeValue.timeValueSeconds(3), Setting.Property.NodeScope);
+        Setting.timeSetting("ingest.grok.watchdog.interval", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
     static final Setting<TimeValue> WATCHDOG_MAX_EXECUTION_TIME =
-        Setting.timeSetting("ingest.grok.watchdog.max_execution_time", TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+        Setting.timeSetting("ingest.grok.watchdog.max_execution_time", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
 
     public IngestCommonPlugin() {
     }

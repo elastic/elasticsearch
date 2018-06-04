@@ -21,52 +21,31 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.ingest.*;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
 
 /**
- * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Cluster API.
+ * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Ingest API.
  * <p>
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
+ * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
  */
-public final class ClusterClient {
+public final class IngestClient {
+
     private final RestHighLevelClient restHighLevelClient;
 
-    ClusterClient(RestHighLevelClient restHighLevelClient) {
+    IngestClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
     }
 
     /**
-     * Updates cluster wide specific settings using the Cluster Update Settings API
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
-     * API on elastic.co</a>
-     */
-    public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
-                ClusterUpdateSettingsResponse::fromXContent, emptySet(), headers);
-    }
-
-    /**
-     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
-     * API on elastic.co</a>
-     */
-    public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
-            ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
-                ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
-    }
-
-    /**
-     * Add a pipeline or update an existing pipeline in the cluster
+     * Add a pipeline or update an existing pipeline
      * <p>
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
@@ -77,7 +56,7 @@ public final class ClusterClient {
     }
 
     /**
-     * Asynchronously add a pipeline or update an existing pipeline in the cluster
+     * Asynchronously add a pipeline or update an existing pipeline
      * <p>
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
@@ -132,5 +111,4 @@ public final class ClusterClient {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline,
             WritePipelineResponse::fromXContent, listener, emptySet(), headers);
     }
-
 }

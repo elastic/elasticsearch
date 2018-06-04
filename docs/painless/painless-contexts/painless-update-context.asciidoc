@@ -15,7 +15,7 @@ add, modify, or delete fields within a single document.
 {es_version}/mapping-routing-field.html[`ctx['_routing']`] (`String`, read-only)::
         The value used to select a shard for document storage.
 
-{es_version}/mapping-index-field.html[`ctx['_index']`] (`TYPE`, read-only)::
+{es_version}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
         The name of the index.
 
 {es_version}/mapping-type-field.html[`ctx['_type']`] (`String`, read-only)::

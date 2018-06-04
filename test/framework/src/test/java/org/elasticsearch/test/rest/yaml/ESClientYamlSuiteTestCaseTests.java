@@ -20,25 +20,14 @@ package org.elasticsearch.test.rest.yaml;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.http.HttpHost;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.ESTestCase;
 
-import static java.util.Collections.emptySet;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
 
@@ -101,57 +90,5 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
         Path file = files.iterator().next();
         assertThat(file.getFileName().toString(), equalTo(fileName));
         assertThat(file.toAbsolutePath().getParent().getFileName().toString(), equalTo(dirName));
-    }
-
-    public void testAttachSniffedMetadataOnClientOk() {
-        RestClient client = mock(RestClient.class);
-        List<Node> originalNodes = Arrays.asList(
-            new Node(new HttpHost("1")),
-            new Node(new HttpHost("2")),
-            new Node(new HttpHost("3")));
-        List<Node> nodesWithMetadata = Arrays.asList(new Node[] {
-            // This node matches exactly:
-            new Node(new HttpHost("1"), emptySet(), randomAlphaOfLength(5),
-                    randomAlphaOfLength(5), randomRoles()),
-            // This node also matches exactly but has bound hosts which don't matter:
-            new Node(new HttpHost("2"),
-                    new HashSet<>(Arrays.asList(new HttpHost("2"), new HttpHost("not2"))),
-                    randomAlphaOfLength(5), randomAlphaOfLength(5), randomRoles()),
-            // This node's host doesn't match but one of its published hosts does so
-            // we return a modified version of it:
-            new Node(new HttpHost("not3"),
-                    new HashSet<>(Arrays.asList(new HttpHost("not3"), new HttpHost("3"))),
-                    randomAlphaOfLength(5), randomAlphaOfLength(5), randomRoles()),
-            // This node isn't in the original list so it isn't added:
-            new Node(new HttpHost("4"), emptySet(), randomAlphaOfLength(5),
-                    randomAlphaOfLength(5), randomRoles()),
-        });
-        ESClientYamlSuiteTestCase.attachSniffedMetadataOnClient(client, originalNodes, nodesWithMetadata);
-        verify(client).setNodes(new Node[] {
-            nodesWithMetadata.get(0),
-            nodesWithMetadata.get(1),
-            nodesWithMetadata.get(2).withHost(new HttpHost("3")),
-        });
-    }
-
-    public void testAttachSniffedMetadataOnClientNotEnoughNodes() {
-        // Try a version of the call that should fail because it doesn't have all the results
-        RestClient client = mock(RestClient.class);
-        List<Node> originalNodes = Arrays.asList(
-            new Node(new HttpHost("1")),
-            new Node(new HttpHost("2")));
-        List<Node> nodesWithMetadata = Arrays.asList(new Node[] {
-            // This node matches exactly:
-            new Node(new HttpHost("1"), emptySet(), "n", "v", new Node.Roles(true, true, true)),
-        });
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-                ESClientYamlSuiteTestCase.attachSniffedMetadataOnClient(client, originalNodes, nodesWithMetadata));
-        assertEquals(e.getMessage(), "Didn't sniff metadata for all nodes. Wanted metadata for "
-                + "[http://1, http://2] but got [[host=http://1, bound=[], name=n, version=v, roles=mdi]]");
-        verify(client, never()).setNodes(any(Node[].class));
-    }
-
-    private Node.Roles randomRoles() {
-        return new Node.Roles(randomBoolean(), randomBoolean(), randomBoolean());
     }
 }

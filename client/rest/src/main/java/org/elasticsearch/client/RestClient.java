@@ -148,8 +148,18 @@ public class RestClient implements Closeable {
     /**
      * Replaces the nodes with which the client communicates.
      */
-    public synchronized void setNodes(Node... nodes) {
-        if (nodes == null || nodes.length == 0) {
+    public void setNodes(Node... nodes) {
+        if (nodes == null) {
+            throw new IllegalArgumentException("nodes must not be null or empty");
+        }
+        setNodes(Arrays.asList(nodes));
+    }
+
+    /**
+     * Replaces the nodes with which the client communicates.
+     */
+    public synchronized void setNodes(Collection<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
             throw new IllegalArgumentException("nodes must not be null or empty");
         }
         AuthCache authCache = new BasicAuthCache();

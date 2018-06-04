@@ -25,7 +25,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
 import org.elasticsearch.client.sniff.Sniffer.DefaultScheduler;
 import org.elasticsearch.client.sniff.Sniffer.Scheduler;
-import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -64,6 +63,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollectionOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -205,7 +205,7 @@ public class SnifferTests extends RestClientTestCase {
         int totalRuns = nodesSniffer.runs.get();
         assertEquals(iters, totalRuns);
         int setNodesRuns = totalRuns - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
-        verify(restClient, times(setNodesRuns)).setNodes(Matchers.<Node>anyVararg());
+        verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
         verifyNoMoreInteractions(restClient);
     }
 
@@ -272,7 +272,7 @@ public class SnifferTests extends RestClientTestCase {
         int totalRuns = nodesSniffer.runs.get();
         assertEquals(0, totalRuns);
         int setNodesRuns = totalRuns - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
-        verify(restClient, times(setNodesRuns)).setNodes(Matchers.<Node>anyVararg());
+        verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
         verifyNoMoreInteractions(restClient);
     }
 
@@ -417,7 +417,7 @@ public class SnifferTests extends RestClientTestCase {
 
             assertEquals(completedTasks, nodesSniffer.runs.get());
             int setNodesRuns = nodesSniffer.runs.get() - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
-            verify(restClient, times(setNodesRuns)).setNodes(Matchers.<Node>anyVararg());
+            verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
             verifyNoMoreInteractions(restClient);
         } finally {
             executor.shutdown();

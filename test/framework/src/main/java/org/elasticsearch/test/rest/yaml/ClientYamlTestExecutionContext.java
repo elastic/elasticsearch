@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,12 +57,9 @@ public class ClientYamlTestExecutionContext {
     private ClientYamlTestResponse response;
 
     private final boolean randomizeContentType;
-    private final CheckedRunnable<IOException> setNodeMetadata;
 
-    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient,
-            CheckedRunnable<IOException> setNodeMetadata, boolean randomizeContentType) {
+    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
         this.clientYamlTestClient = clientYamlTestClient;
-        this.setNodeMetadata = setNodeMetadata;
         this.randomizeContentType = randomizeContentType;
     }
 
@@ -97,10 +93,6 @@ public class ClientYamlTestExecutionContext {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
             }
-        }
-
-        if (nodeSelector != NodeSelector.ANY) {
-            setNodeMetadata.run();
         }
 
         HttpEntity entity = createEntity(bodies, requestHeaders);

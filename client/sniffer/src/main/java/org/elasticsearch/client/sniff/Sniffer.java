@@ -213,7 +213,7 @@ public class Sniffer implements Closeable {
         if (sniffedNodes.isEmpty()) {
             logger.warn("no nodes to set, nodes will be updated at the next sniffing round");
         } else {
-            restClient.setNodes(sniffedNodes.toArray(new Node[sniffedNodes.size()]));
+            restClient.setNodes(sniffedNodes);
         }
     }
 

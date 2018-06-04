@@ -33,7 +33,9 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -523,8 +525,13 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
         Node v612 = nodeWithVersion("6.1.2");
-        assertEquals(Arrays.asList(v521, v550), doSection.getApiCallSection().getNodeSelector()
-                .select(Arrays.asList(v170, v521, v550, v612)));
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(v170);
+        nodes.add(v521);
+        nodes.add(v550);
+        nodes.add(v612);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(Arrays.asList(v521, v550), nodes);
         ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
         ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
         when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),

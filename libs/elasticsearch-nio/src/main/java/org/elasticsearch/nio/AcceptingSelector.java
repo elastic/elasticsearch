@@ -48,49 +48,12 @@ public class AcceptingSelector extends ESSelector {
     @Override
     void processKey(SelectionKey selectionKey) {
         ServerChannelContext channelContext = (ServerChannelContext) selectionKey.attachment();
-        if (selectionKey.isAcceptable()) {
+        int ops = selectionKey.readyOps();
+        if ((ops & SelectionKey.OP_ACCEPT) != 0) {
             try {
                 eventHandler.acceptChannel(channelContext);
             } catch (IOException e) {
                 eventHandler.acceptException(channelContext, e);
-            }
-        }
-    }
-
-    @Override
-    void preSelect() {
-        setUpNewServerChannels();
-    }
-
-    @Override
-    void cleanup() {
-    }
-
-    /**
-     * Schedules a NioServerSocketChannel to be registered with this selector. The channel will by queued and
-     * eventually registered next time through the event loop.
-     *
-     * @param serverSocketChannel the channel to register
-     */
-    public void scheduleForRegistration(NioServerSocketChannel serverSocketChannel) {
-        ServerChannelContext context = serverSocketChannel.getContext();
-        channelsToRegister.add(context);
-        ensureSelectorOpenForEnqueuing(channelsToRegister, context);
-        wakeup();
-    }
-
-    private void setUpNewServerChannels() {
-        ServerChannelContext newChannel;
-        while ((newChannel = (ServerChannelContext) this.channelsToRegister.poll()) != null) {
-            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
-            try {
-                if (newChannel.isOpen()) {
-                    eventHandler.handleRegistration(newChannel);
-                } else {
-                    eventHandler.registrationException(newChannel, new ClosedChannelException());
-                }
-            } catch (Exception e) {
-                eventHandler.registrationException(newChannel, e);
             }
         }
     }

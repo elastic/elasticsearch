@@ -69,7 +69,7 @@ public class SocketSelector extends ESSelector {
 
     @Override
     void preSelect() {
-        setUpNewChannels();
+        super.preSelect();
         handleQueuedWrites();
     }
 
@@ -79,18 +79,6 @@ public class SocketSelector extends ESSelector {
         while ((op = queuedWrites.poll()) != null) {
             executeFailedListener(op.getListener(), new ClosedSelectorException());
         }
-    }
-
-    /**
-     * Schedules a NioSocketChannel to be registered by this selector. The channel will by queued and eventually
-     * registered next time through the event loop.
-     * @param nioSocketChannel the channel to register
-     */
-    public void scheduleForRegistration(NioSocketChannel nioSocketChannel) {
-        SocketChannelContext channelContext = nioSocketChannel.getContext();
-        channelsToRegister.offer(channelContext);
-        ensureSelectorOpenForEnqueuing(channelsToRegister, channelContext);
-        wakeup();
     }
 
 
@@ -188,28 +176,8 @@ public class SocketSelector extends ESSelector {
         }
     }
 
-    private void setUpNewChannels() {
-        SocketChannelContext channelContext;
-        while ((channelContext = (SocketChannelContext) this.channelsToRegister.poll()) != null) {
-            setupChannel(channelContext);
-        }
-    }
-
-    private void setupChannel(SocketChannelContext context) {
-        assert context.getSelector() == this : "The channel must be registered with the selector with which it was created";
-        try {
-            if (context.isOpen()) {
-                eventHandler.handleRegistration(context);
-                attemptConnect(context, false);
-            } else {
-                eventHandler.registrationException(context, new ClosedChannelException());
-            }
-        } catch (Exception e) {
-            eventHandler.registrationException(context, e);
-        }
-    }
-
-    private void attemptConnect(SocketChannelContext context, boolean connectEvent) {
+    @Override
+    protected void attemptConnect(SocketChannelContext context, boolean connectEvent) {
         try {
             eventHandler.handleConnect(context);
             if (connectEvent && context.isConnectComplete() == false) {

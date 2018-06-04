@@ -22,6 +22,7 @@ package org.elasticsearch.nio;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.CancelledKeyException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -151,12 +152,16 @@ public abstract class ESSelector implements Closeable {
      * channel registration, handling queued writes, and other work that is not specifically processing
      * a selection key.
      */
-    abstract void preSelect();
+    void preSelect() {
+        setUpNewChannels();
+    }
 
     /**
      * Called once as the selector is being closed.
      */
-    abstract void cleanup();
+    void cleanup() {
+
+    }
 
     void setThread() {
         thread = Thread.currentThread();
@@ -201,6 +206,19 @@ public abstract class ESSelector implements Closeable {
         wakeup();
     }
 
+    /**
+     * Schedules a NioChannel to be registered with this selector. The channel will by queued and
+     * eventually registered next time through the event loop.
+     *
+     * @param channel to register
+     */
+    public void scheduleForRegistration(NioChannel channel) {
+        ChannelContext<?> context = channel.getContext();
+        channelsToRegister.add(context);
+        ensureSelectorOpenForEnqueuing(channelsToRegister, context);
+        wakeup();
+    }
+
     public Selector rawSelector() {
         return selector;
     }
@@ -234,10 +252,29 @@ public abstract class ESSelector implements Closeable {
      * @param objectAdded the objected added
      * @param <O> the object type
      */
-    <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
+    private <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
         if (isOpen() == false && isOnCurrentThread() == false) {
             if (queue.remove(objectAdded)) {
                 throw new IllegalStateException("selector is already closed");
+            }
+        }
+    }
+
+    private void setUpNewChannels() {
+        ChannelContext<?> newChannel;
+        while ((newChannel = this.channelsToRegister.poll()) != null) {
+            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
+            try {
+                if (newChannel.isOpen()) {
+                    eventHandler.handleRegistration(newChannel);
+                    if (newChannel instanceof SocketChannelContext) {
+                        attemptConnect((SocketChannelContext) newChannel, false);
+                    }
+                } else {
+                    eventHandler.registrationException(newChannel, new ClosedChannelException());
+                }
+            } catch (Exception e) {
+                eventHandler.registrationException(newChannel, e);
             }
         }
     }
@@ -248,4 +285,7 @@ public abstract class ESSelector implements Closeable {
             eventHandler.handleClose(channelContext);
         }
     }
+
+    // TODO: Just to be overridden for right now
+    protected void attemptConnect(SocketChannelContext context, boolean connectEvent) {}
 }

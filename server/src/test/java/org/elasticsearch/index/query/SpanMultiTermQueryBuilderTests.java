@@ -59,7 +59,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             .endObject().endObject().endObject();
 
         mapperService.merge("_doc",
-            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE, true);
     }
 
     @Override

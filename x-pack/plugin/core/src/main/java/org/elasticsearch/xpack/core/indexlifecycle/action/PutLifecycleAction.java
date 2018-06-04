@@ -43,39 +43,6 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isAcknowledged());
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (obj.getClass() != getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(isAcknowledged(), other.isAcknowledged());
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this, true, true);
-        }
-
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -86,13 +53,13 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, name) -> LifecyclePolicy.parse(p, name), POLICY_FIELD);
         }
-        
+
         private LifecyclePolicy policy;
-        
+
         public Request(LifecyclePolicy policy) {
             this.policy = policy;
         }
-        
+
         public Request() {
         }
 

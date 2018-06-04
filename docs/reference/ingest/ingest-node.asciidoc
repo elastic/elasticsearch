@@ -1515,9 +1515,9 @@ This can be useful to reference as the built-in patterns change across versions.
 [[grok-watchdog]]
 ==== Grok watchdog
 
-Grok expression that take too long to execute are interrupted and
-the the grok processor then fails with an exception. The grok
-processor has a watchdog thread that determines when evaluation
+Grok expressions that take too long to execute are interrupted and
+the grok processor then fails with an exception. The grok
+processor has a watchdog thread that determines when evaluation of
 a grok expression takes too long and is controlled by the following
 settings:
 

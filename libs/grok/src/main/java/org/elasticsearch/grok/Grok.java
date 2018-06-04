@@ -249,7 +249,7 @@ public final class Grok {
             threadWatchdog.unregister();
         }
         if (result == Matcher.INTERRUPTED) {
-            throw new IllegalArgumentException("grok pattern matching was interrupted after [" +
+            throw new RuntimeException("grok pattern matching was interrupted after [" +
                 threadWatchdog.maxExecutionTime() + "] ms");
         } else if (result == Matcher.FAILED) {
             // TODO: I think we should throw an error here?

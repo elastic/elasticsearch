@@ -506,6 +506,10 @@ GET /index/_search?explain=true
 
 ////////////////////
 
+WARNING: For a given query, field and term, similarity scores must not decrease
+when `doc.freq`  increases and must not increase when `doc.length` decreases.
+Not obeying this rule might make Elasticsearch return wrong top hits.
+
 
 Type name: `scripted`
 

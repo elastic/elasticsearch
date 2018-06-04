@@ -28,14 +28,16 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -133,7 +135,11 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private void writeRestrictions(String trustedPattern) {
         try {
             Files.write(restrictionsTmpPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
-            Files.move(restrictionsTmpPath, restrictionsPath, StandardCopyOption.ATOMIC_MOVE);
+            try {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException e) {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }

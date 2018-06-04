@@ -40,6 +40,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -60,6 +60,8 @@ import java.util.Objects;
  * This defines the core properties and functions to operate on a field.
  */
 public abstract class MappedFieldType extends FieldType {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MappedFieldType.class));
 
     private String name;
     private float boost;
@@ -386,16 +388,14 @@ public abstract class MappedFieldType extends FieldType {
 
     public abstract Query existsQuery(QueryShardContext context);
 
-    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements,
-                             DeprecationLogger deprecationLogger) throws IOException {
-        deprecationLogger.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
-        return new MatchNoDocsQuery();
+    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        DEPRECATION_LOGGER.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
+        return new MatchNoDocsQuery("Cannot run phrase queries against fields with no terms or positions");
     }
 
-    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                  DeprecationLogger deprecationLogger) throws IOException {
-        deprecationLogger.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
-        return new MatchNoDocsQuery();
+    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        DEPRECATION_LOGGER.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
+        return new MatchNoDocsQuery("Cannot run phrase queries against fields with no terms or positions");
     }
 
     /**

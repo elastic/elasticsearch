@@ -67,8 +67,6 @@ import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQue
 
 public class MatchQuery {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MatchQuery.class));
-
     public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
@@ -364,7 +362,7 @@ public class MatchQuery {
                 }
                 throw e;
             }
-            Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements, DEPRECATION_LOGGER);
+            Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
             if (query instanceof PhraseQuery) {
                 // synonyms that expand to multiple terms can return a phrase query.
                 return blendPhraseQuery((PhraseQuery) query, mapper);
@@ -381,7 +379,7 @@ public class MatchQuery {
                 }
                 throw e;
             }
-            return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements, DEPRECATION_LOGGER);
+            return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
         }
 
         private IllegalStateException checkForPositions(String field) {

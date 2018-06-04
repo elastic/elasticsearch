@@ -624,8 +624,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements,
-                                 DeprecationLogger deprecationLogger) throws IOException {
+        public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
 
             if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
                 stream = new FixedShingleFilter(stream, 2);
@@ -653,8 +652,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                      DeprecationLogger deprecationLogger) throws IOException {
+        public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
 
             if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
                 stream = new FixedShingleFilter(stream, 2);

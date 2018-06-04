@@ -352,21 +352,38 @@ public class MatchQuery {
 
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            if (hasPositions(mapper) == false) {
-                IllegalStateException exc =
-                    new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+            IllegalStateException e = checkForPositions(field);
+            if (e != null) {
                 if (lenient) {
-                    return newLenientFieldQuery(field, exc);
-                } else {
-                    throw exc;
+                    return newLenientFieldQuery(field, e);
                 }
+                throw e;
             }
-            Query query = super.analyzePhrase(field, stream, slop);
+            Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
             if (query instanceof PhraseQuery) {
                 // synonyms that expand to multiple terms can return a phrase query.
                 return blendPhraseQuery((PhraseQuery) query, mapper);
             }
             return query;
+        }
+
+        @Override
+        protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
+            IllegalStateException e = checkForPositions(field);
+            if (e != null) {
+                if (lenient) {
+                    return newLenientFieldQuery(field, e);
+                }
+                throw e;
+            }
+            return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+        }
+
+        private IllegalStateException checkForPositions(String field) {
+            if (hasPositions(mapper) == false) {
+                return new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+            }
+            return null;
         }
 
         /**

@@ -184,6 +184,7 @@ class PrecommitTasks {
     private static Task configureFeatureAware(final Project project) {
         final Task featureAwareTask = project.tasks.create('featureAwareCheck', FeatureAwareTask.class)
 
+        // see the root Gradle file for additional logic regarding this configuration
         project.configurations.create('featureAwarePlugin')
         project.dependencies.add(
                 'featureAwarePlugin',

@@ -123,9 +123,6 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
-        }
         final Path file = path.resolve(blobName);
         try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
             Streams.copy(inputStream, outputStream);

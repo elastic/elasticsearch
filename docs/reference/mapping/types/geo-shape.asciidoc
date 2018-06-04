@@ -32,7 +32,7 @@ best tree_levels value to honor this precision. The value should be a
 number followed by an optional distance unit. Valid distance units
 include: `in`, `inch`, `yd`, `yard`, `mi`, `miles`, `km`, `kilometers`,
 `m`,`meters`, `cm`,`centimeters`, `mm`, `millimeters`.
-| `meters`
+| `50m`
 
 |`tree_levels` |Maximum number of layers to be used by the PrefixTree.
 This can be used to control the precision of shape representations and
@@ -42,7 +42,7 @@ certain level of understanding of the underlying implementation, users
 may use the `precision` parameter instead. However, Elasticsearch only
 uses the tree_levels parameter internally and this is what is returned
 via the mapping API even if you use the precision parameter.
-| `50m`
+| various
 
 |`strategy` |The strategy parameter defines the approach for how to
 represent shapes at indexing and search time. It also influences the
@@ -119,14 +119,14 @@ Geohashes are base32 encoded strings of the bits of the latitude and
 longitude interleaved. So the longer the hash, the more precise it is.
 Each character added to the geohash represents another tree level and
 adds 5 bits of precision to the geohash. A geohash represents a
-rectangular area and has 32 sub rectangles. The maximum amount of levels
-in Elasticsearch is 24.
+rectangular area and has 32 sub rectangles. The maximum number of levels
+in Elasticsearch is 24; the default is 9.
 * QuadPrefixTree - Uses a
 http://en.wikipedia.org/wiki/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
-amount of levels for the quad trees in Elasticsearch is 50.
+number of levels for the quad trees in Elasticsearch is 29; the default is 21.
 
 [[spatial-strategy]]
 [float]
@@ -175,7 +175,7 @@ PUT /example
                 "location": {
                     "type": "geo_shape",
                     "tree": "quadtree",
-                    "precision": "1m"
+                    "precision": "100m"
                 }
             }
         }
@@ -186,8 +186,8 @@ PUT /example
 // TESTSETUP
 
 This mapping maps the location field to the geo_shape type using the
-quad_tree implementation and a precision of 1m. Elasticsearch translates
-this into a tree_levels setting of 26.
+quad_tree implementation and a precision of 100m. Elasticsearch translates
+this into a tree_levels setting of 20.
 
 [float]
 ===== Performance considerations
@@ -364,7 +364,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a Polygon with a hole in WKT:
 
@@ -376,7 +375,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 *IMPORTANT NOTE:* WKT does not enforce a specific order for vertices thus
 ambiguous polygons around the dateline and poles are possible.
@@ -411,7 +409,7 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
+// TEST[catch:/mapper_parsing_exception/]
 
 An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
 order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document.  The following is an example for
@@ -425,14 +423,12 @@ POST /example/doc
         "type" : "polygon",
         "orientation" : "clockwise",
         "coordinates" : [
-            [ [-177.0, 10.0], [176.0, 15.0], [172.0, 0.0], [176.0, -15.0], [-177.0, -10.0], [-177.0, 10.0] ],
-            [ [178.2, 8.2], [-178.8, 8.2], [-180.8, -8.8], [178.2, 8.8] ]
+            [ [100.0, 0.0], [100.0, 1.0], [101.0, 1.0], [101.0, 0.0], [100.0, 0.0] ]
         ]
     }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
@@ -484,7 +480,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a list of WKT linestrings:
 
@@ -496,7 +491,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
@@ -518,7 +512,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a list of WKT polygons (second polygon contains a hole):
 
@@ -530,7 +523,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
@@ -557,7 +549,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a collection of WKT geometry objects:
 
@@ -569,7 +560,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 
 [float]
@@ -585,12 +575,11 @@ POST /example/doc
 {
     "location" : {
         "type" : "envelope",
-        "coordinates" : [ [-45.0, 45.0], [45.0, -45.0] ]
+        "coordinates" : [ [100.0, 1.0], [101.0, 0.0] ]
     }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of an envelope using the WKT BBOX format:
 
@@ -600,11 +589,10 @@ The following is an example of an envelope using the WKT BBOX format:
 --------------------------------------------------
 POST /example/doc
 {
-    "location" : "BBOX (-45.0, 45.0, 45.0, -45.0)"
+    "location" : "BBOX (100.0, 102.0, 2.0, 0.0)"
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== Circle
@@ -618,7 +606,7 @@ POST /example/doc
 {
     "location" : {
         "type" : "circle",
-        "coordinates" : [-45.0, 45.0],
+        "coordinates" : [101.0, 1.0],
         "radius" : "100m"
     }
 }

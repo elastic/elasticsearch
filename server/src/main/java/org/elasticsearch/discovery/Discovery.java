@@ -49,7 +49,6 @@ public interface Discovery extends LifecycleComponent {
 
     interface AckListener {
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);
-        void onTimeout();
     }
 
     class FailedToCommitClusterStateException extends ElasticsearchException {

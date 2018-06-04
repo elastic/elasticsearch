@@ -1,0 +1,104 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+
+description = 'JDBC driver for Elasticsearch'
+
+forbiddenApisMain {
+    // does not depend on core, so only jdk and http signatures should be checked
+    signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+/*
+ * Bundle as many of our dependencies as we can get away with into the jar.
+ * We can't currently bundle *all* dependencies into the jar, but we'd like
+ * to avoid publishing the sql shared libraries if possible. This allows that.
+ *
+ * It is possible to use configure this bundling in a bunch of different ways
+ * but this particular way generates a pom that doesn't declare the bundled
+ * dependencies as dependencies. Which is a good thing because we don't publish
+ * them and we don't want consumers to get two copies of them.
+ *
+ * We'd *like* to shade these dependencies, at least ones like jackson which we
+ * know that we can't remove entirely. But for now something like this is
+ * simpler.
+ */
+configurations {
+    bundled
+}
+sourceSets {
+    main {
+        compileClasspath += configurations.bundled
+    }
+    test {
+        compileClasspath += configurations.bundled
+    }
+}
+javadoc {
+    classpath += configurations.bundled
+}
+jar {
+    from({configurations.bundled.collect { it.isDirectory() ? it : zipTree(it) }}) {
+        // We don't need the META-INF from the things we bundle. For now.
+        exclude 'META-INF/*'
+    }
+}
+
+dependencies {
+    
+    // Eclipse doesn't know how to deal with these bundled deependencies so make them compile 
+    // dependencies if we are running in Eclipse
+    if (isEclipse) {
+        compile (xpackProject('plugin:sql:sql-shared-client')) {
+            transitive = false
+        }
+        compile (xpackProject('plugin:sql:sql-shared-proto')) {
+            transitive = false
+        }
+    } else {
+        bundled (xpackProject('plugin:sql:sql-shared-client')) {
+            transitive = false
+        }
+        bundled (xpackProject('plugin:sql:sql-shared-proto')) {
+            transitive = false
+        }
+    }
+    compile (project(':libs:x-content')) {
+        transitive = false
+    }
+    compile project(':libs:elasticsearch-core')
+    runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+
+    testCompile "org.elasticsearch.test:framework:${version}"
+}
+
+dependencyLicenses {
+    mapping from: /sql-shared-proto.*/, to: 'elasticsearch'
+    mapping from: /sql-shared-client.*/, to: 'elasticsearch'
+    mapping from: /jackson-.*/, to: 'jackson'
+    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+    ignoreSha 'sql-shared-proto'
+    ignoreSha 'sql-shared-client'
+    ignoreSha 'elasticsearch'
+}
+
+/*
+ * Temporary zip file to make the jdbc driver more usable during the 6.3
+ * release. We'd like to remove this in future releases when the jdbc driver
+ * bundles or shades all of its dependencies. But for now this should help
+ * non-maven jdbc users, specifically those folks using BI tools.
+ */
+task zipWithDependencies(type: Zip) {
+    from configurations.runtime
+    from configurations.runtime.artifacts.files
+    baseName 'elasticsearch-jdbc-with-dependencies'
+    into "elasticsearch-jdbc-with-dependencies-$version"
+}
+assemble.dependsOn zipWithDependencies
+
+// Use the jar for testing so the tests are more "real"
+test {
+    classpath -= compileJava.outputs.files
+    classpath += jar.outputs.files
+    dependsOn jar
+}

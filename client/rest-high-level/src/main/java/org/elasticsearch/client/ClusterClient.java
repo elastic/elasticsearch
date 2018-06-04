@@ -23,6 +23,11 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 
 import java.io.IOException;
 
@@ -48,7 +53,7 @@ public final class ClusterClient {
      */
     public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
             throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, emptySet(), headers);
     }
 
@@ -60,7 +65,75 @@ public final class ClusterClient {
      */
     public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Add a pipeline or update an existing pipeline in the cluster
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     */
+    public WritePipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline,
+            WritePipelineResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously add a pipeline or update an existing pipeline in the cluster
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
+     */
+    public void putPipelineAsync(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
+            WritePipelineResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Get an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
+     */
+    public GetPipelineResponse getPipeline(GetPipelineRequest request, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline,
+            GetPipelineResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously get an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
+     */
+    public void getPipelineAsync(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline,
+            GetPipelineResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Delete an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
+     *     Delete Pipeline API on elastic.co</a>
+     */
+    public WritePipelineResponse deletePipeline(DeletePipelineRequest request, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::deletePipeline,
+            WritePipelineResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously delete an existing pipeline
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
+     *     Delete Pipeline API on elastic.co</a>
+     */
+    public void deletePipelineAsync(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline,
+            WritePipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 }

@@ -1,55 +1,8 @@
 ---
-"Index data and search on the upgraded cluster":
- - do:
-     cluster.health:
-        wait_for_status: green
-        wait_for_nodes: 2
-        # wait for long enough that we give delayed unassigned shards to stop being delayed
-        timeout: 70s
-        level: shards
-        index: test_index,index_with_replicas,empty_index
-
- - do:
-     search:
-       index: test_index
-
- - match: { hits.total: 10 } # no new indexed data, so expect the original 10 documents from the old and mixed clusters
-
- - do:
-     search:
-       index: index_with_replicas
-
- - match: { hits.total: 5 } # just check we recovered fine
-
- - do:
-     bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v1_upgraded", "f2": 10}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v2_upgraded", "f2": 11}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v3_upgraded", "f2": 12}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v4_upgraded", "f2": 13}'
-          - '{"index": {"_index": "test_index", "_type": "doc"}}'
-          - '{"f1": "v5_upgraded", "f2": 14}'
-
- - do:
-     indices.refresh:
-        index: test_index
-
- - do:
-     search:
-        index: test_index
-
- - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
-
----
 "Verify that we can still find things with the template":
   - do:
       search_template:
+        index: test_search_template
         body:
           id: test_search_template
           params:

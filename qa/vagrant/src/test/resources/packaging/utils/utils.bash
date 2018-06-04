@@ -254,6 +254,7 @@ clean_before_test() {
                             "/etc/sysconfig/elasticsearch"  \
                             "/var/run/elasticsearch"  \
                             "/usr/share/doc/elasticsearch" \
+                            "/usr/share/doc/elasticsearch-oss" \
                             "/tmp/elasticsearch" \
                             "/usr/lib/systemd/system/elasticsearch.conf" \
                             "/usr/lib/tmpfiles.d/elasticsearch.conf" \
@@ -288,20 +289,20 @@ clean_before_test() {
 purge_elasticsearch() {
     # Removes RPM package
     if is_rpm; then
-        rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
+        rpm --quiet -e $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     if [ -x "`which yum 2>/dev/null`" ]; then
-        yum remove -y elasticsearch > /dev/null 2>&1 || true
+        yum remove -y $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     # Removes DEB package
     if is_dpkg; then
-        dpkg --purge elasticsearch > /dev/null 2>&1 || true
+        dpkg --purge $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     if [ -x "`which apt-get 2>/dev/null`" ]; then
-        apt-get --quiet --yes purge elasticsearch > /dev/null 2>&1 || true
+        apt-get --quiet --yes purge $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 }
 
@@ -458,6 +459,13 @@ debug_collect_logs() {
     echo "Testing if ES ports are open:"
     describe_port 127.0.0.1 9200
     describe_port 127.0.0.1 9201
+}
+
+set_debug_logging() {
+    if [ "$ESCONFIG" ] && [ -d "$ESCONFIG" ] && [ -f /etc/os-release ] && (grep -qi suse /etc/os-release); then
+        echo 'logger.org.elasticsearch.indices: DEBUG' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.gateway: TRACE' >> "$ESCONFIG/elasticsearch.yml"
+    fi
 }
 
 # Waits for Elasticsearch to reach some status.

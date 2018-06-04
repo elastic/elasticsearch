@@ -42,7 +42,7 @@ public class ClusterRerouteRequestBuilder
     }
 
     /**
-     * Sets a dry run flag (defaults to <tt>false</tt>) allowing to run the commands without
+     * Sets a dry run flag (defaults to {@code false}) allowing to run the commands without
      * actually applying them to the cluster state, and getting the resulting cluster state back.
      */
     public ClusterRerouteRequestBuilder setDryRun(boolean dryRun) {
@@ -51,7 +51,7 @@ public class ClusterRerouteRequestBuilder
     }
 
     /**
-     * Sets the explain flag (defaults to <tt>false</tt>). If true, the
+     * Sets the explain flag (defaults to {@code false}). If true, the
      * request will include an explanation in addition to the cluster state.
      */
     public ClusterRerouteRequestBuilder setExplain(boolean explain) {
@@ -60,7 +60,7 @@ public class ClusterRerouteRequestBuilder
     }
 
     /**
-     * Sets the retry failed flag (defaults to <tt>false</tt>). If true, the
+     * Sets the retry failed flag (defaults to {@code false}). If true, the
      * request will retry allocating shards that can't currently be allocated due to too many allocation failures.
      */
     public ClusterRerouteRequestBuilder setRetryFailed(boolean retryFailed) {

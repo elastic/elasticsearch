@@ -1,0 +1,221 @@
+---
+setup:
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-meta
+        type: doc
+        id: filter_imposter-filter
+        body: >
+          {
+            "filter_id": "imposter",
+            "items": ["a", "b"],
+            "type": "imposter"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      xpack.ml.put_filter:
+        filter_id: filter-foo
+        body:  >
+          {
+            "items": ["abc", "xyz"]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      xpack.ml.put_filter:
+        filter_id: filter-foo2
+        body:  >
+          {
+            "items": ["123", "lmnop"]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh: {}
+
+---
+"Test get filter API with bad ID":
+
+  - do:
+      catch: missing
+      xpack.ml.get_filters:
+        filter_id: "do_not_exist"
+
+---
+"Test get filter API":
+
+  - do:
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+
+  - match: { count:   1 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+---
+"Test get filters API":
+
+  - do:
+      xpack.ml.get_filters: {}
+
+  - match: { count:   2 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+  - match:
+      filters.1:
+        filter_id: "filter-foo2"
+        items: ["123", "lmnop"]
+
+  - do:
+      xpack.ml.get_filters:
+        from: 1
+        size: 1
+
+  - match: { count:   1 }
+
+---
+"Test invalid param combinations":
+
+  - do:
+      catch: bad_request
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+        from: 0
+
+  - do:
+      catch: bad_request
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+        size: 1
+
+  - do:
+      catch: bad_request
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+        from: 0
+        size: 1
+---
+"Test create filter api":
+  - do:
+      xpack.ml.put_filter:
+        filter_id: filter-foo2
+        body:  >
+          {
+            "items": ["abc", "xyz"]
+          }
+
+  - match: { acknowledged: true }
+
+  - do:
+      xpack.ml.get_filters:
+        filter_id: "filter-foo2"
+
+  - match: { count:   1 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo2"
+        items: ["abc", "xyz"]
+
+---
+"Test create filter api with mismatching body ID":
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.ml.put_filter:
+        filter_id: "uri_id"
+        body:  >
+          {
+            "filter_id": "body_id",
+            "items": ["abc", "xyz"]
+          }
+
+---
+"Test delete in-use filter":
+  - do:
+      xpack.ml.put_job:
+        job_id: filter-crud
+        body:  >
+          {
+            "job_id":"filter-crud",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "3600s",
+                "detectors" :[{"function":"mean","field_name":"responsetime", "by_field_name": "airline",
+                  "rules": [
+                    {
+                      "conditions": [
+                        {
+                          "type": "categorical",
+                          "field_name": "airline",
+                          "filter_id": "filter-foo"
+                        }
+                      ]
+                    }
+                  ]}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - do:
+      catch: conflict
+      xpack.ml.delete_filter:
+        filter_id: "filter-foo"
+
+---
+"Test non-existing filter":
+  - do:
+      catch: missing
+      xpack.ml.delete_filter:
+        filter_id: "does_not_exist"
+
+---
+"Test valid delete filter":
+
+  - do:
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+
+  - match: { count:   1 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+  - do:
+      xpack.ml.delete_filter:
+        filter_id: "filter-foo"
+
+  - do:
+      catch: missing
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+
+---
+"Test get all filter given no filter exists":
+
+  - do:
+      xpack.ml.delete_filter:
+        filter_id: "filter-foo"
+
+  - do:
+      xpack.ml.delete_filter:
+        filter_id: "filter-foo2"
+
+  - do:
+      xpack.ml.get_filters: {}
+  - match: { count: 0 }
+  - match: { filters: [] }

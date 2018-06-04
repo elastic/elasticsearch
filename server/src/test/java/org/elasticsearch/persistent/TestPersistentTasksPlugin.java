@@ -19,6 +19,7 @@
 
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -33,9 +34,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -51,6 +50,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -59,8 +60,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,6 +68,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -100,12 +100,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class,
-                        PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new),
-                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
-                        PersistentTasksCustomMetaData::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE,
-                        PersistentTasksCustomMetaData::readDiffFrom),
                 new NamedWriteableRegistry.Entry(Task.Status.class, TestPersistentTasksExecutor.NAME, Status::new)
         );
     }
@@ -113,8 +107,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
-                        PersistentTasksCustomMetaData::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TestPersistentTasksExecutor.NAME),
                         TestParams::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TestPersistentTasksExecutor.NAME), Status::fromXContent)
@@ -130,6 +122,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
         }
 
+        private final Version minVersion;
+        private final Optional<String> feature;
+
         private String executorNodeAttr = null;
 
         private String responseNode = null;
@@ -137,17 +132,25 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         private String testParam = null;
 
         public TestParams() {
-
+            this((String)null);
         }
 
         public TestParams(String testParam) {
+            this(testParam, Version.CURRENT, Optional.empty());
+        }
+
+        public TestParams(String testParam, Version minVersion, Optional<String> feature) {
             this.testParam = testParam;
+            this.minVersion = minVersion;
+            this.feature = feature;
         }
 
         public TestParams(StreamInput in) throws IOException {
             executorNodeAttr = in.readOptionalString();
             responseNode = in.readOptionalString();
             testParam = in.readOptionalString();
+            minVersion = Version.readVersion(in);
+            feature = Optional.ofNullable(in.readOptionalString());
         }
 
         @Override
@@ -176,6 +179,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             out.writeOptionalString(executorNodeAttr);
             out.writeOptionalString(responseNode);
             out.writeOptionalString(testParam);
+            Version.writeVersion(minVersion, out);
+            out.writeOptionalString(feature.orElse(null));
         }
 
         @Override
@@ -203,6 +208,16 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         @Override
         public int hashCode() {
             return Objects.hash(executorNodeAttr, responseNode, testParam);
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return minVersion;
+        }
+
+        @Override
+        public Optional<String> getRequiredFeature() {
+            return feature;
         }
     }
 
@@ -370,7 +385,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends Action<TestTasksRequest, TestTasksResponse, TestTasksRequestBuilder> {
+    public static class TestTaskAction extends Action<TestTasksRequest, TestTasksResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/persistent/task_test";
@@ -382,11 +397,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         @Override
         public TestTasksResponse newResponse() {
             return new TestTasksResponse();
-        }
-
-        @Override
-        public TestTasksRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-            return new TestTasksRequestBuilder(client);
         }
     }
 

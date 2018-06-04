@@ -606,7 +606,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns this interval in which the shards of this index are asynchronously refreshed. <tt>-1</tt> means async refresh is disabled.
+     * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;

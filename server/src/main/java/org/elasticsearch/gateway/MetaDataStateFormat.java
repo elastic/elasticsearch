@@ -90,7 +90,7 @@ public abstract class MetaDataStateFormat<T> {
      * Writes the given state to the given directories. The state is written to a
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
-     * it's target filename of the pattern <tt>{prefix}{version}.st</tt>.
+     * it's target filename of the pattern {@code {prefix}{version}.st}.
      *
      * @param state the state object to write
      * @param locations the locations where the state should be written to.
@@ -141,9 +141,10 @@ public abstract class MetaDataStateFormat<T> {
                 Path finalPath = stateLocation.resolve(fileName);
                 try {
                     Files.copy(finalStatePath, tmpPath);
+                    IOUtils.fsync(tmpPath, false); // fsync the state file
                     // we are on the same FileSystem / Partition here we can do an atomic move
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
-                    IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
+                    IOUtils.fsync(stateLocation, true);
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }

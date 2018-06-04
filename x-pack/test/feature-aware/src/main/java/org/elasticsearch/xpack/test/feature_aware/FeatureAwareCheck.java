@@ -94,7 +94,7 @@ public final class FeatureAwareCheck {
     }
 
     /**
-     * Represents a feature-aware violation
+     * Represents a feature-aware violation.
      */
     static class FeatureAwareViolation {
 

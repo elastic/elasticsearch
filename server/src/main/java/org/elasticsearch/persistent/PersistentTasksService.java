@@ -69,7 +69,7 @@ public class PersistentTasksService extends AbstractComponent {
      */
     public <Params extends PersistentTaskParams> void sendStartRequest(final String taskId,
                                                                        final String taskName,
-                                                                       final @Nullable Params taskParams,
+                                                                       final Params taskParams,
                                                                        final ActionListener<PersistentTask<Params>> listener) {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener =

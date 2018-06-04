@@ -17,12 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.Version;
 
 /**
- * Diff that also support {@link VersionedNamedWriteable} interface
+ * A {@link NamedWriteable} that has a minimum version associated with it.
  */
-public interface NamedDiffable<T> extends Diffable<T>, VersionedNamedWriteable {
+public interface VersionedNamedWriteable extends NamedWriteable {
+
+    /**
+     * Returns the name of the writeable object
+     */
+    String getWriteableName();
+
+    /**
+     * The minimal version of the recipient this object can be sent to
+     */
+    Version getMinimalSupportedVersion();
 }

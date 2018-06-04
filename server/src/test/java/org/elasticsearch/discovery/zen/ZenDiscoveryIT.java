@@ -240,6 +240,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
 
         @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
+        @Override
         public EnumSet<MetaData.XContentContext> context() {
             return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
         }

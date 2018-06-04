@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -115,21 +116,21 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
             ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-                    waitForDatafeedStarted(persistentTask.getId(), params, listener);
-                }
+                        @Override
+                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                            waitForDatafeedStarted(persistentTask.getId(), params, listener);
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        logger.debug("datafeed already started", e);
-                        e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
-                                "] because it has already been started", RestStatus.CONFLICT);
-                    }
-                    listener.onFailure(e);
-                }
-            };
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof ResourceAlreadyExistsException) {
+                                logger.debug("datafeed already started", e);
+                                e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
+                                        "] because it has already been started", RestStatus.CONFLICT);
+                            }
+                            listener.onFailure(e);
+                        }
+                    };
 
             // Verify data extractor factory can be created, then start persistent task
             MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
@@ -144,23 +145,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         ActionListener.wrap(
                                 response -> {
                                     if (response.isViolated()) {
-                                        String message = "Cannot start datafeed [" + datafeed.getId() + "] as it is configured to use "
-                                                + "indices on a remote cluster [" + response.get().getClusterName()
-                                                + "] that is not licensed for Machine Learning. "
-                                                + MlRemoteLicenseChecker.buildErrorMessage(response.get());
-
-                                        listener.onFailure(new ElasticsearchException(message));
+                                        listener.onFailure(createUnlicensedError(datafeed.getId(), response));
                                     } else {
                                         createDataExtractor(job, datafeed, params, waitForTaskListener);
                                     }
                                 },
-                                e -> {
-                                    String message = "Cannot start datafeed [" + datafeed.getId() + "] as it is configured to use "
-                                            + "indices on a remote cluster" + datafeed.getRemoteIndices()
-                                            + " and the license type could not be verified";
-                                    ElasticsearchException wrappedException = new ElasticsearchException(message, e);
-                                    listener.onFailure(wrappedException);
-                                }));
+                                e -> listener.onFailure(createUnknownLicenseError(datafeed.getId(), datafeed.getRemoteIndices(), e))
+                        ));
             } else {
                 createDataExtractor(job, datafeed, params, waitForTaskListener);
             }
@@ -192,28 +183,28 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         DatafeedPredicate predicate = new DatafeedPredicate();
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, params.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-                if (predicate.exception != null) {
-                    // We want to return to the caller without leaving an unassigned persistent task, to match
-                    // what would have happened if the error had been detected in the "fast fail" validation
-                    cancelDatafeedStart(persistentTask, predicate.exception, listener);
-                } else {
-                    listener.onResponse(new StartDatafeedAction.Response(true));
-                }
-            }
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                        if (predicate.exception != null) {
+                            // We want to return to the caller without leaving an unassigned persistent task, to match
+                            // what would have happened if the error had been detected in the "fast fail" validation
+                            cancelDatafeedStart(persistentTask, predicate.exception, listener);
+                        } else {
+                            listener.onResponse(new StartDatafeedAction.Response(true));
+                        }
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
 
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                listener.onFailure(new ElasticsearchException("Starting datafeed ["
-                        + params.getDatafeedId() + "] timed out after [" + timeout + "]"));
-            }
-        });
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        listener.onFailure(new ElasticsearchException("Starting datafeed ["
+                                + params.getDatafeedId() + "] timed out after [" + timeout + "]"));
+                    }
+                });
     }
 
     private void cancelDatafeedStart(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
@@ -235,6 +226,25 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     }
                 }
         );
+    }
+
+    private ElasticsearchStatusException createUnlicensedError(String datafeedId,
+                                                               MlRemoteLicenseChecker.LicenseViolation licenseViolation) {
+        String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use "
+                + "indices on a remote cluster [" + licenseViolation.get().getClusterName()
+                + "] that is not licensed for Machine Learning. "
+                + MlRemoteLicenseChecker.buildErrorMessage(licenseViolation.get());
+
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private ElasticsearchStatusException createUnknownLicenseError(String datafeedId, List<String> remoteIndices,
+                                                                   Exception cause) {
+        String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use"
+                + " indices on a remote cluster " + remoteIndices
+                + " but the license type could not be verified";
+
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
     }
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<StartDatafeedAction.DatafeedParams> {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle.action;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +21,8 @@ public class RestRetryAction extends BaseRestHandler {
 
     public RestRetryAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, IndexLifecycle.BASE_PATH + "_retry/{index}", this);
+        controller.registerHandler(RestRequest.Method.POST, "_" + IndexLifecycle.NAME + "/retry", this);
+        controller.registerHandler(RestRequest.Method.POST, "{index}/_" + IndexLifecycle.NAME + "/retry", this);
     }
 
     @Override
@@ -34,6 +36,8 @@ public class RestRetryAction extends BaseRestHandler {
         RetryAction.Request request = new RetryAction.Request(indices);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.indices(indices);
+        request.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         return channel -> client.execute(RetryAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

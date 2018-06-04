@@ -65,7 +65,7 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
         // dedicated master + 1 primary + 1 replica
         cluster = internalCluster();
         masterName = cluster.startMasterOnlyNode();
-        primaryNodeName = cluster.startDataOnlyNode();
+        List<String> nodeNames = cluster.startDataOnlyNodes(2);
 
         assertAcked(admin().indices()
             .create(createIndexRequest(index)
@@ -75,18 +75,18 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
             .get());
 
 
-        client = cluster.client(primaryNodeName);
+        client = cluster.client();
 
-        // create index in advance to have allocate primary
+        //  force the primary to be fully allocated before starting the replica
         client.prepareIndex(index, type, "d").setSource("{ }", XContentType.JSON).get();
-
-        replicaNodeName = cluster.startDataOnlyNode();
-
-        ensureStableCluster(3);
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index(index).shard(0).primaryShard().currentNodeId();
-        assertThat(clusterState.getRoutingNodes().node(nodeId).node().getName(), is(primaryNodeName));
+        primaryNodeName = clusterState.getRoutingNodes().node(nodeId).node().getName();
+
+        client = cluster.client(primaryNodeName);
+
+        replicaNodeName = nodeNames.stream().filter(name -> !name.equals(primaryNodeName)).findFirst().get();
     }
 
     /**
@@ -113,7 +113,6 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
         final CountDownLatch prestartLatch = new CountDownLatch(1 + docs);
         final CountDownLatch startLatch = new CountDownLatch(1);
         final CountDownLatch sendSecondDocLatch = new CountDownLatch(1);
-        final CountDownLatch finishLatch = new CountDownLatch(1 + docs);
 
         AtomicInteger bulkMessagesCounter = new AtomicInteger();
 
@@ -146,7 +145,8 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
         });
 
         final List<IndexResponse> indexResponses = new CopyOnWriteArrayList<>();
-        new Thread(() -> {
+        Thread[] threads = new Thread[docs + 1];
+        threads[0] = new Thread(() -> {
             try {
                 prestartLatch.countDown();
                 startLatch.await();
@@ -156,15 +156,13 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
                 indexResponses.add(indexResponse);
             } catch (InterruptedException e) {
                 // ignore
-            } finally {
-                finishLatch.countDown();
             }
-        }).start();
+        });
 
         for(int i = 0; i < docs; i++) {
             IndexRequestBuilder builder = client.prepareIndex(index, type, "doc_" + i)
                 .setSource("{ \"f\": \"normal\"}", XContentType.JSON);
-            new Thread(() -> {
+            threads[i + 1] = new Thread(() -> {
                 try {
                     prestartLatch.countDown();
                     sendSecondDocLatch.await();
@@ -173,15 +171,21 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
                     indexResponses.add(indexResponse);
                 } catch (InterruptedException e) {
                     // ignore
-                } finally {
-                    finishLatch.countDown();
                 }
-            }).start();
+            });
+        }
+
+        for (int i = 0; i < threads.length; i++) {
+            threads[i].setName("index-" + i);
+            threads[i].start();
         }
 
         prestartLatch.await();
         startLatch.countDown();
-        finishLatch.await();
+
+        for (int i = 0; i < threads.length; i++) {
+            threads[i].join();
+        }
 
         List<String> failureMessages = indexResponses.stream()
             .map(r -> r.getShardInfo().getFailures())

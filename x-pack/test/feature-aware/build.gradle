@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 
 dependencies {
@@ -10,11 +8,9 @@ dependencies {
 }
 
 forbiddenApisMain.enabled = true
-forbiddenApisMain {
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')] // does not depend on core, only jdk signatures
-}
 
 dependencyLicenses.enabled = false
 
 jarHell.enabled = false
+
 thirdPartyAudit.enabled = false

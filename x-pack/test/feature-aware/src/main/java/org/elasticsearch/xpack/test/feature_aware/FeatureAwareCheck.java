@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.test.feature_aware;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.objectweb.asm.ClassReader;
@@ -68,7 +69,7 @@ public final class FeatureAwareCheck {
             final Consumer<FeatureAwareViolation> callback,
             final String... classDirectories) throws IOException {
         for (final String classDirectory : classDirectories) {
-            final Path root = Paths.get(classDirectory);
+            final Path root = pathsGet(classDirectory);
             if (Files.isDirectory(root)) {
                 Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
                     @Override
@@ -85,6 +86,11 @@ public final class FeatureAwareCheck {
                 throw new FileNotFoundException("class directory [" + classDirectory + "] should exist");
             }
         }
+    }
+
+    @SuppressForbidden(reason = "Paths#get")
+    private static Path pathsGet(final String pathString) {
+        return Paths.get(pathString);
     }
 
     /**

@@ -95,7 +95,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     }
 
     @Override
-    public boolean equals(Object other) {
+    public boolean equals(final Object other) {
         if (this == other)
             return true;
         if (other == null)
@@ -106,8 +106,8 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         return Objects.equals(otherKerbToken.principal(), principal()) && Objects.equals(otherKerbToken.credentials(), credentials());
     }
 
-    private static ElasticsearchSecurityException unauthorized(String message, Throwable cause, Object... args) {
-        ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, args);
+    private static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
+        ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
         ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER);
         return ese;
     }

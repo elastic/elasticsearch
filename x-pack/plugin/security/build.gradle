@@ -148,8 +148,6 @@ dependencyLicenses {
 licenseHeaders {
     // This class was sourced from apache directory studio for some microsoft-specific logic
     excludes << 'org/elasticsearch/xpack/security/authc/ldap/ActiveDirectorySIDUtil.java'
-    // This class was sourced from Hadoop as a wrapper around Apache DS, used only for tests
-    excludes << 'org/elasticsearch/xpack/security/authc/kerberos/support/MiniKdc.java'
 }
 
 forbiddenPatterns {

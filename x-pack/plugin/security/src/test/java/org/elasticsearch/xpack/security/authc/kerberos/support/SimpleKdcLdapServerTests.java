@@ -6,54 +6,47 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos.support;
 
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.SearchResult;
+import com.unboundid.ldap.sdk.SearchScope;
+
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTicketValidator;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSName;
-import org.junit.After;
-import org.junit.Before;
 
-import java.io.IOException;
-import java.nio.file.Path;
+import java.nio.file.Files;
+import java.security.AccessController;
 import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 
 import javax.security.auth.login.LoginException;
 
-/**
- * Tests MiniKdc and framework around it.
- */
-public class MiniKdcTests extends KerberosTestCase {
+public class SimpleKdcLdapServerTests extends KerberosTestCase {
 
-    private Settings settings;
-    private String serviceUserName;
-    private String clientUserName;
-    private Settings globalSettings;
-    private Path dir;
+    public void testPrincipalCreationAndSearchOnLdap() throws Exception {
+        simpleKdcLdapServer.createPrincipal(workDir.resolve("p1p2.keytab"), "p1", "p2");
+        assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
+        LDAPConnection ldapConn = AccessController.doPrivileged(new PrivilegedExceptionAction<LDAPConnection>() {
 
-    @Before
-    public void setup() throws Exception {
-        dir = createTempDir();
-        globalSettings = Settings.builder().put("path.home", dir).build();
-        serviceUserName = "HTTP/" + randomAlphaOfLength(10);
-        Path ktabPathForService = createPrincipalKeyTab(dir, serviceUserName);
-        settings = buildKerberosRealmSettings(ktabPathForService.toString());
-        clientUserName = "client-" + randomAlphaOfLength(10);
-        createPrincipal(clientUserName, "pwd".toCharArray());
-    }
-
-    @After
-    public void cleanup() throws IOException {
+            @Override
+            public LDAPConnection run() throws Exception {
+                return new LDAPConnection("localhost", simpleKdcLdapServer.getLdapListenPort());
+            }
+        });
+        assertTrue(ldapConn.isConnected());
+        SearchResult sr = ldapConn.search("dc=example,dc=com", SearchScope.SUB, "(uid=p1)");
+        assertEquals(1, sr.getEntryCount());
     }
 
     public void testClientServiceMutualAuthentication() throws PrivilegedActionException, GSSException, LoginException {
+        final String serviceUserName = randomFrom(serviceUserNames);
         // Client login and init token preparation
+        final String clientUserName = randomFrom(clientUserNames);
         final SpnegoClient spnegoClient =
                 new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName(serviceUserName));
         final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();

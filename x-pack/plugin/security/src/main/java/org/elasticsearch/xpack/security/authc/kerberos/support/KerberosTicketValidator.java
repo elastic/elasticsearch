@@ -101,7 +101,8 @@ public class KerberosTicketValidator {
             if (outToken != null && outToken.length > 0) {
                 base64OutToken = Base64.getEncoder().encodeToString(outToken);
             }
-
+            LOGGER.debug("validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}", gssContext.isEstablished(),
+                    gssContext.getSrcName().toString(), base64OutToken);
             return new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken);
         } catch (PrivilegedActionException pve) {
             if (pve.getException() instanceof LoginException) {
@@ -147,7 +148,7 @@ public class KerberosTicketValidator {
      * @return
      * @throws PrivilegedActionException
      */
-    private static <T> T doAsWrapper(Subject subject, PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
+    private static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
         } catch (PrivilegedActionException pae) {

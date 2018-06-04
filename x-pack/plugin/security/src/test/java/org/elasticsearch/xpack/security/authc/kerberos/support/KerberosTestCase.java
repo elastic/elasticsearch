@@ -6,11 +6,9 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos.support;
 
-import com.unboundid.ldap.listener.InMemoryDirectoryServer;
-import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
-
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
@@ -25,6 +23,8 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.security.auth.Subject;
 
@@ -33,76 +33,58 @@ import javax.security.auth.Subject;
  */
 public abstract class KerberosTestCase extends ESTestCase {
 
-    protected MiniKdc miniKdc;
-    protected Path miniKdcWorkDir = null;
-    protected InMemoryDirectoryServer ldapServer;
+    protected Settings globalSettings;
+    protected Settings settings;
+    protected List<String> serviceUserNames = new ArrayList<>();
+    protected List<String> clientUserNames = new ArrayList<>();
+    protected Path workDir = null;
+
+    protected SimpleKdcLdapServer simpleKdcLdapServer;
 
     @Before
     public void startMiniKdc() throws Exception {
-        createLdapService();
-        createMiniKdc();
-        AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
+        workDir = createTempDir();
+        globalSettings = Settings.builder().put("path.home", workDir).build();
 
-            @Override
-            public Void run() throws Exception {
-                miniKdc.start();
-                return null;
+        final Path kdcLdiff = getDataPath("/kdc.ldiff");
+        simpleKdcLdapServer = new SimpleKdcLdapServer(workDir, "com", "example", kdcLdiff);
+
+        // Create SPNs and UPNs
+        serviceUserNames.clear();
+        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
+            serviceUserNames.add("HTTP/" + randomAlphaOfLength(6));
+        });
+        final Path ktabPathForService = createPrincipalKeyTab(workDir, serviceUserNames.toArray(new String[0]));
+        clientUserNames.clear();
+        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
+            String clientUserName = "client-" + randomAlphaOfLength(6);
+            clientUserNames.add(clientUserName);
+            try {
+                createPrincipal(clientUserName, "pwd".toCharArray());
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         });
-    }
-
-    @SuppressForbidden(reason = "Test dependency MiniKdc requires java.io.File and needs access to private field")
-    private void createMiniKdc() throws Exception {
-        miniKdcWorkDir = createTempDir();
-        String backendConf = "kdc_identity_backend = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
-                + "host=127.0.0.1\n" + "port=" + ldapServer.getListenPort() + "\n" + "admin_dn=uid=admin,ou=system,dc=example,dc=com\n"
-                + "admin_pw=secret\n" + "base_dn=dc=example,dc=com";
-        Files.write(miniKdcWorkDir.resolve("backend.conf"), backendConf.getBytes(StandardCharsets.UTF_8));
-        assertTrue(Files.exists(miniKdcWorkDir.resolve("backend.conf")));
-        miniKdc = new MiniKdc(MiniKdc.createConf(), miniKdcWorkDir.toFile());
-    }
-
-    private void createLdapService() throws Exception {
-        InMemoryDirectoryServerConfig config = new InMemoryDirectoryServerConfig("dc=example,dc=com");
-        config.setSchema(null);
-        ldapServer = new InMemoryDirectoryServer(config);
-        ldapServer.importFromLDIF(true, getDataPath("/minikdc.ldiff").toString());
-        // Must have privileged access because underlying server will accept socket
-        // connections
-        AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-            ldapServer.startListening();
-            return null;
-        });
+        settings = buildKerberosRealmSettings(ktabPathForService.toString());
     }
 
     @After
     public void tearDownMiniKdc() throws IOException, PrivilegedActionException {
-        AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
-
-            @Override
-            public Void run() throws Exception {
-                miniKdc.stop();
-                return null;
-            }
-        });
-
-        ldapServer.shutDown(true);
+        simpleKdcLdapServer.stop();
     }
 
-    @SuppressForbidden(reason = "Test dependency MiniKdc requires java.io.File")
-    protected Path createPrincipalKeyTab(final Path dir, final String... principalNames) throws Exception {
-        final Path ktabPath = dir.resolve(randomAlphaOfLength(10) + ".keytab");
-        miniKdc.createPrincipal(ktabPath.toFile(), principalNames);
-        assertTrue(Files.exists(ktabPath));
-        return ktabPath;
+    protected Path createPrincipalKeyTab(final Path dir, final String... princNames) throws Exception {
+        final Path path = dir.resolve(randomAlphaOfLength(10) + ".keytab");
+        simpleKdcLdapServer.createPrincipal(path, princNames);
+        return path;
     }
 
     protected void createPrincipal(final String principalName, final char[] password) throws Exception {
-        miniKdc.createPrincipal(principalName, new String(password));
+        simpleKdcLdapServer.createPrincipal(principalName, new String(password));
     }
 
     protected String principalName(final String user) {
-        return user + "@" + miniKdc.getRealm();
+        return user + "@" + simpleKdcLdapServer.getRealm();
     }
 
     /**
@@ -114,7 +96,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      * @return
      * @throws PrivilegedActionException
      */
-    public static <T> T doAsWrapper(Subject subject, PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
+    public static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
     }
 
@@ -132,7 +114,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     public static Settings buildKerberosRealmSettings(final String keytabPath, final int maxUsersInCache, final String cacheTTL,
             final boolean enableDebugging) {
-        Settings.Builder builder = Settings.builder().put(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getKey(), keytabPath)
+        final Settings.Builder builder = Settings.builder().put(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getKey(), keytabPath)
                 .put(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.getKey(), maxUsersInCache)
                 .put(KerberosRealmSettings.CACHE_TTL_SETTING.getKey(), cacheTTL)
                 .put(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.getKey(), enableDebugging);

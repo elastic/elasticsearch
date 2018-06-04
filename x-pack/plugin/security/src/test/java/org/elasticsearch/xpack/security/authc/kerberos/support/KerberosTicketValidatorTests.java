@@ -47,7 +47,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         thrown.expect(new GSSExceptionMatcher(GSSException.FAILURE));
-        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, base64KerbToken, config);
+        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, Base64.getDecoder().decode(base64KerbToken), config);
     }
 
     public void testInvalidKerbTicketFailsValidation() throws Exception {
@@ -56,7 +56,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         thrown.expect(new GSSExceptionMatcher(GSSException.DEFECTIVE_TOKEN));
-        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, base64KerbToken, config);
+        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, Base64.getDecoder().decode(base64KerbToken), config);
     }
 
     public void testWhenKeyTabDoesNotExistFailsValidation() throws LoginException, GSSException {
@@ -67,7 +67,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage(Matchers.equalTo("configured service key tab file does not exist for "
                 + RealmSettings.getFullSettingKey(config, KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH)));
-        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, base64KerbToken, config);
+        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, Base64.getDecoder().decode(base64KerbToken), config);
     }
 
     public void testWhenKeyTabWithInvalidContentFailsValidation()
@@ -84,7 +84,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         thrown.expect(new GSSExceptionMatcher(GSSException.FAILURE));
-        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, base64KerbToken, config);
+        kerberosTicketValidator.validateTicket("*", GSSName.NT_USER_NAME, Base64.getDecoder().decode(base64KerbToken), config);
     }
 
     public void testValidKebrerosTicket() throws PrivilegedActionException, GSSException, LoginException {
@@ -97,8 +97,8 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        final Tuple<String, String> userNameOutToken =
-                kerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, base64KerbToken, config);
+        final Tuple<String, String> userNameOutToken = kerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE,
+                Base64.getDecoder().decode(base64KerbToken), config);
         assertNotNull(userNameOutToken);
         assertEquals(principalName(clientUserName), userNameOutToken.v1());
         assertNotNull(userNameOutToken.v2());

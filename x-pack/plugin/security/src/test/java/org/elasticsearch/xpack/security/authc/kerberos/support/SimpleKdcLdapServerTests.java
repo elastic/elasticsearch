@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Base64;
 
 import javax.security.auth.login.LoginException;
 
@@ -51,14 +52,14 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
                 new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName(serviceUserName));
         final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
         assertNotNull(base64KerbToken);
-        final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(base64KerbToken);
+        final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(Base64.getDecoder().decode(base64KerbToken));
 
         // Service Login
         final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         // Handle Authz header which contains base64 token
         final Tuple<String, String> userNameOutToken = new KerberosTicketValidator().validateTicket(principalName(serviceUserName),
-                GSSName.NT_USER_NAME, (String) kerbAuthnToken.credentials(), config);
+                GSSName.NT_USER_NAME, (byte[]) kerbAuthnToken.credentials(), config);
         assertNotNull(userNameOutToken);
         assertEquals(principalName(clientUserName), userNameOutToken.v1());
 

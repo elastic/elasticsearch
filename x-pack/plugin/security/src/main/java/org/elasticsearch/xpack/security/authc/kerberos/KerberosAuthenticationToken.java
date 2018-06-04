@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
 
@@ -27,12 +28,10 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     public static final String NEGOTIATE_AUTH_HEADER = "Negotiate ";
     public static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal Name>";
 
-    private final String principalName;
-    private String base64EncodedTicket;
+    private byte[] decodedTicket;
 
-    public KerberosAuthenticationToken(final String base64EncodedToken) {
-        this.principalName = UNAUTHENTICATED_PRINCIPAL_NAME;
-        this.base64EncodedTicket = base64EncodedToken;
+    public KerberosAuthenticationToken(final byte[] base64EncodedToken) {
+        this.decodedTicket = base64EncodedToken;
     }
 
     /**
@@ -50,7 +49,8 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
             return null;
         }
 
-        if (authHeader.startsWith(NEGOTIATE_AUTH_HEADER) == Boolean.FALSE) {
+        boolean ignoreCase = true;
+        if (authHeader.regionMatches(ignoreCase, 0, NEGOTIATE_AUTH_HEADER, 0, NEGOTIATE_AUTH_HEADER.length()) == Boolean.FALSE) {
             return null;
         }
 
@@ -60,38 +60,35 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         }
         final byte[] base64Token = base64EncodedToken.getBytes(StandardCharsets.UTF_8);
         byte[] decodedKerberosTicket = null;
-        IllegalArgumentException rootCause = null;
         try {
             decodedKerberosTicket = Base64.getDecoder().decode(base64Token);
         } catch (IllegalArgumentException iae) {
-            rootCause = iae;
-        }
-
-        if (decodedKerberosTicket == null || decodedKerberosTicket.length == 0) {
-            throw unauthorized("invalid negotiate authentication header value, could not decode base64 token {}", rootCause,
+            throw unauthorized("invalid negotiate authentication header value, could not decode base64 token {}", iae,
                     base64EncodedToken);
         }
-        return new KerberosAuthenticationToken(base64EncodedToken);
+
+        return new KerberosAuthenticationToken(decodedKerberosTicket);
     }
 
     @Override
     public String principal() {
-        return principalName;
+        return UNAUTHENTICATED_PRINCIPAL_NAME;
     }
 
     @Override
     public Object credentials() {
-        return base64EncodedTicket;
+        return decodedTicket;
     }
 
     @Override
     public void clearCredentials() {
-        this.base64EncodedTicket = null;
+        Arrays.fill(decodedTicket, (byte) 0);
+        this.decodedTicket = null;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(principalName, base64EncodedTicket);
+        return Objects.hash(decodedTicket);
     }
 
     @Override
@@ -103,12 +100,12 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (getClass() != other.getClass())
             return false;
         final KerberosAuthenticationToken otherKerbToken = (KerberosAuthenticationToken) other;
-        return Objects.equals(otherKerbToken.principal(), principal()) && Objects.equals(otherKerbToken.credentials(), credentials());
+        return Objects.equals(otherKerbToken.credentials(), credentials());
     }
 
     private static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
-        ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER);
+        ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER.trim());
         return ese;
     }
 }

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos.support;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
@@ -78,7 +77,7 @@ public class KerberosTicketValidator {
      * @throws GSSException thrown when GSS Context negotiation fails
      *             {@link GSSException}
      */
-    public Tuple<String, String> validateTicket(final String servicePrincipalName, Oid nameType, final String base64Ticket,
+    public Tuple<String, String> validateTicket(final String servicePrincipalName, Oid nameType, final byte[] decodedToken,
             final RealmConfig config) throws LoginException, GSSException {
         final GSSManager gssManager = GSSManager.getInstance();
         GSSContext gssContext = null;
@@ -89,19 +88,16 @@ public class KerberosTicketValidator {
                 throw new IllegalArgumentException("configured service key tab file does not exist for "
                         + RealmSettings.getFullSettingKey(config, KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
             }
-            // do service login
             loginContext = serviceLogin(servicePrincipalName, keyTabPath.toString(), config.settings());
-            // create credentials
             GSSCredential serviceCreds = createCredentials(servicePrincipalName, nameType, gssManager, loginContext);
-            // create gss context
             gssContext = gssManager.createContext(serviceCreds);
-            final byte[] outToken = acceptSecContext(base64Ticket, gssContext, loginContext);
+            final byte[] outToken = acceptSecContext(decodedToken, gssContext, loginContext);
 
             String base64OutToken = null;
             if (outToken != null && outToken.length > 0) {
                 base64OutToken = Base64.getEncoder().encodeToString(outToken);
             }
-            LOGGER.debug("validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}", gssContext.isEstablished(),
+            LOGGER.trace("validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}", gssContext.isEstablished(),
                     gssContext.getSrcName().toString(), base64OutToken);
             return new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken);
         } catch (PrivilegedActionException pve) {
@@ -118,13 +114,12 @@ public class KerberosTicketValidator {
         }
     }
 
-    private static byte[] acceptSecContext(final String base64Ticket, GSSContext gssContext, LoginContext loginContext)
+    private static byte[] acceptSecContext(final byte[] base64Ticket, GSSContext gssContext, LoginContext loginContext)
             throws PrivilegedActionException {
         final GSSContext finalGSSContext = gssContext;
-        final byte[] token = Base64.getDecoder().decode(base64Ticket);
         // process token with gss context
         return doAsWrapper(loginContext.getSubject(),
-                (PrivilegedExceptionAction<byte[]>) () -> finalGSSContext.acceptSecContext(token, 0, token.length));
+                (PrivilegedExceptionAction<byte[]>) () -> finalGSSContext.acceptSecContext(base64Ticket, 0, base64Ticket.length));
     }
 
     private static GSSCredential createCredentials(final String servicePrincipalName, Oid nameType, final GSSManager gssManager,
@@ -171,7 +166,7 @@ public class KerberosTicketValidator {
                 });
             } catch (PrivilegedActionException e) {
                 RuntimeException rte = ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
-                LOGGER.log(Level.DEBUG, "Could not dispose GSS Context", rte);
+                LOGGER.debug("Could not dispose GSS Context", rte);
             }
             return;
         }
@@ -192,7 +187,7 @@ public class KerberosTicketValidator {
                 });
             } catch (PrivilegedActionException e) {
                 RuntimeException rte = ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
-                LOGGER.log(Level.DEBUG, "Could not close LoginContext", rte);
+                LOGGER.debug("Could not close LoginContext", rte);
             }
         }
     }

@@ -49,12 +49,14 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
 
     public void testExtractTokenForValidAuthorizationHeader() throws IOException {
         final String base64Token = Base64.getEncoder().encodeToString(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8));
-        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + base64Token);
+        final String negotiate = randomBoolean() ? KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER : "negotiate ";
+        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, negotiate + base64Token);
 
         final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(threadContext);
         assertNotNull(kerbAuthnToken);
         assertEquals(UNAUTHENTICATED_PRINCIPAL_NAME, kerbAuthnToken.principal());
-        assertEquals(base64Token, kerbAuthnToken.credentials());
+        assertTrue(kerbAuthnToken.credentials() instanceof byte[]);
+        assertArrayEquals(Base64.getDecoder().decode(base64Token), (byte[]) kerbAuthnToken.credentials());
     }
 
     public void testExtractTokenForInvalidAuthorizationHeaderThrowsException() throws IOException {
@@ -135,9 +137,26 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken("base64EncodedToken");
+        final KerberosAuthenticationToken kerberosAuthenticationToken =
+                new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_8));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
-            return new KerberosAuthenticationToken((String) original.credentials());
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
         });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
+        }, KerberosAuthenticationTokenTests::mutateTestItem);
+    }
+
+    private static KerberosAuthenticationToken mutateTestItem(KerberosAuthenticationToken original) {
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                return new KerberosAuthenticationToken(randomByteArrayOfLength(10));
+            case 1:
+                return new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_16));
+            case 2:
+                return new KerberosAuthenticationToken("[B@6499375d".getBytes(StandardCharsets.UTF_8));
+            default:
+                throw new IllegalArgumentException("unknown option");
+        }
     }
 }

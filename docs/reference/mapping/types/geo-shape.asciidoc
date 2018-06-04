@@ -175,7 +175,7 @@ PUT /example
                 "location": {
                     "type": "geo_shape",
                     "tree": "quadtree",
-                    "precision": "1m"
+                    "precision": "100m"
                 }
             }
         }
@@ -186,8 +186,8 @@ PUT /example
 // TESTSETUP
 
 This mapping maps the location field to the geo_shape type using the
-quad_tree implementation and a precision of 1m. Elasticsearch translates
-this into a tree_levels setting of 26.
+quad_tree implementation and a precision of 100m. Elasticsearch translates
+this into a tree_levels setting of 20.
 
 [float]
 ===== Performance considerations
@@ -364,7 +364,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a Polygon with a hole in WKT:
 
@@ -376,7 +375,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 *IMPORTANT NOTE:* WKT does not enforce a specific order for vertices thus
 ambiguous polygons around the dateline and poles are possible.
@@ -411,7 +409,7 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
+// TEST[catch:/mapper_parsing_exception/]
 
 An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
 order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document.  The following is an example for
@@ -425,14 +423,12 @@ POST /example/doc
         "type" : "polygon",
         "orientation" : "clockwise",
         "coordinates" : [
-            [ [-177.0, 10.0], [176.0, 15.0], [172.0, 0.0], [176.0, -15.0], [-177.0, -10.0], [-177.0, 10.0] ],
-            [ [178.2, 8.2], [-178.8, 8.2], [-180.8, -8.8], [178.2, 8.8] ]
+            [ [100.0, 0.0], [100.0, 1.0], [101.0, 1.0], [101.0, 0.0], [100.0, 0.0] ]
         ]
     }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
@@ -484,7 +480,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a list of WKT linestrings:
 
@@ -496,7 +491,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
@@ -518,7 +512,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a list of WKT polygons (second polygon contains a hole):
 
@@ -530,7 +523,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
@@ -557,7 +549,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of a collection of WKT geometry objects:
 
@@ -569,7 +560,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 
 [float]
@@ -585,12 +575,11 @@ POST /example/doc
 {
     "location" : {
         "type" : "envelope",
-        "coordinates" : [ [-45.0, 45.0], [45.0, -45.0] ]
+        "coordinates" : [ [100.0, 1.0], [101.0, 0.0] ]
     }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 The following is an example of an envelope using the WKT BBOX format:
 
@@ -600,11 +589,10 @@ The following is an example of an envelope using the WKT BBOX format:
 --------------------------------------------------
 POST /example/doc
 {
-    "location" : "BBOX (-45.0, 45.0, 45.0, -45.0)"
+    "location" : "BBOX (100.0, 102.0, 2.0, 0.0)"
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== Circle
@@ -618,7 +606,7 @@ POST /example/doc
 {
     "location" : {
         "type" : "circle",
-        "coordinates" : [-45.0, 45.0],
+        "coordinates" : [101.0, 1.0],
         "radius" : "100m"
     }
 }

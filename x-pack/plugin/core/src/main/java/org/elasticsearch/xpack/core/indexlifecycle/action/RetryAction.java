@@ -26,7 +26,7 @@ import java.util.Objects;
 
 public class RetryAction extends Action<RetryAction.Request, RetryAction.Response> {
     public static final RetryAction INSTANCE = new RetryAction();
-    public static final String NAME = "indices:admin/xpack/index_lifecycle/_retry/post";
+    public static final String NAME = "indices:admin/xpack/index_lifecycle/retry";
 
     protected RetryAction() {
         super(NAME);
@@ -48,7 +48,8 @@ public class RetryAction extends Action<RetryAction.Request, RetryAction.Respons
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
-        private String[] indices;
+        private String[] indices = Strings.EMPTY_ARRAY;
+        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
         public Request(String... indices) {
             this.indices = indices;
@@ -70,8 +71,12 @@ public class RetryAction extends Action<RetryAction.Request, RetryAction.Respons
 
         @Override
         public IndicesOptions indicesOptions() {
-            // Re-run should only resolve to open concrete indices (not aliases)
-            return new IndicesOptions(EnumSet.of(Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
+            return indicesOptions;
+        }
+
+        public Request indicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
+            return this;
         }
 
         @Override
@@ -83,17 +88,19 @@ public class RetryAction extends Action<RetryAction.Request, RetryAction.Respons
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(indices);
+            return Objects.hash(Arrays.hashCode(indices), indicesOptions);
         }
 
         @Override
@@ -105,7 +112,8 @@ public class RetryAction extends Action<RetryAction.Request, RetryAction.Respons
                 return false;
             }
             Request other = (Request) obj;
-            return Arrays.equals(indices, other.indices);
+            return Objects.deepEquals(indices, other.indices)
+                && Objects.equals(indicesOptions, other.indicesOptions);
         }
 
     }

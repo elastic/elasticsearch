@@ -17,7 +17,6 @@ package org.elasticsearch.cluster;/*
  * under the License.
  */
 
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
@@ -37,13 +36,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
@@ -114,26 +111,22 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
         final CountDownLatch startLatch = new CountDownLatch(1);
         final CountDownLatch sendSecondDocLatch = new CountDownLatch(1);
 
-        AtomicInteger bulkMessagesCounter = new AtomicInteger();
-
         MockTransportService replicaTransportService =
             ((MockTransportService) cluster.getInstance(TransportService.class, replicaNodeName));
 
-        // tracer on replica to slow down consumption of some requests :
-        // internal:discovery/zen/publish/sent , internal:discovery/zen/publish/commit - bring cluster state with mapping update
-        // indices:data/write/bulk - indexing request
+        // tracer on replica to slow down consumption of cluster state with mapping update requests
+        // internal:discovery/zen/publish/sent
+        // internal:discovery/zen/publish/commit
         replicaTransportService.addTracer(new MockTransportService.Tracer() {
             @Override
             public void receivedRequest(long requestId, String action) {
                 boolean clusterStateCommit = action.equals(PublishClusterStateAction.COMMIT_ACTION_NAME);
                 boolean clusterStateWrite = action.equals(PublishClusterStateAction.SEND_ACTION_NAME);
-                boolean firstBulkRequestSend = bulkMessagesCounter.getAndIncrement() == 0 &&
-                    action.startsWith(BulkAction.NAME);
 
                 if (clusterStateCommit) {
                     sendSecondDocLatch.countDown();
                 }
-                if (clusterStateCommit || clusterStateWrite || firstBulkRequestSend) {
+                if (clusterStateCommit || clusterStateWrite) {
                     try {
                         Thread.sleep(50);
                     } catch (InterruptedException e) {

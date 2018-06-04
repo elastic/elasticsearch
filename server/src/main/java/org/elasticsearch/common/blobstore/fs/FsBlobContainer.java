@@ -158,7 +158,6 @@ public class FsBlobContainer extends AbstractBlobContainer {
             }
             throw ex;
         } finally {
-            IOUtils.deleteFilesIgnoringExceptions(tempBlobPath);
             IOUtils.fsync(path, true);
         }
     }

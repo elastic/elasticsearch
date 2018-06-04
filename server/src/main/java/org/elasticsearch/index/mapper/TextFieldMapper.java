@@ -178,8 +178,13 @@ public class TextFieldMapper extends FieldMapper {
                 }
                 // Copy the index options of the main field to allow phrase queries on
                 // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
+                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
+                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                        // frequencies are not needed because prefix queries always use a constant score
+                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
+                    } else {
+                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
+                    }
                 } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
                     prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
                 }
@@ -344,6 +349,7 @@ public class TextFieldMapper extends FieldMapper {
         PrefixFieldType(String name, int minChars, int maxChars) {
             setTokenized(true);
             setOmitNorms(true);
+            setIndexOptions(IndexOptions.DOCS);
             setName(name);
             this.minChars = minChars;
             this.maxChars = maxChars;

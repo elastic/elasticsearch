@@ -36,24 +36,30 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
 
+    // java 10 can parse all of these formats just using "+HH:mm"
+    // java 8 can not, furthermore even optional formatters seem to break
+    // requires more investigation
+    // possible candidates for fixes in the openjdk source
+    // https://github.com/dmlloyd/openjdk/commit/c4a9c77a0314826b49a98a991035545f768a421a
+    // https://github.com/dmlloyd/openjdk/commit/dd0368122c35c6a34f322a633bf98c91b50a3c30
     public void testBrokenWithJava8ButWorksWithJava10() {
-        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-//            .appendOffset("+HH:mm", "Z")
-            .optionalStart()
-            .appendOffset("+HH:mm", "Z")
-            .optionalEnd()
-            .optionalStart()
-            .appendOffset("+HHmm", "Z")
-            .optionalEnd()
-            .toFormatter(Locale.ROOT);
-        formatter.parse("Z");
-        formatter.parse("-08");
-        formatter.parse("+08:00");
-        formatter.parse("-0800");
-//
-//        DateTimeFormatter javaTimeFormatter = DateFormatters.forPattern("date_time_no_millis");
-//        TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse("2001-01-01T00:00:00-0800");
-//        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
+        // works
+        DateTimeFormatter f1 = new DateTimeFormatterBuilder().appendOffset("+HH:mm", "Z").toFormatter(Locale.ROOT);
+        f1.parse("Z");
+        f1.parse("-08");
+        f1.parse("+08:00");
+
+        // works
+        DateTimeFormatter f2 = new DateTimeFormatterBuilder().appendOffset("+HHmm", "Z").toFormatter(Locale.ROOT);
+        f2.parse("Z");
+        f2.parse("-0800");
+
+        // fails, only the first formatter is able top parse in java8
+        DateTimeFormatter f3 = new DateTimeFormatterBuilder().appendOptional(f1).appendOptional(f2).toFormatter(Locale.ROOT);
+        f3.parse("Z");
+        f3.parse("-08");
+        f3.parse("+08:00");
+        f3.parse("-0800");
     }
 
     public void testTimeZoneFormatting() {

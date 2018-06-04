@@ -61,10 +61,10 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
                         "]. Must be trial or basic.");
             }
             return updateWithLicense(currentState, type);
-        } else if (LicenseUtils.licenseNeedsExtended(currentLicensesMetaData.getLicense())) {
-            return extendBasic(currentState, currentLicensesMetaData);
         } else if (LicenseUtils.signatureNeedsUpdate(currentLicensesMetaData.getLicense())) {
             return updateLicenseSignature(currentState, currentLicensesMetaData);
+        } else if (LicenseUtils.licenseNeedsExtended(currentLicensesMetaData.getLicense())) {
+            return extendBasic(currentState, currentLicensesMetaData);
         } else {
             return currentState;
         }
@@ -75,11 +75,10 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
         String type = license.type();
         long issueDate = license.issueDate();
-        long expiryDate;
-        if ("basic".equals(type)) {
+        long expiryDate = license.expiryDate();
+        // extend the basic license expiration date if needed since extendBasic will not be called now
+        if ("basic".equals(type) &&  expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
             expiryDate = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
-        } else {
-            expiryDate = issueDate + LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.getMillis();
         }
         License.Builder specBuilder = License.builder()
                 .uid(license.uid())
@@ -92,6 +91,8 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         Version trialVersion = currentLicenseMetaData.getMostRecentTrialVersion();
         LicensesMetaData newLicenseMetadata = new LicensesMetaData(selfGeneratedLicense, trialVersion);
         mdBuilder.putCustom(LicensesMetaData.TYPE, newLicenseMetadata);
+        logger.info("Updating existing license to the new version.\n\nOld license:\n {}\n\n New license:\n{}",
+            license, newLicenseMetadata.getLicense());
         return ClusterState.builder(currentState).metaData(mdBuilder).build();
     }
 

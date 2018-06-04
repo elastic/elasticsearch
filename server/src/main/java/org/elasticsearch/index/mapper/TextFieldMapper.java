@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -290,18 +289,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            PrefixFieldType otherFieldType = (PrefixFieldType) other;
-            if (otherFieldType.minChars != this.minChars) {
-                conflicts.add("mapper [" + name() + "] has different min_chars values");
-            }
-            if (otherFieldType.maxChars != this.maxChars) {
-                conflicts.add("mapper [" + name() + "] has different max_chars values");
-            }
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException();
         }
@@ -472,14 +459,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query nullValueQuery() {
-            if (nullValue() == null) {
-                return null;
-            }
-            return termQuery(nullValue(), null);
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (fielddata == false) {
                 throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
@@ -487,6 +466,25 @@ public class TextFieldMapper extends FieldMapper {
                                 + "use significant memory. Alternatively use a keyword field instead.");
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
+            super.checkCompatibility(other, conflicts);
+            TextFieldType tft = (TextFieldType) other;
+            if (Objects.equals(this.prefixFieldType, tft.prefixFieldType) == false) {
+                if (this.prefixFieldType == null) {
+                    conflicts.add("mapper [" + name()
+                        + "] has different [index_prefixes] settings, cannot change from disabled to enabled");
+                }
+                else if (tft.prefixFieldType == null) {
+                    conflicts.add("mapper [" + name()
+                        + "] has different [index_prefixes] settings, cannot change from enabled to disabled");
+                }
+                else {
+                    conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
+                }
+            }
         }
     }
 

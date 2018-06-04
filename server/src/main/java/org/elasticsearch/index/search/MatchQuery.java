@@ -361,7 +361,7 @@ public class MatchQuery {
                 }
                 return query;
             }
-            catch (IllegalArgumentException e) {
+            catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
@@ -375,7 +375,7 @@ public class MatchQuery {
                 checkForPositions(field);
                 return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
             }
-            catch (IllegalArgumentException e) {
+            catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
@@ -385,7 +385,7 @@ public class MatchQuery {
 
         private void checkForPositions(String field) {
             if (hasPositions(mapper) == false) {
-                throw new IllegalArgumentException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
 

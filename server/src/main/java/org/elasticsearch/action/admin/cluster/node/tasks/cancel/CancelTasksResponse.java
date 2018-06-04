@@ -40,23 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class CancelTasksResponse extends ListTasksResponse {
 
     private static final ConstructingObjectParser<CancelTasksResponse, Void> PARSER =
-        new ConstructingObjectParser<>("cancel_tasks_response", true,
-            constructingObjects -> {
-                int i = 0;
-                @SuppressWarnings("unchecked")
-                List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
-                @SuppressWarnings("unchecked")
-                List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
-                @SuppressWarnings("unchecked")
-                List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
-                return new CancelTasksResponse(tasks, tasksFailures, nodeFailures);
-            });
-    static {
-        PARSER.declareObjectArray(optionalConstructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
-        PARSER.declareObjectArray(optionalConstructorArg(),
-            (parser, c) -> ElasticsearchException.fromXContent(parser), new ParseField(NODE_FAILURES));
-    }
+        setupParser("cancel_tasks_response", CancelTasksResponse::new);
 
     public CancelTasksResponse() {
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -50,9 +51,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Returns the list of tasks currently running on the nodes
  */
 public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
-    protected static final String TASKS = "tasks";
-    protected static final String TASK_FAILURES = "task_failures";
-    protected static final String NODE_FAILURES = "node_failures";
+    private static final String TASKS = "tasks";
+    private static final String TASK_FAILURES = "task_failures";
+    private static final String NODE_FAILURES = "node_failures";
 
     private List<TaskInfo> tasks;
 
@@ -70,8 +71,14 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
     }
 
-    private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER =
-        new ConstructingObjectParser<>("list_tasks_response", true,
+
+    protected static <T> ConstructingObjectParser<T, Void> setupParser(String name,
+                                                                       TriFunction<
+                                                                           List<TaskInfo>,
+                                                                           List<TaskOperationFailure>,
+                                                                           List<ElasticsearchException>,
+                                                                           T> ctor) {
+        ConstructingObjectParser<T, Void> parser = new ConstructingObjectParser<>(name, true,
             constructingObjects -> {
                 int i = 0;
                 @SuppressWarnings("unchecked")
@@ -80,15 +87,17 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
                 @SuppressWarnings("unchecked")
                 List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
-                return new ListTasksResponse(tasks, tasksFailures, nodeFailures);
+                return ctor.apply(tasks,tasksFailures, nodeFailures);
             });
-
-    static {
-        PARSER.declareObjectArray(constructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
-        PARSER.declareObjectArray(optionalConstructorArg(),
-            (parser, c) -> ElasticsearchException.fromXContent(parser), new ParseField(NODE_FAILURES));
+        parser.declareObjectArray(constructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
+        parser.declareObjectArray(optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(NODE_FAILURES));
+        return parser;
     }
+
+    private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER =
+        setupParser("list_tasks_response", ListTasksResponse::new);
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

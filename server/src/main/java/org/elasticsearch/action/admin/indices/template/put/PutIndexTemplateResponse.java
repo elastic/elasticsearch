@@ -19,12 +19,8 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-
-import java.io.IOException;
 
 /**
  * A response for a put index template action.
@@ -36,18 +32,6 @@ public class PutIndexTemplateResponse extends AcknowledgedResponse {
 
     protected PutIndexTemplateResponse(boolean acknowledged) {
         super(acknowledged);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
     }
 
     private static final ConstructingObjectParser<PutIndexTemplateResponse, Void> PARSER;

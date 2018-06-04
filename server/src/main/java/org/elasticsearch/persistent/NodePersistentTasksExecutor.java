@@ -35,7 +35,7 @@ public class NodePersistentTasksExecutor {
         this.threadPool = threadPool;
     }
 
-    public <Params extends PersistentTaskParams> void executeTask(@Nullable Params params,
+    public <Params extends PersistentTaskParams> void executeTask(Params params,
                                                                   @Nullable Task.Status status,
                                                                   AllocatedPersistentTask task,
                                                                   PersistentTasksExecutor<Params> executor) {

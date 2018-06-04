@@ -64,7 +64,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
 
         MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(fieldName, value);
 
-        if (randomBoolean()) {
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
@@ -120,6 +120,14 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         matchQuery.analyzer("bogusAnalyzer");
         QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
+    }
+
+    public void testPhraseOnFieldWithNoTerms() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(DATE_FIELD_NAME, "three term phrase");
+        matchQuery.analyzer("whitespace");
+        matchQuery.doToQuery(createShardContext());
+        assertWarnings("Attempted to build a phrase query with multiple terms against non-text field [" + DATE_FIELD_NAME + "]");
     }
 
     public void testFromSimpleJson() throws IOException {

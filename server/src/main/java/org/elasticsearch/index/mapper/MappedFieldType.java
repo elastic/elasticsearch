@@ -30,6 +30,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -38,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -384,12 +386,16 @@ public abstract class MappedFieldType extends FieldType {
 
     public abstract Query existsQuery(QueryShardContext context);
 
-    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements,
+                             DeprecationLogger deprecationLogger) throws IOException {
+        deprecationLogger.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
+        return new MatchNoDocsQuery();
     }
 
-    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements,
+                                  DeprecationLogger deprecationLogger) throws IOException {
+        deprecationLogger.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
+        return new MatchNoDocsQuery();
     }
 
     /**

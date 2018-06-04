@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.function.Consumer;
 
@@ -29,6 +30,37 @@ public abstract class EventHandler {
 
     protected EventHandler(Consumer<Exception> exceptionHandler) {
         this.exceptionHandler = exceptionHandler;
+    }
+
+    /**
+     * This method is called when a NioChannel is being registered with the selector. It should
+     * only be called once per channel.
+     *
+     * @param context that was registered
+     */
+    protected void handleRegistration(ChannelContext<?> context) throws IOException {
+        context.register();
+        SelectionKey selectionKey = context.getSelectionKey();
+        selectionKey.attach(context);
+        if (context instanceof SocketChannelContext) {
+            if (((SocketChannelContext) context).readyForFlush()) {
+                SelectionKeyUtils.setConnectReadAndWriteInterested(context.getSelectionKey());
+            } else {
+                SelectionKeyUtils.setConnectAndReadInterested(context.getSelectionKey());
+            }
+        } else {
+            SelectionKeyUtils.setAcceptInterested(context.getSelectionKey());
+        }
+    }
+
+    /**
+     * This method is called when an attempt to register a channel throws an exception.
+     *
+     * @param context that was registered
+     * @param exception that occurred
+     */
+    protected void registrationException(ChannelContext<?> context, Exception exception) {
+        context.handleException(exception);
     }
 
     /**

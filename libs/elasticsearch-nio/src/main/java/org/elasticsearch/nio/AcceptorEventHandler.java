@@ -37,29 +37,6 @@ public class AcceptorEventHandler extends EventHandler {
     }
 
     /**
-     * This method is called when a NioServerSocketChannel is being registered with the selector. It should
-     * only be called once per channel.
-     *
-     * @param context that was registered
-     */
-    protected void handleRegistration(ServerChannelContext context) throws IOException {
-        context.register();
-        SelectionKey selectionKey = context.getSelectionKey();
-        selectionKey.attach(context);
-        SelectionKeyUtils.setAcceptInterested(selectionKey);
-    }
-
-    /**
-     * This method is called when an attempt to register a server channel throws an exception.
-     *
-     * @param context that was registered
-     * @param exception that occurred
-     */
-    protected void registrationException(ServerChannelContext context, Exception exception) {
-        context.handleException(exception);
-    }
-
-    /**
      * This method is called when a server channel signals it is ready to accept a connection. All of the
      * accept logic should occur in this call.
      *

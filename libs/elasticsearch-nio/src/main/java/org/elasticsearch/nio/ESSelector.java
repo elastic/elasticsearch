@@ -48,6 +48,7 @@ public abstract class ESSelector implements Closeable {
 
     final Selector selector;
     final ConcurrentLinkedQueue<ChannelContext<?>> channelsToClose = new ConcurrentLinkedQueue<>();
+    final ConcurrentLinkedQueue<ChannelContext<?>> channelsToRegister = new ConcurrentLinkedQueue<>();
 
     private final EventHandler eventHandler;
     private final ReentrantLock runLock = new ReentrantLock();
@@ -131,6 +132,8 @@ public abstract class ESSelector implements Closeable {
 
     void cleanupAndCloseChannels() {
         cleanup();
+        channelsToClose.addAll(channelsToRegister);
+        channelsToRegister.clear();
         channelsToClose.addAll(selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).collect(Collectors.toList()));
         closePendingChannels();
     }

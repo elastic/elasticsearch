@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
@@ -33,7 +34,6 @@ import java.util.stream.Collectors;
 public class AcceptingSelector extends ESSelector {
 
     private final AcceptorEventHandler eventHandler;
-    private final ConcurrentLinkedQueue<NioServerSocketChannel> newChannels = new ConcurrentLinkedQueue<>();
 
     public AcceptingSelector(AcceptorEventHandler eventHandler) throws IOException {
         super(eventHandler);
@@ -64,7 +64,6 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void cleanup() {
-        channelsToClose.addAll(newChannels.stream().map(NioServerSocketChannel::getContext).collect(Collectors.toList()));
     }
 
     /**
@@ -74,24 +73,24 @@ public class AcceptingSelector extends ESSelector {
      * @param serverSocketChannel the channel to register
      */
     public void scheduleForRegistration(NioServerSocketChannel serverSocketChannel) {
-        newChannels.add(serverSocketChannel);
-        ensureSelectorOpenForEnqueuing(newChannels, serverSocketChannel);
+        ServerChannelContext context = serverSocketChannel.getContext();
+        channelsToRegister.add(context);
+        ensureSelectorOpenForEnqueuing(channelsToRegister, context);
         wakeup();
     }
 
     private void setUpNewServerChannels() {
-        NioServerSocketChannel newChannel;
-        while ((newChannel = this.newChannels.poll()) != null) {
-            ServerChannelContext context = newChannel.getContext();
-            assert context.getSelector() == this : "The channel must be registered with the selector with which it was created";
+        ServerChannelContext newChannel;
+        while ((newChannel = (ServerChannelContext) this.channelsToRegister.poll()) != null) {
+            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
             try {
-                if (context.isOpen()) {
-                    eventHandler.handleRegistration(context);
+                if (newChannel.isOpen()) {
+                    eventHandler.handleRegistration(newChannel);
                 } else {
-                    eventHandler.registrationException(context, new ClosedChannelException());
+                    eventHandler.registrationException(newChannel, new ClosedChannelException());
                 }
             } catch (Exception e) {
-                eventHandler.registrationException(context, e);
+                eventHandler.registrationException(newChannel, e);
             }
         }
     }

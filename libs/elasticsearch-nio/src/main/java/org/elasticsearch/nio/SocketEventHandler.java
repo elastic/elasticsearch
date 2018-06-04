@@ -33,33 +33,6 @@ public class SocketEventHandler extends EventHandler {
     }
 
     /**
-     * This method is called when a NioSocketChannel is successfully registered. It should only be called
-     * once per channel.
-     *
-     * @param context that was registered
-     */
-    protected void handleRegistration(SocketChannelContext context) throws IOException {
-        context.register();
-        SelectionKey selectionKey = context.getSelectionKey();
-        selectionKey.attach(context);
-        if (context.readyForFlush()) {
-            SelectionKeyUtils.setConnectReadAndWriteInterested(selectionKey);
-        } else {
-            SelectionKeyUtils.setConnectAndReadInterested(selectionKey);
-        }
-    }
-
-    /**
-     * This method is called when an attempt to register a channel throws an exception.
-     *
-     * @param context that was registered
-     * @param exception that occurred
-     */
-    protected void registrationException(SocketChannelContext context, Exception exception) {
-        context.handleException(exception);
-    }
-
-    /**
      * This method is called when a NioSocketChannel has just been accepted or if it has receive an
      * OP_CONNECT event.
      *
@@ -131,6 +104,9 @@ public class SocketEventHandler extends EventHandler {
     }
 
     /**
+     * This method is called after ready events (READ, ACCEPT, WRITE, CONNECT) have been handled for a
+     * channel.
+     *
      * @param context that was handled
      */
     protected void postHandling(SocketChannelContext context) {

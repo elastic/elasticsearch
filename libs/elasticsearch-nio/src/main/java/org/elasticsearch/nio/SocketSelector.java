@@ -33,7 +33,6 @@ import java.util.function.BiConsumer;
  */
 public class SocketSelector extends ESSelector {
 
-    private final ConcurrentLinkedQueue<SocketChannelContext> newChannels = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
     private final SocketEventHandler eventHandler;
 
@@ -80,7 +79,6 @@ public class SocketSelector extends ESSelector {
         while ((op = queuedWrites.poll()) != null) {
             executeFailedListener(op.getListener(), new ClosedSelectorException());
         }
-        channelsToClose.addAll(newChannels);
     }
 
     /**
@@ -90,8 +88,8 @@ public class SocketSelector extends ESSelector {
      */
     public void scheduleForRegistration(NioSocketChannel nioSocketChannel) {
         SocketChannelContext channelContext = nioSocketChannel.getContext();
-        newChannels.offer(channelContext);
-        ensureSelectorOpenForEnqueuing(newChannels, channelContext);
+        channelsToRegister.offer(channelContext);
+        ensureSelectorOpenForEnqueuing(channelsToRegister, channelContext);
         wakeup();
     }
 
@@ -192,7 +190,7 @@ public class SocketSelector extends ESSelector {
 
     private void setUpNewChannels() {
         SocketChannelContext channelContext;
-        while ((channelContext = this.newChannels.poll()) != null) {
+        while ((channelContext = (SocketChannelContext) this.channelsToRegister.poll()) != null) {
             setupChannel(channelContext);
         }
     }

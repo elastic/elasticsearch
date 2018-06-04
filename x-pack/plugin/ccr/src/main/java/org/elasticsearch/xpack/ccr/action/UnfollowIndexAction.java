@@ -83,19 +83,6 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
 
         Response() {
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
-
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {

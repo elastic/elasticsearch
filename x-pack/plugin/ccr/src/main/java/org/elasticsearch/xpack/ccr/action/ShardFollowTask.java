@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -183,4 +184,8 @@ public class ShardFollowTask implements PersistentTaskParams {
         return Strings.toString(this);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_6_4_0;
+    }
 }

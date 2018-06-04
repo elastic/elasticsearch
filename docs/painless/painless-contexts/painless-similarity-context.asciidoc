@@ -46,7 +46,7 @@ documents in a query.
 *Return*
 
 `double`::
-        The similarity score for the specified document.
+        The similarity score for the current document.
 
 *API*
 

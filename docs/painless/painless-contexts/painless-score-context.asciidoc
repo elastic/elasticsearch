@@ -11,16 +11,16 @@ score to documents returned from a query.
         User-defined parameters passed in at query-time.
 
 `doc` (`Map`, read-only)::
-        Contains the fields of the specified document where each field is a
+        Contains the fields of the current document where each field is a
         `List` of values.
 
 `_score` (`double` read-only)::
-        The original score of the specified document.
+        The original score of the current document.
 
 *Return*
 
 `double`::
-        The score for the specified document.
+        The score for the current document.
 
 *API*
 

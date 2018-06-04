@@ -36,23 +36,23 @@ re-indexed into a target index.
 
 `ctx['_op']`::
         Use the default of `'index'` to update a document. Set to `'none'` to
-        specify no operation or `'delete'` to delete the specified document from
+        specify no operation or `'delete'` to delete the current document from
         the index.
 
 {es_version}/mapping-routing-field.html[`ctx['_routing']`]::
-        Modify this to change the routing value for the specified document.
+        Modify this to change the routing value for the current document.
 
 {es_version}/mapping-index-field.html[`ctx['_index']`]::
-        Modify this to change the destination index for the specified document.
+        Modify this to change the destination index for the current document.
 
 {es_version}/mapping-type-field.html[`ctx['_type']`]::
-        Modify this to change the type for the specified document.
+        Modify this to change the type for the current document.
 
 {es_version}/mapping-id-field.html[`ctx['_id']`]::
-        Modify this to change the id for the specified document.
+        Modify this to change the id for the current document.
 
 `ctx['_version']` (`int`)::
-        Modify this to modify the version for the specified document.
+        Modify this to modify the version for the current document.
 
 {es_version}/mapping-source-field.html[`ctx['_source']`]::
         Modify the values in the `Map/List` structure to add, modify, or delete

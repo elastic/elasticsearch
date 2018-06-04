@@ -37,7 +37,7 @@ result of query.
 
 `ctx['_op']`::
         Use the default of `'index'` to update a document. Set to `'none'` to
-        specify no operation or `'delete'` to delete the specified document from
+        specify no operation or `'delete'` to delete the current document from
         the index.
 
 {es_version}/mapping-source-field.html[`ctx['_source']`]::

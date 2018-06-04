@@ -25,31 +25,37 @@ import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
 /**
- * Protects against long running operations that happen between the register and de-register invocations.
- * Threads that invoke {@link #register()}, but take too long to invoke the {@link #deregister()} method
+ * Protects against long running operations that happen between the register and unregister invocations.
+ * Threads that invoke {@link #register()}, but take too long to invoke the {@link #unregister()} method
  * will be interrupted.
  *
  * This is needed for Joni's {@link org.joni.Matcher#search(int, int, int)} method, because
  * it can end up spinning endlessly if the regular expression is too complex. Joni has checks
- * that that for every 30k iterations it checks if the current thread is interrupted and if so
+ * that for every 30k iterations it checks if the current thread is interrupted and if so
  * returns {@link org.joni.Matcher#INTERRUPTED}.
  */
-public interface ThreadInterrupter {
+public interface ThreadWatchdog {
     
     /**
      * Registers the current thread and interrupts the current thread
-     * if the takes too long for this thread to invoke {@link #deregister()}.
+     * if the takes too long for this thread to invoke {@link #unregister()}.
      */
     void register();
     
     /**
-     * De-registers the current thread and prevents it from being interrupted.
+     * @return The maximum allowed time for a thread to invoke {@link #unregister()} after {@link #register()}
+     *         has been invoked before this ThreadWatchDog starts to interrupting that thread.
      */
-    void deregister();
+    long maxExecutionTime();
+    
+    /**
+     * Unregisters the current thread and prevents it from being interrupted.
+     */
+    void unregister();
     
     /**
      * Returns an implementation that checks for each fixed interval if there are threads that have invoked {@link #register()}
-     * and not {@link #deregister()} and have been in this state for longer than the specified max execution interval and
+     * and not {@link #unregister()} and have been in this state for longer than the specified max execution interval and
      * then interrupts these threads.
      *
      * @param interval              The fixed interval to check if there are threads to interrupt
@@ -57,35 +63,42 @@ public interface ThreadInterrupter {
      * @param relativeTimeSupplier  A supplier that returns relative time
      * @param scheduler             A scheduler that is able to execute a command for each fixed interval
      */
-    static ThreadInterrupter newInstance(long interval,
-                                         long maxExecutionTime,
-                                         LongSupplier relativeTimeSupplier,
-                                         BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler) {
+    static ThreadWatchdog newInstance(long interval,
+                                      long maxExecutionTime,
+                                      LongSupplier relativeTimeSupplier,
+                                      BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler) {
         return new Default(interval, maxExecutionTime, relativeTimeSupplier, scheduler);
     }
     
     /**
      * @return A noop implementation that does not interrupt threads and is useful for testing and pre-defined grok expressions.
      */
-    static ThreadInterrupter noop() {
-        return new Noop();
+    static ThreadWatchdog noop() {
+        return Noop.INSTANCE;
     }
     
-    class Noop implements ThreadInterrupter {
+    class Noop implements ThreadWatchdog {
+    
+        private static final Noop INSTANCE = new Noop();
         
         private Noop() {
         }
-        
+    
         @Override
         public void register() {
         }
+    
+        @Override
+        public long maxExecutionTime() {
+            return Long.MAX_VALUE;
+        }
         
         @Override
-        public void deregister() {
+        public void unregister() {
         }
     }
     
-    class Default implements ThreadInterrupter {
+    class Default implements ThreadWatchdog {
         
         private final long interval;
         private final long maxExecutionTime;
@@ -108,25 +121,26 @@ public interface ThreadInterrupter {
             Long previousValue = registry.put(Thread.currentThread(), relativeTimeSupplier.getAsLong());
             assert previousValue == null;
         }
-        
-        public void deregister() {
+    
+        @Override
+        public long maxExecutionTime() {
+            return maxExecutionTime;
+        }
+    
+        public void unregister() {
             Long previousValue = registry.remove(Thread.currentThread());
             assert previousValue != null;
         }
         
         private void interruptLongRunningExecutions() {
-            try {
-                final long currentRelativeTime = relativeTimeSupplier.getAsLong();
-                for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
-                    long threadTime = entry.getValue();
-                    if ((currentRelativeTime - threadTime) > maxExecutionTime) {
-                        entry.getKey().interrupt();
-                        // not removing the entry here, this happens in the deregister() method.
-                    }
+            final long currentRelativeTime = relativeTimeSupplier.getAsLong();
+            for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
+                if ((currentRelativeTime - entry.getValue()) > maxExecutionTime) {
+                    entry.getKey().interrupt();
+                    // not removing the entry here, this happens in the unregister() method.
                 }
-            } finally {
-                scheduler.apply(interval, this::interruptLongRunningExecutions);
             }
+            scheduler.apply(interval, this::interruptLongRunningExecutions);
         }
         
     }

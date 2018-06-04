@@ -424,6 +424,7 @@ public class GrokTests extends ESTestCase {
             try {
                 Thread.sleep(delay);
             } catch (InterruptedException e) {
+                throw new AssertionError(e);
             }
             Thread t = new Thread(() -> {
                 if (run.get()) {
@@ -433,9 +434,9 @@ public class GrokTests extends ESTestCase {
             t.start();
             return null;
         };
-        Grok grok = new Grok(basePatterns, grokPattern, ThreadInterrupter.newInstance(10, 200, System::currentTimeMillis, scheduler));
+        Grok grok = new Grok(basePatterns, grokPattern, ThreadWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler));
         Exception e = expectThrows(IllegalArgumentException.class, () -> grok.captures(logLine));
         run.set(false);
-        assertThat(e.getMessage(), equalTo("grok pattern matching is too complex and takes too long to execute"));
+        assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
     }
 }

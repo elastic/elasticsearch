@@ -76,24 +76,24 @@ public final class Grok {
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
-    private final ThreadInterrupter threadInterrupter;
+    private final ThreadWatchdog threadWatchdog;
 
     public Grok(Map<String, String> patternBank, String grokPattern) {
-        this(patternBank, grokPattern, true, ThreadInterrupter.noop());
+        this(patternBank, grokPattern, true, ThreadWatchdog.noop());
     }
     
-    public Grok(Map<String, String> patternBank, String grokPattern, ThreadInterrupter threadInterrupter) {
-        this(patternBank, grokPattern, true, threadInterrupter);
+    public Grok(Map<String, String> patternBank, String grokPattern, ThreadWatchdog threadWatchdog) {
+        this(patternBank, grokPattern, true, threadWatchdog);
     }
     
     Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures) {
-        this(patternBank, grokPattern, namedCaptures, ThreadInterrupter.noop());
+        this(patternBank, grokPattern, namedCaptures, ThreadWatchdog.noop());
     }
 
-    private Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures, ThreadInterrupter threadInterrupter) {
+    private Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures, ThreadWatchdog threadWatchdog) {
         this.patternBank = patternBank;
         this.namedCaptures = namedCaptures;
-        this.threadInterrupter = threadInterrupter;
+        this.threadWatchdog = threadWatchdog;
 
         for (Map.Entry<String, String> entry : patternBank.entrySet()) {
             String name = entry.getKey();
@@ -174,10 +174,10 @@ public final class Grok {
 
         int result;
         try {
-            threadInterrupter.register();
+            threadWatchdog.register();
             result = matcher.search(0, grokPatternBytes.length, Option.NONE);
         } finally {
-            threadInterrupter.deregister();
+            threadWatchdog.unregister();
         }
         if (result != -1) {
             Region region = matcher.getEagerRegion();
@@ -222,10 +222,10 @@ public final class Grok {
         Matcher matcher = compiledExpression.matcher(text.getBytes(StandardCharsets.UTF_8));
         int result;
         try {
-            threadInterrupter.register();
+            threadWatchdog.register();
             result = matcher.search(0, text.length(), Option.DEFAULT);
         } finally {
-            threadInterrupter.deregister();
+            threadWatchdog.unregister();
         }
         return (result != -1);
     }
@@ -243,15 +243,16 @@ public final class Grok {
         Matcher matcher = compiledExpression.matcher(textAsBytes);
         int result;
         try {
-            threadInterrupter.register();
+            threadWatchdog.register();
             result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
         } finally {
-            threadInterrupter.deregister();
+            threadWatchdog.unregister();
         }
         if (result == Matcher.INTERRUPTED) {
-            throw new IllegalArgumentException("grok pattern matching is too complex and takes too long to execute");
+            throw new IllegalArgumentException("grok pattern matching was interrupted after [" +
+                threadWatchdog.maxExecutionTime() + "] ms");
         } else if (result == Matcher.FAILED) {
-            // I think we should throw an error here?
+            // TODO: I think we should throw an error here?
             return null;
         } else if (compiledExpression.numberOfNames() > 0) {
             Region region = matcher.getEagerRegion();
@@ -267,7 +268,6 @@ public final class Grok {
                         break;
                     }
                 }
-        
             }
         }
         return fields;

@@ -23,9 +23,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.concurrent.ScheduledFuture;
+import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 /**
  * A processor implementation may modify the data belonging to a document.
@@ -96,19 +98,21 @@ public interface Processor {
          */
         public final ThreadContext threadContext;
     
+        public final LongSupplier relativeTimeSupplier;
+        
         /**
-         * Provides a thread pool
+         * Provides scheduler support
          */
-        // TODO: do we really want to expose ThreadPool here? Or a BiFunction<Long, Runnable, ScheduledFuture<?>> to just handle scheduling?
-        public final ThreadPool threadPool;
+        public final BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler;
 
-        public Parameters(Environment env, ScriptService scriptService,
-                          AnalysisRegistry analysisRegistry, ThreadPool threadPool) {
+        public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
+                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler) {
             this.env = env;
             this.scriptService = scriptService;
-            this.threadContext = threadPool.getThreadContext();
+            this.threadContext = threadContext;
             this.analysisRegistry = analysisRegistry;
-            this.threadPool = threadPool;
+            this.relativeTimeSupplier = relativeTimeSupplier;
+            this.scheduler = scheduler;
         }
 
     }

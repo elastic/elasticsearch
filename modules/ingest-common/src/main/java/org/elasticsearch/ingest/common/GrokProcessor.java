@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.grok.Grok;
-import org.elasticsearch.grok.ThreadInterrupter;
+import org.elasticsearch.grok.ThreadWatchdog;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -44,11 +44,11 @@ public final class GrokProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
 
     GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
-                  boolean traceMatch, boolean ignoreMissing, ThreadInterrupter threadInterrupter) {
+                  boolean traceMatch, boolean ignoreMissing, ThreadWatchdog threadWatchdog) {
         super(tag);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
-        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), threadInterrupter);
+        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), threadWatchdog);
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
     }
@@ -133,11 +133,11 @@ public final class GrokProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         private final Map<String, String> builtinPatterns;
-        private final ThreadInterrupter threadInterrupter;
+        private final ThreadWatchdog threadWatchdog;
 
-        public Factory(Map<String, String> builtinPatterns, ThreadInterrupter threadInterrupter) {
+        public Factory(Map<String, String> builtinPatterns, ThreadWatchdog threadWatchdog) {
             this.builtinPatterns = builtinPatterns;
-            this.threadInterrupter = threadInterrupter;
+            this.threadWatchdog = threadWatchdog;
         }
 
         @Override
@@ -159,7 +159,7 @@ public final class GrokProcessor extends AbstractProcessor {
 
             try {
                 return new GrokProcessor(processorTag, patternBank, matchPatterns, matchField, traceMatch, ignoreMissing,
-                    threadInterrupter);
+                    threadWatchdog);
             } catch (Exception e) {
                 throw newConfigurationException(TYPE, processorTag, "patterns",
                     "Invalid regex pattern found in: " + matchPatterns + ". " + e.getMessage());

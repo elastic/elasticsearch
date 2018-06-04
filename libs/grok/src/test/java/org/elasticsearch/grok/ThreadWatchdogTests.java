@@ -25,14 +25,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.is;
 
-public class ThreadInterrupterTests extends ESTestCase {
+public class ThreadWatchdogTests extends ESTestCase {
     
     public void testInterrupt() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
-        ThreadInterrupter guard = ThreadInterrupter.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
+        ThreadWatchdog watchdog = ThreadWatchdog.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
             try {
                 Thread.sleep(delay);
             } catch (InterruptedException e) {
+                throw new AssertionError(e);
             }
             Thread thread = new Thread(() -> {
                 if (run.get()) {
@@ -43,18 +44,21 @@ public class ThreadInterrupterTests extends ESTestCase {
             return null;
         });
     
-        Map<?, ?> registry = ((ThreadInterrupter.Default) guard).registry;
+        Map<?, ?> registry = ((ThreadWatchdog.Default) watchdog).registry;
         assertThat(registry.size(), is(0));
         // need to call #register() method on a different thread, assertBusy() fails if current thread gets interrupted
+        AtomicBoolean interrupted = new AtomicBoolean(false);
         Thread thread = new Thread(() -> {
-            guard.register();
-            while (run.get()) {
-            }
-            guard.deregister();
+            Thread currentThread = Thread.currentThread();
+            watchdog.register();
+            while (currentThread.isInterrupted() == false) {}
+            interrupted.set(true);
+            while (run.get()) {} // wait here so that the size of the registry can be asserted
+            watchdog.unregister();
         });
         thread.start();
         assertBusy(() -> {
-            assertThat(thread.isInterrupted(), is(true));
+            assertThat(interrupted.get(), is(true));
             assertThat(registry.size(), is(1));
         });
         run.set(false);

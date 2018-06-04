@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -71,6 +72,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -288,6 +290,28 @@ public class UpdateRequestTests extends ESTestCase {
                 new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
         assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
         assertThat(request.fields(), arrayContaining("field1", "field2"));
+    }
+
+    public void testUnknownFieldParsing() throws Exception {
+        UpdateRequest request = new UpdateRequest("test", "type", "1");
+        XContentParser contentParser = createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("unknown_field", "test")
+                .endObject());
+
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> request.fromXContent(contentParser));
+        assertEquals("[1:2] [UpdateRequest] unknown field [unknown_field], parser not found", ex.getMessage());
+
+        UpdateRequest request2 = new UpdateRequest("test", "type", "1");
+        XContentParser unknownObject = createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("script", "ctx.op = ctx._source.views == params.count ? 'delete' : 'none'")
+                    .startObject("params")
+                        .field("count", 1)
+                    .endObject()
+                .endObject());
+        ex = expectThrows(XContentParseException.class, () -> request2.fromXContent(unknownObject));
+        assertEquals("[1:76] [UpdateRequest] unknown field [params], parser not found", ex.getMessage());
     }
 
     public void testFetchSourceParsing() throws Exception {

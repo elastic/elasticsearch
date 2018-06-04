@@ -547,7 +547,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         new FilterFunctionBuilder(linearDecayFunction("num2", "0.0", "1"))
                                 }).scoreMode(FunctionScoreQuery.ScoreMode.MULTIPLY))));
 
-        SearchResponse sr = response.actionGet();
+        SearchResponse sr = response.actionGet();System.out.println(sr);
 
         assertNoFailures(sr);
         SearchHits sh = sr.getHits();

@@ -19,6 +19,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -207,7 +208,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowI
          */
         void start(Request request, String clusterNameAlias, IndexMetaData leaderIndexMetadata, IndexMetaData followIndexMetadata,
                    ActionListener<Response> handler) {
-            validate (leaderIndexMetadata ,followIndexMetadata , request);
+            validate(leaderIndexMetadata ,followIndexMetadata , request);
                 final int numShards = followIndexMetadata.getNumberOfShards();
                 final AtomicInteger counter = new AtomicInteger(numShards);
                 final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
@@ -263,24 +264,43 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowI
         }
     }
 
-
     static void validate(IndexMetaData leaderIndex, IndexMetaData followIndex, Request request) {
         if (leaderIndex == null) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not exist");
         }
-
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.followIndex + "] does not exist");
         }
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not have soft deletes enabled");
         }
-
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
             throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
                 "] does not match with the number of shards of the follow index [" + followIndex.getNumberOfShards() + "]");
         }
-        // TODO: other validation checks
+        if (leaderIndex.getRoutingNumShards() != followIndex.getRoutingNumShards()) {
+            throw new IllegalArgumentException("leader index number_of_routing_shards [" + leaderIndex.getRoutingNumShards() +
+                "] does not match with the number_of_routing_shards of the follow index [" + followIndex.getRoutingNumShards() + "]");
+        }
+        if (leaderIndex.getState() != IndexMetaData.State.OPEN || followIndex.getState() != IndexMetaData.State.OPEN) {
+            throw new IllegalArgumentException("leader and follow index must be open");
+        }
+        Map<String, Object> leaderMapping = getMapping(leaderIndex);
+        Map<String, Object> followerMapping = getMapping(followIndex);
+        if (leaderMapping.equals(followerMapping) == false) {
+            throw new IllegalArgumentException("the leader and follower mappings must be identical");
+        }
+        Map<String, Settings> leaderAnalysisSettings = leaderIndex.getSettings().getGroups("index.analysis");
+        Map<String, Settings> followerAnalysisSettings = followIndex.getSettings().getGroups("index.analysis");
+        if (leaderAnalysisSettings.equals(followerAnalysisSettings) == false) {
+            throw new IllegalArgumentException("the leader and follower index analysis settings must be identical");
+        }
+    }
+    
+    private static Map<String, Object> getMapping(IndexMetaData indexMetaData) {
+        assert indexMetaData.getMappings().size() == 1;
+        MappingMetaData mappingMetaData = indexMetaData.getMappings().values().iterator().next().value;
+        return mappingMetaData.getSourceAsMap();
     }
 
 }

@@ -1,6 +1,16 @@
 [[painless-watcher-condition-context]]
 === Watcher Condition Context
 
+Use a Painless script in an {es_version}/
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in at query-time.
+
+*Return*
+
+
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.

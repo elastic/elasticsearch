@@ -41,12 +41,13 @@ result of query.
         the index.
 
 {es_version}/mapping-source-field.html[`ctx['_source']`]::
-        Change the values in the `Map/List` structure to add, modify, or delete
+        Modify the values in the `Map/List` structure to add, modify, or delete
         the fields of a document.
 
 *Return*
 
-`void`:: No expected return value.
+`void`::
+        No expected return value.
 
 *API*
 

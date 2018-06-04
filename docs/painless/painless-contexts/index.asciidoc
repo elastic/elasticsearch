@@ -4,11 +4,13 @@ include::painless-update-by-query-context.asciidoc[]
 
 include::painless-reindex-context.asciidoc[]
 
-include::painless-score-context.asciidoc[]
+include::painless-sort-context.asciidoc[]
 
 include::painless-similarity-context.asciidoc[]
 
-include::painless-sort-context.asciidoc[]
+include::painless-weight-context.asciidoc[]
+
+include::painless-score-context.asciidoc[]
 
 include::painless-field-context.asciidoc[]
 

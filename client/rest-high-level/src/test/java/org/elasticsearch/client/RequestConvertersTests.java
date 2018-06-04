@@ -47,6 +47,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -401,6 +402,47 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(putMappingRequest, request.getEntity());
+    }
+
+    public void testGetMapping() throws IOException {
+        GetMappingsRequest getMappingRequest = new GetMappingsRequest();
+
+        String[] indices = Strings.EMPTY_ARRAY;
+        if (randomBoolean()) {
+            indices = randomIndicesNames(0, 5);
+            getMappingRequest.indices(indices);
+        } else if (randomBoolean()) {
+            getMappingRequest.indices((String[]) null);
+        }
+
+        String type = null;
+        if (randomBoolean()) {
+            type = randomAlphaOfLengthBetween(3, 10);
+            getMappingRequest.types(type);
+        } else if (randomBoolean()) {
+            getMappingRequest.types((String[]) null);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomIndicesOptions(getMappingRequest::indicesOptions, getMappingRequest::indicesOptions, expectedParams);
+        setRandomMasterTimeout(getMappingRequest, expectedParams);
+        setRandomLocal(getMappingRequest, expectedParams);
+
+        Request request = RequestConverters.getMappings(getMappingRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+        if (type != null) {
+            endpoint.add(type);
+        }
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
     }
 
     public void testDeleteIndex() {

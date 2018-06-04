@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
@@ -53,10 +52,10 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public GetRepositoriesResponse getRepositories(GetRepositoriesRequest getRepositoriesRequest, Header... headers)
+    public GetRepositoriesResponse getRepositories(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories,
-            GetRepositoriesResponse::fromXContent, emptySet(), headers);
+        return restHighLevelClient.performRequestAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories, options,
+            GetRepositoriesResponse::fromXContent, emptySet());
     }
 
     /**
@@ -66,10 +65,10 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public void getRepositoriesAsync(GetRepositoriesRequest getRepositoriesRequest,
-                                     ActionListener<GetRepositoriesResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories,
-            GetRepositoriesResponse::fromXContent, listener, emptySet(), headers);
+    public void getRepositoriesAsync(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options,
+                                     ActionListener<GetRepositoriesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories, options,
+            GetRepositoriesResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -78,9 +77,9 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public PutRepositoryResponse createRepository(PutRepositoryRequest putRepositoryRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(putRepositoryRequest, RequestConverters::createRepository,
-            PutRepositoryResponse::fromXContent, emptySet(), headers);
+    public PutRepositoryResponse createRepository(PutRepositoryRequest putRepositoryRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putRepositoryRequest, RequestConverters::createRepository, options,
+            PutRepositoryResponse::fromXContent, emptySet());
     }
 
     /**
@@ -89,10 +88,10 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public void createRepositoryAsync(PutRepositoryRequest putRepositoryRequest,
-                                      ActionListener<PutRepositoryResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest, RequestConverters::createRepository,
-            PutRepositoryResponse::fromXContent, listener, emptySet(), headers);
+    public void createRepositoryAsync(PutRepositoryRequest putRepositoryRequest, RequestOptions options,
+                                      ActionListener<PutRepositoryResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest, RequestConverters::createRepository, options,
+            PutRepositoryResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -101,10 +100,10 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public DeleteRepositoryResponse deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest, Header... headers)
+    public DeleteRepositoryResponse deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(deleteRepositoryRequest, RequestConverters::deleteRepository,
-            DeleteRepositoryResponse::fromXContent, emptySet(), headers);
+        return restHighLevelClient.performRequestAndParseEntity(deleteRepositoryRequest, RequestConverters::deleteRepository, options,
+            DeleteRepositoryResponse::fromXContent, emptySet());
     }
 
     /**
@@ -113,10 +112,10 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public void deleteRepositoryAsync(DeleteRepositoryRequest deleteRepositoryRequest,
-                                      ActionListener<DeleteRepositoryResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(deleteRepositoryRequest, RequestConverters::deleteRepository,
-            DeleteRepositoryResponse::fromXContent, listener, emptySet(), headers);
+    public void deleteRepositoryAsync(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options,
+                                      ActionListener<DeleteRepositoryResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(deleteRepositoryRequest, RequestConverters::deleteRepository, options,
+            DeleteRepositoryResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -125,10 +124,10 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public VerifyRepositoryResponse verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest, Header... headers)
+    public VerifyRepositoryResponse verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository,
-            VerifyRepositoryResponse::fromXContent, emptySet(), headers);
+        return restHighLevelClient.performRequestAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository, options,
+            VerifyRepositoryResponse::fromXContent, emptySet());
     }
 
     /**
@@ -137,9 +136,9 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public void verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest,
-                                      ActionListener<VerifyRepositoryResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository,
-            VerifyRepositoryResponse::fromXContent, listener, emptySet(), headers);
+    public void verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options,
+                                      ActionListener<VerifyRepositoryResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository, options,
+            VerifyRepositoryResponse::fromXContent, listener, emptySet());
     }
 }

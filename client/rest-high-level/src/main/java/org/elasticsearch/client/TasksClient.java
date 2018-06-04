@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -33,7 +32,7 @@ import static java.util.Collections.emptySet;
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
  */
-public class TasksClient {
+public final class TasksClient {
     private final RestHighLevelClient restHighLevelClient;
 
     TasksClient(RestHighLevelClient restHighLevelClient) {
@@ -46,9 +45,9 @@ public class TasksClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      */
-    public ListTasksResponse list(ListTasksRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                emptySet(), headers);
+    public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, options,
+                ListTasksResponse::fromXContent, emptySet());
     }
 
     /**
@@ -57,8 +56,8 @@ public class TasksClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      */
-    public void listAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                listener, emptySet(), headers);
+    public void listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
     }
 }

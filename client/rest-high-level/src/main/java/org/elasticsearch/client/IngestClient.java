@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
@@ -50,9 +49,9 @@ public final class IngestClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      */
-    public WritePipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline,
-            WritePipelineResponse::fromXContent, emptySet(), headers);
+    public WritePipelineResponse putPipeline(PutPipelineRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline, options,
+            WritePipelineResponse::fromXContent, emptySet());
     }
 
     /**
@@ -61,9 +60,9 @@ public final class IngestClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      */
-    public void putPipelineAsync(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
-            WritePipelineResponse::fromXContent, listener, emptySet(), headers);
+    public void putPipelineAsync(PutPipelineRequest request, RequestOptions options, ActionListener<WritePipelineResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline, options,
+            WritePipelineResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -72,9 +71,9 @@ public final class IngestClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
      */
-    public GetPipelineResponse getPipeline(GetPipelineRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline,
-            GetPipelineResponse::fromXContent, emptySet(), headers);
+    public GetPipelineResponse getPipeline(GetPipelineRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline, options,
+            GetPipelineResponse::fromXContent, emptySet());
     }
 
     /**
@@ -83,9 +82,9 @@ public final class IngestClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
      */
-    public void getPipelineAsync(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline,
-            GetPipelineResponse::fromXContent, listener, emptySet(), headers);
+    public void getPipelineAsync(GetPipelineRequest request, RequestOptions options, ActionListener<GetPipelineResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline, options,
+            GetPipelineResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -95,9 +94,9 @@ public final class IngestClient {
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
      *     Delete Pipeline API on elastic.co</a>
      */
-    public WritePipelineResponse deletePipeline(DeletePipelineRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::deletePipeline,
-            WritePipelineResponse::fromXContent, emptySet(), headers);
+    public WritePipelineResponse deletePipeline(DeletePipelineRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::deletePipeline, options,
+            WritePipelineResponse::fromXContent, emptySet());
     }
 
     /**
@@ -107,8 +106,8 @@ public final class IngestClient {
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
      *     Delete Pipeline API on elastic.co</a>
      */
-    public void deletePipelineAsync(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline,
-            WritePipelineResponse::fromXContent, listener, emptySet(), headers);
+    public void deletePipelineAsync(DeletePipelineRequest request, RequestOptions options, ActionListener<WritePipelineResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline, options,
+            WritePipelineResponse::fromXContent, listener, emptySet());
     }
 }

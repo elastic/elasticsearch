@@ -16,16 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel implements TransportChannel {
     private final TcpTransport transport;
     private final Version version;
+    private final Set<String> features;
     private final String action;
     private final long requestId;
     private final String profileName;
@@ -34,9 +38,10 @@ public final class TcpTransportChannel implements TransportChannel {
     private final String channelType;
     private final TcpChannel channel;
 
-    TcpTransportChannel(TcpTransport transport, TcpChannel channel, String channelType, String action,
-                        long requestId, Version version, String profileName, long reservedBytes) {
+    TcpTransportChannel(TcpTransport transport, TcpChannel channel, String channelType, String action, long requestId, Version version,
+                        Set<String> features, String profileName, long reservedBytes) {
         this.version = version;
+        this.features = features;
         this.channel = channel;
         this.transport = transport;
         this.action = action;
@@ -59,7 +64,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         try {
-            transport.sendResponse(version, channel, response, requestId, action, options);
+            transport.sendResponse(version, features, channel, response, requestId, action, options);
         } finally {
             release(false);
         }
@@ -68,7 +73,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            transport.sendErrorResponse(version, channel, exception, requestId, action);
+            transport.sendErrorResponse(version, features, channel, exception, requestId, action);
         } finally {
             release(true);
         }
@@ -100,5 +105,6 @@ public final class TcpTransportChannel implements TransportChannel {
     public TcpChannel getChannel() {
         return channel;
     }
+
 }
 

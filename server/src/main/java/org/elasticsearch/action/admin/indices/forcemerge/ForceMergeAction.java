@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class ForceMergeAction extends Action<ForceMergeRequest, ForceMergeResponse, ForceMergeRequestBuilder> {
+public class ForceMergeAction extends Action<ForceMergeRequest, ForceMergeResponse> {
 
     public static final ForceMergeAction INSTANCE = new ForceMergeAction();
     public static final String NAME = "indices:admin/forcemerge";
@@ -34,10 +33,5 @@ public class ForceMergeAction extends Action<ForceMergeRequest, ForceMergeRespon
     @Override
     public ForceMergeResponse newResponse() {
         return new ForceMergeResponse();
-    }
-
-    @Override
-    public ForceMergeRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ForceMergeRequestBuilder(client, this);
     }
 }

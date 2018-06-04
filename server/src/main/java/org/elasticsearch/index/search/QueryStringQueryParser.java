@@ -273,17 +273,6 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     @Override
-    protected Query newTermQuery(Term term) {
-        if (currentFieldType != null) {
-            Query termQuery = currentFieldType.queryStringTermQuery(term);
-            if (termQuery != null) {
-                return termQuery;
-            }
-        }
-        return super.newTermQuery(term);
-    }
-
-    @Override
     protected Query newMatchAllDocsQuery() {
         return Queries.newMatchAllQuery();
     }

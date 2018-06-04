@@ -191,7 +191,6 @@ public class ClientYamlTestClient {
 
     protected static void setOptions(Request request, Map<String, String> headers, NodeSelector nodeSelector) {
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        // TODO check that I'm not changing this in this PR. I don't mean to but merge issues.
         for (Map.Entry<String, String> header : headers.entrySet()) {
             logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
             options.addHeader(header.getKey(), header.getValue());

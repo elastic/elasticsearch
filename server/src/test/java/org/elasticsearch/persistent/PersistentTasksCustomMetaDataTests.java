@@ -53,12 +53,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
+import static org.elasticsearch.test.VersionUtils.allReleasedVersions;
 import static org.elasticsearch.test.VersionUtils.compatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.getFirstVersion;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
@@ -247,8 +249,10 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     public void testMinVersionSerialization() throws IOException {
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
 
-        Version minVersion = getFirstVersion();
+        Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
+        System.out.println(minVersion);
         final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
+        System.out.println(streamVersion);
         tasks.addTask("test_compatible_version", TestPersistentTasksExecutor.NAME,
             new TestParams(null, randomVersionBetween(random(), minVersion, streamVersion),
                 randomBoolean() ? Optional.empty() : Optional.of("test")),
@@ -260,11 +264,13 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(streamVersion);
         Set<String> features = new HashSet<>();
-        if (randomBoolean()) {
-            features.add("test");
-        }
-        if (randomBoolean()) {
+        final boolean transportClient = randomBoolean();
+        if (transportClient) {
             features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
+        }
+        // if a transport client, then it must have the feature otherwise we add the feature randomly
+        if (transportClient || randomBoolean()) {
+            features.add("test");
         }
         out.setFeatures(features);
         tasks.build().writeTo(out);

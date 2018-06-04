@@ -372,7 +372,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            });
         }
 
         @Override
@@ -451,7 +451,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            });
         }
 
         @Override

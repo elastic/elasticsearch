@@ -637,7 +637,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                                 localPoints);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
-                            selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY);
+                            selectedValues = finalSortMode.select(distanceValues);
                         } else {
                             final BitSet rootDocs = nested.rootDocs(context);
                             final DocIdSetIterator innerDocs = nested.innerDocs(context);

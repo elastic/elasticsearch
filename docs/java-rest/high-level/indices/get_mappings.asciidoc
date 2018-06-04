@@ -11,8 +11,8 @@ A `GetMappingsRequest` can have an optional list of indices and optional list of
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-request]
 --------------------------------------------------
 <1> An empty request that will return all indices and types
-<1> Setting the indices to fetch mapping for
-<2> The types to be returned
+<2> Setting the indices to fetch mapping for
+<3> The types to be returned
 
 ==== Optional arguments
 The following arguments can also optionally be provided:

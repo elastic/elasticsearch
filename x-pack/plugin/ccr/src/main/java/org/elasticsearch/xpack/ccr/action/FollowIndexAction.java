@@ -149,18 +149,6 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
         Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {

@@ -132,6 +132,6 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
 
     public void testOldSerialisation() throws IOException {
         RolloverResponse original = createTestInstance();
-        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0_alpha1));
+        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0));
     }
 }

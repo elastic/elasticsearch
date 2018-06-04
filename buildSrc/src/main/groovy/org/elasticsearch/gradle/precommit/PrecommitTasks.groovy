@@ -20,11 +20,8 @@ package org.elasticsearch.gradle.precommit
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
-import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.internal.tasks.DefaultSourceSet
-import org.gradle.api.internal.tasks.DefaultSourceSetContainer
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 

@@ -6,20 +6,14 @@
 package org.elasticsearch.xpack.core.security.action.realm;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class ClearRealmCacheAction extends Action<ClearRealmCacheRequest, ClearRealmCacheResponse, ClearRealmCacheRequestBuilder> {
+public class ClearRealmCacheAction extends Action<ClearRealmCacheRequest, ClearRealmCacheResponse> {
 
     public static final ClearRealmCacheAction INSTANCE = new ClearRealmCacheAction();
     public static final String NAME = "cluster:admin/xpack/security/realm/cache/clear";
 
     protected ClearRealmCacheAction() {
         super(NAME);
-    }
-
-    @Override
-    public ClearRealmCacheRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ClearRealmCacheRequestBuilder(client, this);
     }
 
     @Override

@@ -20,10 +20,8 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class FieldCapabilitiesAction extends Action<FieldCapabilitiesRequest,
-    FieldCapabilitiesResponse, FieldCapabilitiesRequestBuilder> {
+public class FieldCapabilitiesAction extends Action<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
 
     public static final FieldCapabilitiesAction INSTANCE = new FieldCapabilitiesAction();
     public static final String NAME = "indices:data/read/field_caps";
@@ -35,10 +33,5 @@ public class FieldCapabilitiesAction extends Action<FieldCapabilitiesRequest,
     @Override
     public FieldCapabilitiesResponse newResponse() {
         return new FieldCapabilitiesResponse();
-    }
-
-    @Override
-    public FieldCapabilitiesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new FieldCapabilitiesRequestBuilder(client, this);
     }
 }

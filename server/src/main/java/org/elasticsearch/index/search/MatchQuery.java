@@ -20,8 +20,8 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
@@ -29,7 +29,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -263,7 +263,8 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType.tokenized() == false && noForcedAnalyzer) {
+        if (fieldType.tokenized() == false && noForcedAnalyzer &&
+                fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
@@ -283,7 +284,7 @@ public class MatchQuery {
                 if (commonTermsCutoff == null) {
                     query = builder.createBooleanQuery(field, value.toString(), occur);
                 } else {
-                    query = builder.createCommonTermsQuery(field, value.toString(), occur, occur, commonTermsCutoff, fieldType);
+                    query = builder.createCommonTermsQuery(field, value.toString(), occur, occur, commonTermsCutoff);
                 }
                 break;
             case PHRASE:
@@ -351,21 +352,38 @@ public class MatchQuery {
 
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            if (hasPositions(mapper) == false) {
-                IllegalStateException exc =
-                    new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+            IllegalStateException e = checkForPositions(field);
+            if (e != null) {
                 if (lenient) {
-                    return newLenientFieldQuery(field, exc);
-                } else {
-                    throw exc;
+                    return newLenientFieldQuery(field, e);
                 }
+                throw e;
             }
-            Query query = super.analyzePhrase(field, stream, slop);
+            Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
             if (query instanceof PhraseQuery) {
                 // synonyms that expand to multiple terms can return a phrase query.
                 return blendPhraseQuery((PhraseQuery) query, mapper);
             }
             return query;
+        }
+
+        @Override
+        protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
+            IllegalStateException e = checkForPositions(field);
+            if (e != null) {
+                if (lenient) {
+                    return newLenientFieldQuery(field, e);
+                }
+                throw e;
+            }
+            return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+        }
+
+        private IllegalStateException checkForPositions(String field) {
+            if (hasPositions(mapper) == false) {
+                return new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+            }
+            return null;
         }
 
         /**
@@ -463,20 +481,23 @@ public class MatchQuery {
             }
         }
 
-        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float
-            maxTermFrequency, MappedFieldType fieldType) {
+        public Query createCommonTermsQuery(String field, String queryText,
+                                            Occur highFreqOccur,
+                                            Occur lowFreqOccur,
+                                            float maxTermFrequency) {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
+                return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency);
             }
             return booleanQuery;
         }
 
-        private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float
-            maxTermFrequency, MappedFieldType fieldType) {
-            ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency,
-                fieldType);
+        private Query boolToExtendedCommonTermsQuery(BooleanQuery bq,
+                                                     Occur highFreqOccur,
+                                                     Occur lowFreqOccur,
+                                                     float maxTermFrequency) {
+            ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency);
             for (BooleanClause clause : bq.clauses()) {
                 if (!(clause.getQuery() instanceof TermQuery)) {
                     return bq;

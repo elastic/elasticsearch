@@ -10,7 +10,7 @@ setlocal enableextensions
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
 call "%~dp0elasticsearch-cli.bat" ^
   org.elasticsearch.xpack.security.authc.saml.SamlMetadataCommand ^
-  %* ^
+  %%* ^
   || exit /b 1
 
 endlocal

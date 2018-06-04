@@ -64,7 +64,7 @@ public abstract class AliasAction {
      */
     @FunctionalInterface
     public interface NewAliasValidator {
-        void validate(String alias, @Nullable String indexRouting, @Nullable String filter, boolean writeIndex);
+        void validate(String alias, @Nullable String indexRouting, @Nullable String filter, @Nullable Boolean writeIndex);
     }
 
     /**
@@ -119,17 +119,10 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
-            final boolean isWriteIndex;
-            if (writeIndex == null) {
-                isWriteIndex = metadata.getWriteIndex(alias) == null;
-            } else {
-                isWriteIndex = writeIndex;
-            }
-
-            aliasValidator.validate(alias, indexRouting, filter, isWriteIndex);
+            aliasValidator.validate(alias, indexRouting, filter, writeIndex);
 
             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).filter(filter).indexRouting(indexRouting)
-                    .searchRouting(searchRouting).writeIndex(isWriteIndex).build();
+                    .searchRouting(searchRouting).writeIndex(writeIndex).build();
 
             // Check if this alias already exists
             AliasMetaData currentAliasMd = index.getAliases().get(alias);

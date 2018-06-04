@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
@@ -78,16 +79,24 @@ public interface AliasOrIndex {
 
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;
+        @Nullable
+        private IndexMetaData writeIndex;
 
         public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
             this.aliasName = aliasMetaData.getAlias();
             this.referenceIndexMetaDatas = new ArrayList<>();
             this.referenceIndexMetaDatas.add(indexMetaData);
+            this.writeIndex = Boolean.TRUE.equals(aliasMetaData.writeIndex()) ? indexMetaData : null;
+
         }
 
         @Override
         public boolean isAlias() {
             return true;
+        }
+
+        public String getAliasName() {
+            return aliasName;
         }
 
         @Override
@@ -96,8 +105,9 @@ public interface AliasOrIndex {
         }
 
 
+        @Nullable
         public IndexMetaData getWriteIndex() {
-            return referenceIndexMetaDatas.stream().filter(i -> i.getAliases().get(aliasName).writeIndex()).findAny().orElse(null);
+            return writeIndex;
         }
 
         /**
@@ -139,8 +149,11 @@ public interface AliasOrIndex {
             return referenceIndexMetaDatas.get(0).getAliases().get(aliasName);
         }
 
-        void addIndex(IndexMetaData indexMetaData) {
+        void addIndex(IndexMetaData indexMetaData, @Nullable Boolean isWriteIndex) {
             this.referenceIndexMetaDatas.add(indexMetaData);
+            if (Boolean.TRUE.equals(isWriteIndex)) {
+                this.writeIndex = indexMetaData;
+            }
         }
 
     }

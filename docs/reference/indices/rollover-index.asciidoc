@@ -141,7 +141,7 @@ GET _alias
 {
   "logs-2016.10.31-000002": {
     "aliases": {
-      "logs_write": { "is_write_index": false }
+      "logs_write": { "is_write_index": true }
     }
   },
   "logs-2016.10.31-1": {

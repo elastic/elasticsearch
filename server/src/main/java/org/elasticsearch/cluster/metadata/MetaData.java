@@ -1016,25 +1016,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
-        /**
-         * Retrieves the write-index for a given <code>alias</code>
-         *
-         * @param alias the alias to search for a write-index with
-         * @return the write-index {@link Index} for <code>alias</code>, null if no write-index is configured
-         */
-        public Index getWriteIndex(String alias) {
-            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                IndexMetaData indexMetaData = cursor.value;
-                for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
-                    AliasMetaData aliasMetaData = aliasCursor.value;
-                    if (aliasMetaData.getAlias().equals(alias) && Boolean.TRUE.equals(aliasMetaData.writeIndex())) {
-                        return indexMetaData.getIndex();
-                    }
-                }
-            }
-            return null;
-        }
-
         public MetaData build() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
@@ -1075,6 +1056,34 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
 
             // build all indices map
+
+            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = buildAliasAndIndexLookup();
+            AliasValidator.validateAliasWriteOnly(aliasAndIndexLookup);
+
+            // set any `is_write_index == null` to their appropriate boolean values
+            for (AliasOrIndex aliasOrIndex : aliasAndIndexLookup.values()) {
+                if (aliasOrIndex.isAlias()) {
+                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                    updateIndicesWithDefaultWriteIndex(alias);
+                }
+            }
+
+            aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
+
+
+            // build all concrete indices arrays:
+            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
+            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
+            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
+            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
+            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+
+            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
+                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+        }
+
+        private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
@@ -1088,23 +1097,33 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                             return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
                         } else {
                             assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
-                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData, aliasMetaData.writeIndex());
                             return alias;
                         }
                     });
                 }
             }
-            aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
-            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
-            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+            return aliasAndIndexLookup;
+        }
 
-            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+        /**
+         * mutates <code>indices</code> to hardcode the <code>is_write_index</code>
+         * values for the aliases. At build time, it is important to set any {@link AliasMetaData} configurations that
+         * have <code>is_write_index == null</code> to <code>true</code> when possible, and <code>false</code> otherwise.
+         * @param alias the {@link AliasOrIndex.Alias} to check
+         */
+        private void updateIndicesWithDefaultWriteIndex(AliasOrIndex.Alias alias) {
+            alias.getIndices().stream().filter(idxMeta -> idxMeta.getAliases().get(alias.getAliasName()).writeIndex() == null)
+                .forEach(idxMeta -> {
+                    AliasMetaData aliasMetaData = idxMeta.getAliases().get(alias.getAliasName());
+                    final boolean defaultWriteIndex = alias.getIndices().size() == 1;
+                    AliasMetaData updatedAliasMetaData = AliasMetaData.builder(aliasMetaData.alias())
+                        .searchRouting(aliasMetaData.searchRouting())
+                        .indexRouting(aliasMetaData.getIndexRouting())
+                        .writeIndex(defaultWriteIndex).build();
+                    IndexMetaData newIndexMetaData = IndexMetaData.builder(idxMeta).putAlias(updatedAliasMetaData).build();
+                    indices.put(newIndexMetaData.getIndex().getName(), newIndexMetaData);
+                });
         }
 
         public static String toXContent(MetaData metaData) throws IOException {

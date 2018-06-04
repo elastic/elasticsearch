@@ -30,15 +30,16 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -59,8 +60,7 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAlias(Alias alias, String index, MetaData metaData) {
-        validateAlias(alias.name(), index, alias.indexRouting(), alias.writeIndex(), metaData::index,
-            () -> metaData.getWriteIndex(alias.name()));
+        validateAlias(alias.name(), index, alias.indexRouting(), metaData::index);
     }
 
     /**
@@ -69,8 +69,7 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasMetaData(AliasMetaData aliasMetaData, String index, MetaData metaData) {
-        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), aliasMetaData.writeIndex(), metaData::index,
-            () -> metaData.getWriteIndex(aliasMetaData.alias()));
+        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), metaData::index);
     }
 
     /**
@@ -94,8 +93,7 @@ public class AliasValidator extends AbstractComponent {
     /**
      * Validate a proposed alias.
      */
-    public void validateAlias(String alias, String index, @Nullable String indexRouting, @Nullable Boolean writeIndex,
-                              Function<String, IndexMetaData> indexLookup, Supplier<Index> writeIndexSupplier) {
+    public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetaData> indexLookup) {
         validateAliasStandalone(alias, indexRouting);
 
         if (!Strings.hasText(index)) {
@@ -105,11 +103,6 @@ public class AliasValidator extends AbstractComponent {
         IndexMetaData indexNamedSameAsAlias = indexLookup.apply(alias);
         if (indexNamedSameAsAlias != null) {
             throw new InvalidAliasNameException(indexNamedSameAsAlias.getIndex(), alias, "an index exists with the same name as the alias");
-        }
-
-        Index existingWriteIndex = writeIndexSupplier.get();
-        if (Boolean.TRUE.equals(writeIndex) && existingWriteIndex != null && existingWriteIndex.getName().equals(index) == false) {
-            throw new IllegalArgumentException("alias [" + alias + "] already has a write index [" + existingWriteIndex.getName() + "]");
         }
     }
 
@@ -156,24 +149,26 @@ public class AliasValidator extends AbstractComponent {
     }
 
     /**
-     * throws exception if specified alias is attempting to be write_only while this alias points to another index
+     * Validates that there is only one write index per alias
      *
-     * @param aliasName the alias in question
-     * @param metaData the Cluster metadata
-     * @throws IllegalArgumentException if the alias cannot be write_only
+     * @param aliasAndIndexLookup The current state of aliases and indices in the cluster state
+     * @throws IllegalStateException if any alias has more than one write index
      */
-    public void validateAliasWriteOnly(String aliasName, boolean isWriteIndex, MetaData metaData) {
-        if (isWriteIndex) {
-            AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(aliasName);
-            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
+    public static void validateAliasWriteOnly(Map<String, AliasOrIndex> aliasAndIndexLookup) {
+        aliasAndIndexLookup.forEach((aliasName, aliasOrIndex) -> {
+            if (aliasOrIndex.isAlias()) {
                 AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-                IndexMetaData writeIndex = alias.getWriteIndex();
-                if (writeIndex != null) {
-                    throw new IllegalArgumentException("alias [" + aliasName +
-                        "] already has a write index [" + writeIndex.getIndex().getName() + "]");
+                if (alias.getIndices().size() > 1) {
+                    List<String> writeIndices = alias.getIndices().stream()
+                        .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                        .map(idxMeta -> idxMeta.getIndex().getName()).collect(Collectors.toList());
+                    if (writeIndices.size() > 1) {
+                        throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
+                            Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+                    }
                 }
             }
-        }
+        });
     }
 
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {

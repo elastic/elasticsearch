@@ -46,9 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
@@ -133,8 +131,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
                      * index and replace it with an alias. */
                     Function<String, IndexMetaData> indexLookup = name -> metadata.get(name);
-                    Supplier<Index> writeIndexSupplier = () -> metadata.getWriteIndex(alias);
-                    aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, writeIndex, indexLookup, writeIndexSupplier);
+                    aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
                     if (Strings.hasLength(filter)) {
                         IndexService indexService = indices.get(index.getIndex().getName());
                         if (indexService == null) {

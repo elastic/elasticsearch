@@ -34,6 +34,7 @@ import java.util.Collection;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
@@ -161,9 +162,9 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
             equalTo(after.metaData().index("test2")));
 
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> service.innerExecute(before, Arrays.asList(
+        Exception exception = expectThrows(IllegalStateException.class, () -> service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, true))));
-        assertThat(exception.getMessage(), equalTo("alias [alias] already has a write index [test2]"));
+        assertThat(exception.getMessage(), startsWith("alias [alias] has more than one write index ["));
     }
 
     public void testAddWriteOnlyValidatesAgainstMetaDataBuilder() {
@@ -174,11 +175,11 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
 
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> service.innerExecute(before, Arrays.asList(
+        Exception exception = expectThrows(IllegalStateException.class, () -> service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, true),
             new AliasAction.Add("test2", "alias", null, null, null, true)
         )));
-        assertThat(exception.getMessage(), equalTo("alias [alias] already has a write index [test]"));
+        assertThat(exception.getMessage(), startsWith("alias [alias] has more than one write index ["));
     }
 
     private ClusterState createIndex(ClusterState state, String index) {

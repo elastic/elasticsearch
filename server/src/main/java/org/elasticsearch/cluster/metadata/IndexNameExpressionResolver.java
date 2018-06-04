@@ -51,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -701,7 +702,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (context.getOptions().ignoreAliases()) {
                     return metaData.getAliasAndIndexLookup().entrySet().stream()
                             .filter(e -> e.getValue().isAlias() == false)
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                                (v1, v2) -> {throw new IllegalStateException("no duplicate indices should exist");}, TreeMap::new));
                 } else {
                     return metaData.getAliasAndIndexLookup();
                 }

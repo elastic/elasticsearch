@@ -70,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -298,7 +299,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
     public void testWriteIndex() throws Exception {
         Boolean writeIndex = randomBoolean();
-        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
         setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
         setupRequestMapping("mapping1", createMapping());
         setupRequestCustom("custom1", createCustom());
@@ -314,18 +314,16 @@ public class IndexCreationTaskTests extends ESTestCase {
             .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
             .numberOfShards(1).numberOfReplicas(0).build();
         idxBuilder.put("test2", existingWriteIndex);
-        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
         setupRequestMapping("mapping1", createMapping());
         setupRequestCustom("custom1", createCustom());
         reqSettings.put("key1", "value1");
         setupRequestAlias(new Alias("alias1").writeIndex(true));
 
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> executeTask());
-        assertThat(exception.getMessage(), equalTo("alias [alias1] already has a write index [test2]"));
+        Exception exception = expectThrows(IllegalStateException.class, () -> executeTask());
+        assertThat(exception.getMessage(), startsWith("alias [alias1] has more than one write index ["));
     }
 
     public void testWriteIndexDefaultToTrue() throws Exception {
-        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
         setupRequestAlias(new Alias("alias1"));
         setupRequestMapping("mapping1", createMapping());
         setupRequestCustom("custom1", createCustom());
@@ -336,7 +334,6 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testWriteIndexDefaultToFalse() throws Exception {
-        doCallRealMethod().when(aliasValidator).validateAliasWriteOnly(eq("alias1"), eq(true), isA(MetaData.class));
         setupRequestAlias(new Alias("alias1"));
         setupRequestMapping("mapping1", createMapping());
         setupRequestCustom("custom1", createCustom());

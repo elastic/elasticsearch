@@ -511,30 +511,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indexMetaDataBuilder.putMapping(mappingMd);
                 }
 
-                Map<String, AliasMetaData> aliases = new HashMap<>();
-
                 for (AliasMetaData aliasMetaData : templatesAliases.values()) {
-                    aliases.put(aliasMetaData.getAlias(), aliasMetaData);
+                    indexMetaDataBuilder.putAlias(aliasMetaData);
                 }
                 for (Alias alias : request.aliases()) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
                         .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
-                    aliases.put(aliasMetaData.getAlias(), aliasMetaData);
+                    indexMetaDataBuilder.putAlias(aliasMetaData);
                 }
-
-                aliases.forEach((aliasName, aliasMetaData) -> {
-                    // if request does not explicitly configure is_write_index, default to true or false accordingly
-                    if (aliasMetaData.writeIndex() == null) {
-                        boolean defaultedIsWriteIndex = currentState.metaData().getWriteIndex(aliasName) == null;
-                        indexMetaDataBuilder.putAlias(AliasMetaData.builder(aliasName).filter(aliasMetaData.getFilter())
-                            .indexRouting(aliasMetaData.getIndexRouting()).searchRouting(aliasMetaData.searchRouting())
-                            .writeIndex(defaultedIsWriteIndex));
-                    } else {
-                        aliasValidator.validateAliasWriteOnly(aliasMetaData.alias(), Boolean.TRUE.equals(aliasMetaData.writeIndex()),
-                            currentState.metaData());
-                        indexMetaDataBuilder.putAlias(aliasMetaData);
-                    }
-                });
 
                 for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
                     indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());

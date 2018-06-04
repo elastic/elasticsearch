@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class AliasValidatorTests extends ESTestCase {
@@ -48,26 +47,40 @@ public class AliasValidatorTests extends ESTestCase {
     }
 
     public void testValidateAliasWriteOnly() {
-        AliasValidator validator = new AliasValidator(Settings.EMPTY);
         String alias = randomAlphaOfLength(5);
-        String index = randomAlphaOfLength(10);
+        String indexA = randomAlphaOfLength(6);
+        String indexB = randomAlphaOfLength(7);
+        Boolean aWriteIndex = randomBoolean() ? null : randomBoolean();
+        Boolean bWriteIndex;
+        if (Boolean.TRUE.equals(aWriteIndex)) {
+            bWriteIndex = randomFrom(Boolean.FALSE, null);
+        } else {
+            bWriteIndex = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
+        }
+        // when only one index/alias pair exist
+        MetaData metaData = MetaData.builder().put(buildIndexMetaData(indexA, alias, aWriteIndex)).build();
+        AliasValidator.validateAliasWriteOnly(metaData.getAliasAndIndexLookup());
 
-        // when false
-        validator.validateAliasWriteOnly(alias, false, buildMetaData(index, alias, randomBoolean()));
+        // when alias points to two indices, but valid
+        // one of the following combinations: [(null, null), (null, true), (null, false), (false, false)]
+        metaData = MetaData.builder(metaData).put(buildIndexMetaData(indexB, alias, bWriteIndex)).build();
+        AliasValidator.validateAliasWriteOnly(metaData.getAliasAndIndexLookup());
 
-        // when true and conflicts with existing index
-        Exception exception = expectThrows(IllegalArgumentException.class,
-            () -> validator.validateAliasWriteOnly(alias, true, buildMetaData(index, alias, true)));
-        assertThat(exception.getMessage(), equalTo("alias [" + alias + "] already has a write index [" + index + "]"));
 
-        // when true and safe
-        validator.validateAliasWriteOnly(alias, true, buildMetaData(index, alias, false));
+        // when too many write indices
+        Exception exception = expectThrows(IllegalStateException.class,
+            () -> {
+                IndexMetaData.Builder metaA = buildIndexMetaData(indexA, alias, true);
+                IndexMetaData.Builder metaB = buildIndexMetaData(indexB, alias, true);
+                AliasValidator.validateAliasWriteOnly(MetaData.builder().put(metaA).put(metaB).build().getAliasAndIndexLookup());
+            });
+        assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
     }
 
-    private MetaData buildMetaData(String name, String alias, boolean writeIndex) {
-        return MetaData.builder().put(IndexMetaData.builder(name)
+    private IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
+        return IndexMetaData.builder(name)
             .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
             .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
-            .numberOfShards(1).numberOfReplicas(0)).build();
+            .numberOfShards(1).numberOfReplicas(0);
     }
 }

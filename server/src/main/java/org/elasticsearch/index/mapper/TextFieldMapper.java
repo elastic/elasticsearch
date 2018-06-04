@@ -40,6 +40,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -175,7 +176,11 @@ public class TextFieldMapper extends FieldMapper {
                 if (fieldType().isSearchable() == false) {
                     throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
                 }
-                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                // Copy the index options of the main field to allow phrase queries on
+                // the prefix field.
+                if (context.indexCreatedVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
+                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
                     prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
                 }
                 if (fieldType.storeTermVectorOffsets()) {
@@ -339,7 +344,6 @@ public class TextFieldMapper extends FieldMapper {
         PrefixFieldType(String name, int minChars, int maxChars) {
             setTokenized(true);
             setOmitNorms(true);
-            setIndexOptions(IndexOptions.DOCS);
             setName(name);
             this.minChars = minChars;
             this.maxChars = maxChars;

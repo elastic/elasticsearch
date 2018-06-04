@@ -61,7 +61,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(fieldName, value);
 
-        if (randomBoolean()) {
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
@@ -99,15 +99,6 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
                 .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
     }
 
-    /**
-     * Overridden to allow for annotating with @AwaitsFix. Please remove this method after fixing.
-     */
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31061")
-    public void testToQuery() throws IOException {
-        super.testToQuery();
-    }
-
     public void testIllegalValues() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchPhrasePrefixQueryBuilder(null, "value"));
         assertEquals("[match_phrase_prefix] requires fieldName", e.getMessage());
@@ -125,6 +116,12 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
+    }
+
+    public void testPhraseOnFieldWithNoTerms() {
+        MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
+        matchQuery.analyzer("whitespace");
+        expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createShardContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {

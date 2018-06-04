@@ -22,8 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
  *
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMappingRequest,
-        PutRoleMappingResponse, PutRoleMappingRequestBuilder> implements
+public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMappingRequest, PutRoleMappingResponse> implements
         WriteRequestBuilder<PutRoleMappingRequestBuilder> {
 
     public PutRoleMappingRequestBuilder(ElasticsearchClient client, PutRoleMappingAction action) {

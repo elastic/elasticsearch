@@ -21,7 +21,12 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -79,5 +84,43 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         private HighLevelClient(RestClient restClient) {
             super(restClient, (client) -> {}, Collections.emptyList());
         }
+    }
+
+    protected static XContentBuilder buildRandomXContentPipeline() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
+        pipelineBuilder.startObject();
+        {
+            pipelineBuilder.field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
+            pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
+            {
+                pipelineBuilder.startObject().startObject("set");
+                {
+                    pipelineBuilder
+                        .field("field", "foo")
+                        .field("value", "bar");
+                }
+                pipelineBuilder.endObject().endObject();
+                pipelineBuilder.startObject().startObject("convert");
+                {
+                    pipelineBuilder
+                        .field("field", "rank")
+                        .field("type", "integer");
+                }
+                pipelineBuilder.endObject().endObject();
+            }
+            pipelineBuilder.endArray();
+        }
+        pipelineBuilder.endObject();
+        return pipelineBuilder;
+    }
+
+    protected static void createPipeline(String pipelineId) throws IOException {
+        XContentBuilder builder = buildRandomXContentPipeline();
+        createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), builder.contentType()));
+    }
+
+    protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
+        assertOK(client().performRequest(RequestConverters.putPipeline(putPipelineRequest)));
     }
 }

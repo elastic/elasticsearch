@@ -41,8 +41,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.format.DateTimeFormatter;
 
 import javax.net.ssl.SSLContext;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -658,12 +656,12 @@ public class HttpExporter extends Exporter {
             if (sniffer != null) {
                 sniffer.close();
             }
-        } catch (IOException | RuntimeException e) {
+        } catch (Exception e) {
             logger.error("an error occurred while closing the internal client sniffer", e);
         } finally {
             try {
                 client.close();
-            } catch (IOException | RuntimeException e) {
+            } catch (Exception e) {
                 logger.error("an error occurred while closing the internal client", e);
             }
         }

@@ -76,8 +76,9 @@ public interface BlobContainer {
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
-     * using an atomic write operation if then implementation supports it. When atomic writes are not supported,
-     * this method delegates to {@link #writeBlob(String, InputStream, long)}.
+     * using an atomic write operation if the implementation supports it. When the BlobContainer implementation
+     * does not provide a specific implementation of writeBlobAtomic(String, InputStream, long), then
+     * the {@link #writeBlob(String, InputStream, long)} method is used.
      *
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.

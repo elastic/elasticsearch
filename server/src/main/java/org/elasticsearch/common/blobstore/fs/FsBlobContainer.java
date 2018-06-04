@@ -135,7 +135,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
-        final Path tempBlobPath = path.resolve(tempBlobName(blobName));
+        final String tempBlob = tempBlobName(blobName);
+        final Path tempBlobPath = path.resolve(tempBlob);
         try {
             try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
                 Streams.copy(inputStream, outputStream);
@@ -149,6 +150,13 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 throw new FileAlreadyExistsException("blob [" + blobPath + "] already exists, cannot overwrite");
             }
             Files.move(tempBlobPath, blobPath, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException ex) {
+            try {
+                deleteBlobIgnoringIfNotExists(tempBlob);
+            } catch (IOException e) {
+                ex.addSuppressed(e);
+            }
+            throw ex;
         } finally {
             IOUtils.deleteFilesIgnoringExceptions(tempBlobPath);
             IOUtils.fsync(path, true);

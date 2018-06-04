@@ -154,14 +154,14 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                         allUpgradesSuccessful = false;
                         logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());
                     }
-                    tryFinishUpdate();
+                    tryFinishUpgrade();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     allUpgradesSuccessful = false;
                     logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
-                    tryFinishUpdate();
+                    tryFinishUpgrade();
                 }
             });
         }
@@ -176,7 +176,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                         allUpgradesSuccessful = false;
                         logger.warn("Error deleting template [{}], request was not acknowledged", template);
                     }
-                    tryFinishUpdate();
+                    tryFinishUpgrade();
                 }
 
                 @Override
@@ -187,36 +187,33 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                         // otherwise we need to warn
                         logger.warn(new ParameterizedMessage("Error deleting template [{}]", template), e);
                     }
-                    tryFinishUpdate();
+                    tryFinishUpgrade();
                 }
             });
         }
     }
 
-    private void tryFinishUpdate() {
+    void tryFinishUpgrade() {
         assert upgradesInProgress.get() > 0;
-        if (upgradesInProgress.decrementAndGet() > 1) {
-            // there are other template changes in progress, upgrade is not complete
-            return;
+        if (upgradesInProgress.decrementAndGet() == 1) {
+            // this is the last upgrade, the templates should now be in the desired state
+            if (allUpgradesSuccessful) {
+                logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
+            } else {
+                logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
+            }
+            allUpgradesSuccessful = true;
+            // Check upgraders are satisfied after the update completed. If they still
+            // report that changes are required, this might indicate a bug or that something
+            // else tinkering with the templates during the upgrade.
+            final ImmutableOpenMap<String, IndexTemplateMetaData> upgradedTemplates = clusterService.state().getMetaData().getTemplates();
+            final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
+            if (changesRequired) {
+                logger.warn("Templates are still reported as out of date after the upgrade. The template upgrade will be retried.");
+            }
+            final int noMoreUpgrades = upgradesInProgress.decrementAndGet();
+            assert noMoreUpgrades == 0;
         }
-        // this is the last upgrade, the templates should now be in the desired state
-        if (allUpgradesSuccessful) {
-            logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
-        } else {
-            logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
-        }
-        allUpgradesSuccessful = true;
-        // Check upgraders are satisfied after the update completed. If they still
-        // report that changes are required, this might indicate a bug or that something
-        // else tinkering with the templates during the upgrade.
-        final ImmutableOpenMap<String, IndexTemplateMetaData> upgradedTemplates = clusterService.state().getMetaData().getTemplates();
-        final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
-        if (changesRequired) {
-            logger.warn("Templates are still reported as out of date after the upgrade. The upgrade will be retried."
-                    + " This might be an indication that something is touching plugin private templates.");
-        }
-        final int noMoreUpgrades = upgradesInProgress.decrementAndGet();
-        assert noMoreUpgrades == 0;
     }
 
     Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(

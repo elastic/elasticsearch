@@ -17,19 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.post;
+package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.Version;
 
 /**
- * A response for an update index settings action
+ * A {@link NamedWriteable} that has a minimum version associated with it.
  */
-public class UpgradeSettingsResponse extends AcknowledgedResponse {
+public interface VersionedNamedWriteable extends NamedWriteable {
 
-    UpgradeSettingsResponse() {
-    }
+    /**
+     * Returns the name of the writeable object
+     */
+    String getWriteableName();
 
-    UpgradeSettingsResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
+    /**
+     * The minimal version of the recipient this object can be sent to
+     */
+    Version getMinimalSupportedVersion();
 }

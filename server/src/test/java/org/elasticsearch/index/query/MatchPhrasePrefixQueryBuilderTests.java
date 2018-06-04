@@ -99,6 +99,15 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
                 .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
     }
 
+    /**
+     * Overridden to allow for annotating with @AwaitsFix. Please remove this method after fixing.
+     */
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31061")
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+    }
+
     public void testIllegalValues() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchPhrasePrefixQueryBuilder(null, "value"));
         assertEquals("[match_phrase_prefix] requires fieldName", e.getMessage());

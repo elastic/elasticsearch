@@ -145,7 +145,8 @@ public class RetryAction extends Action<RetryAction.Request, RetryAction.Respons
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.deepEquals(indices, other.indices) && Objects.equals(indicesOptions, other.indicesOptions);
+            return Objects.deepEquals(indices, other.indices)
+                && Objects.equals(indicesOptions, other.indicesOptions);
         }
 
     }

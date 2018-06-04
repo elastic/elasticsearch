@@ -244,6 +244,7 @@ expression and a separate right-side expression.
 A compound assignment is equivalent to the expression below where V is the
 variable/field and T is the type of variable/member.
 
+[source,Painless]
 ----
 V = (T)(V op expression);
 ----

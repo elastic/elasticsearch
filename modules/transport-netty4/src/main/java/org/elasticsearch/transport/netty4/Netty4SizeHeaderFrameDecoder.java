@@ -40,12 +40,12 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
             int messageLength = TcpTransport.readMessageLength(networkBytes);
             // If the message length is -1, we have not read a complete header.
             if (messageLength != -1) {
-                int messageWithHeaderLength = messageLength + HEADER_SIZE;
+                int messageLengthWithHeader = messageLength + HEADER_SIZE;
                 // If the message length is greater than the network bytes available, we have not read a complete frame.
-                if (messageWithHeaderLength <= networkBytes.length()) {
+                if (messageLengthWithHeader <= networkBytes.length()) {
                     final ByteBuf message = in.skipBytes(HEADER_SIZE);
                     // 6 bytes would mean it is a ping. And we should ignore.
-                    if (messageWithHeaderLength != 6) {
+                    if (messageLengthWithHeader != 6) {
                         out.add(message);
                     }
                 }

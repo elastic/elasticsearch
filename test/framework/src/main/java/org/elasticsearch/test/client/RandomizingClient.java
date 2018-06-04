@@ -93,4 +93,8 @@ public class RandomizingClient extends FilterClient {
         return "randomized(" + super.toString() + ")";
     }
 
+    public Client in() {
+        return super.in();
+    }
+
 }

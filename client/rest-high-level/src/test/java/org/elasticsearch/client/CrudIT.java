@@ -110,8 +110,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // Testing version type
             String docId = "version_type";
             highLevelClient().index(
-                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"), RequestOptions.DEFAULT)
-                .versionType(VersionType.EXTERNAL).version(12));
+                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(13);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                     highLevelClient()::delete, highLevelClient()::deleteAsync);
@@ -124,8 +124,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // Testing version type with a wrong version
             String docId = "wrong_version";
             highLevelClient().index(
-                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"), RequestOptions.DEFAULT)
-                .versionType(VersionType.EXTERNAL).version(12));
+                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
                 DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(10);
                 execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,

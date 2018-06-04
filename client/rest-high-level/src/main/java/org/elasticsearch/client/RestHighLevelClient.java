@@ -701,6 +701,7 @@ public class RestHighLevelClient implements Closeable {
      * elastic.co</a>
      * @deprecated Prefer {@link #multiSearchAsync(MultiSearchRequest, RequestOptions, ActionListener)}
      */
+    @Deprecated
     public final void multiSearchAsync(MultiSearchRequest searchRequest, ActionListener<MultiSearchResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, MultiSearchResponse::fromXContext, listener,
                 emptySet(), headers);

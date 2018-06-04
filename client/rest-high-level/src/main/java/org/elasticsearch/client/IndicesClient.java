@@ -498,6 +498,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-flush.html"> Flush API on elastic.co</a>
      * @deprecated Prefer {@link #flushAsync(FlushRequest, RequestOptions, ActionListener)}
      */
+    @Deprecated
     public void flushAsync(FlushRequest flushRequest, ActionListener<FlushResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(flushRequest, RequestConverters::flush, FlushResponse::fromXContent,
                 listener, emptySet(), headers);

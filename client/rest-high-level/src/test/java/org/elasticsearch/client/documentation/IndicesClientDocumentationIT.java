@@ -871,7 +871,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices().create(
+                    new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -934,7 +935,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices().create(
+                    new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 

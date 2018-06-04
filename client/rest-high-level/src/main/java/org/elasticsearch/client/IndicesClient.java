@@ -903,7 +903,7 @@ public final class IndicesClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
      * API on elastic.co</a>
-     * @deprecated Prefer {@link #putMappingAsync(PutMappingRequest, RequestOptions, ActionListener)}
+     * @deprecated Prefer {@link #putSettingsAsync(UpdateSettingsRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
     public void putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, ActionListener<UpdateSettingsResponse> listener,

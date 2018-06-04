@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -127,7 +128,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
     }
 
-    public static class JobParams implements PersistentTaskParams {
+    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
@@ -236,6 +237,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
     }
 

@@ -34,6 +34,7 @@ class FeatureAwareTask extends LoggedExec {
     private FileCollection classDirectories
 
     FeatureAwareTask() {
+        description = "Runs FeatureAwareCheck on main classes."
         project.afterEvaluate {
             dependsOn classpath
             executable = new File(project.runtimeJavaHome, 'bin/java')
@@ -47,7 +48,6 @@ class FeatureAwareTask extends LoggedExec {
                 // filter out non-existent classes directories from empty source sets
                 classDirectories = project.files(files).filter { it.exists() }
             }
-            description = "Runs FeatureAwareCheck on ${classDirectories.files}."
             doFirst {
                 args('-cp', getClasspath().asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
                 getClassDirectories().each { args it.getAbsolutePath() }

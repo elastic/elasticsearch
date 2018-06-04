@@ -85,6 +85,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * This class is used to generate the Java Indices API documentation.
  * You need to wrap your code between two tags like:

@@ -65,8 +65,9 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     }
 
     @Override
-    protected void masterOperation(final PutRepositoryRequest request, ClusterState state, final ActionListener<PutRepositoryResponse> listener) {
-
+    protected void masterOperation(final PutRepositoryRequest request,
+                                   final ClusterState state,
+                                   final ActionListener<PutRepositoryResponse> listener) {
         repositoriesService.registerRepository(
                 new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]",
                         request.name(), request.type(), request.verify())

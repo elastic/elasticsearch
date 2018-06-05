@@ -1601,25 +1601,24 @@ public class TranslogTests extends ESTestCase {
      * this class mimic behaviour of original {@link Translog}
      */
     static class InMemoryTranslog {
+        private List<Translog.Operation> currentOperations = new LinkedList<>();
         private final List<List<Translog.Operation>> operationsList = new ArrayList<>();
 
         InMemoryTranslog() {
-            this.operationsList.add(new LinkedList<>());
         }
 
         void add(Translog.Operation operation) {
-            operationsList.get(operationsList.size() - 1).add(operation);
+            currentOperations.add(operation);
         }
 
         void rollGeneration() {
-            operationsList.add(new LinkedList<>());
+            operationsList.add(currentOperations);
+            currentOperations = new LinkedList<>();
         }
 
         void trimOperations(long belowTerm, long aboveSeqNo) {
             operationsList
                 .stream()
-                // handle all expect last one - it has `current` ops
-                .limit(operationsList.size() - 1)
                 .forEach(operations -> {
                     for (Iterator<Translog.Operation> it = operations.iterator(); it.hasNext(); ) {
                         Translog.Operation op = it.next();
@@ -1634,9 +1633,10 @@ public class TranslogTests extends ESTestCase {
         List<Translog.Operation> operations() {
             final Set<Long> seenSeqNo = new HashSet<>();
 
-            // reverse traverse of operations
             int size = operationsList.size();
-            return IntStream.range(0, size).mapToObj(i -> operationsList.get(size - 1 - i))
+            return IntStream.range(0, size + 1)
+                // current + reverse traverse of operations
+                .mapToObj(i -> i == 0 ? currentOperations : operationsList.get(size - i))
                 .flatMap(operations -> operations.stream())
                 // latest ops override firsts
                 .filter(operation -> seenSeqNo.add(operation.seqNo()))

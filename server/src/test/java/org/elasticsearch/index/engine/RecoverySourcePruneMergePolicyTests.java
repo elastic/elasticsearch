@@ -35,7 +35,8 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneAll() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy("extra_source", MatchAllDocsQuery::new, newLogMergePolicy());
+            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy("extra_source", MatchAllDocsQuery::new,
+                newLogMergePolicy());
             iwc.setMergePolicy(mp);
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {

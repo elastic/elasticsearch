@@ -247,8 +247,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             source = null;
         }
 
-        if (originalSource != null && source != originalSource) {
-            // TODO only do this if soft_deletes are on?!
+        if (originalSource != null && source != originalSource && context.indexSettings().isSoftDeleteEnabled()) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = source.toBytesRef();
             fields.add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));

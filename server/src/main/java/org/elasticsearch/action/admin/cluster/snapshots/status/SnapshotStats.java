@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -34,19 +35,25 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
 
     private long startTime;
     private long time;
-    private int numberOfFiles;
-    private int processedFiles;
+    private int incrementalFileCount;
+    private int totalFileCount;
+    private int processedFileCount;
+    private long incrementalSize;
     private long totalSize;
     private long processedSize;
 
     SnapshotStats() {
     }
 
-    SnapshotStats(long startTime, long time, int numberOfFiles, int processedFiles, long totalSize, long processedSize) {
+    SnapshotStats(long startTime, long time,
+                  int incrementalFileCount, int totalFileCount, int processedFileCount,
+                  long incrementalSize, long totalSize, long processedSize) {
         this.startTime = startTime;
         this.time = time;
-        this.numberOfFiles = numberOfFiles;
-        this.processedFiles = processedFiles;
+        this.incrementalFileCount = incrementalFileCount;
+        this.totalFileCount = totalFileCount;
+        this.processedFileCount = processedFileCount;
+        this.incrementalSize = incrementalSize;
         this.totalSize = totalSize;
         this.processedSize = processedSize;
     }
@@ -66,17 +73,31 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     }
 
     /**
-     * Returns number of files in the snapshot
+     * Returns incremental file count of the snapshot
      */
-    public int getNumberOfFiles() {
-        return numberOfFiles;
+    public int getIncrementalFileCount() {
+        return incrementalFileCount;
+    }
+
+    /**
+     * Returns total number of files in the snapshot
+     */
+    public int getTotalFileCount() {
+        return totalFileCount;
     }
 
     /**
      * Returns number of files in the snapshot that were processed so far
      */
-    public int getProcessedFiles() {
-        return processedFiles;
+    public int getProcessedFileCount() {
+        return processedFileCount;
+    }
+
+    /**
+     * Return incremental files size of the snapshot
+     */
+    public long getIncrementalSize() {
+        return incrementalSize;
     }
 
     /**
@@ -105,11 +126,16 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         out.writeVLong(startTime);
         out.writeVLong(time);
 
-        out.writeVInt(numberOfFiles);
-        out.writeVInt(processedFiles);
+        out.writeVInt(incrementalFileCount);
+        out.writeVInt(processedFileCount);
 
-        out.writeVLong(totalSize);
+        out.writeVLong(incrementalSize);
         out.writeVLong(processedSize);
+
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeVInt(totalFileCount);
+            out.writeVLong(totalSize);
+        }
     }
 
     @Override
@@ -117,21 +143,32 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         startTime = in.readVLong();
         time = in.readVLong();
 
-        numberOfFiles = in.readVInt();
-        processedFiles = in.readVInt();
+        incrementalFileCount = in.readVInt();
+        processedFileCount = in.readVInt();
 
-        totalSize = in.readVLong();
+        incrementalSize = in.readVLong();
         processedSize = in.readVLong();
+
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            totalFileCount = in.readVInt();
+            totalSize = in.readVLong();
+        } else {
+            totalFileCount = incrementalFileCount;
+            totalSize = incrementalSize;
+        }
     }
 
     static final class Fields {
         static final String STATS = "stats";
-        static final String NUMBER_OF_FILES = "number_of_files";
-        static final String PROCESSED_FILES = "processed_files";
-        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
-        static final String TOTAL_SIZE = "total_size";
-        static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
-        static final String PROCESSED_SIZE = "processed_size";
+
+        static final String INCREMENTAL = "incremental";
+        static final String PROCESSED = "processed";
+        static final String TOTAL = "total";
+
+        static final String FILE_COUNT = "file_count";
+        static final String SIZE = "size";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
+
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
         static final String TIME_IN_MILLIS = "time_in_millis";
         static final String TIME = "time";
@@ -139,24 +176,43 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(Fields.STATS);
-        builder.field(Fields.NUMBER_OF_FILES, getNumberOfFiles());
-        builder.field(Fields.PROCESSED_FILES, getProcessedFiles());
-        builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getTotalSize()));
-        builder.humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()));
-        builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
-        builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
-        builder.endObject();
-        return builder;
+        builder.startObject(Fields.STATS)
+            //  incremental starts
+            .startObject(Fields.INCREMENTAL)
+            .field(Fields.FILE_COUNT, getIncrementalFileCount())
+            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()))
+            //  incremental ends
+            .endObject();
+
+        if (getProcessedFileCount() != getIncrementalFileCount()) {
+            //  processed starts
+            builder.startObject(Fields.PROCESSED)
+                .field(Fields.FILE_COUNT, getProcessedFileCount())
+                .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()))
+                //  processed ends
+                .endObject();
+        }
+        //  total starts
+        builder.startObject(Fields.TOTAL)
+            .field(Fields.FILE_COUNT, getTotalFileCount())
+            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()))
+            //  total ends
+            .endObject();
+       // timings stats
+       builder.field(Fields.START_TIME_IN_MILLIS, getStartTime())
+            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
+
+        return builder.endObject();
     }
 
     void add(SnapshotStats stats) {
-        numberOfFiles += stats.numberOfFiles;
-        processedFiles += stats.processedFiles;
+        incrementalFileCount += stats.incrementalFileCount;
+        totalFileCount += stats.totalFileCount;
+        processedFileCount += stats.processedFileCount;
 
+        incrementalSize += stats.incrementalSize;
         totalSize += stats.totalSize;
         processedSize += stats.processedSize;
-
 
         if (startTime == 0) {
             // First time here

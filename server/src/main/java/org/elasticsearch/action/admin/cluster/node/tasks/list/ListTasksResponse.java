@@ -266,6 +266,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

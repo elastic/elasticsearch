@@ -4,7 +4,7 @@
 [[post-increment-operator]]
 ==== Post Increment
 
-Use the `post increment operator '++'` to *increase* the value of a numeric type
+Use the `post increment operator '++'` to INCREASE the value of a numeric type
 variable/field by `1`. An extra implicit cast is necessary to return the
 promoted numeric type value to the original numeric type value of the
 variable/field for the following types: `byte`, `short`, and `char`. If a
@@ -87,7 +87,7 @@ post_increment: ( variable | field ) '++';
 [[post-decrement-operator]]
 ==== Post Decrement
 
-Use the `post decrement operator '--'` to *decrease* the value of a numeric type
+Use the `post decrement operator '--'` to DECREASE the value of a numeric type
 variable/field by `1`. An extra implicit cast is necessary to return the
 promoted numeric type value to the original numeric type value of the
 variable/field for the following types: `byte`, `short`, and `char`. If a
@@ -170,7 +170,7 @@ post_decrement: ( variable | field ) '--';
 [[pre-increment-operator]]
 ==== Pre Increment
 
-Use the `pre increment operator '++'` to *increase* the value of a numeric type
+Use the `pre increment operator '++'` to INCREASE the value of a numeric type
 variable/field by `1`. An extra implicit cast is necessary to return the
 promoted numeric type value to the original numeric type value of the
 variable/field for the following types: `byte`, `short`, and `char`. If a
@@ -253,7 +253,7 @@ pre_increment: '++' ( variable | field );
 [[pre-decrement-operator]]
 ==== Pre Decrement
 
-Use the `pre decrement operator '--'` to *decrease* the value of a numeric type
+Use the `pre decrement operator '--'` to DECREASE the value of a numeric type
 variable/field by `1`. An extra implicit cast is necessary to return the
 promoted numeric type value to the original numeric type value of the
 variable/field for the following types: `byte`, `short`, and `char`. If a
@@ -336,7 +336,7 @@ pre_increment: '--' ( variable | field );
 [[unary-positive-operator]]
 ==== Unary Positive
 
-Use the `unary positive operator '+'` to the preserve the *identity* of a
+Use the `unary positive operator '+'` to the preserve the IDENTITY of a
 numeric type value.
 
 *Errors*
@@ -389,7 +389,7 @@ unary_positive: '+' expression;
 [[unary-negative-operator]]
 ==== Unary Negative
 
-Use the `unary negative operator '-'` to *negate* a numeric type value.
+Use the `unary negative operator '-'` to NEGATE a numeric type value.
 
 *Errors*
 
@@ -441,7 +441,7 @@ unary_negative: '-' expression;
 [[bitwise-not-operator]]
 ==== Bitwise Not
 
-Use the `bitwise not operator '~'` to *flip* each bit in an integer type value
+Use the `bitwise not operator '~'` to NOT each bit in an integer type value
 where a `1-bit` is flipped to a resultant `0-bit` and a `0-bit` is flipped to a
 resultant `1-bit`.
 
@@ -523,7 +523,7 @@ bitwise_not: '~' expression;
 [[multiplication-operator]]
 ==== Multiplication
 
-Use the `multiplication operator '*'` to *multiply* together two numeric type
+Use the `multiplication operator '*'` to MULTIPLY together two numeric type
 values. Rules for resultant overflow and NaN values follow the JVM
 specification.
 
@@ -594,9 +594,9 @@ multiplication: expression '*' expression;
 [[division-operator]]
 ==== Division
 
-Use the `division operator '/'` to *divide* two numeric type values.  Rules for
-NaN values and division by zero follow the JVM specification.  Division with
-integer values drops the remainder of the resultant value.
+Use the `division operator '/'` to DIVIDE one numeric type value by another.
+Rules for NaN values and division by zero follow the JVM specification. Division
+with integer values drops the remainder of the resultant value.
 
 *Errors*
 
@@ -667,7 +667,7 @@ division: expression '/' expression;
 [[remainder-operator]]
 ==== Remainder
 
-Use the `remainder operator '%'` to calculate the *remainder* for division
+Use the `remainder operator '%'` to calculate the REMAINDER for division
 between two numeric type values.  Rules for NaN values and division by zero follow the JVM
 specification.
 
@@ -738,7 +738,7 @@ remainder: expression '%' expression;
 [[addition-operator]]
 ==== Addition
 
-Use the `addition operator '+'` to *add* together two numeric type values. Rules
+Use the `addition operator '+'` to ADD together two numeric type values. Rules
 for resultant overflow and NaN values follow the JVM specification.
 
 *Errors*
@@ -808,7 +808,7 @@ addition: expression '+' expression;
 [[subtraction-operator]]
 ==== Subtraction
 
-Use the `subtraction operator '-'` to *subtract* a right-hand side numeric type
+Use the `subtraction operator '-'` to SUBTRACT a right-hand side numeric type
 value from a left-hand side numeric type value.  Rules for resultant overflow
 and NaN values follow the JVM specification.
 
@@ -879,7 +879,7 @@ subtraction: expression '-' expression;
 [[left-shift-operator]]
 ==== Left Shift
 
-Use the `left shift operator '<<'` to *shift* lower order bits to higher order
+Use the `left shift operator '<<'` to SHIFT lower order bits to higher order
 bits in a left-hand side integer type value by the distance specified in a
 right-hand side integer type value.
 
@@ -953,7 +953,7 @@ int type value and truncated to the number of bits of the promoted type value.
 [[right-shift-operator]]
 ==== Right Shift
 
-Use the `right shift operator '>>' to *shift* higher order bits to lower order
+Use the `right shift operator '>>'` to SHIFT higher order bits to lower order
 bits in a left-hand side integer type value by the distance specified in a
 right-hand side integer type value.  The highest order bit of the left-hand side
 integer type value is preserved.
@@ -1028,7 +1028,7 @@ int type value and truncated to the number of bits of the promoted type value.
 [[unsigned-right-shift-operator]]
 ==== Unsigned Right Shift
 
-Use the `unsigned right shift operator '>>>'` to *shift* higher order bits to
+Use the `unsigned right shift operator '>>>'` to SHIFT higher order bits to
 lower order bits in a left-hand side integer type value by the distance
 specified in a right-hand side type integer value. The highest order bit of the
 left-hand side integer type value is *not* preserved.
@@ -1103,7 +1103,7 @@ int type value and truncated to the number of bits of the promoted type value.
 [[bitwise-and-operator]]
 ==== Bitwise And
 
-Use the `bitwise and operator '&'` to *and* together each bit within two
+Use the `bitwise and operator '&'` to AND together each bit within two
 integer type values where if both bits at the same index are `1` the resultant
 bit is `1` otherwise the resultant bit is `0`.
 
@@ -1183,7 +1183,7 @@ bitwise_and: expression '&' expression;
 [[bitwise-xor-operator]]
 ==== Bitwise Xor
 
-Use the `bitwise xor operator '^'` to *xor* together each bit within two integer
+Use the `bitwise xor operator '^'` to XOR together each bit within two integer
 type values where if one bit is a `1` and the other bit is a `0` at the same
 index the resultant bit is `1` otherwise the resultant bit is `0`.
 
@@ -1263,7 +1263,7 @@ bitwise_and: expression '^' expression;
 [[bitwise-or-operator]]
 ==== Bitwise Or
 
-Use the `bitwise or operator '|'` to *or* together each bit within two integer
+Use the `bitwise or operator '|'` to OR together each bit within two integer
 type values where if at least one bit is a `1` at the same index the resultant
 bit is `1` otherwise the resultant bit is `0`.
 
@@ -1273,7 +1273,7 @@ bit is `1` otherwise the resultant bit is `0`.
 
 *Bits*
 
-The following table illustrates the resultant bit from the anding of two bits.
+The following table illustrates the resultant bit from the oring of two bits.
 
 [cols="^1,^1,^1"]
 |====

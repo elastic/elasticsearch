@@ -29,7 +29,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -139,10 +138,11 @@ public final class EngineConfig {
         this.codecService = codecService;
         this.eventListener = eventListener;
         codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
-        // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
-        // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
-        // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
-        indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
+        // We need to make the indexing buffer for this shard at least as large
+        // as the amount of memory that is available for all engines on the
+        // local node so that decisions to flush segments to disk are made by
+        // IndexingMemoryController rather than Lucene.
+        indexingBufferSize = indexSettings.getValue(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING);
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;

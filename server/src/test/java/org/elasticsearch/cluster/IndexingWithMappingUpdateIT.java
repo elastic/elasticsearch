@@ -17,76 +17,45 @@ package org.elasticsearch.cluster;/*
  * under the License.
  */
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.zen.PublishClusterStateAction;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
-import org.junit.Before;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
+@TestLogging("org.elasticsearch.cluster:TRACE,org.elasticsearch.discovery:TRACE")
 public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
-    private String index = "test";
-    private String type = "type1";
-    private String masterName;
-    private String primaryNodeName;
-    private String replicaNodeName;
-    private Client client;
-    private InternalTestCluster cluster;
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    @Before
-    public void layout() throws Exception {
-        // dedicated master + 1 primary + 1 replica
-        cluster = internalCluster();
-        masterName = cluster.startMasterOnlyNode();
-        List<String> nodeNames = cluster.startDataOnlyNodes(2);
-
-        assertAcked(admin().indices()
-            .create(createIndexRequest(index)
-                .settings(Settings.builder()
-                    .put("index.number_of_replicas", 1)
-                    .put("index.number_of_shards", 1)))
-            .get());
-
-
-        client = cluster.client();
-
-        //  force the primary to be fully allocated before starting the replica
-        client.prepareIndex(index, type, "d").setSource("{ }", XContentType.JSON).get();
-
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        String nodeId = clusterState.getRoutingTable().index(index).shard(0).primaryShard().currentNodeId();
-        primaryNodeName = clusterState.getRoutingNodes().node(nodeId).node().getName();
-
-        client = cluster.client(primaryNodeName);
-
-        replicaNodeName = nodeNames.stream().filter(name -> !name.equals(primaryNodeName)).findFirst().get();
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build();
     }
 
     /**
+     One of potential raise condition cases that triggers RetryOnReplicaException:
+
      title Replication Sequence, case 1
 
      Client -> Primary: doc1
@@ -104,81 +73,81 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
      Master -> Primary: all nodes acked
      Primary -> Replica: doc1
      */
-    public void testRaiseConditionOnSecondDocWithMappingUpdate() throws Exception {
-        int docs = randomIntBetween(5, 10);
+    public void testRaiseConditionOnFollowingDocWithMappingUpdate() throws Exception {
 
-        final CountDownLatch prestartLatch = new CountDownLatch(1 + docs);
+        final String index = "test";
+        final String type = "doc";
+
+        // dedicated master + 1 primary + 1 replica
+        final String masterNodeName = internalCluster().startMasterOnlyNode();
+        final int nodes = randomIntBetween(2, 10);
+        final int replicas = nodes - 1;
+        internalCluster().startDataOnlyNodes(nodes);
+
+        // single primary + all other nodes are replicas
+        assertAcked(admin().indices().prepareCreate(index).setSettings(Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicas)));
+
+        ensureGreen();
+
+        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().index(index).shard(0);
+        final String primaryNodeId = indexShardRoutingTable.primaryShard().currentNodeId();
+        final String primaryNodeName = clusterState.nodes().get(primaryNodeId).getName();
+
+        List<ShardRouting> replicaShards = indexShardRoutingTable.replicaShards();
+        assertThat(replicaShards.size(), is(replicas));
+
+        // pick up any victim among replicas
+        final String unluckyReplicaNodeId = replicaShards.get(randomInt(replicas)).currentNodeId();
+        final String unluckyReplicaNodeName = clusterState.nodes().get(unluckyReplicaNodeId).getName();
+
+        final ServiceDisruptionScheme serviceDisruptionScheme = new SlowClusterStateProcessing(unluckyReplicaNodeName, random());
+        setDisruptionScheme(serviceDisruptionScheme);
+        serviceDisruptionScheme.startDisrupting();
+
+        final int threadCount = 10;
+        final int docCount = randomIntBetween(20, 50);
+        final CountDownLatch readyLatch = new CountDownLatch(threadCount);
         final CountDownLatch startLatch = new CountDownLatch(1);
-        final CountDownLatch sendSecondDocLatch = new CountDownLatch(1);
-
-        MockTransportService replicaTransportService =
-            ((MockTransportService) cluster.getInstance(TransportService.class, replicaNodeName));
-
-        // tracer on replica to slow down consumption of cluster state with mapping update requests
-        // internal:discovery/zen/publish/sent
-        // internal:discovery/zen/publish/commit
-        replicaTransportService.addTracer(new MockTransportService.Tracer() {
-            @Override
-            public void receivedRequest(long requestId, String action) {
-                boolean clusterStateCommit = action.equals(PublishClusterStateAction.COMMIT_ACTION_NAME);
-                boolean clusterStateWrite = action.equals(PublishClusterStateAction.SEND_ACTION_NAME);
-
-                if (clusterStateCommit) {
-                    sendSecondDocLatch.countDown();
-                }
-                if (clusterStateCommit || clusterStateWrite) {
-                    try {
-                        Thread.sleep(50);
-                    } catch (InterruptedException e) {
-                        // ignore
-                    }
-                }
-                super.receivedRequest(requestId, action);
-            }
-        });
-
+        final AtomicInteger nextDocIndex = new AtomicInteger();
         final List<IndexResponse> indexResponses = new CopyOnWriteArrayList<>();
-        Thread[] threads = new Thread[docs + 1];
-        threads[0] = new Thread(() -> {
-            try {
-                prestartLatch.countDown();
-                startLatch.await();
 
-                IndexResponse indexResponse = client.prepareIndex(index, type, "doc")
-                    .setSource("{ \"f\": \"normal\"}", XContentType.JSON).get();
-                indexResponses.add(indexResponse);
-            } catch (InterruptedException e) {
-                // ignore
-            }
-        });
+        final Client client = internalCluster().client(primaryNodeName);
 
-        for(int i = 0; i < docs; i++) {
-            IndexRequestBuilder builder = client.prepareIndex(index, type, "doc_" + i)
-                .setSource("{ \"f\": \"normal\"}", XContentType.JSON);
-            threads[i + 1] = new Thread(() -> {
+        final Thread[] threads = new Thread[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            final int threadNumber = i;
+            threads[i] = new Thread(() -> {
+                readyLatch.countDown();
                 try {
-                    prestartLatch.countDown();
-                    sendSecondDocLatch.await();
-
-                    IndexResponse indexResponse = builder.get();
-                    indexResponses.add(indexResponse);
-                } catch (InterruptedException e) {
+                    startLatch.await();
+                    Thread.sleep(threadNumber * 10);
+                } catch (InterruptedException ignored) {
                     // ignore
                 }
+
+                int docIndex;
+                while ((docIndex = nextDocIndex.incrementAndGet()) < docCount) {
+                    logger.info("--> thread {} indexing doc {}", threadNumber, docIndex);
+                    IndexResponse indexResponse = client.prepareIndex(index, type, "doc" + docIndex)
+                        .setSource("{ \"f\": \"normal\"}", XContentType.JSON).get();
+                    logger.info("--> thread {} indexing doc {} done", threadNumber, docIndex);
+                    indexResponses.add(indexResponse);
+                }
             });
+            threads[i].setName("thread-" + i);
         }
 
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].setName("index-" + i);
-            threads[i].start();
-        }
-
-        prestartLatch.await();
+        Arrays.stream(threads).forEach(Thread::start);
+        readyLatch.await();
         startLatch.countDown();
 
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
+        for (final Thread thread : threads) {
+            thread.join();
         }
+        serviceDisruptionScheme.stopDisrupting();
 
         List<String> failureMessages = indexResponses.stream()
             .map(r -> r.getShardInfo().getFailures())

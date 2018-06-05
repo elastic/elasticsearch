@@ -98,18 +98,6 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
         }
 
         public Response() {}
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
     }
 
 }

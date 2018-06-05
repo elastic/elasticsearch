@@ -68,12 +68,12 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName) {
         final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
-            throw new SettingsException("Cannot find an azure client by the name [" + clientName + "]. Check your settings.");
+            throw new SettingsException("Unable to find client with name [" + clientName + "]");
         }
         try {
             return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
         } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
-            throw new SettingsException("Invalid azure client [" + clientName + "] settings.", e);
+            throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
         }
     }
 

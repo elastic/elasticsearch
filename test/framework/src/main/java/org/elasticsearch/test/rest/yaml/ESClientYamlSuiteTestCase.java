@@ -70,6 +70,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
     /**
+     * We use tests.rest.blacklist in build files to blacklist tests; this property enables a user to add additional blacklisted tests on
+     * top of the tests blacklisted in the build.
+     */
+    public static final String REST_TESTS_BLACKLIST_ADDITIONS = "tests.rest.blacklist_additions";
+    /**
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
@@ -123,6 +128,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
+            final String[] blacklistAdditions = resolvePathsProperty(REST_TESTS_BLACKLIST_ADDITIONS, null);
+            for (final String entry : blacklistAdditions) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
         }
@@ -322,8 +331,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (useDefaultNumberOfShards == false
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
-            request.addHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters());
-            request.setEntity(new StringEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}"));
+            request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
             adminClient().performRequest(request);
         }
 

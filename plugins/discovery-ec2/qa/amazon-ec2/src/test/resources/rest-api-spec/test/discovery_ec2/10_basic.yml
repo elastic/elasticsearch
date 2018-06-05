@@ -1,0 +1,9 @@
+# Integration tests for discovery-ec2
+---
+"All nodes are correctly discovered":
+
+  - do:
+      nodes.info:
+        metric: [ transport ]
+
+  - match: { _nodes.total: ${expected_nodes} }

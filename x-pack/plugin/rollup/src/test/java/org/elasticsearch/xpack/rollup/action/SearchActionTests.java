@@ -186,22 +186,6 @@ public class SearchActionTests extends ESTestCase {
         assertThat(((TermsQueryBuilder)rewritten).values(),  equalTo(Arrays.asList("bar", "baz")));
     }
 
-    public void testMatchQuery() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
-        Set<RollupJobCaps> caps = new HashSet<>();
-        caps.add(cap);
-        QueryBuilder original = new MatchQueryBuilder("foo", "bar");
-        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(original, caps);
-        assertThat(rewritten, instanceOf(MatchQueryBuilder.class));
-        assertNotSame(rewritten, original);
-        assertThat(((MatchQueryBuilder)rewritten).fieldName(), equalTo("foo.terms.value"));
-        assertThat(((MatchQueryBuilder)rewritten).value(), equalTo("bar"));
-    }
-
     public void testCompounds() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();

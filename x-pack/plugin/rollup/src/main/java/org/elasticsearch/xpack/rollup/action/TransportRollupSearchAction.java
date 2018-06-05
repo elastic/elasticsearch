@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -306,25 +305,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             String fieldName = terms.fieldName();
             String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName, null);
             return new TermsQueryBuilder(rewrittenFieldName, terms.values());
-        } else if (builder.getWriteableName().equals(MatchQueryBuilder.NAME)) {
-            MatchQueryBuilder match = (MatchQueryBuilder) builder;
-            String fieldName = match.fieldName();
-            String rewrittenFieldName = rewriteFieldName(jobCaps, MatchQueryBuilder.NAME, fieldName, null);
-            MatchQueryBuilder rewritten = new MatchQueryBuilder(rewrittenFieldName, match.value())
-                .operator(match.operator())
-                .analyzer(match.analyzer())
-                .zeroTermsQuery(match.zeroTermsQuery())
-                .minimumShouldMatch(match.minimumShouldMatch())
-                .lenient(match.lenient())
-                .maxExpansions(match.maxExpansions())
-                .prefixLength(match.prefixLength())
-                .autoGenerateSynonymsPhraseQuery(match.autoGenerateSynonymsPhraseQuery())
-                .fuzzyRewrite(match.fuzzyRewrite())
-                .fuzzyTranspositions(match.fuzzyTranspositions());
-            if (match.fuzziness() != null) {
-                rewritten.fuzziness(match.fuzziness());
-            }
-            return rewritten;
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
             return builder;

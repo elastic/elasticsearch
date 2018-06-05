@@ -96,7 +96,6 @@ The Rollup functionality allows `query`'s in the search request, but with a limi
 
 - Term Query
 - Terms Query
-- Match Query
 - Range Query
 - MatchAll Query
 - Any compound query (Boolean, Boosting, ConstantScore, etc)

@@ -151,54 +151,55 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verifySortedNumeric(Supplier<SortedNumericDocValues> supplier, int maxDoc) throws IOException {
-        for (long missingValue : new long[] { 0, randomLong() }) {
-            for (MultiValueMode mode : MultiValueMode.values()) {
-                SortedNumericDocValues values = supplier.get();
-                final NumericDocValues selected = mode.select(values, missingValue);
-                for (int i = 0; i < maxDoc; ++i) {
-                    assertTrue(selected.advanceExact(i));
-                    final long actual = selected.longValue();
+        for (MultiValueMode mode : MultiValueMode.values()) {
+            SortedNumericDocValues values = supplier.get();
+            final NumericDocValues selected = mode.select(values);
+            for (int i = 0; i < maxDoc; ++i) {
+                Long actual = null;
+                if (selected.advanceExact(i)) {
+                    actual = selected.longValue();
                     verifyLongValueCanCalledMoreThanOnce(selected, actual);
+                }
 
-                    long expected = 0;
-                    if (values.advanceExact(i) == false) {
-                        expected = missingValue;
+
+                Long expected = null;
+                if (values.advanceExact(i)) {
+                    int numValues = values.docValueCount();
+                    if (mode == MultiValueMode.MAX) {
+                        expected = Long.MIN_VALUE;
+                    } else if (mode == MultiValueMode.MIN) {
+                        expected = Long.MAX_VALUE;
                     } else {
-                        int numValues = values.docValueCount();
-                        if (mode == MultiValueMode.MAX) {
-                            expected = Long.MIN_VALUE;
+                        expected = 0L;
+                    }
+                    for (int j = 0; j < numValues; ++j) {
+                        if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                            expected += values.nextValue();
                         } else if (mode == MultiValueMode.MIN) {
-                            expected = Long.MAX_VALUE;
-                        }
-                        for (int j = 0; j < numValues; ++j) {
-                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
-                                expected += values.nextValue();
-                            } else if (mode == MultiValueMode.MIN) {
-                                expected = Math.min(expected, values.nextValue());
-                            } else if (mode == MultiValueMode.MAX) {
-                                expected = Math.max(expected, values.nextValue());
-                            }
-                        }
-                        if (mode == MultiValueMode.AVG) {
-                            expected = numValues > 1 ? Math.round((double)expected/(double)numValues) : expected;
-                        } else if (mode == MultiValueMode.MEDIAN) {
-                            int value = numValues/2;
-                            if (numValues % 2 == 0) {
-                                for (int j = 0; j < value - 1; ++j) {
-                                    values.nextValue();
-                                }
-                                expected = Math.round(((double) values.nextValue() + values.nextValue())/2.0);
-                            } else {
-                                for (int j = 0; j < value; ++j) {
-                                    values.nextValue();
-                                }
-                                expected = values.nextValue();
-                            }
+                            expected = Math.min(expected, values.nextValue());
+                        } else if (mode == MultiValueMode.MAX) {
+                            expected = Math.max(expected, values.nextValue());
                         }
                     }
-
-                    assertEquals(mode.toString() + " docId=" + i, expected, actual);
+                    if (mode == MultiValueMode.AVG) {
+                        expected = numValues > 1 ? Math.round((double)expected/(double)numValues) : expected;
+                    } else if (mode == MultiValueMode.MEDIAN) {
+                        int value = numValues/2;
+                        if (numValues % 2 == 0) {
+                            for (int j = 0; j < value - 1; ++j) {
+                                values.nextValue();
+                            }
+                            expected = Math.round(((double) values.nextValue() + values.nextValue())/2.0);
+                        } else {
+                            for (int j = 0; j < value; ++j) {
+                                values.nextValue();
+                            }
+                            expected = values.nextValue();
+                        }
+                    }
                 }
+
+                assertEquals(mode.toString() + " docId=" + i, expected, actual);
             }
         }
     }
@@ -326,54 +327,54 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc) throws IOException {
-        for (long missingValue : new long[] { 0, randomLong() }) {
-            for (MultiValueMode mode : MultiValueMode.values()) {
-                SortedNumericDoubleValues values = supplier.get();
-                final NumericDoubleValues selected = mode.select(values, missingValue);
-                for (int i = 0; i < maxDoc; ++i) {
-                    assertTrue(selected.advanceExact(i));
-                    final double actual = selected.doubleValue();
+        for (MultiValueMode mode : MultiValueMode.values()) {
+            SortedNumericDoubleValues values = supplier.get();
+            final NumericDoubleValues selected = mode.select(values);
+            for (int i = 0; i < maxDoc; ++i) {
+                Double actual = null;
+                if (selected.advanceExact(i)) {
+                    actual = selected.doubleValue();
                     verifyDoubleValueCanCalledMoreThanOnce(selected, actual);
+                }
 
-                    double expected = 0.0;
-                    if (values.advanceExact(i) == false) {
-                        expected = missingValue;
+                Double expected = null;
+                if (values.advanceExact(i)) {
+                    int numValues = values.docValueCount();
+                    if (mode == MultiValueMode.MAX) {
+                        expected = Double.NEGATIVE_INFINITY;
+                    } else if (mode == MultiValueMode.MIN) {
+                        expected = Double.POSITIVE_INFINITY;
                     } else {
-                        int numValues = values.docValueCount();
-                        if (mode == MultiValueMode.MAX) {
-                            expected = Long.MIN_VALUE;
+                        expected = 0d;
+                    }
+                    for (int j = 0; j < numValues; ++j) {
+                        if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                            expected += values.nextValue();
                         } else if (mode == MultiValueMode.MIN) {
-                            expected = Long.MAX_VALUE;
-                        }
-                        for (int j = 0; j < numValues; ++j) {
-                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
-                                expected += values.nextValue();
-                            } else if (mode == MultiValueMode.MIN) {
-                                expected = Math.min(expected, values.nextValue());
-                            } else if (mode == MultiValueMode.MAX) {
-                                expected = Math.max(expected, values.nextValue());
-                            }
-                        }
-                        if (mode == MultiValueMode.AVG) {
-                            expected = expected/numValues;
-                        } else if (mode == MultiValueMode.MEDIAN) {
-                            int value = numValues/2;
-                            if (numValues % 2 == 0) {
-                                for (int j = 0; j < value - 1; ++j) {
-                                    values.nextValue();
-                                }
-                                expected = (values.nextValue() + values.nextValue())/2.0;
-                            } else {
-                                for (int j = 0; j < value; ++j) {
-                                    values.nextValue();
-                                }
-                                expected = values.nextValue();
-                            }
+                            expected = Math.min(expected, values.nextValue());
+                        } else if (mode == MultiValueMode.MAX) {
+                            expected = Math.max(expected, values.nextValue());
                         }
                     }
-
-                    assertEquals(mode.toString() + " docId=" + i, expected, actual, 0.1);
+                    if (mode == MultiValueMode.AVG) {
+                        expected = expected/numValues;
+                    } else if (mode == MultiValueMode.MEDIAN) {
+                        int value = numValues/2;
+                        if (numValues % 2 == 0) {
+                            for (int j = 0; j < value - 1; ++j) {
+                                values.nextValue();
+                            }
+                            expected = (values.nextValue() + values.nextValue())/2.0;
+                        } else {
+                            for (int j = 0; j < value; ++j) {
+                                values.nextValue();
+                            }
+                            expected = values.nextValue();
+                        }
+                    }
                 }
+
+                assertEquals(mode.toString() + " docId=" + i, expected, actual);
             }
         }
     }

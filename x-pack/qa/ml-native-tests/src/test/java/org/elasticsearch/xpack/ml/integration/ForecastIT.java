@@ -239,8 +239,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             throw e;
         }
 
-        closeJob(job.getId());
-
         List<ForecastRequestStats> forecastStats = getForecastStats();
         assertThat(forecastStats.size(), equalTo(1));
         ForecastRequestStats forecastRequestStats = forecastStats.get(0);
@@ -248,6 +246,21 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         assertThat(forecastRequestStats.getRecordCount(), equalTo(8000L));
         assertThat(forecasts.size(), equalTo(8000));
+
+        // run forecast a 2nd time
+        try {
+            String forecastId = forecast(job.getId(), TimeValue.timeValueHours(1), null);
+
+            waitForecastToFinish(job.getId(), forecastId);
+        } catch (ElasticsearchStatusException e) {
+            if (e.getMessage().contains("disk space")) {
+                throw new ElasticsearchStatusException(
+                        "Test likely fails due to insufficient disk space on test machine, please free up space.", e.status(), e);
+            }
+            throw e;
+        }
+
+        closeJob(job.getId());
     }
 
     private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {

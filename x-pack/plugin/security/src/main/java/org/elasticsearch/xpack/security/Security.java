@@ -970,7 +970,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     static final class ValidateLicenseCanBeDeserialized implements BiConsumer<DiscoveryNode, ClusterState> {
-
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             License license = LicenseService.getLicense(state.metaData());

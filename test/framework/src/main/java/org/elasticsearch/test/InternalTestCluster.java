@@ -26,8 +26,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -77,10 +75,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineTestCase;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -1105,7 +1100,7 @@ public final class InternalTestCluster extends TestCluster {
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertNoPendingIndexOperations();
         //check that shards that have same sync id also contain same number of documents
-         assertSameSyncIdSameDocs();
+        assertSameSyncIdSameDocs();
         assertOpenTranslogReferences();
     }
 
@@ -1116,36 +1111,20 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    Tuple<String, Integer> commitStats = commitStats(indexShard);
-                    if (commitStats != null) {
-                        String syncId = commitStats.v1();
-                        long liveDocsOnShard = commitStats.v2();
-                        if (docsOnShards.get(syncId) != null) {
-                            assertThat("sync id is equal but number of docs does not match on node " + nodeAndClient.name +
-                                    ". expected " + docsOnShards.get(syncId) + " but got " + liveDocsOnShard, docsOnShards.get(syncId),
-                                equalTo(liveDocsOnShard));
-                        } else {
-                            docsOnShards.put(syncId, liveDocsOnShard);
+                    CommitStats commitStats = indexShard.commitStats();
+                    if (commitStats != null) { // null if the engine is closed or if the shard is recovering
+                        String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
+                        if (syncId != null) {
+                            long liveDocsOnShard = commitStats.getNumDocs();
+                            if (docsOnShards.get(syncId) != null) {
+                                assertThat("sync id is equal but number of docs does not match on node " + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got " + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
+                            } else {
+                                docsOnShards.put(syncId, liveDocsOnShard);
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-
-    private Tuple<String, Integer> commitStats(IndexShard indexShard) {
-        try (Engine.IndexCommitRef commitRef = indexShard.acquireLastIndexCommit(false)) {
-            final String syncId = commitRef.getIndexCommit().getUserData().get(Engine.SYNC_COMMIT_ID);
-            // Only read if sync_id exists
-            if (Strings.hasText(syncId)) {
-                return Tuple.tuple(syncId, Lucene.getExactNumDocs(commitRef.getIndexCommit()));
-            } else {
-                return null;
-            }
-        } catch (IllegalIndexShardStateException ex) {
-            return null; // Shard is closed or not started yet.
-        } catch (IOException ex) {
-            throw new AssertionError(ex);
         }
     }
 

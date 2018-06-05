@@ -44,7 +44,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -145,19 +144,9 @@ public class Lucene {
     public static int getNumDocs(SegmentInfos info) {
         int numDocs = 0;
         for (SegmentCommitInfo si : info) {
-            numDocs += si.info.maxDoc() - si.getDelCount();
+            numDocs += si.info.maxDoc() - si.getDelCount() - si.getSoftDelCount();
         }
         return numDocs;
-    }
-
-    /**
-     * Unlike {@link #getNumDocs(SegmentInfos)} this method returns a numDocs that always excludes soft-deleted docs.
-     * This method is expensive thus prefer using {@link #getNumDocs(SegmentInfos)} unless an exact numDocs is required.
-     */
-    public static int getExactNumDocs(IndexCommit commit) throws IOException {
-        try (DirectoryReader reader = DirectoryReader.open(commit)) {
-            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETE_FIELD).numDocs();
-        }
     }
 
     /**
@@ -212,6 +201,7 @@ public class Lucene {
         }
         final CommitPoint cp = new CommitPoint(si, directory);
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
                 .setIndexCommit(cp)
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE)
@@ -235,6 +225,7 @@ public class Lucene {
             }
         }
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...

@@ -303,10 +303,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             if (recoverySource == null) {
                 return false;
             }
-            if (tombstoneDV.docID() > segmentDocId) {
+            if (recoverySource.docID() > segmentDocId) {
                 recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
             }
-            return tombstoneDV.advanceExact(segmentDocId);
+            return recoverySource.advanceExact(segmentDocId);
         }
     }
 }

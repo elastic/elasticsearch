@@ -39,8 +39,8 @@ public class NioGroupTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         nioGroup = new NioGroup(daemonThreadFactory(Settings.EMPTY, "acceptor"), 1,
-            (s) -> new AcceptorEventHandler(s, mock(Consumer.class)), daemonThreadFactory(Settings.EMPTY, "selector"), 1,
-            () -> new SocketEventHandler(mock(Consumer.class)));
+            (s) -> new EventHandler(mock(Consumer.class), s), daemonThreadFactory(Settings.EMPTY, "selector"), 1,
+            () -> new EventHandler(mock(Consumer.class)));
     }
 
     @Override
@@ -76,8 +76,8 @@ public class NioGroupTests extends ESTestCase {
     public void testExceptionAtStartIsHandled() throws IOException {
         RuntimeException ex = new RuntimeException();
         CheckedRunnable<IOException> ctor = () -> new NioGroup(r -> {throw ex;}, 1,
-            (s) -> new AcceptorEventHandler(s, mock(Consumer.class)), daemonThreadFactory(Settings.EMPTY, "selector"),
-            1, () -> new SocketEventHandler(mock(Consumer.class)));
+            (s) -> new EventHandler(mock(Consumer.class), s), daemonThreadFactory(Settings.EMPTY, "selector"),
+            1, () -> new EventHandler(mock(Consumer.class)));
         RuntimeException runtimeException = expectThrows(RuntimeException.class, ctor::run);
         assertSame(ex, runtimeException);
         // ctor starts threads. So we are testing that a failure to construct will stop threads. Our thread

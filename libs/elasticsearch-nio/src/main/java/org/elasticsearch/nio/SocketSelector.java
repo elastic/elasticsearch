@@ -35,14 +35,14 @@ import java.util.function.BiConsumer;
 public class SocketSelector extends ESSelector {
 
     private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
-    private final SocketEventHandler eventHandler;
+    private final EventHandler eventHandler;
 
-    public SocketSelector(SocketEventHandler eventHandler) throws IOException {
+    public SocketSelector(EventHandler eventHandler) throws IOException {
         super(eventHandler);
         this.eventHandler = eventHandler;
     }
 
-    public SocketSelector(SocketEventHandler eventHandler, Selector selector) throws IOException {
+    public SocketSelector(EventHandler eventHandler, Selector selector) throws IOException {
         super(eventHandler, selector);
         this.eventHandler = eventHandler;
     }
@@ -51,12 +51,18 @@ public class SocketSelector extends ESSelector {
     void processKey(SelectionKey selectionKey) {
         ChannelContext<?> context = (ChannelContext<?>) selectionKey.attachment();
         if (selectionKey.isAcceptable()) {
-
+            assert context instanceof ServerChannelContext : "Only server channels can receive accept events";
+            ServerChannelContext serverChannelContext = (ServerChannelContext) context;
+            int ops = selectionKey.readyOps();
+            if ((ops & SelectionKey.OP_ACCEPT) != 0) {
+                try {
+                    eventHandler.acceptChannel(serverChannelContext);
+                } catch (IOException e) {
+                    eventHandler.acceptException(serverChannelContext, e);
+                }
+            }
         } else {
-
-        }
-
-        if (context instanceof SocketChannelContext) {
+            assert context instanceof SocketChannelContext : "Only sockets channels can receive non-accept events";
             SocketChannelContext channelContext = (SocketChannelContext) context;
             int ops = selectionKey.readyOps();
             if ((ops & SelectionKey.OP_CONNECT) != 0) {
@@ -73,16 +79,6 @@ public class SocketSelector extends ESSelector {
                 }
             }
             eventHandler.postHandling(channelContext);
-        } else {
-            ServerChannelContext serverChannelContext = (ServerChannelContext) context;
-            int ops = selectionKey.readyOps();
-            if ((ops & SelectionKey.OP_ACCEPT) != 0) {
-                try {
-                    eventHandler.acceptChannel(serverChannelContext);
-                } catch (IOException e) {
-                    eventHandler.acceptException(serverChannelContext, e);
-                }
-            }
         }
 
     }

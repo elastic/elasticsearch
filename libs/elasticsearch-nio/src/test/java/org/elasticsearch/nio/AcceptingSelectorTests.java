@@ -39,9 +39,9 @@ import static org.mockito.Mockito.when;
 
 public class AcceptingSelectorTests extends ESTestCase {
 
-    private AcceptingSelector selector;
+    private SocketSelector selector;
     private NioServerSocketChannel serverChannel;
-    private AcceptorEventHandler eventHandler;
+    private EventHandler eventHandler;
     private TestSelectionKey selectionKey;
     private Selector rawSelector;
     private ServerChannelContext context;
@@ -50,11 +50,11 @@ public class AcceptingSelectorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        eventHandler = mock(AcceptorEventHandler.class);
+        eventHandler = mock(EventHandler.class);
         serverChannel = mock(NioServerSocketChannel.class);
 
         rawSelector = mock(Selector.class);
-        selector = new AcceptingSelector(eventHandler, rawSelector);
+        selector = new SocketSelector(eventHandler, rawSelector);
         this.selector.setThread();
 
         context = mock(ServerChannelContext.class);

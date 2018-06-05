@@ -115,7 +115,7 @@ public class ChannelContextTests extends ESTestCase {
         }
 
         @Override
-        public ESSelector getSelector() {
+        public SocketSelector getSelector() {
             throw new UnsupportedOperationException("not implemented");
         }
 

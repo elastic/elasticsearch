@@ -19,8 +19,8 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketEventHandler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
-public class TestingSocketEventHandler extends SocketEventHandler {
+public class TestingSocketEventHandler extends EventHandler {
 
     private Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
 

@@ -46,8 +46,8 @@ import java.util.stream.Stream;
 public class NioGroup implements AutoCloseable {
 
 
-    private final ArrayList<AcceptingSelector> acceptors;
-    private final RoundRobinSupplier<AcceptingSelector> acceptorSupplier;
+    private final ArrayList<SocketSelector> acceptors;
+    private final RoundRobinSupplier<SocketSelector> acceptorSupplier;
 
     private final ArrayList<SocketSelector> socketSelectors;
     private final RoundRobinSupplier<SocketSelector> socketSelectorSupplier;
@@ -55,9 +55,9 @@ public class NioGroup implements AutoCloseable {
     private final AtomicBoolean isOpen = new AtomicBoolean(true);
 
     public NioGroup(ThreadFactory acceptorThreadFactory, int acceptorCount,
-                    Function<Supplier<SocketSelector>, AcceptorEventHandler> acceptorEventHandlerFunction,
+                    Function<Supplier<SocketSelector>, EventHandler> acceptorEventHandlerFunction,
                     ThreadFactory socketSelectorThreadFactory, int socketSelectorCount,
-                    Supplier<SocketEventHandler> socketEventHandlerFunction) throws IOException {
+                    Supplier<EventHandler> socketEventHandlerFunction) throws IOException {
         acceptors = new ArrayList<>(acceptorCount);
         socketSelectors = new ArrayList<>(socketSelectorCount);
 
@@ -71,7 +71,7 @@ public class NioGroup implements AutoCloseable {
             for (int i = 0; i < acceptorCount; ++i) {
                 SocketSelector[] childSelectors = this.socketSelectors.toArray(new SocketSelector[this.socketSelectors.size()]);
                 Supplier<SocketSelector> selectorSupplier = new RoundRobinSupplier<>(childSelectors);
-                AcceptingSelector acceptor = new AcceptingSelector(acceptorEventHandlerFunction.apply(selectorSupplier));
+                SocketSelector acceptor = new SocketSelector(acceptorEventHandlerFunction.apply(selectorSupplier));
                 acceptors.add(acceptor);
             }
             startSelectors(acceptors, acceptorThreadFactory);
@@ -85,7 +85,7 @@ public class NioGroup implements AutoCloseable {
         }
 
         socketSelectorSupplier = new RoundRobinSupplier<>(socketSelectors.toArray(new SocketSelector[socketSelectors.size()]));
-        acceptorSupplier = new RoundRobinSupplier<>(acceptors.toArray(new AcceptingSelector[acceptors.size()]));
+        acceptorSupplier = new RoundRobinSupplier<>(acceptors.toArray(new SocketSelector[acceptors.size()]));
     }
 
     public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
@@ -105,9 +105,9 @@ public class NioGroup implements AutoCloseable {
     @Override
     public void close() throws IOException {
         if (isOpen.compareAndSet(true, false)) {
-            List<ESSelector> toClose = Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList());
+            List<SocketSelector> toClose = Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList());
             List<IOException> closingExceptions = new ArrayList<>();
-            for (ESSelector selector : toClose) {
+            for (SocketSelector selector : toClose) {
                 try {
                     selector.close();
                 } catch (IOException e) {
@@ -118,8 +118,8 @@ public class NioGroup implements AutoCloseable {
         }
     }
 
-    private static <S extends ESSelector> void startSelectors(Iterable<S> selectors, ThreadFactory threadFactory) {
-        for (ESSelector acceptor : selectors) {
+    private static void startSelectors(Iterable<org.elasticsearch.nio.SocketSelector> selectors, ThreadFactory threadFactory) {
+        for (SocketSelector acceptor : selectors) {
             if (acceptor.isRunning() == false) {
                 threadFactory.newThread(acceptor::runLoop).start();
                 try {

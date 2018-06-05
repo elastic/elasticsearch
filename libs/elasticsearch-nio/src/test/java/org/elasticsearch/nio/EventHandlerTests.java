@@ -35,9 +35,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AcceptorEventHandlerTests extends ESTestCase {
+public class EventHandlerTests extends ESTestCase {
 
-    private AcceptorEventHandler handler;
+    private EventHandler handler;
     private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
     private NioServerSocketChannel channel;
     private DoNotRegisterContext context;
@@ -50,10 +50,10 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(mock(SocketSelector.class));
         selectorSupplier = new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()]));
-        handler = new AcceptorEventHandler(selectorSupplier, mock(Consumer.class));
+        handler = new EventHandler(mock(Consumer.class), selectorSupplier);
 
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
-        context = new DoNotRegisterContext(channel, mock(AcceptingSelector.class), mock(Consumer.class));
+        context = new DoNotRegisterContext(channel, mock(SocketSelector.class), mock(Consumer.class));
         channel.setContext(context);
     }
 
@@ -111,7 +111,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
 
         @SuppressWarnings("unchecked")
-        DoNotRegisterContext(NioServerSocketChannel channel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor) {
+        DoNotRegisterContext(NioServerSocketChannel channel, SocketSelector selector, Consumer<NioSocketChannel> acceptor) {
             super(channel, channelFactory, selector, acceptor, mock(Consumer.class));
         }
 

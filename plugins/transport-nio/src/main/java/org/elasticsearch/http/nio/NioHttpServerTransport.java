@@ -47,10 +47,9 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
-import org.elasticsearch.nio.AcceptingSelector;
-import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannel;
 import org.elasticsearch.nio.NioGroup;
@@ -58,7 +57,6 @@ import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -180,9 +178,9 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             int acceptorCount = NIO_HTTP_ACCEPTOR_COUNT.get(settings);
             int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                (s) -> new AcceptorEventHandler(s, this::nonChannelExceptionCaught),
+                (s) -> new EventHandler(this::nonChannelExceptionCaught, s),
                 daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), workerCount,
-                () -> new SocketEventHandler(this::nonChannelExceptionCaught));
+                () -> new EventHandler(this::nonChannelExceptionCaught));
             channelFactory = new HttpChannelFactory();
             this.boundAddress = createBoundHttpAddress();
 
@@ -372,7 +370,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioServerSocketChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
             NioServerSocketChannel nioChannel = new NioServerSocketChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);

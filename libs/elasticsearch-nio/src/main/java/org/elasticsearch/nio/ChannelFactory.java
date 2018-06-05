@@ -63,9 +63,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    public ServerSocket openNioServerSocketChannel(InetSocketAddress address, Supplier<AcceptingSelector> supplier) throws IOException {
+    public ServerSocket openNioServerSocketChannel(InetSocketAddress address, Supplier<SocketSelector> supplier) throws IOException {
         ServerSocketChannel rawChannel = rawChannelFactory.openNioServerSocketChannel(address);
-        AcceptingSelector selector = supplier.get();
+        SocketSelector selector = supplier.get();
         ServerSocket serverChannel = internalCreateServerChannel(selector, rawChannel);
         scheduleServerChannel(serverChannel, selector);
         return serverChannel;
@@ -92,7 +92,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
      * @return the server channel
      * @throws IOException related to the creation of the channel
      */
-    public abstract ServerSocket createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException;
+    public abstract ServerSocket createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException;
 
     private Socket internalCreateChannel(SocketSelector selector, SocketChannel rawChannel) throws IOException {
         try {
@@ -105,7 +105,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    private ServerSocket internalCreateServerChannel(AcceptingSelector selector, ServerSocketChannel rawChannel) throws IOException {
+    private ServerSocket internalCreateServerChannel(SocketSelector selector, ServerSocketChannel rawChannel) throws IOException {
         try {
             return createServerChannel(selector, rawChannel);
         } catch (Exception e) {
@@ -123,7 +123,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    private void scheduleServerChannel(ServerSocket channel, AcceptingSelector selector) {
+    private void scheduleServerChannel(ServerSocket channel, SocketSelector selector) {
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {

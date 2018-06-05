@@ -25,13 +25,13 @@ import java.nio.channels.Selector;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public abstract class EventHandler {
+public class EventHandler {
 
     protected final Consumer<Exception> exceptionHandler;
-    private Supplier<SocketSelector> selectorSupplier;
+    private final Supplier<SocketSelector> selectorSupplier;
 
-    protected EventHandler(Consumer<Exception> exceptionHandler) {
-        this.exceptionHandler = exceptionHandler;
+    public EventHandler(Consumer<Exception> exceptionHandler) {
+        this(exceptionHandler, null);
     }
 
     public EventHandler(Consumer<Exception> exceptionHandler, Supplier<SocketSelector> selectorSupplier) {
@@ -46,7 +46,11 @@ public abstract class EventHandler {
      * @param context that can accept a connection
      */
     protected void acceptChannel(ServerChannelContext context) throws IOException {
-        context.acceptChannels(selectorSupplier);
+        if (selectorSupplier != null) {
+            context.acceptChannels(selectorSupplier);
+        } else {
+            context.acceptChannels(() -> (SocketSelector) context.getSelector());
+        }
     }
 
     /**
@@ -88,6 +92,98 @@ public abstract class EventHandler {
      */
     protected void registrationException(ChannelContext<?> context, Exception exception) {
         context.handleException(exception);
+    }
+
+    /**
+     * This method is called when a NioSocketChannel has just been accepted or if it has receive an
+     * OP_CONNECT event.
+     *
+     * @param context that was registered
+     */
+    protected void handleConnect(SocketChannelContext context) throws IOException {
+        if (context.connect()) {
+            SelectionKeyUtils.removeConnectInterested(context.getSelectionKey());
+        }
+    }
+
+    /**
+     * This method is called when an attempt to connect a channel throws an exception.
+     *
+     * @param context that was connecting
+     * @param exception that occurred
+     */
+    protected void connectException(SocketChannelContext context, Exception exception) {
+        context.handleException(exception);
+    }
+
+    /**
+     * This method is called when a channel signals it is ready for be read. All of the read logic should
+     * occur in this call.
+     *
+     * @param context that can be read
+     */
+    protected void handleRead(SocketChannelContext context) throws IOException {
+        context.read();
+    }
+
+    /**
+     * This method is called when an attempt to read from a channel throws an exception.
+     *
+     * @param context that was being read
+     * @param exception that occurred
+     */
+    protected void readException(SocketChannelContext context, Exception exception) {
+        context.handleException(exception);
+    }
+
+    /**
+     * This method is called when a channel signals it is ready to receive writes. All of the write logic
+     * should occur in this call.
+     *
+     * @param context that can be written to
+     */
+    protected void handleWrite(SocketChannelContext context) throws IOException {
+        context.flushChannel();
+    }
+
+    /**
+     * This method is called when an attempt to write to a channel throws an exception.
+     *
+     * @param context that was being written to
+     * @param exception that occurred
+     */
+    protected void writeException(SocketChannelContext context, Exception exception) {
+        context.handleException(exception);
+    }
+
+    /**
+     * This method is called when a listener attached to a channel operation throws an exception.
+     *
+     * @param exception that occurred
+     */
+    protected void listenerException(Exception exception) {
+        exceptionHandler.accept(exception);
+    }
+
+    /**
+     * This method is called after ready events (READ, ACCEPT, WRITE, CONNECT) have been handled for a
+     * channel.
+     *
+     * @param context that was handled
+     */
+    protected void postHandling(SocketChannelContext context) {
+        if (context.selectorShouldClose()) {
+            handleClose(context);
+        } else {
+            SelectionKey selectionKey = context.getSelectionKey();
+            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
+            boolean pendingWrites = context.readyForFlush();
+            if (currentlyWriteInterested == false && pendingWrites) {
+                SelectionKeyUtils.setWriteInterested(selectionKey);
+            } else if (currentlyWriteInterested && pendingWrites == false) {
+                SelectionKeyUtils.removeWriteInterested(selectionKey);
+            }
+        }
     }
 
     /**

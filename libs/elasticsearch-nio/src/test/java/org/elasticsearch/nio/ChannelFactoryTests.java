@@ -45,8 +45,8 @@ public class ChannelFactoryTests extends ESTestCase {
     private ServerSocketChannel rawServerChannel;
     private SocketSelector socketSelector;
     private Supplier<SocketSelector> socketSelectorSupplier;
-    private Supplier<AcceptingSelector> acceptingSelectorSupplier;
-    private AcceptingSelector acceptingSelector;
+    private Supplier<SocketSelector> acceptingSelectorSupplier;
+    private SocketSelector acceptingSelector;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -54,7 +54,7 @@ public class ChannelFactoryTests extends ESTestCase {
         rawChannelFactory = mock(ChannelFactory.RawChannelFactory.class);
         channelFactory = new TestChannelFactory(rawChannelFactory);
         socketSelector = mock(SocketSelector.class);
-        acceptingSelector = mock(AcceptingSelector.class);
+        acceptingSelector = mock(SocketSelector.class);
         socketSelectorSupplier = mock(Supplier.class);
         acceptingSelectorSupplier = mock(Supplier.class);
         rawChannel = SocketChannel.open();
@@ -146,7 +146,7 @@ public class ChannelFactoryTests extends ESTestCase {
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioServerSocketChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
             return new NioServerSocketChannel(channel);
         }
     }

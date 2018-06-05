@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 
 public class ESSelectorTests extends ESTestCase {
 
-    private ESSelector selector;
+    private SocketSelector selector;
     private EventHandler handler;
     private Selector rawSelector;
 
@@ -89,7 +89,7 @@ public class ESSelectorTests extends ESTestCase {
         verify(rawSelector).close();
     }
 
-    private static class TestSelector extends ESSelector {
+    private static class TestSelector extends SocketSelector {
 
         TestSelector(EventHandler eventHandler, Selector selector) throws IOException {
             super(eventHandler, selector);

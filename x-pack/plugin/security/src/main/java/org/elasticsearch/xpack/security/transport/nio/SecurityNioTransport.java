@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
@@ -136,7 +135,7 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+        public TcpNioServerSocketChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
             TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);

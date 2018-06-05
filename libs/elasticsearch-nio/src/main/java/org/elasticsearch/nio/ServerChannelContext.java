@@ -28,12 +28,12 @@ import java.util.function.Supplier;
 public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 
     private final NioServerSocketChannel channel;
-    private final AcceptingSelector selector;
+    private final SocketSelector selector;
     private final Consumer<NioSocketChannel> acceptor;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final ChannelFactory<?, ?> channelFactory;
 
-    public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector,
+    public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, SocketSelector selector,
                                 Consumer<NioSocketChannel> acceptor, Consumer<Exception> exceptionHandler) {
         super(channel.getRawChannel(), exceptionHandler);
         this.channel = channel;
@@ -57,7 +57,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     }
 
     @Override
-    public AcceptingSelector getSelector() {
+    public SocketSelector getSelector() {
         return selector;
     }
 

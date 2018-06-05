@@ -40,7 +40,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     private Consumer<Exception> genericExceptionHandler;
 
     private ReadWriteHandler readWriteHandler;
-    private SocketEventHandler handler;
+    private EventHandler handler;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
     private DoNotRegisterContext context;
@@ -52,7 +52,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         genericExceptionHandler = mock(Consumer.class);
         readWriteHandler = mock(ReadWriteHandler.class);
         SocketSelector selector = mock(SocketSelector.class);
-        handler = new SocketEventHandler(genericExceptionHandler);
+        handler = new EventHandler(genericExceptionHandler);
         rawChannel = mock(SocketChannel.class);
         channel = new NioSocketChannel(rawChannel);
         when(rawChannel.finishConnect()).thenReturn(true);

@@ -140,7 +140,7 @@ public abstract class ESSelector implements Closeable {
     }
 
     /**
-     * Called by the base {@link ESSelector} class when there is a {@link SelectionKey} to be handled.
+     * Called by the base {@link SocketSelector} class when there is a {@link SelectionKey} to be handled.
      *
      * @param selectionKey the key to be handled
      * @throws CancelledKeyException thrown when the key has already been cancelled

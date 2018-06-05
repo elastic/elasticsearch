@@ -30,11 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.nio.AcceptingSelector;
-import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
@@ -99,7 +98,7 @@ public class MockNioTransport extends TcpTransport {
                 acceptorCount = 1;
             }
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                (s) -> new AcceptorEventHandler(s, this::onNonChannelException),
+                (s) -> new EventHandler(this::onNonChannelException, s),
                 daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
                 () -> new TestingSocketEventHandler(this::onNonChannelException));
 
@@ -173,7 +172,7 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockServerChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+        public MockServerChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
             MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel, this, selector);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
@@ -205,7 +204,7 @@ public class MockNioTransport extends TcpTransport {
 
         private final String profile;
 
-        MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
+        MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, SocketSelector selector)
             throws IOException {
             super(channel);
             this.profile = profile;

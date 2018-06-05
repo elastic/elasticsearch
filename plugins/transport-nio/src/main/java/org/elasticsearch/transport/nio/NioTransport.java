@@ -31,15 +31,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.nio.AcceptingSelector;
-import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
@@ -107,9 +105,9 @@ public class NioTransport extends TcpTransport {
                 acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
             }
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                (s) -> new AcceptorEventHandler(s, this::onNonChannelException),
+                (s) -> new EventHandler(this::onNonChannelException, s),
                 daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), NioTransport.NIO_WORKER_COUNT.get(settings),
-                () -> new SocketEventHandler(this::onNonChannelException));
+                () -> new EventHandler(this::onNonChannelException));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = channelFactory(clientProfileSettings, true);
@@ -193,7 +191,7 @@ public class NioTransport extends TcpTransport {
         }
 
         @Override
-        public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+        public TcpNioServerSocketChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
             TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);

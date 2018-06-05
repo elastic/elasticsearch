@@ -397,13 +397,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private List<Node> sniffHostMetadata(RestClient client) throws IOException {
         ElasticsearchNodesSniffer.Scheme scheme =
             ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
-        /*
-         * We don't want to change the list of nodes that the client communicates with
-         * because that'd just be rude. So instead we find the nodes
-         * returned by the sniffer that correspond with the nodes already in the client
-         * and set the nodes to them. That *shouldn't* change the nodes that the client
-         * communicates with.
-         */
         ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(
                 adminClient(), ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
         return sniffer.sniff();

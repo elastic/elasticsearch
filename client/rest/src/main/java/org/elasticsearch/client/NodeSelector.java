@@ -35,18 +35,16 @@ public interface NodeSelector {
      * iterate the nodes as many times as they need.
      * <p>
      * This may be called twice per request: first for "living" nodes that
-     * have not been blacklisted by previous errors. In this case the order
-     * of the nodes is the order in which the client thinks that they should
-     * be tried next. If the selector removes all nodes from the list or if
-     * there aren't any living nodes then the the client will call this method
-     * with a list of "dead" nodes. In this case the list is sorted "soonest
-     * to be revived" first. In this case the rest client will only attempt
-     * the first node.
+     * have not been blacklisted by previous errors. If the selector removes
+     * all nodes from the list or if there aren't any living nodes then the
+     * {@link RestClient} will call this method with a list of "dead" nodes.
+     * <p>
+     * Implementers should not rely on the ordering of the nodes.
      */
     void select(Iterable<Node> nodes);
     /*
      * We were fairly careful with our choice of Iterable here. The caller has
-     * a List but reordering the list is likely to break round robin. Luckilly
+     * a List but reordering the list is likely to break round robin. Luckily
      * Iterable doesn't allow any reordering.
      */
 
@@ -76,7 +74,9 @@ public interface NodeSelector {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                 Node node = itr.next();
                 if (node.getRoles() == null) continue;
-                if (node.getRoles().isMasterEligible() && false == node.getRoles().isData()) {
+                if (node.getRoles().isMasterEligible()
+                        && false == node.getRoles().isData()
+                        && false == node.getRoles().isIngest()) {
                     itr.remove();
                 }
             }

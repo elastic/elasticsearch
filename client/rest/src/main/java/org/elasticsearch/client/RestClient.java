@@ -85,7 +85,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Must be created using {@link RestClientBuilder}, which allows to set all the different options or just rely on defaults.
  * The hosts that are part of the cluster need to be provided at creation time, but can also be replaced later
- * by calling {@link #setNodes(Node...)}.
+ * by calling {@link #setNodes(Collection)}.
  * <p>
  * The method {@link #performRequest(String, String, Map, HttpEntity, Header...)} allows to send a request to the cluster. When
  * sending a request, a host gets selected out of the provided ones in a round-robin fashion. Failing hosts are marked dead and
@@ -113,7 +113,7 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               Node[] nodes, String pathPrefix, FailureListener failureListener) {
+               List<Node> nodes, String pathPrefix, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
@@ -146,13 +146,22 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Replaces the nodes with which the client communicates.
+     * Replaces the hosts with which the client communicates.
+     *
+     * @deprecated prefer {@link setNodes} because it allows you
+     * to set metadata for use with {@link NodeSelector}s
      */
-    public void setNodes(Node... nodes) {
-        if (nodes == null) {
-            throw new IllegalArgumentException("nodes must not be null or empty");
+    @Deprecated
+    public void setHosts(HttpHost... hosts) {
+        if (hosts == null || hosts.length == 0) {
+            throw new IllegalArgumentException("hosts must not be null nor empty");
         }
-        setNodes(Arrays.asList(nodes));
+        List<Node> nodes = new ArrayList<>();
+        for (HttpHost host : hosts) {
+            nodes.add(new Node(
+                Objects.requireNonNull(host, "host cannot be null")));
+        }
+        setNodes(nodes);
     }
 
     /**
@@ -164,17 +173,15 @@ public class RestClient implements Closeable {
         }
         AuthCache authCache = new BasicAuthCache();
 
-        Map<HttpHost, Node> nodeSet = new LinkedHashMap<>();
+        Map<HttpHost, Node> nodesByHost = new LinkedHashMap<>();
         for (Node node : nodes) {
-            if (node == null) {
-                throw new NullPointerException("node cannot be null");
-            }
+            Objects.requireNonNull(node, "node cannot be null");
             // TODO should we throw an IAE if this happens?
-            nodeSet.put(node.getHost(), node);
+            nodesByHost.put(node.getHost(), node);
             authCache.put(node.getHost(), new BasicScheme());
         }
         this.nodeTuple = new NodeTuple<>(
-                Collections.unmodifiableList(new ArrayList<>(nodeSet.values())), authCache);
+                Collections.unmodifiableList(new ArrayList<>(nodesByHost.values())), authCache);
         this.blacklist.clear();
     }
 
@@ -612,11 +619,6 @@ public class RestClient implements Closeable {
      * If there are no living nodes that match the {@link NodeSelector}
      * this will return the dead node that matches the {@link NodeSelector}
      * that is closest to being revived.
-     * <p>
-     * If no living and no dead nodes match the selector we retry a few
-     * times to handle concurrent modifications of the list of dead nodes.
-     * We never block the thread or {@link Thread#sleep} or anything like
-     * that. If the retries fail this throws a {@link IOException}.
      * @throws IOException if no nodes are available
      */
     private NodeTuple<Iterator<Node>> nextNode(NodeSelector nodeSelector) throws IOException {

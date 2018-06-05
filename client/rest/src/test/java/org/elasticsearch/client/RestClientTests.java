@@ -26,6 +26,7 @@ import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,9 +51,9 @@ import static org.mockito.Mockito.verify;
 public class RestClientTests extends RestClientTestCase {
 
     public void testCloseIsIdempotent() throws IOException {
-        Node[] nodes = new Node[] {new Node(new HttpHost("localhost", 9200))};
+        List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient =  new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], nodes, null, null);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], nodes, null, null);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -232,46 +233,77 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
+    @Deprecated
+    public void testSetHostsWrongArguments() throws IOException {
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts((HttpHost[]) null);
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts();
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts((HttpHost) null);
+            fail("setHosts should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
+            fail("setHosts should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+    }
+
     public void testSetNodesWrongArguments() throws IOException {
         try (RestClient restClient = createRestClient()) {
-            restClient.setNodes((Node[]) null);
+            restClient.setNodes(null);
             fail("setNodes should have failed");
         } catch (IllegalArgumentException e) {
             assertEquals("nodes must not be null or empty", e.getMessage());
         }
         try (RestClient restClient = createRestClient()) {
-            restClient.setNodes();
+            restClient.setNodes(Collections.<Node>emptyList());
             fail("setNodes should have failed");
         } catch (IllegalArgumentException e) {
             assertEquals("nodes must not be null or empty", e.getMessage());
         }
         try (RestClient restClient = createRestClient()) {
-            restClient.setNodes((Node) null);
+            restClient.setNodes(Collections.singletonList((Node) null));
             fail("setNodes should have failed");
         } catch (NullPointerException e) {
             assertEquals("node cannot be null", e.getMessage());
         }
         try (RestClient restClient = createRestClient()) {
-            restClient.setNodes(new Node(new HttpHost("localhost", 9200)), null, new Node(new HttpHost("localhost", 9201)));
+            restClient.setNodes(Arrays.asList(
+                new Node(new HttpHost("localhost", 9200)),
+                null,
+                new Node(new HttpHost("localhost", 9201))));
             fail("setNodes should have failed");
         } catch (NullPointerException e) {
             assertEquals("node cannot be null", e.getMessage());
         }
     }
 
-    public void testSetHostsPreservesOrdering() throws Exception {
+    public void testSetNodesPreservesOrdering() throws Exception {
         try (RestClient restClient = createRestClient()) {
-            Node[] hosts = randomNodes();
-            restClient.setNodes(hosts);
-            assertEquals(Arrays.asList(hosts), restClient.getNodes());
+            List<Node> nodes = randomNodes();
+            restClient.setNodes(nodes);
+            assertEquals(nodes, restClient.getNodes());
         }
     }
 
-    private static Node[] randomNodes() {
+    private static List<Node> randomNodes() {
         int numNodes = randomIntBetween(1, 10);
-        Node[] nodes = new Node[numNodes];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new Node(new HttpHost("host-" + i, 9200));
+        List<Node> nodes = new ArrayList<>(numNodes);
+        for (int i = 0; i < numNodes; i++) {
+            nodes.add(new Node(new HttpHost("host-" + i, 9200)));
         }
         return nodes;
     }
@@ -279,10 +311,10 @@ public class RestClientTests extends RestClientTestCase {
     public void testSetNodesDuplicatedHosts() throws Exception {
         try (RestClient restClient = createRestClient()) {
             int numNodes = randomIntBetween(1, 10);
-            Node[] nodes = new Node[numNodes];
+            List<Node> nodes = new ArrayList<>(numNodes);
             Node node = new Node(new HttpHost("host", 9200));
-            for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = node;
+            for (int i = 0; i < numNodes; i++) {
+                nodes.add(node);
             }
             restClient.setNodes(nodes);
             assertEquals(1, restClient.getNodes().size());
@@ -448,7 +480,7 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     private static RestClient createRestClient() {
-        Node[] nodes = new Node[] {new Node(new HttpHost("localhost", 9200))};
+        List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
         return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000),
                 new Header[] {}, nodes, null, null);
     }

@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -32,6 +31,8 @@ import javax.net.ssl.SSLContext;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -48,7 +49,7 @@ public final class RestClientBuilder {
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
-    private final Node[] nodes;
+    private final List<Node> nodes;
     private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
     private Header[] defaultHeaders = EMPTY_HEADERS;
     private RestClient.FailureListener failureListener;
@@ -70,7 +71,7 @@ public final class RestClientBuilder {
                 throw new IllegalArgumentException("node cannot be null");
             }
         }
-        this.nodes = nodes;
+        this.nodes = Arrays.asList(nodes);
     }
 
     /**

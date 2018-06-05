@@ -23,7 +23,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node.Roles;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -42,14 +41,20 @@ public class NodeSelectorTests extends RestClientTestCase {
     }
 
     public void testNotMasterOnly() {
-        Node masterOnly = dummyNode(true, false, randomBoolean());
-        Node masterAndData = dummyNode(true, true, randomBoolean());
-        Node coordinatingOnly = dummyNode(false, false, randomBoolean());
+        Node masterOnly = dummyNode(true, false, false);
+        Node all = dummyNode(true, true, true);
+        Node masterAndData = dummyNode(true, true, false);
+        Node masterAndIngest = dummyNode(true, false, true);
+        Node coordinatingOnly = dummyNode(false, false, false);
+        Node ingestOnly = dummyNode(false, false, true);
         Node data = dummyNode(false, true, randomBoolean());
         List<Node> nodes = new ArrayList<>();
         nodes.add(masterOnly);
+        nodes.add(all);
         nodes.add(masterAndData);
+        nodes.add(masterAndIngest);
         nodes.add(coordinatingOnly);
+        nodes.add(ingestOnly);
         nodes.add(data);
         Collections.shuffle(nodes, getRandom());
         List<Node> expected = new ArrayList<>(nodes);

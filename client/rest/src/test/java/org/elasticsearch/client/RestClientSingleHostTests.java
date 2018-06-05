@@ -65,6 +65,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
@@ -148,7 +149,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, defaultHeaders, new Node[] {node}, null, failureListener);
+        restClient = new RestClient(httpClient, 10000, defaultHeaders,
+                singletonList(node), null, failureListener);
     }
 
     /**
@@ -244,7 +246,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
                 } else {
-                    failureListener.assertCalled(node);
+                    failureListener.assertCalled(singletonList(node));
                 }
             }
         }
@@ -259,14 +261,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
-            failureListener.assertCalled(node);
+            failureListener.assertCalled(singletonList(node));
             try {
                 performRequest(method, "/soe");
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
             }
-            failureListener.assertCalled(node);
+            failureListener.assertCalled(singletonList(node));
         }
     }
 

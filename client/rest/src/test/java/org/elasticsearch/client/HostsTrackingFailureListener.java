@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.HttpHost;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -39,10 +40,10 @@ class HostsTrackingFailureListener extends RestClient.FailureListener {
         hosts.add(node.getHost());
     }
 
-    void assertCalled(Node... nodes) {
-        HttpHost[] hosts = new HttpHost[nodes.length];
-        for (int i = 0; i < nodes.length; i++) {
-            hosts[i] = nodes[i].getHost();
+    void assertCalled(List<Node> nodes) {
+        HttpHost[] hosts = new HttpHost[nodes.size()];
+        for (int i = 0 ; i < nodes.size(); i++) {
+            hosts[i] = nodes.get(i).getHost();
         }
         assertCalled(hosts);
     }

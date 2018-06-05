@@ -21,7 +21,6 @@ package org.elasticsearch.client.sniff;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -30,6 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -229,7 +229,7 @@ public class Sniffer implements Closeable {
      * Returns a new {@link SnifferBuilder} to help with {@link Sniffer} creation.
      *
      * @param restClient the client that gets its hosts set (via
-     *      {@link RestClient#setNodes(Node...)}) once they are fetched
+     *      {@link RestClient#setNodes(Collection)}) once they are fetched
      * @return a new instance of {@link SnifferBuilder}
      */
     public static SnifferBuilder builder(RestClient restClient) {

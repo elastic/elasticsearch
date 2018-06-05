@@ -210,7 +210,7 @@ public class SpnegoClient {
 
                 @Override
                 @SuppressForbidden(
-                        reason = "For testing we want to provide credentials, so setting system property javax.security.auth.useSubjectCredsOnly")
+                        reason = "For testing application provides credentials, needs sys prop javax.security.auth.useSubjectCredsOnly")
                 public String run() throws Exception {
                     String oldValue = System.getProperty(systemProperty);
                     if (value != null) {

@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.blobstore;
+package org.elasticsearch.common.blobstore.fs;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -32,10 +34,15 @@ import java.nio.file.Path;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FsBlobStoreTests extends ESBlobStoreTestCase {
+
     protected BlobStore newBlobStore() throws IOException {
-        Path tempDir = createTempDir();
-        Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
-        return new FsBlobStore(settings, tempDir);
+        final Settings settings;
+        if (randomBoolean()) {
+            settings = Settings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
+        } else {
+            settings = Settings.EMPTY;
+        }
+        return new FsBlobStore(settings, createTempDir());
     }
 
     public void testReadOnly() throws Exception {

@@ -16,20 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common.blobstore.fs;
 
-package org.elasticsearch.action.admin.indices.upgrade.post;
+import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
-/**
- * A response for an update index settings action
- */
-public class UpgradeSettingsResponse extends AcknowledgedResponse {
+public class FsBlobContainerTests extends ESTestCase {
 
-    UpgradeSettingsResponse() {
+    public void testTempBlobName() {
+        final String blobName = randomAlphaOfLengthBetween(1, 20);
+        final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
+        assertThat(tempBlobName, startsWith("pending-"));
+        assertThat(tempBlobName, containsString(blobName));
     }
 
-    UpgradeSettingsResponse(boolean acknowledged) {
-        super(acknowledged);
+    public void testIsTempBlobName() {
+        final String tempBlobName = FsBlobContainer.tempBlobName(randomAlphaOfLengthBetween(1, 20));
+        assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
     }
 }

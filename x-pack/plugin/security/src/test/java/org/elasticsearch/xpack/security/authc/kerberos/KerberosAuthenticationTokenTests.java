@@ -27,6 +27,7 @@ import java.util.Base64;
 import java.util.List;
 
 public class KerberosAuthenticationTokenTests extends ESTestCase {
+
     private static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal Name>";
 
     private ThreadContext threadContext;
@@ -65,24 +66,7 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         thrown.expect(ElasticsearchSecurityException.class);
         thrown.expectMessage(
                 Matchers.equalTo("invalid negotiate authentication header value, expected base64 encoded token but value is empty"));
-        thrown.expect(new BaseMatcher<ElasticsearchSecurityException>() {
-
-            @Override
-            public boolean matches(Object item) {
-                if (item instanceof ElasticsearchSecurityException) {
-                    List<String> authHeaderValue =
-                            ((ElasticsearchSecurityException) item).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
-                    if (authHeaderValue.size() == 1 && KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.equals(authHeaderValue.get(0))) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            @Override
-            public void describeTo(Description description) {
-            }
-        });
+        thrown.expect(new ESEMatcher());
         KerberosAuthenticationToken.extractToken(threadContext);
         fail("Expected exception not thrown");
     }
@@ -95,24 +79,7 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         thrown.expect(ElasticsearchSecurityException.class);
         thrown.expectMessage(
                 Matchers.equalTo("invalid negotiate authentication header value, could not decode base64 token " + notBase64Token));
-        thrown.expect(new BaseMatcher<ElasticsearchSecurityException>() {
-
-            @Override
-            public boolean matches(Object item) {
-                if (item instanceof ElasticsearchSecurityException) {
-                    List<String> authHeaderValue =
-                            ((ElasticsearchSecurityException) item).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
-                    if (authHeaderValue.size() == 1 && KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.equals(authHeaderValue.get(0))) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            @Override
-            public void describeTo(Description description) {
-            }
-        });
+        thrown.expect(new ESEMatcher());
         KerberosAuthenticationToken.extractToken(threadContext);
         fail("Expected exception not thrown");
     }
@@ -157,6 +124,24 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
                 return new KerberosAuthenticationToken("[B@6499375d".getBytes(StandardCharsets.UTF_8));
             default:
                 throw new IllegalArgumentException("unknown option");
+        }
+    }
+
+    private static class ESEMatcher extends BaseMatcher<ElasticsearchSecurityException> {
+        @Override
+        public boolean matches(Object item) {
+            if (item instanceof ElasticsearchSecurityException) {
+                List<String> authHeaderValue =
+                        ((ElasticsearchSecurityException) item).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+                if (authHeaderValue.size() == 1 && KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.contains(authHeaderValue.get(0))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public void describeTo(Description description) {
         }
     }
 }

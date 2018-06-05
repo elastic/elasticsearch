@@ -4,7 +4,7 @@
 [[method-call-operator]]
 ==== Method Call
 
-Use the *method call operator* to call a member method on a target
+Use the `method call operator '()'` to call a member method on a
 <<reference-types, reference type>> value. Implicit
 <<boxing-unboxing, boxing/unboxing>> is evaluated as necessary per argument
 during the method call. When a method call is made on a target `def` type value,
@@ -34,7 +34,7 @@ arguments: '(' (expression (',' expression)*)? ')';
 
 *Examples*
 
-* Uses of method calls.
+* Method calls on different reference types.
 +
 [source,Painless]
 ----
@@ -77,7 +77,7 @@ arguments: '(' (expression (',' expression)*)? ')';
 [[field-access-operator]]
 ==== Field Access
 
-Use the *field access operator* to store a value to or load a value from a
+Use the `field access operator '.'` to store a value to or load a value from a
 <<reference-types, reference type>> member field.
 
 *Errors*
@@ -107,7 +107,7 @@ non-static member fields:
   * List z
 ----
 
-* Uses of the *field access operator*.
+* Field access with the `Example` type.
 +
 [source,Painless]
 ----
@@ -147,8 +147,8 @@ non-static member fields:
 [[null-safe-operator]]
 ==== Null Safe
 
-Use the *null safe operator* instead of the *method call operator* or *field
-access operator* to ensure a reference type value is not `null` before
+Use the `null safe operator '?.'` instead of the method call operator or field
+access operator to ensure a reference type value is not `null` before
 a method call or field access. A `null` value will be returned if the reference
 type value is `null`, otherwise the method call or field access is evaluated.
 
@@ -188,7 +188,7 @@ non-static member fields:
   * List x
 ----
 
-* Use of the *null safe operator* without a `null` value.
+* Null safe without a `null` value.
 +
 [source,Painless]
 ----
@@ -204,7 +204,7 @@ non-static member fields:
     null safe call `factory` on `Example reference` -> `List reference`;
     store `List reference` to `x`;
 +
-* Use of the *null safe operator* with a `null` value;
+* Null safe with a `null` value;
 +
 [source,Painless]
 ----
@@ -222,11 +222,11 @@ non-static member fields:
 [[list-initialization-operator]]
 ==== List Initialization
 
-Use the *list initialization operator* to allocate an ArrayList type value with
-a set of pre-defined values. Each value used to initialize the ArrayList type
-value is cast to a `def` type value when inserted into the ArrayList type value
-using the `add` method. The order of specified values is maintained upon
-insertion.
+Use the `list initialization operator '[]'` to allocate an `List` type instance
+to the heap with a set of pre-defined values. Each value used to initialize the
+`List` type instance is cast to a `def` type value upon insertion into the
+`List` type instance using the `add` method. The order of the specified values
+is maintained.
 
 *Grammar*
 
@@ -238,8 +238,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
 *Examples*
 
-* Use of the *list initialization operator* to create an empty ArrayList type
-  value.
+* List initialization of an empty `List` type value.
 +
 [source,Painless]
 ----
@@ -251,7 +250,7 @@ list_initialization: '[' expression (',' expression)* ']'
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
     store `List reference` to `empty`
 +
-* Use of the *list initialization operator* with static values.
+* List initialization with static values.
 +
 [source,Painless]
 ----
@@ -266,7 +265,7 @@ list_initialization: '[' expression (',' expression)* ']'
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
     store `List reference` to `list`
 +
-* Use of the *list initialization operator* with non-static values.
+* List initialization with non-static values.
 +
 [source,Painless]
 ----
@@ -308,16 +307,14 @@ list_initialization: '[' expression (',' expression)* ']'
 [[list-access-operator]]
 ==== List Access
 
-Use the *list access operator* as a shortcut for a `set` method call or `get`
-method call made on a List type value.
+Use the `list access operator '[]'` as a shortcut for a `set` method call or
+`get` method call made on a `List` type value.
 
 *Errors*
 
-* If the *list access operator* is used on a value that is not a List type
-  value.
-* If a value other than an `int` type value or a value that is castable to an
-  `int` type value is given as an index for a `set` method call or `get` method
-  call.
+* If a value other than a `List` type value is accessed.
+* If a non-integer type value is used as an index for a `set` method call or
+  `get` method call.
 
 *Grammar*
 
@@ -328,7 +325,7 @@ list_access: '[' expression ']'
 
 *Examples*
 
-* Uses of the *list access operator*.
+* List access with the `List` type.
 +
 [source,Painless]
 ----
@@ -375,7 +372,7 @@ list_access: '[' expression ']'
     implicit cast `def` to `int 5` -> `int 5`;
     store `int 5` to `z`
 +
-* Uses of the *list access operator* with the `def` type.
+* List access with the `def` type.
 +
 [source,Painless]
 ----
@@ -432,11 +429,10 @@ list_access: '[' expression ']'
 [[map-initialization-operator]]
 ==== Map Initialization
 
-Use the *map initialization operator* to allocate a HashMap type value with
-a set of pre-defined values. Each pair of values used to initialize the HashMap
-type value are cast to `def` type values when inserted into the HashMap type
-value using the `put` method. The order of specified values is maintained upon
-insertion.
+Use the `map initialization operator '[:]'` to allocate a `Map` type instance to
+the heap with a set of pre-defined values. Each pair of values used to
+initialize the `Map` type instance are cast to `def` type values upon insertion
+into the `Map` type instance using the `put` method.
 
 *Grammar*
 
@@ -449,8 +445,7 @@ key_pair: expression ':' expression
 
 *Examples*
 
-* Use of the *map initialization operator* to create an empty HashMap type
-value.
+* Map initialization of an empty `Map` type value.
 +
 [source,Painless]
 ----
@@ -462,7 +457,7 @@ value.
     implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
     store `Map reference` to `empty`
 +
-* Use of the *map initialization operator* with non-static values.
+* Map initialization with static values.
 +
 [source,Painless]
 ----
@@ -477,7 +472,7 @@ value.
     implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
     store `Map reference` to `map`
 +
-* Use of the *map initialization operator* with non-static values.
+* Map initialization with non-static values.
 +
 [source,Painless]
 ----
@@ -524,12 +519,12 @@ value.
 [[map-access-operator]]
 ==== Map Access
 
-Use the *map access operator* as a shortcut for a `put` method call or `get`
-method call made on a Map type value.
+Use the `map access operator '[]'` as a shortcut for a `put` method call or
+`get` method call made on a `Map` type value.
 
 *Errors*
 
-* Use of the *map access operator* on a value that is not a Map type value.
+* If a value other than a `Map` type value is accessed.
 
 *Grammar*
 [source,ANTLR4]
@@ -539,7 +534,7 @@ map_access: '[' expression ']'
 
 *Examples*
 
-* Uses of the *map access operator*.
+* Map access with the `Map` type.
 +
 [source,Painless]
 ----
@@ -577,7 +572,7 @@ map_access: '[' expression ']'
     implicit cast `def` to `int 5` -> `int 5`;
     store `int 5` to `z`
 +
-* Uses of the *map access operator* using the `def` type.
+* Map access with the `def` type.
 +
 [source,Painless]
 ----
@@ -623,7 +618,7 @@ map_access: '[' expression ']'
 [[new-instance-operator]]
 ==== New Instance
 
-Use the *new instance operator* to allocate a
+Use the `new instance operator 'new ()'` to allocate a
 <<reference-types, reference type>> instance to the heap and call a specified
 constructor. Implicit <<boxing-unboxing, boxing/unboxing>> is evaluated as
 necessary per argument during the constructor call.
@@ -650,7 +645,7 @@ new_instance: 'new' TYPE '(' (expression (',' expression)*)? ')';
 
 *Examples*
 
-* Uses of the *new instance operator*.
+* Allocation of new instances with different types.
 
 [source,Painless]
 ----
@@ -676,8 +671,8 @@ new_instance: 'new' TYPE '(' (expression (',' expression)*)? ')';
 [[string-concatenation-operator]]
 ==== String Concatenation
 
-Use the *string concatenation operator* to concatenate two values together where
-at least one of the values is of the <<string-type, `String` type>>.
+Use the `string concatenation operator '+'` to concatenate two values together
+where at least one of the values is a <<string-type, `String` type>>.
 
 *Grammar*
 
@@ -688,7 +683,7 @@ concatenate: expression '+' expression;
 
 *Examples*
 
-* Uses of the *string concatenation operator*.
+* String concatenation with different primitive types.
 +
 [source,Painless]
 ----
@@ -710,7 +705,7 @@ concatenate: expression '+' expression;
     (note the addition is done prior to the concatenation due to precedence and
             associativity of the specific operations)
 +
-* Uses of the *string concatenation operator* with the `def` type.
+* String concatenation with the `def` type.
 +
 [source,Painless]
 ----
@@ -734,8 +729,8 @@ An elvis consists of two expressions. The first expression is evaluated
 with to check for a `null` value. If the first expression evaluates to
 `null` then the second expression is evaluated and its value used. If the first
 expression evaluates to not `null` then the resultant value of the first
-expression is used. Use the *elvis operator* as a shortcut for the *conditional
-operator*.
+expression is used. Use the `elvis operator '?:'` as a shortcut for the
+conditional operator.
 
 *Errors*
 
@@ -750,7 +745,7 @@ elvis: expression '?:' expression;
 
 *Examples*
 
-* Uses of the *elvis operator*.
+* Elvis with different reference types.
 +
 [source,Painless]
 ----

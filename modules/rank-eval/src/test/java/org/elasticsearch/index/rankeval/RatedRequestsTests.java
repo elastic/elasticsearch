@@ -131,6 +131,7 @@ public class RatedRequestsTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31104")
     public void testXContentParsingIsNotLenient() throws IOException {
         RatedRequest testItem = createTestItem(randomBoolean());
         XContentType xContentType = randomFrom(XContentType.values());

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -29,15 +31,19 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,7 +53,9 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -65,6 +73,7 @@ import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -73,7 +82,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        indexService = createIndex("test");
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.mySynonyms.type", "synonym")
+            .putList("index.analysis.filter.mySynonyms.synonyms", Collections.singletonList("car, auto"))
+            .put("index.analysis.analyzer.synonym.tokenizer", "standard")
+            .put("index.analysis.analyzer.synonym.filter", "mySynonyms")
+            .build();
+        indexService = createIndex("test", settings);
         parser = indexService.mapperService().documentMapperParser();
     }
 
@@ -624,7 +639,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefixes").endObject()
-                .field("index_options", "positions")
+                .field("index_options", "freqs")
                 .endObject().endObject().endObject().endObject());
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -641,6 +656,27 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefixes").endObject()
+                .field("index_options", "positions")
+                .endObject().endObject().endObject().endObject());
+
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
+            assertFalse(ft.storeTermVectors());
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefixes").endObject()
                 .field("term_vector", "with_positions_offsets")
                 .endObject().endObject().endObject().endObject());
 
@@ -648,7 +684,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
             assertTrue(ft.storeTermVectorOffsets());
         }
 
@@ -665,8 +705,108 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
             assertFalse(ft.storeTermVectorOffsets());
+        }
+    }
+
+    public void testFastPhraseMapping() throws IOException {
+
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> {
+                throw new UnsupportedOperationException();
+            }, null);
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "english")
+            .field("index_phrases", true)
+            .endObject()
+            .startObject("synfield")
+            .field("type", "text")
+            .field("analyzer", "synonym")
+            .field("index_phrases", true)
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        queryShardContext.getMapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(queryShardContext);
+        assertThat(q, is(new PhraseQuery("field._index_phrase", "two word")));
+
+        Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(queryShardContext);
+        assertThat(q2, is(new PhraseQuery("field._index_phrase", "three word", "word here")));
+
+        Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+        assertThat(q3, is(new PhraseQuery(1, "field", "two", "word")));
+
+        Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(queryShardContext);
+        assertThat(q4, is(new TermQuery(new Term("field", "singleton"))));
+
+        Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+        assertThat(q5,
+            is(new PhraseQuery.Builder().add(new Term("field", "sparkl")).add(new Term("field", "stopword"), 2).build()));
+
+        Query q6 = new MatchPhraseQueryBuilder("synfield", "motor car").toQuery(queryShardContext);
+        assertThat(q6, is(new MultiPhraseQuery.Builder()
+            .add(new Term[]{
+                new Term("synfield._index_phrase", "motor car"),
+                new Term("synfield._index_phrase", "motor auto")})
+            .build()));
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field", "Some English text that is going to be very useful")
+                    .endObject()),
+            XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
+        assertEquals(1, fields.length);
+
+        try (TokenStream ts = fields[0].tokenStream(queryShardContext.getMapperService().indexAnalyzer(), null)) {
+            CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+            ts.reset();
+            assertTrue(ts.incrementToken());
+            assertEquals("some english", termAtt.toString());
+        }
+
+        {
+            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("index", "false")
+                .field("index_phrases", true)
+                .endObject().endObject()
+                .endObject().endObject());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
+            );
+            assertThat(e.getMessage(), containsString("Cannot set index_phrases on unindexed field [field]"));
+        }
+
+        {
+            String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("index_options", "freqs")
+                .field("index_phrases", true)
+                .endObject().endObject()
+                .endObject().endObject());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
+            );
+            assertThat(e.getMessage(), containsString("Cannot set index_phrases on field [field] if positions are not enabled"));
         }
     }
 

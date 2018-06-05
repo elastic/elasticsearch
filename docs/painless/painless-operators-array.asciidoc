@@ -4,11 +4,11 @@
 [[array-initialization-operator]]
 ==== Array Initialization
 
-Use the *array initialization operator* to allocate a single-dimensional
-<<array-type, array type>> value with a set of pre-defined values. Each value
-used to initialize the array type value is cast to the specified type value when
-inserted into the array type value. The order of specified values is maintained
-upon insertion.
+Use the `array initialization operator '[] {}'` to allocate a single-dimensional
+<<array-type, array type>> instance to the heap with a set of pre-defined
+elements. Each value used to initialize an element in the array type instance is
+cast to the specified element type value upon insertion. The order of specified
+values is maintained.
 
 *Errors*
 
@@ -25,7 +25,7 @@ expression_list: expression (',' expression);
 
 *Example:*
 
-* Use of the *array initialization operator* with static values.
+* Array initialization with static values.
 +
 [source,Painless]
 ----
@@ -40,7 +40,7 @@ expression_list: expression (',' expression);
     store `int 3` to `index [2]` of `1-d int array reference`;
     store `1-d int array reference` to `x`;
 +
-* Use of the *array initialization operator* with non-static values.
+* Array initialization with non-static values.
 +
 [source,Painless]
 ----
@@ -87,19 +87,19 @@ expression_list: expression (',' expression);
 [[array-access-operator]]
 ==== Array Access
 
-Use the *array access operator* to store a value to or load a value from an
-<<array-type, array type>> value. Each value of an array type value is accessed
-with an int type value to specify the index to store/load. The range of values
-within an array that are accessible is `[0, size)` where size is the number of
-values specified at the time of allocation. Use a negative int type value as an
-index to access an value in reverse from the end of an array type value within a
-range of `[-size, -1]`.
+Use the `array access operator '[]'` to store a value to or load a value from
+an <<array-type, array type>> value. Each element of an array type value is
+accessed with an `int` type value to specify the index to store/load. The range
+of elements within an array that are accessible is `[0, size)` where size is the
+number of elements specified at the time of allocation. Use a negative `int`
+type value as an index to access an element in reverse from the end of an array
+type value within a range of `[-size, -1]`.
 
 *Errors*
 
-* If a value other than an int type value or a value that is castable to an int
-  type value is provided as an index.
-* If a value is accessed outside of the valid ranges.
+* If a value other than an `int` type value or a value that is castable to an
+  `int` type value is provided as an index.
+* If an element is accessed outside of the valid ranges.
 
 *Grammar*
 
@@ -110,7 +110,7 @@ brace_access: '[' expression ']'
 
 *Examples*
 
-* Uses of the *array access operator*.
+* Array access with a single-dimensional array.
 +
 [source,Painless]
 ----
@@ -145,7 +145,7 @@ brace_access: '[' expression ']'
     load from `index [1]` of `1-d int array reference` -> `int 5`;
     store `int 5` to `i`;
 +
-* Uses of the *array access operator* with the `def` type.
+* Array access with the `def` type.
 +
 [source,Painless]
 ----
@@ -195,7 +195,7 @@ brace_access: '[' expression ']'
     implicit cast `int 5` to `def`;
     store `def` to `z`;
 +
-* Uses of the *array access operator* with a multi-dimensional array.
+* Array access with a multi-dimensional array.
 +
 [source,Painless]
 ----
@@ -218,14 +218,15 @@ brace_access: '[' expression ']'
 [[array-length-operator]]
 ==== Array Length
 
-Array type values contain a read-only member field named `length`.  The field
-`length` is an int type value storing the size of the array.  Use the
-<<field-access-operator, *field access operator*>> to load the field `length`
+An array type value contains a read-only member field named `length`. The
+`length` field stores the size of the array as an `int` type value where size is
+the number of elements specified at the time of allocation. Use the
+<<field-access-operator, field access operator>> to load the field `length`
 from an array type value.
 
 *Examples*
 
-* Use of the `length` field.
+* Access the `length` field.
 +
 [source,Painless]
 ----
@@ -244,10 +245,11 @@ from an array type value.
 [[new-array-operator]]
 ==== New Array
 
-Use the *new array operator* to allocate a new array type instance to the heap.
-Specify each dimension with the `[` and `]` tokens following the type name. The
-size of each dimension is specified by an int type value in between the `[` and
-`]` tokens.
+Use the `new array operator 'new []'` to allocate an array type instance to
+the heap. Specify the element type following the `new` token. Specify each
+dimension with the `[` and `]` tokens following the element type name. The size
+of each dimension is specified by an `int` type value in between each set of `[`
+and `]` tokens.
 
 *Errors*
 
@@ -263,7 +265,7 @@ new_array: 'new' TYPE ('[' expression ']')+;
 
 *Examples*
 
-* Uses of the *new array operator*.
+* Allocation of different array types.
 +
 [source,Painless]
 ----

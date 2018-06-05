@@ -222,11 +222,11 @@ non-static member fields:
 [[list-initialization-operator]]
 ==== List Initialization
 
-Use the `list initialization operator '[]'` to allocate an `List` type value
-with a set of pre-defined values. Each value used to initialize the `List` type
-value is converted to a `def` type value when inserted into the `List` type
-value using the `add` method. The order of specified values is maintained upon
-insertion.
+Use the `list initialization operator '[]'` to allocate an `List` type instance
+to the heap with a set of pre-defined values. Each value used to initialize the
+`List` type instance is cast to a `def` type value upon insertion into the
+`List` type instance using the `add` method. The order of the specified values
+is maintained.
 
 *Grammar*
 
@@ -429,11 +429,10 @@ list_access: '[' expression ']'
 [[map-initialization-operator]]
 ==== Map Initialization
 
-Use the `map initialization operator '[:]'` to allocate a `Map` type value with
-a set of pre-defined values. Each pair of values used to initialize the `Map`
-type value are converted to `def` type values when inserted into the `Map` type
-value using the `put` method. The order of specified values is maintained upon
-insertion.
+Use the `map initialization operator '[:]'` to allocate a `Map` type instance to
+the heap with a set of pre-defined values. Each pair of values used to
+initialize the `Map` type instance are cast to `def` type values upon insertion
+into the `Map` type instance using the `put` method.
 
 *Grammar*
 

@@ -386,10 +386,11 @@ void addToList(List l, def d) {
 ==== Array Type
 
 An array type is a specialized reference type where an array type instance
-represents a series of values allocated to the heap.  All values in an array
-type instance are of the same type.  Each value is assigned an index from within
-the range `[0, length)` where length is the total number of values allocated for
-the array type instance.
+contains a series of values allocated to the heap. Each value in an array type
+instance is defined as an element. All elements in an array type instance are of
+the same type (element type) specified as part of declaration. Each element is
+assigned an index within the range `[0, length)` where length is the total
+number of elements allocated for an array type instance.
 
 Use the <<new-array-operator, new array operator>> or the
 <<array-initialization-operator, array initialization operator>> to allocate an
@@ -405,17 +406,18 @@ as an argument to a method/function call to indicate the argument refers to no
 array type instance.
 
 Use the <<array-length-operator, array length operator>> to retrieve the length
-of an array type value as an int type value. Use the
+of an array type value as an `int` type value. Use the
 <<array-access-operator, array access operator>> to load from and store to
-individual values within an array type value.
+an individual element within an array type instance.
 
 When an array type instance is allocated with multiple dimensions using the
-range `[2, d]` where `d >= 2`, each dimension in the range `[1, d-1]` is also
-an array type. The array type of each dimension, `n`, is an array type with the
-number of dimensions equal to `d-n`. For example, consider `int[][][]` with 3
-dimensions. The 3rd dimension, `d-3`, is the primitive type `int`.  The 2nd
-dimension, `d-2`, is the array type `int[]`. And the 1st dimension, `d-1` is
-the array type `int[][]`.
+range `[2, d]` where `d >= 2`, each element within each dimension in the range
+`[1, d-1]` is also an array type. The element type of each dimension, `n`, is an
+array type with the number of dimensions equal to `d-n`. For example, consider
+`int[][][]` with 3 dimensions. Each element in the 3rd dimension, `d-3`, is the
+primitive type `int`.  Each element in the 2nd dimension, `d-2`, is the array
+type `int[]`. And each element in the 1st dimension, `d-1` is the array type
+`int[][]`.
 
 *Examples*
 
@@ -450,7 +452,7 @@ the array type `int[][]`.
             -> `1-d float array reference @1`;
     store `float 1.0` to `index [0]` of `1-d float array reference @1`
 +
-* Use of a multi-dimensional array.
+* General use of a multi-dimensional array.
 +
 [source,Painless]
 ----

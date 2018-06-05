@@ -43,10 +43,10 @@ public interface ThreadWatchdog {
     void register();
     
     /**
-     * @return The maximum allowed time for a thread to invoke {@link #unregister()} after {@link #register()}
-     *         has been invoked before this ThreadWatchDog starts to interrupting that thread.
+     * @return The maximum allowed time in milliseconds for a thread to invoke {@link #unregister()}
+     *         after {@link #register()} has been invoked before this ThreadWatchDog starts to interrupting that thread.
      */
-    long maxExecutionTime();
+    long maxExecutionTimeInMillis();
     
     /**
      * Unregisters the current thread and prevents it from being interrupted.
@@ -89,7 +89,7 @@ public interface ThreadWatchdog {
         }
     
         @Override
-        public long maxExecutionTime() {
+        public long maxExecutionTimeInMillis() {
             return Long.MAX_VALUE;
         }
         
@@ -123,7 +123,7 @@ public interface ThreadWatchdog {
         }
     
         @Override
-        public long maxExecutionTime() {
+        public long maxExecutionTimeInMillis() {
             return maxExecutionTime;
         }
     

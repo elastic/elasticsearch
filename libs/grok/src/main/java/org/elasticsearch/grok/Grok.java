@@ -250,7 +250,7 @@ public final class Grok {
         }
         if (result == Matcher.INTERRUPTED) {
             throw new RuntimeException("grok pattern matching was interrupted after [" +
-                threadWatchdog.maxExecutionTime() + "] ms");
+                threadWatchdog.maxExecutionTimeInMillis() + "] ms");
         } else if (result == Matcher.FAILED) {
             // TODO: I think we should throw an error here?
             return null;

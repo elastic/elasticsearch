@@ -81,7 +81,7 @@ public class NioSelector implements Closeable {
         return runLock.isLocked();
     }
 
-    public Future<Void> isRunningFuture() {
+    Future<Void> isRunningFuture() {
         return isRunningFuture;
     }
 

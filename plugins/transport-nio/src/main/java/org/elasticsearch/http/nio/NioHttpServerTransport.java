@@ -178,9 +178,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             int acceptorCount = NIO_HTTP_ACCEPTOR_COUNT.get(settings);
             int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                (s) -> new EventHandler(this::nonChannelExceptionCaught, s),
-                daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), workerCount,
-                () -> new EventHandler(this::nonChannelExceptionCaught));
+                daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), workerCount, (s) -> new EventHandler(this::nonChannelExceptionCaught, s)
+            );
             channelFactory = new HttpChannelFactory();
             this.boundAddress = createBoundHttpAddress();
 

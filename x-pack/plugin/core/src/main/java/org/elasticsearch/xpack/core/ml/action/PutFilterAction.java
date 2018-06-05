@@ -120,18 +120,5 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         public Response() {
             super(true);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
-
     }
 }

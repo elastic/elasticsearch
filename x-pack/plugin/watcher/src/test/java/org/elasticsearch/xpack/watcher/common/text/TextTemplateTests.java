@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.common.text;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.Script;
@@ -172,12 +173,8 @@ public class TextTemplateTests extends ESTestCase {
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        try {
-            TextTemplate.parse(parser);
-            fail("expected parse exception when script type is unknown");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("[script] unknown field [template], parser not found"));
-        }
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> TextTemplate.parse(parser));
+        assertEquals("[1:2] [script] unknown field [template], parser not found", ex.getMessage());
     }
 
     public void testParserInvalidMissingText() throws Exception {
@@ -188,12 +185,8 @@ public class TextTemplateTests extends ESTestCase {
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        try {
-            TextTemplate.parse(parser);
-            fail("expected parse exception when template text is missing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[script] unknown field [type], parser not found"));
-        }
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> TextTemplate.parse(parser));
+        assertEquals("[1:2] [script] unknown field [type], parser not found", ex.getMessage());
     }
 
     public void testNullObject() throws Exception {

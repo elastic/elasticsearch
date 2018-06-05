@@ -86,7 +86,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
             super.readFrom(in);
             taskId = in.readString();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
                 params = in.readNamedWriteable(PersistentTaskParams.class);
             } else {
                 params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
@@ -98,7 +98,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
             super.writeTo(out);
             out.writeString(taskId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
                 out.writeNamedWriteable(params);
             } else {
                 out.writeOptionalNamedWriteable(params);

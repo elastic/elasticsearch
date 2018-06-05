@@ -19,6 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -453,13 +454,16 @@ public final class AnalysisRegistry implements Closeable {
         analyzerProviders = new HashMap<>(analyzerProviders);
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
+        Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
             processAnalyzerFactory(indexSettings, entry.getKey(), entry.getValue(), analyzers,
                 tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
-                    tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+                    "keyword", tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+            processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
+                    "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
         if (!analyzers.containsKey("default")) {
@@ -489,7 +493,7 @@ public final class AnalysisRegistry implements Closeable {
             }
         }
         return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer,
-            unmodifiableMap(analyzers), unmodifiableMap(normalizers));
+            unmodifiableMap(analyzers), unmodifiableMap(normalizers), unmodifiableMap(whitespaceNormalizers));
     }
 
     private void processAnalyzerFactory(IndexSettings indexSettings,
@@ -545,15 +549,16 @@ public final class AnalysisRegistry implements Closeable {
             String name,
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,
-            TokenizerFactory keywordTokenizerFactory,
+            String tokenizerName,
+            TokenizerFactory tokenizerFactory,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
-        if (keywordTokenizerFactory == null) {
+        if (tokenizerFactory == null) {
             throw new IllegalStateException("keyword tokenizer factory is null, normalizers require analysis-common module");
         }
 
         if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(keywordTokenizerFactory, charFilters, tokenFilters);
+            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
         }
         Analyzer normalizerF = normalizerFactory.get();
         if (normalizerF == null) {

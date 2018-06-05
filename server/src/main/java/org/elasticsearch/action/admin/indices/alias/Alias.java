@@ -29,7 +29,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,7 +44,7 @@ import java.util.Map;
 /**
  * Represents an alias, to be associated with an index
  */
-public class Alias implements Streamable, ToXContentObject {
+public class Alias implements Streamable, ToXContentFragment {
 
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField ROUTING = new ParseField("routing");
@@ -278,6 +279,11 @@ public class Alias implements Streamable, ToXContentObject {
 
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

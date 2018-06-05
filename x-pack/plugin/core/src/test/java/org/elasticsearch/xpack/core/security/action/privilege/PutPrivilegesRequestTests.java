@@ -89,14 +89,4 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         original.setPrivileges(Arrays.asList(privileges));
         return original;
     }
-
-    private <T> T[] randomArray(int max, IntFunction<T[]> arrayConstructor, Supplier<T> valueConstructor) {
-        int size = randomInt(max);
-        T[] array = arrayConstructor.apply(size);
-        for (int i = 0; i < array.length; i++) {
-            array[i] = valueConstructor.get();
-        }
-        return array;
-    }
-
 }

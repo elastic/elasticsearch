@@ -997,7 +997,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a list of generic objects via a {@link Writer}
+     * Writes a collection of generic objects via a {@link Writer}
      */
     public <T> void writeCollection(Collection<T> collection, Writer<T> writer) throws IOException {
         writeVInt(collection.size());

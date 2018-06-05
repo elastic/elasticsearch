@@ -14,9 +14,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Basic test that indexed documents survive the rolling restart. See
- * {@link RecoveryIT} for much more in depth testing of the mechanism
- * by which they survive.
+ * Basic test that indexed documents survive the rolling restart.
+ * <p>
+ * This test is an almost exact copy of <code>IndexingIT</code> in the
+ * oss rolling restart tests. We should work on a way to remove this
+ * duplication but for now we have no real way to share code.
  */
 public class IndexingIT extends AbstractUpgradeTestCase {
     public void testIndexing() throws IOException {

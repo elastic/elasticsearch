@@ -51,5 +51,5 @@ multi-metric jobs and split the data or create more complex analysis functions
 as necessary. For examples of more complicated configuration options, see
 <<ml-configuring>>.
 
-If you encounter problems, we're here to help. See <<xpack-help>> and
+If you encounter problems, we're here to help. See <<help>> and
 <<ml-troubleshooting>>.

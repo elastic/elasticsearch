@@ -31,13 +31,13 @@ public class ReindexRequestBuilder extends
     private final IndexRequestBuilder destination;
 
     public ReindexRequestBuilder(ElasticsearchClient client,
-            Action<ReindexRequest, BulkByScrollResponse, ReindexRequestBuilder> action) {
+            Action<ReindexRequest, BulkByScrollResponse> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE),
                 new IndexRequestBuilder(client, IndexAction.INSTANCE));
     }
 
     private ReindexRequestBuilder(ElasticsearchClient client,
-            Action<ReindexRequest, BulkByScrollResponse, ReindexRequestBuilder> action,
+            Action<ReindexRequest, BulkByScrollResponse> action,
             SearchRequestBuilder search, IndexRequestBuilder destination) {
         super(client, action, search, new ReindexRequest(search.request(), destination.request()));
         this.destination = destination;

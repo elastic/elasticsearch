@@ -42,7 +42,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import java.util.Arrays;
 import java.util.List;
 
-public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, NoopSearchRequestBuilder> {
+public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
     public NoopSearchRequestBuilder(ElasticsearchClient client, NoopSearchAction action) {
         super(client, action, new SearchRequest());

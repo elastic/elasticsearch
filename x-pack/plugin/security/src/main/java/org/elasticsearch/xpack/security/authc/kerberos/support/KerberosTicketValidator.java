@@ -67,7 +67,7 @@ public class KerberosTicketValidator {
      *
      * @param servicePrincipalName Service principal name
      * @param nameType {@link GSSName} type depending on GSS API principal entity
-     * @param base64Ticket base64 encoded kerberos ticket
+     * @param decodedToken base64 decoded kerberos ticket bytes
      * @param config {@link RealmConfig}
      * @return {@link Tuple} of user name {@link GSSContext#getSrcName()} and out
      *         token base64 encoded if any. When context is not yet established user

@@ -24,11 +24,12 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class SlowClusterStateProcessing extends SingleNodeDisruption {
+public class SlowClusterStateProcessing extends MultiNodesDisruption {
 
     volatile boolean disrupting;
     volatile Thread worker;
@@ -38,36 +39,40 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
     final long delayDurationMin;
     final long delayDurationMax;
 
-
     public SlowClusterStateProcessing(Random random) {
-        this(null, random);
+        this(random, null);
     }
 
-    public SlowClusterStateProcessing(String disruptedNode, Random random) {
-        this(disruptedNode, random, 100, 200, 300, 20000);
+    public SlowClusterStateProcessing(Random random, String ... disruptedNodes) {
+        this(disruptedNodes, random, 100, 200, 300, 20000);
     }
 
     public SlowClusterStateProcessing(String disruptedNode, Random random, long intervalBetweenDelaysMin,
                                       long intervalBetweenDelaysMax, long delayDurationMin, long delayDurationMax) {
-        this(random, intervalBetweenDelaysMin, intervalBetweenDelaysMax, delayDurationMin, delayDurationMax);
-        this.disruptedNode = disruptedNode;
+        this(disruptedNode != null ? new String[]{disruptedNode} : null,
+            random, intervalBetweenDelaysMin, intervalBetweenDelaysMax, delayDurationMin, delayDurationMax);
     }
 
     public SlowClusterStateProcessing(Random random,
                                       long intervalBetweenDelaysMin, long intervalBetweenDelaysMax, long delayDurationMin,
                                       long delayDurationMax) {
-        super(random);
+        this((String[])null, random, intervalBetweenDelaysMin, intervalBetweenDelaysMax, delayDurationMin, delayDurationMax);
+    }
+
+    public SlowClusterStateProcessing(String[] disruptedNodes, Random random, long intervalBetweenDelaysMin,
+                                      long intervalBetweenDelaysMax, long delayDurationMin, long delayDurationMax) {
+        super(random, disruptedNodes);
         this.intervalBetweenDelaysMin = intervalBetweenDelaysMin;
         this.intervalBetweenDelaysMax = intervalBetweenDelaysMax;
         this.delayDurationMin = delayDurationMin;
         this.delayDurationMax = delayDurationMax;
     }
 
-
     @Override
     public void startDisrupting() {
         disrupting = true;
         worker = new Thread(new BackgroundWorker());
+        worker.setName("slow-cluster-worker");
         worker.setDaemon(true);
         worker.start();
     }
@@ -77,7 +82,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         if (worker == null) {
             return;
         }
-        logger.info("stopping to slow down cluster state processing on [{}]", disruptedNode);
+        logger.info("stopping to slow down cluster state processing on [{}]", disruptedNodes);
         disrupting = false;
         worker.interrupt();
         try {
@@ -90,13 +95,14 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
 
 
     private boolean interruptClusterStateProcessing(final TimeValue duration) throws InterruptedException {
-        final String disruptionNodeCopy = disruptedNode;
-        if (disruptionNodeCopy == null) {
+        final List<String> disruptionNodesCopy = disruptedNodes;
+        if (disruptionNodesCopy == null || disruptionNodesCopy.isEmpty()) {
             return false;
         }
-        logger.info("delaying cluster state updates on node [{}] for [{}]", disruptionNodeCopy, duration);
+        final String disruptionNode = disruptionNodesCopy.get(random.nextInt(disruptionNodesCopy.size()));
+        logger.info("delaying cluster state updates on node [{}] for [{}]", disruptionNode, duration);
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        ClusterService clusterService = cluster.getInstance(ClusterService.class, disruptionNodeCopy);
+        ClusterService clusterService = cluster.getInstance(ClusterService.class, disruptionNode);
         if (clusterService == null) {
             return false;
         }
@@ -143,7 +149,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
 
         @Override
         public void run() {
-            while (disrupting && disruptedNode != null) {
+            while (disrupting && disruptedNodes != null) {
                 try {
                     TimeValue duration = new TimeValue(delayDurationMin + random.nextInt((int) (delayDurationMax - delayDurationMin)));
                     if (!interruptClusterStateProcessing(duration)) {
@@ -151,7 +157,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                     }
                     if (intervalBetweenDelaysMax > 0) {
                         duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
-                        if (disrupting && disruptedNode != null) {
+                        if (disrupting && disruptedNodes != null) {
                             Thread.sleep(duration.millis());
                         }
                     }

@@ -20,6 +20,7 @@ package org.elasticsearch.cluster;/*
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
@@ -94,16 +95,17 @@ public class IndexingWithMappingUpdateIT extends ESIntegTestCase {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         final IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().index(index).shard(0);
         final String primaryNodeId = indexShardRoutingTable.primaryShard().currentNodeId();
-        final String primaryNodeName = clusterState.nodes().get(primaryNodeId).getName();
+        final DiscoveryNodes clusterNodes = clusterState.nodes();
+        final String primaryNodeName = clusterNodes.get(primaryNodeId).getName();
 
         List<ShardRouting> replicaShards = indexShardRoutingTable.replicaShards();
         assertThat(replicaShards.size(), is(replicas));
 
         // pick up any victim among replicas
-        final String unluckyReplicaNodeId = replicaShards.get(randomInt(replicas)).currentNodeId();
-        final String unluckyReplicaNodeName = clusterState.nodes().get(unluckyReplicaNodeId).getName();
+        final String[] replicaNames = replicaShards.stream()
+            .map(node -> clusterNodes.get(node.currentNodeId()).getName()).toArray(String[]::new);
 
-        final ServiceDisruptionScheme serviceDisruptionScheme = new SlowClusterStateProcessing(unluckyReplicaNodeName, random());
+        final ServiceDisruptionScheme serviceDisruptionScheme = new SlowClusterStateProcessing(random(), replicaNames);
         setDisruptionScheme(serviceDisruptionScheme);
         serviceDisruptionScheme.startDisrupting();
 

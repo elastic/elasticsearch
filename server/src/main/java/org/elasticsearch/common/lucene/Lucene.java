@@ -201,6 +201,7 @@ public class Lucene {
         }
         final CommitPoint cp = new CommitPoint(si, directory);
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
                 .setIndexCommit(cp)
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE)

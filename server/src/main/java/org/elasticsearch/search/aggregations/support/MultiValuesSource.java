@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
@@ -76,7 +77,7 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
             if (wrapper == null) {
                 throw new IllegalArgumentException("Could not find field name [" + fieldName + "] in multiValuesSource");
             }
-            return wrapper.getMultiValueMode().select(wrapper.getValueSource().doubleValues(ctx), defaultValue);
+            return FieldData.replaceMissing(wrapper.getMultiValueMode().select(wrapper.getValueSource().doubleValues(ctx)), defaultValue);
         }
     }
 

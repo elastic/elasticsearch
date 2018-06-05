@@ -91,24 +91,31 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     public InternalWeightedAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double weight = 0;
         double sum = 0;
-        double compensation = 0;
+        double sumCompensation = 0;
+        double weightCompensation = 0;
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
             InternalWeightedAvg avg = (InternalWeightedAvg) aggregation;
-            weight += avg.weight;
+            if (Double.isFinite(avg.weight) == false) {
+                weight += avg.weight;
+            } else if (Double.isFinite(weight)) {
+                double corrected = avg.weight - weightCompensation;
+                double newWeight = weight + corrected;
+                weightCompensation = (newWeight - weight) - corrected;
+                weight = newWeight;
+            }
             if (Double.isFinite(avg.sum) == false) {
                 sum += avg.sum;
             } else if (Double.isFinite(sum)) {
-                double corrected = avg.sum - compensation;
+                double corrected = avg.sum - sumCompensation;
                 double newSum = sum + corrected;
-                compensation = (newSum - sum) - corrected;
+                sumCompensation = (newSum - sum) - corrected;
                 sum = newSum;
             }
         }
         return new InternalWeightedAvg(getName(), sum, weight, format, pipelineAggregators(), getMetaData());
     }
-
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE.getPreferredName(), weight != 0 ? getValue() : null);

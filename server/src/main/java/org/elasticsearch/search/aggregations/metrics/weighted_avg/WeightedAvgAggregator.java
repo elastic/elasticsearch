@@ -46,7 +46,8 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
 
     DoubleArray weights;
     DoubleArray sums;
-    DoubleArray compensations;
+    DoubleArray sumCompensations;
+    DoubleArray weightCompensations;
     DocValueFormat format;
 
     public WeightedAvgAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, DocValueFormat format,
@@ -59,7 +60,8 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
             final BigArrays bigArrays = context.bigArrays();
             weights = bigArrays.newDoubleArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
-            compensations = bigArrays.newDoubleArray(1, true);
+            sumCompensations = bigArrays.newDoubleArray(1, true);
+            weightCompensations = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -83,32 +85,37 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
             public void collect(int doc, long bucket) throws IOException {
                 weights = bigArrays.grow(weights, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
+                sumCompensations = bigArrays.grow(sumCompensations, bucket + 1);
+                weightCompensations = bigArrays.grow(weightCompensations, bucket + 1);
 
                 if (docValues.advanceExact(doc)) {
-                    docWeights.advanceExact(doc);
+                    boolean advanced = docWeights.advanceExact(doc);
+                    assert advanced;
                     final double weight = docWeights.doubleValue();
 
-                    weights.increment(bucket, weight);
-                    // Compute the sum of double values with Kahan summation algorithm which is more
-                    // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-
-                    final double value = docValues.doubleValue() * weight;
-                    if (Double.isFinite(value) == false) {
-                        sum += value;
-                    } else if (Double.isFinite(sum)) {
-                        double corrected = value - compensation;
-                        double newSum = sum + corrected;
-                        compensation = (newSum - sum) - corrected;
-                        sum = newSum;
-                    }
-                    sums.set(bucket, sum);
-                    compensations.set(bucket, compensation);
+                    kahanSum(docValues.doubleValue() * weight, sums, sumCompensations, bucket);
+                    kahanSum(weight, weights, weightCompensations, bucket);
                 }
             }
         };
+    }
+
+    private static void kahanSum(double value, DoubleArray values, DoubleArray compensations, long bucket) {
+        // Compute the sum of double values with Kahan summation algorithm which is more
+        // accurate than naive summation.
+        double sum = values.get(bucket);
+        double compensation = compensations.get(bucket);
+
+        if (Double.isFinite(value) == false) {
+            sum += value;
+        } else if (Double.isFinite(sum)) {
+            double corrected = value - compensation;
+            double newSum = sum + corrected;
+            compensation = (newSum - sum) - corrected;
+            sum = newSum;
+        }
+        values.set(bucket, sum);
+        compensations.set(bucket, compensation);
     }
 
     @Override
@@ -134,7 +141,7 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public void doClose() {
-        Releasables.close(weights, sums, compensations);
+        Releasables.close(weights, sums, sumCompensations, weightCompensations);
     }
 
 }

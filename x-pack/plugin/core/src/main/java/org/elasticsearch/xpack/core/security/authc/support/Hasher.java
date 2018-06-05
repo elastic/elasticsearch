@@ -277,7 +277,7 @@ public enum Hasher {
 
     public abstract boolean verify(SecureString data, char[] hash);
 
-    static final class SaltProvider {
+    public static final class SaltProvider {
 
         static final char[] ALPHABET = new char[]{
                 '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',

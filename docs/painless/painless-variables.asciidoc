@@ -67,11 +67,11 @@ assignment: '=' expression;
 [[variable-assignment]]
 ==== Assignment
 
-Use the *assignment operator* to store a value in a variable for use in
-subsequent operations. Any operation that produces a value is assigned to any
-variable as long as the <<painless-types, types>> are the same or an
-<<painless-casting, implicit cast>> of the resultant type to the variable type
-is possible.
+Use the `assignment operator '='` to store a value in a variable for use in
+subsequent operations. Any operation that produces a value can be assigned to
+any variable as long as the <<painless-types, types>> are the same or the
+resultant type can be <<painless-casting, implicitly cast>> to the variable
+type.
 
 *Errors*
 
@@ -111,7 +111,7 @@ assignment: ID '=' expression
 <2> declare `double j`;
     store `double 2.0` to `j`
 +
-* Assignment of one variable to another using primitive types.
+* Assignment of one variable to another using primitive type values.
 +
 [source,Painless]
 ----
@@ -125,7 +125,8 @@ assignment: ID '=' expression
     load from `i` -> `int 10`;
     store `int 10` to `j`
 +
-* Assignment with reference types using the *new instance operator*.
+* Assignment with reference types using the
+  <<new-instance-operator, new instance operator>>.
 +
 [source,Painless]
 ----
@@ -141,7 +142,7 @@ assignment: ID '=' expression
     implicit cast `HashMap reference` to `Map reference` -> `Map reference`;
     store `Map reference` to `m`
 +
-* Assignment of one variable to another using reference types.
+* Assignment of one variable to another using reference type values.
 +
 [source,Painless]
 ----
@@ -165,7 +166,8 @@ assignment: ID '=' expression
     store `List reference` to `m`;
     (note `l`, `k`, and `m` refer to the same instance)
 +
-* Assignment with an array type variable using the *new array operator*.
+* Assignment with array type variables using the
+  <<new-array-operator, new array operator>>.
 +
 [source,Painless]
 ----

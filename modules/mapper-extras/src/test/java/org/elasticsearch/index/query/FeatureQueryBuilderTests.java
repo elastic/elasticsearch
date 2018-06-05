@@ -84,12 +84,6 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
         assertThat(query, either(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(expectedClass)));
     }
 
-    @Override
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/30605")
-    public void testUnknownField() {
-        super.testUnknownField();
-    }
-
     public void testDefaultScoreFunction() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +

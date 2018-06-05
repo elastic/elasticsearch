@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -38,6 +39,8 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -134,9 +137,32 @@ public final class IndicesClient {
      * Put Mapping API on elastic.co</a>
      */
     public void putMappingAsync(PutMappingRequest putMappingRequest, ActionListener<PutMappingResponse> listener,
-                                       Header... headers) {
+                                Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, RequestConverters::putMapping,
                 PutMappingResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Retrieves the mappings on an index or indices using the Get Mapping API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
+     * Get Mapping API on elastic.co</a>
+     */
+    public GetMappingsResponse getMappings(GetMappingsRequest getMappingsRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getMappingsRequest, RequestConverters::getMappings,
+            GetMappingsResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously retrieves the mappings on an index on indices using the Get Mapping API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
+     * Get Mapping API on elastic.co</a>
+     */
+    public void getMappingsAsync(GetMappingsRequest getMappingsRequest, ActionListener<GetMappingsResponse> listener,
+                                 Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest, RequestConverters::getMappings,
+            GetMappingsResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**

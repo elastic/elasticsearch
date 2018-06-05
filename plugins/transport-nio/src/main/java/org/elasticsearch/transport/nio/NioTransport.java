@@ -94,8 +94,8 @@ public class NioTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), NioTransport.NIO_WORKER_COUNT.get(settings),
-                (s) -> new EventHandler(this::onNonChannelException, s));
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
+                NioTransport.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = channelFactory(clientProfileSettings, true);

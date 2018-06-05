@@ -198,7 +198,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected KeywordFieldType(KeywordFieldType ref) {
             super(ref);
             this.normalizer = ref.normalizer;
-            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
+            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
         public KeywordFieldType clone() {

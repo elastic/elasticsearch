@@ -115,7 +115,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             super.readFrom(in);
             oldIndex = in.readString();
             newIndex = in.readString();
@@ -144,7 +144,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             super.writeTo(out);
             out.writeString(oldIndex);
             out.writeString(newIndex);

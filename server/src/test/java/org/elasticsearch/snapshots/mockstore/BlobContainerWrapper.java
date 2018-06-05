@@ -54,8 +54,18 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
+        delegate.writeBlobAtomic(blobName, inputStream, blobSize);
+    }
+
+    @Override
     public void deleteBlob(String blobName) throws IOException {
         delegate.deleteBlob(blobName);
+    }
+
+    @Override
+    public void deleteBlobIgnoringIfNotExists(final String blobName) throws IOException {
+        delegate.deleteBlobIgnoringIfNotExists(blobName);
     }
 
     @Override

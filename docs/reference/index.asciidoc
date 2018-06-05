@@ -22,7 +22,7 @@ include::{xes-repo-dir}/security/configuring-es.asciidoc[]
 
 include::{xes-repo-dir}/setup/setup-xclient.asciidoc[]
 
-include::{xes-repo-dir}/settings/configuring-xes.asciidoc[]
+include::settings/configuring-xes.asciidoc[]
 
 include::{xes-repo-dir}/setup/bootstrap-checks-xes.asciidoc[]
 

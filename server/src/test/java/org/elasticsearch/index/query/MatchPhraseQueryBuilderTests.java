@@ -64,7 +64,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
 
         MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(fieldName, value);
 
-        if (randomBoolean()) {
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
@@ -105,15 +105,6 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
                 .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
                 .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
-    }
-
-    /**
-     * Overridden to allow for annotating with @AwaitsFix. Please remove this method after fixing.
-     */
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31061")
-    public void testToQuery() throws IOException {
-        super.testToQuery();
     }
 
     public void testIllegalValues() {

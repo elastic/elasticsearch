@@ -38,7 +38,7 @@ public interface ReadWriteHandler {
      * @param listener the listener to be called when the message is sent
      * @return the write operation to be queued
      */
-    WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener);
+    WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener);
 
     /**
      * This method is called on the event loop thread. It should serialize a write operation object to bytes

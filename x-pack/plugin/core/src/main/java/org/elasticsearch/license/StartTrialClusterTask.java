@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
 import java.util.Collections;
@@ -64,6 +65,7 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
+        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         LicensesMetaData currentLicensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
 
         if (request.isAcknowledged() == false) {
@@ -80,7 +82,7 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
                     .issueDate(issueDate)
                     .type(request.getType())
                     .expiryDate(expiryDate);
-            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
+            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
             LicensesMetaData newLicensesMetaData = new LicensesMetaData(selfGeneratedLicense, Version.CURRENT);
             mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
             return ClusterState.builder(currentState).metaData(mdBuilder).build();

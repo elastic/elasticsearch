@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class ClusterRerouteAction extends Action<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
+public class ClusterRerouteAction extends Action<ClusterRerouteRequest, ClusterRerouteResponse> {
 
     public static final ClusterRerouteAction INSTANCE = new ClusterRerouteAction();
     public static final String NAME = "cluster:admin/reroute";
@@ -34,10 +33,5 @@ public class ClusterRerouteAction extends Action<ClusterRerouteRequest, ClusterR
     @Override
     public ClusterRerouteResponse newResponse() {
         return new ClusterRerouteResponse();
-    }
-
-    @Override
-    public ClusterRerouteRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ClusterRerouteRequestBuilder(client, this);
     }
 }

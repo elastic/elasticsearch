@@ -22,7 +22,6 @@ package org.elasticsearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -70,6 +69,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * e.g. "-Dtests.rest.blacklist=get/10_basic/*"
      */
     public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
+    /**
+     * We use tests.rest.blacklist in build files to blacklist tests; this property enables a user to add additional blacklisted tests on
+     * top of the tests blacklisted in the build.
+     */
+    public static final String REST_TESTS_BLACKLIST_ADDITIONS = "tests.rest.blacklist_additions";
     /**
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
@@ -124,6 +128,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
+            final String[] blacklistAdditions = resolvePathsProperty(REST_TESTS_BLACKLIST_ADDITIONS, null);
+            for (final String entry : blacklistAdditions) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
         }
@@ -323,8 +331,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (useDefaultNumberOfShards == false
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
-            request.setHeaders(new BasicHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters()));
-            request.setEntity(new StringEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}"));
+            request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
             adminClient().performRequest(request);
         }
 

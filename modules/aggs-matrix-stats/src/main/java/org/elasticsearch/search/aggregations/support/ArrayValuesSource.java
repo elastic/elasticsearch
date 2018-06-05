@@ -47,7 +47,7 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
             if (ordinal > names.length) {
                 throw new IndexOutOfBoundsException("ValuesSource array index " + ordinal + " out of bounds");
             }
-            return multiValueMode.select(values[ordinal].doubleValues(ctx), Double.NEGATIVE_INFINITY);
+            return multiValueMode.select(values[ordinal].doubleValues(ctx));
         }
     }
 

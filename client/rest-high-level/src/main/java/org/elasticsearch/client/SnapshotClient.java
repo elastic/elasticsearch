@@ -21,10 +21,14 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 
 import java.io.IOException;
 
@@ -89,5 +93,53 @@ public final class SnapshotClient {
                                       ActionListener<PutRepositoryResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest, RequestConverters::createRepository,
             PutRepositoryResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Deletes a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public DeleteRepositoryResponse deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest, Header... headers)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(deleteRepositoryRequest, RequestConverters::deleteRepository,
+            DeleteRepositoryResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously deletes a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public void deleteRepositoryAsync(DeleteRepositoryRequest deleteRepositoryRequest,
+                                      ActionListener<DeleteRepositoryResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(deleteRepositoryRequest, RequestConverters::deleteRepository,
+            DeleteRepositoryResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Verifies a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public VerifyRepositoryResponse verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest, Header... headers)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository,
+            VerifyRepositoryResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously verifies a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public void verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest,
+                                      ActionListener<VerifyRepositoryResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository,
+            VerifyRepositoryResponse::fromXContent, listener, emptySet(), headers);
     }
 }

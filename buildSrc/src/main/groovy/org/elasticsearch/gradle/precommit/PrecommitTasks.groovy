@@ -65,10 +65,6 @@ class PrecommitTasks {
             precommitTasks.add(configureLoggerUsage(project))
         }
 
-        if (project.path.startsWith(":x-pack:plugin:")) {
-            precommitTasks.add(configureFeatureAware(project))
-        }
-
         Map<String, Object> precommitOptions = [
             name: 'precommit',
             group: JavaBasePlugin.VERIFICATION_GROUP,
@@ -178,25 +174,6 @@ class PrecommitTasks {
         }
 
         return loggerUsageTask
-    }
-
-    private static Task configureFeatureAware(final Project project) {
-        final Task featureAwareTask = project.tasks.create('featureAwareCheck', FeatureAwareTask.class)
-
-        // see the root Gradle file for additional logic regarding this configuration
-        project.configurations.create('featureAwarePlugin')
-        project.dependencies.add(
-                'featureAwarePlugin',
-                "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
-        project.dependencies.add(
-                'featureAwarePlugin',
-                project.sourceSets.main.output.getClassesDirs())
-
-        featureAwareTask.configure { FeatureAwareTask fat ->
-            fat.classpath = project.configurations.featureAwarePlugin
-        }
-
-        return featureAwareTask
     }
 
 }

@@ -1,12 +1,8 @@
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.precommit.FeatureAwareTask
 import org.elasticsearch.gradle.test.NodeInfo
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import org.elasticsearch.gradle.test.RunTask;
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -15,6 +11,26 @@ archivesBaseName = 'x-pack'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+subprojects {
+  final SourceSet main = project.sourceSets.findByName("main")
+  if (main != null) {
+    final FeatureAwareTask featureAwareTask = project.tasks.create('featureAwareCheck', FeatureAwareTask.class)
+
+    // see the root Gradle file for additional logic regarding this configuration
+    project.configurations.create('featureAwarePlugin')
+    project.dependencies.add(
+            'featureAwarePlugin',
+            "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+    project.dependencies.add('featureAwarePlugin', main.output.getClassesDirs())
+
+    featureAwareTask.configure { FeatureAwareTask fat ->
+      fat.classpath = project.configurations.featureAwarePlugin
+    }
+
+    project.precommit.dependsOn featureAwareTask
+  }
 }
 
 // https://github.com/elastic/x-plugins/issues/724

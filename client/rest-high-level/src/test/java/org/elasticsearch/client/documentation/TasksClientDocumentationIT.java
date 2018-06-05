@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -92,7 +93,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         ListTasksRequest request = new ListTasksRequest();
 
         // tag::list-tasks-execute
-        ListTasksResponse response = client.tasks().list(request);
+        ListTasksResponse response = client.tasks().list(request, RequestOptions.DEFAULT);
         // end::list-tasks-execute
 
         assertThat(response, notNullValue());
@@ -141,7 +142,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::list-tasks-execute-async
-            client.tasks().listAsync(request, listener); // <1>
+            client.tasks().listAsync(request, listener, RequestOptions.DEFAULT); // <1>
             // end::list-tasks-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -167,7 +168,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         request.setTaskId(TaskId.EMPTY_TASK_ID);
 
         // tag::cancel-tasks-execute
-        CancelTasksResponse response = client.tasks().cancel(request);
+        CancelTasksResponse response = client.tasks().cancel(request, RequestOptions.DEFAULT);
         // end::cancel-tasks-execute
 
         assertThat(response, notNullValue());
@@ -211,7 +212,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::cancel-tasks-execute-async
-            client.tasks().cancelAsync(request, listener); // <1>
+            client.tasks().cancelAsync(request, listener, RequestOptions.DEFAULT); // <1>
             // end::cancel-tasks-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

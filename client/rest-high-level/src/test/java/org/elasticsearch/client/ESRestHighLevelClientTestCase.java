@@ -70,6 +70,17 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         }
     }
 
+    protected static <Req, Resp> Resp executeWithOptions(Req request, SyncMethodWithRequestOptions<Req, Resp> syncMethod,
+                                              AsyncMethodWithRequestOptions<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
+        if (randomBoolean()) {
+            return syncMethod.execute(request, options);
+        } else {
+            PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
+            asyncMethod.execute(request, future, options);
+            return future.actionGet();
+        }
+    }
+
     @FunctionalInterface
     protected interface SyncMethod<Request, Response> {
         Response execute(Request request, Header... headers) throws IOException;
@@ -78,6 +89,16 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     @FunctionalInterface
     protected interface AsyncMethod<Request, Response> {
         void execute(Request request, ActionListener<Response> listener, Header... headers);
+    }
+
+    @FunctionalInterface
+    protected interface SyncMethodWithRequestOptions<Request, Response> {
+        Response execute(Request request, RequestOptions options) throws IOException;
+    }
+
+    @FunctionalInterface
+    protected interface AsyncMethodWithRequestOptions<Request, Response> {
+        void execute(Request request, ActionListener<Response> listener, RequestOptions options);
     }
 
     private static class HighLevelClient extends RestHighLevelClient {

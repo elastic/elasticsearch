@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -48,9 +47,14 @@ public class TasksClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      */
-    public ListTasksResponse list(ListTasksRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                emptySet(), headers);
+    public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            RequestConverters::listTasks,
+            options,
+            ListTasksResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -59,9 +63,15 @@ public class TasksClient {
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      */
-    public void listAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                listener, emptySet(), headers);
+    public void listAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, RequestOptions options) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            RequestConverters::listTasks,
+            options,
+            ListTasksResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -71,13 +81,14 @@ public class TasksClient {
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * </p>
      */
-    public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, Header... headers) throws IOException {
+    public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options ) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             cancelTasksRequest,
             RequestConverters::cancelTasks,
+            options,
             parser -> CancelTasksResponse.fromXContent(parser),
-            emptySet(),
-            headers);
+            emptySet()
+        );
     }
 
     /**
@@ -87,13 +98,14 @@ public class TasksClient {
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * </p>
      */
-    public void cancelAsync(CancelTasksRequest cancelTasksRequest, ActionListener<CancelTasksResponse> listener, Header... headers) {
+    public void cancelAsync(CancelTasksRequest cancelTasksRequest, ActionListener<CancelTasksResponse> listener, RequestOptions options) {
         restHighLevelClient.performRequestAsyncAndParseEntity(
             cancelTasksRequest,
             RequestConverters::cancelTasks,
+            options,
             parser -> CancelTasksResponse.fromXContent(parser),
             listener,
-            emptySet(),
-            headers);
+            emptySet()
+        );
     }
 }

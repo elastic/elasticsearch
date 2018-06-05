@@ -80,7 +80,7 @@ public class FollowIndexActionTests extends ESTestCase {
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
-            assertThat(e.getMessage(), equalTo("the leader and follower index analysis settings must be identical"));
+            assertThat(e.getMessage(), equalTo("the leader and follower index settings must be identical"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

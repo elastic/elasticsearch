@@ -44,7 +44,8 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
     }
 
     // pkg private for testing
-    static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier<Query> retentionPolicySupplier) throws IOException {
+    static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier<Query> retentionPolicySupplier)
+        throws IOException {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new DocValuesFieldExistsQuery(recoverySourceField), BooleanClause.Occur.FILTER);
         builder.add(retentionPolicySupplier.get(), BooleanClause.Occur.FILTER);
@@ -65,7 +66,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         private final BitSet sourceToDrop;
         private final String recoverySourceField;
 
-        public SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, BitSet sourceToDrop) {
+        SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, BitSet sourceToDrop) {
             super(reader);
             this.recoverySourceField = recoverySourceField;
             this.sourceToDrop = sourceToDrop;

@@ -56,7 +56,7 @@ class DateObjectValueSource extends FieldDataValueSource {
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
         MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
-        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues(), 0d);
+        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleDocValues(this) {
             @Override
             public double doubleVal(int docId) throws IOException {

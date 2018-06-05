@@ -21,7 +21,6 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -69,7 +68,7 @@ public class PersistentTasksService extends AbstractComponent {
      */
     public <Params extends PersistentTaskParams> void sendStartRequest(final String taskId,
                                                                        final String taskName,
-                                                                       final @Nullable Params taskParams,
+                                                                       final Params taskParams,
                                                                        final ActionListener<PersistentTask<Params>> listener) {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener =

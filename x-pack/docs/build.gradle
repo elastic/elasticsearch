@@ -81,7 +81,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/validate-job.asciidoc',
         'en/rest-api/security/authenticate.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
-        'en/security/authorization/managing-roles.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]
 

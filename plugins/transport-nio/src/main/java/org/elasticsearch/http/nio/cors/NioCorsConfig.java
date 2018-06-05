@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4.cors;
+package org.elasticsearch.http.nio.cors;
 
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.EmptyHttpHeaders;
@@ -38,7 +38,7 @@ import java.util.regex.Pattern;
  * This class was lifted from the Netty project:
  *  https://github.com/netty/netty
  */
-public final class Netty4CorsConfig {
+public final class NioCorsConfig {
 
     private final Optional<Set<String>> origins;
     private final Optional<Pattern> pattern;
@@ -52,7 +52,7 @@ public final class Netty4CorsConfig {
     private final Map<CharSequence, Callable<?>> preflightHeaders;
     private final boolean shortCircuit;
 
-    Netty4CorsConfig(final Netty4CorsConfigBuilder builder) {
+    NioCorsConfig(final NioCorsConfigBuilder builder) {
         origins = builder.origins.map(s -> new LinkedHashSet<>(s));
         pattern = builder.pattern;
         anyOrigin = builder.anyOrigin;
@@ -134,7 +134,7 @@ public final class Netty4CorsConfig {
      * xhr.withCredentials = true;
      * </pre>
      * The default value for 'withCredentials' is false in which case no credentials are sent.
-     * Setting this to true will included credentials in cross origin requests.
+     * Setting this to true will included cookies in cross origin requests.
      *
      * @return {@code true} if credentials are supported.
      */

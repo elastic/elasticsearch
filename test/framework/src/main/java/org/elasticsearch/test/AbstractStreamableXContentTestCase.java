@@ -35,7 +35,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
     public final void testFromXContent() throws IOException {
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
                 getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, assertToXContentEquivalence());
+                this::assertEqualInstances, true);
     }
 
     /**
@@ -48,15 +48,6 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * inserting random fields before parsing and checking that they don't make parsing fail.
      */
     protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    /**
-     * Indicates whether the parser supports comparing XContent after serialization and deserialization.
-     * In case it does, such behaviour will be tested by comparing the XContent of the original instance
-     * and the parsed/deserialized instance.
-     */
-    protected boolean assertToXContentEquivalence() {
         return true;
     }
 

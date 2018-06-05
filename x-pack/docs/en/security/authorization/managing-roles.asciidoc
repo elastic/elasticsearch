@@ -12,6 +12,8 @@ A role is defined by the following JSON structure:
   "indices": [ ... ] <3>
 }
 -----
+// NOTCONSOLE
+
 <1> A list of usernames the owners of this role can <<run-as-privilege, impersonate>>.
 <2> A list of cluster privileges. These privileges define the
     cluster level actions users with this role are able to execute. This field
@@ -37,6 +39,8 @@ The following describes the structure of an indices permissions entry:
   "query": "..." <4>
 }
 -------
+// NOTCONSOLE
+
 <1> A list of indices (or index name patterns) to which the permissions in this
     entry apply.
 <2> The index level privileges the owners of the role have on the associated
@@ -77,8 +81,9 @@ The following snippet shows an example definition of a `clicks_admin` role:
 
 [source,js]
 -----------
+POST /_xpack/security/role/clicks_admin
 {
-  "run_as": [ "clicks_watcher_1" ]
+  "run_as": [ "clicks_watcher_1" ],
   "cluster": [ "monitor" ],
   "indices": [
     {
@@ -92,6 +97,7 @@ The following snippet shows an example definition of a `clicks_admin` role:
   ]
 }
 -----------
+// CONSOLE
 
 Based on the above definition, users owning the `clicks_admin` role can:
 

@@ -148,7 +148,7 @@ non-static member fields:
 ==== Null Safe
 
 Use the `null safe operator '?.'` instead of the method call operator or field
-access operator to ensure a reference type value is not `null` before
+access operator to ensure a reference type value is `non-null` before
 a method call or field access. A `null` value will be returned if the reference
 type value is `null`, otherwise the method call or field access is evaluated.
 
@@ -728,7 +728,7 @@ concatenate: expression '+' expression;
 An elvis consists of two expressions. The first expression is evaluated
 with to check for a `null` value. If the first expression evaluates to
 `null` then the second expression is evaluated and its value used. If the first
-expression evaluates to not `null` then the resultant value of the first
+expression evaluates to `non-null` then the resultant value of the first
 expression is used. Use the `elvis operator '?:'` as a shortcut for the
 conditional operator.
 

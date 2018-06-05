@@ -33,6 +33,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -59,6 +60,7 @@ import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31093")
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
     private static final String MISSING_WILDCARD_FIELD_NAME = "missing_*";

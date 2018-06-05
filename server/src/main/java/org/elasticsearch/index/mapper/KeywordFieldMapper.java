@@ -222,6 +222,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (Objects.equals(normalizer, other.normalizer) == false) {
                 conflicts.add("mapper [" + name() + "] has different [normalizer]");
             }
+            if (strict) {
+                if (splitQueriesOnWhitespace != other.splitQueriesOnWhitespace) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types" +
+                        " to true to update [split_queries_on_whitespace] across all types.");
+                }
+            }
         }
 
         @Override

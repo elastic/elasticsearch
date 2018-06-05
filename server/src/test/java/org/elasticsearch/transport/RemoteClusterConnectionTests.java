@@ -19,15 +19,9 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -42,17 +36,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -121,8 +114,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         try {
             newService.registerRequestHandler(ClusterSearchShardsAction.NAME,ThreadPool.Names.SAME, ClusterSearchShardsRequest::new,
                     (request, channel) -> {
-                        channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
-                                knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
+                        if ("index_not_found".equals(request.preference())) {
+                            channel.sendResponse(new IndexNotFoundException("index"));
+                        } else {
+                            channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
+                                    knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
+                        }
                     });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
                     (request, channel) -> {

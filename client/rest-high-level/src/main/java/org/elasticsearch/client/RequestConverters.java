@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -44,6 +45,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -59,7 +61,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -189,6 +193,19 @@ final class RequestConverters {
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getMappings(GetMappingsRequest getMappingsRequest) throws IOException {
+        String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
+        String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(indices, "_mapping", types));
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
+        parameters.withLocal(getMappingsRequest.local());
         return request;
     }
 
@@ -619,6 +636,18 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addCommaSeparatedPathParts(getPipelineRequest.getIds())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
+        return request;
+    }
+
     static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
@@ -631,6 +660,20 @@ final class RequestConverters {
         parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(putPipelineRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addPathPart(deletePipelineRequest.getId())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withTimeout(deletePipelineRequest.timeout());
+        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
+
         return request;
     }
 
@@ -744,6 +787,19 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(deleteRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(deleteRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(verifyRepositoryRequest.name())
+            .addPathPartAsIs("_verify")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(verifyRepositoryRequest.timeout());
         return request;
     }
 

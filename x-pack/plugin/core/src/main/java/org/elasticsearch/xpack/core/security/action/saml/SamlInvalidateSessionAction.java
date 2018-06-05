@@ -11,19 +11,13 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action to perform IdP-initiated logout for a SAML-SSO user
  */
-public final class SamlInvalidateSessionAction
-        extends Action<SamlInvalidateSessionRequest, SamlInvalidateSessionResponse, SamlInvalidateSessionRequestBuilder> {
+public final class SamlInvalidateSessionAction extends Action<SamlInvalidateSessionRequest, SamlInvalidateSessionResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/invalidate";
     public static final SamlInvalidateSessionAction INSTANCE = new SamlInvalidateSessionAction();
 
     private SamlInvalidateSessionAction() {
         super(NAME);
-    }
-
-    @Override
-    public SamlInvalidateSessionRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SamlInvalidateSessionRequestBuilder(client);
     }
 
     @Override

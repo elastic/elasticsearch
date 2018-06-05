@@ -12,7 +12,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Request builder used to populate a {@link SamlInvalidateSessionRequest}
  */
 public final class SamlInvalidateSessionRequestBuilder
-        extends ActionRequestBuilder<SamlInvalidateSessionRequest, SamlInvalidateSessionResponse, SamlInvalidateSessionRequestBuilder> {
+        extends ActionRequestBuilder<SamlInvalidateSessionRequest, SamlInvalidateSessionResponse> {
 
     public SamlInvalidateSessionRequestBuilder(ElasticsearchClient client) {
         super(client, SamlInvalidateSessionAction.INSTANCE, new SamlInvalidateSessionRequest());

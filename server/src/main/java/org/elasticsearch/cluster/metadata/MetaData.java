@@ -1121,6 +1121,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     AliasMetaData aliasMetaData = idxMeta.getAliases().get(alias.getAliasName());
                     final boolean defaultWriteIndex = alias.getIndices().size() == 1;
                     AliasMetaData updatedAliasMetaData = AliasMetaData.builder(aliasMetaData.alias())
+                        .filter(aliasMetaData.filter())
                         .searchRouting(aliasMetaData.searchRouting())
                         .indexRouting(aliasMetaData.getIndexRouting())
                         .writeIndex(defaultWriteIndex).build();

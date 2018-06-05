@@ -4,10 +4,10 @@
 [[precedence-operator]]
 ==== Precedence
 
-An expression encapsulated by the precedence operator (enclosed in parentheses)
-overrides existing precedence relationships between operators and is evaluated
-prior to other expressions in inward-to-outward order. Use the precedence
-operator to guarantee the order of evaluation for an expression.
+Use the `precedence operator '()'` to guarantee the order of evaluation for an
+expression. An expression encapsulated by the precedence operator (enclosed in
+parentheses) overrides existing precedence relationships between operators and
+is evaluated prior to other expressions in inward-to-outward order.
 
 *Grammar*
 
@@ -18,7 +18,7 @@ precedence: '(' expression ')';
 
 *Examples*
 
-* Uses of the precedence operator.
+* Precedence with numeric operators.
 +
 [source,Painless]
 ----
@@ -43,8 +43,8 @@ precedence: '(' expression ')';
 [[function-call-operator]]
 ==== Function Call
 
-A <<painless-functions, function call>> is defined within a script.  Use the
-*function call operator* to call an existing function.
+Use the `function call operator ()` to call an existing function. A
+<<painless-functions, function call>> is defined within a script.
 
 *Grammar*
 
@@ -55,7 +55,7 @@ function_call: ID '(' ( expression (',' expression)* )? ')'';
 
 *Examples*
 
-* Use of the function call operator.
+* A function call.
 +
 [source,Painless]
 ----
@@ -76,8 +76,9 @@ function_call: ID '(' ( expression (',' expression)* )? ')'';
 ==== Cast
 
 An explicit cast converts the value of an original type to the equivalent value
-of a target type forcefully as an operation.  Use the cast operator to specify
-an explicit cast. Refer to <<painless-casting, casting>> for more information.
+of a target type forcefully as an operation.  Use the `cast operator '()'` to
+specify an explicit cast. Refer to <<painless-casting, casting>> for more
+information.
 
 [[conditional-operator]]
 ==== Conditional
@@ -87,8 +88,8 @@ with an expected boolean result type. If the first expression evaluates to true
 then the second expression will be evaluated.  If the first expression evaluates
 to false then the third expression will be evaluated. The second and third
 expressions will be <<promotion, promoted>> if the evaluated values are not the
-same type. Use the conditional operator as a shortcut to avoid the need for a
-full if/else branch in certain expressions.
+same type. Use the `conditional operator '? :'` as a shortcut to avoid the need
+for a full if/else branch in certain expressions.
 
 *Errors*
 
@@ -123,7 +124,7 @@ occur.
 
 *Examples*
 
-* Uses of the conditional operator.
+* Evaluation of conditionals.
 +
 [source,Painless]
 ----
@@ -156,9 +157,9 @@ occur.
 [[assignment-operator]]
 ==== Assignment
 
-Use the assignment operator to store a value in a variable or reference type
-member field for use in subsequent operations. Any operation
-that produces a value can be assigned to any variable/field as long as the
+Use the `assignment operator '='` to store a value in a variable or reference
+type member field for use in subsequent operations. Any operation that produces
+a value can be assigned to any variable/field as long as the
 <<painless-types, types>> are the same or the resultant type can be
 <<painless-casting, implicitly cast>> to the variable/field type.
 
@@ -190,7 +191,7 @@ non-static member fields:
   * List z
 ----
 
-* Uses of field assignment.
+* Field assignments of different type values.
 +
 [source,Painless]
 ----
@@ -213,7 +214,7 @@ non-static member fields:
     implicit cast `ArrayList reference` to `List reference` -> `List reference`;
     store `List reference` to `z` of `Example reference`
 +
-* Use of field assignment from a field access.
+* A field assignment from a field access.
 +
 [source,Painless]
 ----
@@ -237,9 +238,9 @@ non-static member fields:
 [[compound-assignment-operator]]
 ==== Compound Assignment
 
-Use the compound assignment operator as a shortcut for an assignment where a
-binary operation would occur between the variable/field as the left-side
-expression and a separate right-side expression.
+Use the `compound assignment operator '$='` as a shortcut for an assignment
+where a binary operation would occur between the variable/field as the
+left-hand side expression and a separate right-hand side expression.
 
 A compound assignment is equivalent to the expression below where V is the
 variable/field and T is the type of variable/member.
@@ -292,7 +293,7 @@ operators.
 
 *Examples*
 
-* Uses of compound assignment for each numeric operator.
+* Compound assignment for each numeric operator.
 +
 [source,Painless]
 ----
@@ -357,7 +358,7 @@ operators.
      store `int 15` to `i`;
      (note this is equivalent to `i = i|2`)
 +
-* Uses of compound assignment for each boolean operator.
+* Compound assignment for each boolean operator.
 +
 [source,Painless]
 ----
@@ -382,7 +383,7 @@ operators.
     store `boolean true` to `b`;
     (note this is equivalent to `b = b || true`)
 +
-* Use of compound assignment with the string concatenation operator.
+* A compound assignment with the string concatenation operator.
 +
 [source,Painless]
 ----
@@ -397,7 +398,7 @@ operators.
     store `String 'compound assignment'` to `s`;
     (note this is equivalent to `s = s + ' assignment'`)
 +
-* Use of a compound assignment with the `def` type.
+* A compound assignment with the `def` type.
 +
 [source,Painless]
 ----
@@ -414,7 +415,7 @@ operators.
     store `def` to `x`;
     (note this is equivalent to `x = x+2`)
 +
-* Use of a compound assignment with an extra implicit cast.
+* A compound assignment with an extra implicit cast.
 +
 [source,Painless]
 ----

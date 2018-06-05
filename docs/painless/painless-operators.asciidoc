@@ -9,7 +9,7 @@ is evaluated.  The following table lists all available operators:
 
 [cols="<6,<3,^3,^2,^4"]
 |====
-| *Operator*                                       | *Category*                                  | *Symbol(s)* | *Precedence* | *Associativity*
+| *Operator*                                                | *Category*                                  | *Symbol(s)* | *Precedence* | *Associativity*
 | <<precedence-operator, Precedence>>                       | <<painless-operators-general, General>>     | ()          | 0            | left -> right
 | <<method-call-operator, Method Call>>                     | <<painless-operators-reference, Reference>> | . ()        | 1            | left -> right
 | <<field-access-operator, Field Access>>                   | <<painless-operators-reference, Reference>> | .           | 1            | left -> right
@@ -32,7 +32,7 @@ is evaluated.  The following table lists all available operators:
 | <<bitwise-not-operator, Bitwise Not>>                     | <<painless-operators-numeric, Numeric>>     | ~           | 2            | right -> left
 | <<cast-operator, Cast>>                                   | <<painless-operators-general, General>>     | ()          | 3            | right -> left
 | <<new-instance-operator, New Instance>>                   | <<painless-operators-reference, Reference>> | new ()      | 3            | right -> left
-| <<new-array-operator, New Array>>                         | <<painless-operators-array, Array>>         | new         | 3            | right -> left
+| <<new-array-operator, New Array>>                         | <<painless-operators-array, Array>>         | new []      | 3            | right -> left
 | <<multiplication-operator, Multiplication>>               | <<painless-operators-numeric, Numeric>>     | *           | 4            | left -> right
 | <<division-operator, Division>>                           | <<painless-operators-numeric, Numeric>>     | /           | 4            | left -> right
 | <<remainder-operator, Remainder>>                         | <<painless-operators-numeric, Numeric>>     | %           | 4            | left -> right

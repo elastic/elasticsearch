@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -65,6 +64,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -83,8 +83,8 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -1757,12 +1757,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-alias-execute
 
             // tag::get-alias-response
-            ImmutableOpenMap<String, List<AliasMetaData>> aliases =
-                    response.getAliases(); // <1>
+            Map<String, Set<AliasMetaData>> aliases = response.getAliases(); // <1>
             // end::get-alias-response
 
             assertThat(response.getAliases().get("index").size(), equalTo(1));
-            assertThat(response.getAliases().get("index").get(0).alias(), equalTo("alias"));
+            assertThat(response.getAliases().get("index").iterator().next().alias(), equalTo("alias"));
 
             // tag::get-alias-listener
             ActionListener<GetAliasesResponse> listener =

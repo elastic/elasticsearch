@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -29,24 +27,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.stream.Collectors;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
 
@@ -76,46 +63,6 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
-
-        String message = null;
-        RestStatus status = RestStatus.OK;
-        if (false == Strings.isAllOrWildcard(request.aliases())) {
-            String[] aliasesNames = request.aliases();
-
-            final Set<String> aliasNames = new HashSet<>();
-            for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : result) {
-                for (final AliasMetaData aliasMetaData : cursor.value) {
-                    aliasNames.add(aliasMetaData.alias());
-                }
-            }
-
-            // first remove requested aliases that are exact matches
-            final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(aliasesNames).collect(Collectors.toSet()), aliasNames);
-
-            // now remove requested aliases that contain wildcards that are simple matches
-            final List<String> matches = new ArrayList<>();
-            outer:
-            for (final String pattern : difference) {
-                if (pattern.contains("*")) {
-                    for (final String aliasName : aliasNames) {
-                        if (Regex.simpleMatch(pattern, aliasName)) {
-                            matches.add(pattern);
-                            continue outer;
-                        }
-                    }
-                }
-            }
-
-            difference.removeAll(matches);
-            if (false == difference.isEmpty()) {
-                status = RestStatus.NOT_FOUND;
-                if (difference.size() == 1) {
-                    message = String.format(Locale.ROOT, "alias [%s] missing", Strings.collectionToCommaDelimitedString(difference));
-                } else {
-                    message = String.format(Locale.ROOT, "aliases [%s] missing", Strings.collectionToCommaDelimitedString(difference));
-                }
-            }
-        }
-        listener.onResponse(new GetAliasesResponse(result, status, message));
+        listener.onResponse(new GetAliasesResponse(result));
     }
 }

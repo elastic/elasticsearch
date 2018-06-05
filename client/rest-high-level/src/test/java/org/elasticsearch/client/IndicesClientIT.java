@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -66,6 +65,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
@@ -829,11 +829,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).getFilter(), nullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).getIndexRouting(), nullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).getSearchRouting(), nullValue());
+            AliasMetaData aliasMetaData = getAliasesResponse.getAliases().get("index1").iterator().next();
+            assertThat(aliasMetaData, notNullValue());
+            assertThat(aliasMetaData.alias(), equalTo("alias1"));
+            assertThat(aliasMetaData.getFilter(), nullValue());
+            assertThat(aliasMetaData.getIndexRouting(), nullValue());
+            assertThat(aliasMetaData.getSearchRouting(), nullValue());
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().aliases("alias*");
@@ -842,11 +843,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(2));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+            AliasMetaData aliasMetaData1 = getAliasesResponse.getAliases().get("index1").iterator().next();
+            assertThat(aliasMetaData1, notNullValue());
+            assertThat(aliasMetaData1.alias(), equalTo("alias1"));
             assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+            AliasMetaData aliasMetaData2 = getAliasesResponse.getAliases().get("index2").iterator().next();
+            assertThat(aliasMetaData2, notNullValue());
+            assertThat(aliasMetaData2.alias(), equalTo("alias2"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().aliases("_all");
@@ -855,11 +858,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(2));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+            AliasMetaData aliasMetaData1 = getAliasesResponse.getAliases().get("index1").iterator().next();
+            assertThat(aliasMetaData1, notNullValue());
+            assertThat(aliasMetaData1.alias(), equalTo("alias1"));
             assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+            AliasMetaData aliasMetaData2 = getAliasesResponse.getAliases().get("index2").iterator().next();
+            assertThat(aliasMetaData2, notNullValue());
+            assertThat(aliasMetaData2.alias(), equalTo("alias2"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().aliases("*");
@@ -868,11 +873,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(2));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+            AliasMetaData aliasMetaData1 = getAliasesResponse.getAliases().get("index1").iterator().next();
+            assertThat(aliasMetaData1, notNullValue());
+            assertThat(aliasMetaData1.alias(), equalTo("alias1"));
             assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+            AliasMetaData aliasMetaData2 = getAliasesResponse.getAliases().get("index2").iterator().next();
+            assertThat(aliasMetaData2, notNullValue());
+            assertThat(aliasMetaData2.alias(), equalTo("alias2"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices("_all");
@@ -881,11 +888,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(3));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+            AliasMetaData aliasMetaData1 = getAliasesResponse.getAliases().get("index1").iterator().next();
+            assertThat(aliasMetaData1, notNullValue());
+            assertThat(aliasMetaData1.alias(), equalTo("alias1"));
             assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+            AliasMetaData aliasMetaData2 = getAliasesResponse.getAliases().get("index2").iterator().next();
+            assertThat(aliasMetaData2, notNullValue());
+            assertThat(aliasMetaData2.alias(), equalTo("alias2"));
             assertThat(getAliasesResponse.getAliases().get("index3").size(), equalTo(0));
         }
         {
@@ -895,11 +904,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(3));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+            AliasMetaData aliasMetaData1 = getAliasesResponse.getAliases().get("index1").iterator().next();
+            assertThat(aliasMetaData1, notNullValue());
+            assertThat(aliasMetaData1.alias(), equalTo("alias1"));
             assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+            AliasMetaData aliasMetaData2 = getAliasesResponse.getAliases().get("index2").iterator().next();
+            assertThat(aliasMetaData2, notNullValue());
+            assertThat(aliasMetaData2.alias(), equalTo("alias2"));
             assertThat(getAliasesResponse.getAliases().get("index3").size(), equalTo(0));
         }
         {
@@ -909,17 +920,18 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(3));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+            AliasMetaData aliasMetaData1 = getAliasesResponse.getAliases().get("index1").iterator().next();
+            assertThat(aliasMetaData1, notNullValue());
+            assertThat(aliasMetaData1.alias(), equalTo("alias1"));
             assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+            AliasMetaData aliasMetaData2 = getAliasesResponse.getAliases().get("index2").iterator().next();
+            assertThat(aliasMetaData2, notNullValue());
+            assertThat(aliasMetaData2.alias(), equalTo("alias2"));
             assertThat(getAliasesResponse.getAliases().get("index3").size(), equalTo(0));
         }
     }
 
     public void testGetAliasesNonExistentIndexOrAlias() throws IOException {
-
         String alias = "alias";
         String index = "index";
         {
@@ -927,7 +939,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.errorMessage(),
+            assertThat(getAliasesResponse.getErrorMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         }
         {
@@ -935,7 +947,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.errorMessage(), equalTo("alias [" + alias + "] missing"));
+            assertThat(getAliasesResponse.getErrorMessage(), equalTo("alias [" + alias + "] missing"));
         }
         createIndex(index, Settings.EMPTY);
         client().performRequest(HttpPut.METHOD_NAME, index + "/_alias/" + alias);
@@ -944,7 +956,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.errorMessage(),
+            assertThat(getAliasesResponse.getErrorMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         }
         {
@@ -952,7 +964,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.errorMessage(),
+            assertThat(getAliasesResponse.getErrorMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         }
         {
@@ -969,8 +981,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
             assertThat(getAliasesResponse.getAliases().get(index).size(), equalTo(1));
-            assertThat(getAliasesResponse.getAliases().get(index).get(0), notNullValue());
-            assertThat(getAliasesResponse.getAliases().get(index).get(0).alias(), equalTo(alias));
+            AliasMetaData aliasMetaData = getAliasesResponse.getAliases().get(index).iterator().next();
+            assertThat(aliasMetaData, notNullValue());
+            assertThat(aliasMetaData.alias(), equalTo(alias));
 
             /*
             {

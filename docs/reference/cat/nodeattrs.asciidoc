@@ -9,6 +9,7 @@ For example:
 GET /_cat/nodeattrs?v
 --------------------------------------------------
 // CONSOLE
+// TEST[s/\?v/\?v&s=node,attr/]
 
 Could look like:
 
@@ -17,7 +18,7 @@ Could look like:
 node    host      ip        attr     value
 EK_AsJb 127.0.0.1 127.0.0.1 testattr test
 --------------------------------------------------
-// TESTRESPONSE[s/EK_AsJb/.+/ _cat]
+// TESTRESPONSE[s/EK_AsJb/(.+ml\\..+\n)*.+/ s/\n$/\n(.+xpack\\.installed true\n)?\n/ _cat]
 
 The first few columns (`node`, `host`, `ip`) give you basic info per node
 and the `attr` and `value` columns give you the custom node attributes,
@@ -46,6 +47,7 @@ mode (`v`). The header name will match the supplied value (e.g.,
 GET /_cat/nodeattrs?v&h=name,pid,attr,value
 --------------------------------------------------
 // CONSOLE
+// TEST[s/,value/,value&s=node,attr/]
 
 Might look like:
 
@@ -54,7 +56,8 @@ Might look like:
 name    pid   attr     value
 EK_AsJb 19566 testattr test
 --------------------------------------------------
-// TESTRESPONSE[s/EK_AsJb/.+/ s/19566/\\d*/ _cat]
+// TESTRESPONSE[s/19566/\\d*/]
+// TESTRESPONSE[s/EK_AsJb/(.+ml\\..+\n)*.+/ s/\n$/\n(.+xpack\\.installed true\n)?\n/ _cat]
 
 [cols="<,<,<,<,<",options="header",subs="normal"]
 |=======================================================================

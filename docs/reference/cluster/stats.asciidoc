@@ -192,21 +192,16 @@ Will return, for example:
           "description": "Ingest processor that extracts information from a user agent",
           "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
           "has_native_controller": false
-        }
+        },
+        ...
       ],
-      "network_types" : {
-         "transport_types" : {
-            "netty4" : 1
-         },
-         "http_types" : {
-            "netty4" : 1
-         }
-      }
+      ...
    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/\.\.\./"network_types": "replace_me"/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 ////
 The TESTRESPONSE above replace all the fields values by the expected ones in the test,

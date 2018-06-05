@@ -5,6 +5,7 @@
 :branch:                master
 :jdk:                   1.8.0_131
 :jdk_major:             8
+:build_flavor:          default
 
 //////////
 release-state can be: released | prerelease | unreleased

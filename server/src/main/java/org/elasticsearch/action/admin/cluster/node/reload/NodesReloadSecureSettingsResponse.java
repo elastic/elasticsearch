@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.reinit;
+package org.elasticsearch.action.admin.cluster.node.reload;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -30,42 +31,47 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-
 import java.io.IOException;
 import java.util.List;
 
 /**
- * A response for a cluster update settings action.
+ * The response for the reload secure settings action
  */
-public class NodesReInitResponse extends BaseNodesResponse<NodesReInitResponse.NodeResponse> implements ToXContentFragment {
+public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesReloadSecureSettingsResponse.NodeResponse>
+        implements ToXContentFragment {
 
-    public NodesReInitResponse() {
+    public NodesReloadSecureSettingsResponse() {
     }
 
-    public NodesReInitResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+    public NodesReloadSecureSettingsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
-    protected List<NodesReInitResponse.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+    protected List<NodesReloadSecureSettingsResponse.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
         return in.readList(NodeResponse::readNodeResponse);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<NodesReInitResponse.NodeResponse> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<NodesReloadSecureSettingsResponse.NodeResponse> nodes) throws IOException {
         out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("nodes");
-        for (final NodesReInitResponse.NodeResponse node : getNodes()) {
+        for (final NodesReloadSecureSettingsResponse.NodeResponse node : getNodes()) {
             builder.startObject(node.getNode().getId());
             builder.field("name", node.getNode().getName());
+            final Exception e = node.reloadException();
+            if (e != null) {
+                builder.startObject("reload_exception");
+                ElasticsearchException.generateThrowableXContent(builder, params, e);
+                builder.endObject();
+            }
             builder.endObject();
         }
         builder.endObject();
-
         return builder;
     }
 
@@ -84,11 +90,54 @@ public class NodesReInitResponse extends BaseNodesResponse<NodesReInitResponse.N
 
     public static class NodeResponse extends BaseNodeResponse {
 
+        private Exception reloadException = null;
+
         public NodeResponse() {
         }
 
-        public NodeResponse(DiscoveryNode node) {
+        public NodeResponse(DiscoveryNode node, Exception reloadException) {
             super(node);
+            this.reloadException = reloadException;
+        }
+
+        public Exception reloadException() {
+            return this.reloadException;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            if (in.readBoolean()) {
+                reloadException = in.readException();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (reloadException != null) {
+                out.writeBoolean(true);
+                out.writeException(reloadException);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final NodesReloadSecureSettingsResponse.NodeResponse that = (NodesReloadSecureSettingsResponse.NodeResponse) o;
+            return reloadException != null ? reloadException.equals(that.reloadException) : that.reloadException == null;
+        }
+
+        @Override
+        public int hashCode() {
+            return reloadException != null ? reloadException.hashCode() : 0;
         }
 
         public static NodeResponse readNodeResponse(StreamInput in) throws IOException {

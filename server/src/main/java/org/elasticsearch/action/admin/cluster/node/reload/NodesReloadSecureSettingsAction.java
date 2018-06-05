@@ -17,27 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.reinit;
+package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class NodesReInitAction extends Action<NodesReInitRequest, NodesReInitResponse, NodesReInitRequestBuilder> {
+public class NodesReloadSecureSettingsAction
+        extends Action<NodesReloadSecureSettingsRequest, NodesReloadSecureSettingsResponse, NodesReloadSecureSettingsRequestBuilder> {
 
-    public static final NodesReInitAction INSTANCE = new NodesReInitAction();
-    public static final String NAME = "cluster:admin/reinit";
+    public static final NodesReloadSecureSettingsAction INSTANCE = new NodesReloadSecureSettingsAction();
+    public static final String NAME = "cluster:admin/nodes/reload_secure_settings";
 
-    private NodesReInitAction() {
+    private NodesReloadSecureSettingsAction() {
         super(NAME);
     }
 
     @Override
-    public NodesReInitResponse newResponse() {
-        return new NodesReInitResponse();
+    public NodesReloadSecureSettingsResponse newResponse() {
+        return new NodesReloadSecureSettingsResponse();
     }
 
     @Override
-    public NodesReInitRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new NodesReInitRequestBuilder(client, this);
+    public NodesReloadSecureSettingsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new NodesReloadSecureSettingsRequestBuilder(client, this);
     }
 }

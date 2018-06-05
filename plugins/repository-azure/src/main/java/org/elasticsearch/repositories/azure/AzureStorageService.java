@@ -50,14 +50,13 @@ public interface AzureStorageService {
     Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName);
 
     /**
-     * Updates settings for building clients. Future client requests will use the
-     * new settings.
+     * Updates settings for building clients. Any client cache is cleared. Future
+     * client requests will use the new refreshed settings.
      *
-     * @param clientsSettings
-     *            the new settings
+     * @param clientsSettings the settings for new clients
      * @return the old settings
      */
-    Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings);
+    Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings);
 
     ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);

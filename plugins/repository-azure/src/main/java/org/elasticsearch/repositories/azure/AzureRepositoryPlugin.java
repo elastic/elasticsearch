@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ReInitializablePlugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
  */
-public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReInitializablePlugin {
+public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     // protected for testing
     final AzureStorageService azureStoreService;
@@ -65,10 +65,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public boolean reinit(Settings settings) {
+    public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        azureStoreService.updateClientsSettings(clientsSettings);
-        return true;
+        azureStoreService.refreshAndClearCache(clientsSettings);
     }
 }

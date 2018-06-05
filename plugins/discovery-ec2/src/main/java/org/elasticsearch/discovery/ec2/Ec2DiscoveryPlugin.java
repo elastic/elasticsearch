@@ -31,7 +31,7 @@ import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ReInitializablePlugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.BufferedReader;
@@ -50,7 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReInitializablePlugin {
+public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
     private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
@@ -85,7 +85,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReIni
         this.settings = settings;
         this.ec2Service = ec2Service;
         // eagerly load client settings when secure settings are accessible
-        reinit(settings);
+        reload(settings);
     }
 
     @Override
@@ -172,14 +172,13 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReIni
 
     @Override
     public void close() throws IOException {
-        ec2Service.releaseCachedClient();
+        ec2Service.close();
     }
 
     @Override
-    public boolean reinit(Settings settings) {
+    public void reload(Settings settings) {
         // secure settings should be readable
         final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
-        ec2Service.updateClientSettings(clientSettings);
-        return true;
+        ec2Service.refreshAndClearCache(clientSettings);
     }
 }

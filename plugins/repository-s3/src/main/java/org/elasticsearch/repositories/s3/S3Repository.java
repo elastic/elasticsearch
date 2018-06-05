@@ -192,9 +192,9 @@ class S3Repository extends BlobStoreRepository {
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
             final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
             // hack, but that's ok because the whole if branch should be axed
-            final Map<String, S3ClientSettings> prevSettings = awsService.updateClientsSettings(S3ClientSettings.load(Settings.EMPTY));
+            final Map<String, S3ClientSettings> prevSettings = awsService.refreshAndClearCache(S3ClientSettings.load(Settings.EMPTY));
             final Map<String, S3ClientSettings> newSettings = S3ClientSettings.overrideCredentials(prevSettings, insecureCredentials);
-            awsService.updateClientsSettings(newSettings);
+            awsService.refreshAndClearCache(newSettings);
         }
         blobStore = new S3BlobStore(settings, awsService, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 

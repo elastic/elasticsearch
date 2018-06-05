@@ -52,7 +52,7 @@ public class TestAwsS3Service extends InternalAwsS3Service {
     }
 
     @Override
-    public synchronized void releaseCachedClients() {
+    protected synchronized void releaseCachedClients() {
         super.releaseCachedClients();
         clients.clear();
     }

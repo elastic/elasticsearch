@@ -40,7 +40,7 @@ public class SlowClusterStateProcessing extends MultiNodesDisruption {
     final long delayDurationMax;
 
     public SlowClusterStateProcessing(Random random) {
-        this(random, null);
+        this(random, (String[])null);
     }
 
     public SlowClusterStateProcessing(Random random, String ... disruptedNodes) {

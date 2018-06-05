@@ -25,7 +25,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
 /**
- * Handles the shutdown of the wrapped {@link AmazonEC2Client} using reference
+ * Handles the shutdown of the wrapped {@link AmazonEC2} using reference
  * counting.
  */
 public class AmazonEc2Reference extends AbstractRefCounted implements Releasable {

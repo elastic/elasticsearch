@@ -28,9 +28,9 @@ PUT _xpack/ml/anomaly_detectors/farequote
   "analysis_config": {
     "bucket_span": "60m",
     "detectors": [{
-      "function":"mean",
-      "field_name":"responsetime",
-      "by_field_name":"airline"
+      "function": "mean",
+      "field_name": "responsetime",
+      "by_field_name": "airline"
     }],
     "summary_count_field_name": "doc_count"
   },
@@ -39,6 +39,8 @@ PUT _xpack/ml/anomaly_detectors/farequote
   }
 }
 ----------------------------------
+// CONSOLE
+// TEST[setup:farequote_data]
 
 In this example, the `airline`, `responsetime`, and `time` fields are
 aggregations.
@@ -86,7 +88,8 @@ PUT _xpack/ml/datafeeds/datafeed-farequote
   }
 }
 ----------------------------------
-
+// CONSOLE
+// TEST[setup:farequote_job]
 
 In this example, the aggregations have names that match the fields that they
 operate on. That is to say, the `max` aggregation is named `time` and its
@@ -140,6 +143,7 @@ pipeline aggregation to find the 1st order derivative of the counter
   }
 }
 ----------------------------------
+// NOTCONSOLE
 
 When you define an aggregation in a {dfeed}, it must have the following form:
 
@@ -174,6 +178,7 @@ When you define an aggregation in a {dfeed}, it must have the following form:
   }
 }
 ----------------------------------
+// NOTCONSOLE
 
 The top level aggregation must be either a {ref}/search-aggregations-bucket.html[Bucket Aggregation]
 containing as single sub-aggregation that is a `date_histogram` or the top level aggregation
@@ -213,6 +218,7 @@ GET .../_search {
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 By default, {es} limits the maximum number of terms returned to 10000. For high
 cardinality fields, the query might not run. It might return errors related to

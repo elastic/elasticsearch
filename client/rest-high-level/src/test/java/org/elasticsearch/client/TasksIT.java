@@ -79,8 +79,8 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         request.setReason("testreason");
         CancelTasksResponse response = execute(
             request,
-            highLevelClient().tasks()::cancelTasks,
-            highLevelClient().tasks()::cancelTasksAsync
+            highLevelClient().tasks()::cancel,
+            highLevelClient().tasks()::cancelAsync
         );
         // Since the task may or may not have been cancelled, assert that we received a response only
         // The actual testing of task cancellation is covered by TasksIT.testTasksCancellation

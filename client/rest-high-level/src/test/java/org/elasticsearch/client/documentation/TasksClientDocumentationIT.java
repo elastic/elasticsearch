@@ -167,7 +167,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         request.setTaskId(TaskId.EMPTY_TASK_ID);
 
         // tag::cancel-tasks-execute
-        CancelTasksResponse response = client.tasks().cancelTasks(request);
+        CancelTasksResponse response = client.tasks().cancel(request);
         // end::cancel-tasks-execute
 
         assertThat(response, notNullValue());
@@ -211,7 +211,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::cancel-tasks-execute-async
-            client.tasks().cancelTasksAsync(request, listener); // <1>
+            client.tasks().cancelAsync(request, listener); // <1>
             // end::cancel-tasks-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -263,7 +264,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         private final String id;
         private final long allocationId;
         private final String taskName;
-        @Nullable
         private final P params;
         @Nullable
         private final Status status;
@@ -313,7 +313,11 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             id = in.readString();
             allocationId = in.readLong();
             taskName = in.readString();
-            params = (P) in.readOptionalNamedWriteable(PersistentTaskParams.class);
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+                params = (P) in.readNamedWriteable(PersistentTaskParams.class);
+            } else {
+                params = (P) in.readOptionalNamedWriteable(PersistentTaskParams.class);
+            }
             status = in.readOptionalNamedWriteable(Task.Status.class);
             assignment = new Assignment(in.readOptionalString(), in.readString());
             allocationIdOnLastStatusUpdate = in.readOptionalLong();
@@ -324,7 +328,11 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             out.writeString(id);
             out.writeLong(allocationId);
             out.writeString(taskName);
-            out.writeOptionalNamedWriteable(params);
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                out.writeNamedWriteable(params);
+            } else {
+                out.writeOptionalNamedWriteable(params);
+            }
             out.writeOptionalNamedWriteable(status);
             out.writeOptionalString(assignment.executorNode);
             out.writeString(assignment.explanation);
@@ -499,7 +507,10 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(lastAllocationId);
-        out.writeMap(tasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
+        Map<String, PersistentTask<?>> filteredTasks = tasks.values().stream()
+            .filter(t -> ClusterState.FeatureAware.shouldSerialize(out, t.getParams()))
+            .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
+        out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }
 
     public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {

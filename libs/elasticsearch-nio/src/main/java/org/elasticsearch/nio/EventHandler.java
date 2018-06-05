@@ -23,13 +23,40 @@ import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public abstract class EventHandler {
 
     protected final Consumer<Exception> exceptionHandler;
+    private Supplier<SocketSelector> selectorSupplier;
 
     protected EventHandler(Consumer<Exception> exceptionHandler) {
         this.exceptionHandler = exceptionHandler;
+    }
+
+    public EventHandler(Consumer<Exception> exceptionHandler, Supplier<SocketSelector> selectorSupplier) {
+        this.exceptionHandler = exceptionHandler;
+        this.selectorSupplier = selectorSupplier;
+    }
+
+    /**
+     * This method is called when a server channel signals it is ready to accept a connection. All of the
+     * accept logic should occur in this call.
+     *
+     * @param context that can accept a connection
+     */
+    protected void acceptChannel(ServerChannelContext context) throws IOException {
+        context.acceptChannels(selectorSupplier);
+    }
+
+    /**
+     * This method is called when an attempt to accept a connection throws an exception.
+     *
+     * @param context that accepting a connection
+     * @param exception that occurred
+     */
+    protected void acceptException(ServerChannelContext context, Exception exception) {
+        context.handleException(exception);
     }
 
     /**

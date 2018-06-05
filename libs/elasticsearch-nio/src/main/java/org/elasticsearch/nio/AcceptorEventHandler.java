@@ -19,8 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import java.io.IOException;
-import java.nio.channels.SelectionKey;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -28,31 +26,8 @@ import java.util.function.Supplier;
  * Event handler designed to handle events from server sockets
  */
 public class AcceptorEventHandler extends EventHandler {
-
-    private final Supplier<SocketSelector> selectorSupplier;
-
+    
     public AcceptorEventHandler(Supplier<SocketSelector> selectorSupplier, Consumer<Exception> exceptionHandler) {
-        super(exceptionHandler);
-        this.selectorSupplier = selectorSupplier;
-    }
-
-    /**
-     * This method is called when a server channel signals it is ready to accept a connection. All of the
-     * accept logic should occur in this call.
-     *
-     * @param context that can accept a connection
-     */
-    protected void acceptChannel(ServerChannelContext context) throws IOException {
-        context.acceptChannels(selectorSupplier);
-    }
-
-    /**
-     * This method is called when an attempt to accept a connection throws an exception.
-     *
-     * @param context that accepting a connection
-     * @param exception that occurred
-     */
-    protected void acceptException(ServerChannelContext context, Exception exception) {
-        context.handleException(exception);
+        super(exceptionHandler, selectorSupplier);
     }
 }

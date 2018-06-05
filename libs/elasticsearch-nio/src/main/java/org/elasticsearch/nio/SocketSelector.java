@@ -24,6 +24,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
 
@@ -48,23 +49,42 @@ public class SocketSelector extends ESSelector {
 
     @Override
     void processKey(SelectionKey selectionKey) {
-        SocketChannelContext channelContext = (SocketChannelContext) selectionKey.attachment();
-        int ops = selectionKey.readyOps();
-        if ((ops & SelectionKey.OP_CONNECT) != 0) {
-            attemptConnect(channelContext, true);
+        ChannelContext<?> context = (ChannelContext<?>) selectionKey.attachment();
+        if (selectionKey.isAcceptable()) {
+
+        } else {
+
         }
 
-        if (channelContext.isConnectComplete()) {
-            if ((ops & SelectionKey.OP_WRITE) != 0) {
-                handleWrite(channelContext);
+        if (context instanceof SocketChannelContext) {
+            SocketChannelContext channelContext = (SocketChannelContext) context;
+            int ops = selectionKey.readyOps();
+            if ((ops & SelectionKey.OP_CONNECT) != 0) {
+                attemptConnect(channelContext, true);
             }
 
-            if ((ops & SelectionKey.OP_READ) != 0) {
-                handleRead(channelContext);
+            if (channelContext.isConnectComplete()) {
+                if ((ops & SelectionKey.OP_WRITE) != 0) {
+                    handleWrite(channelContext);
+                }
+
+                if ((ops & SelectionKey.OP_READ) != 0) {
+                    handleRead(channelContext);
+                }
+            }
+            eventHandler.postHandling(channelContext);
+        } else {
+            ServerChannelContext serverChannelContext = (ServerChannelContext) context;
+            int ops = selectionKey.readyOps();
+            if ((ops & SelectionKey.OP_ACCEPT) != 0) {
+                try {
+                    eventHandler.acceptChannel(serverChannelContext);
+                } catch (IOException e) {
+                    eventHandler.acceptException(serverChannelContext, e);
+                }
             }
         }
 
-        eventHandler.postHandling(channelContext);
     }
 
     @Override

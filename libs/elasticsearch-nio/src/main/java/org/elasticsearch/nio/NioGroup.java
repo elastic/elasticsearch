@@ -46,16 +46,16 @@ import java.util.stream.Stream;
 public class NioGroup implements AutoCloseable {
 
 
-    private final ArrayList<SocketSelector> acceptors;
-    private final RoundRobinSupplier<SocketSelector> acceptorSupplier;
+    private final ArrayList<NioSelector> acceptors;
+    private final RoundRobinSupplier<NioSelector> acceptorSupplier;
 
-    private final ArrayList<SocketSelector> socketSelectors;
-    private final RoundRobinSupplier<SocketSelector> socketSelectorSupplier;
+    private final ArrayList<NioSelector> socketSelectors;
+    private final RoundRobinSupplier<NioSelector> socketSelectorSupplier;
 
     private final AtomicBoolean isOpen = new AtomicBoolean(true);
 
     public NioGroup(ThreadFactory acceptorThreadFactory, int acceptorCount,
-                    Function<Supplier<SocketSelector>, EventHandler> acceptorEventHandlerFunction,
+                    Function<Supplier<NioSelector>, EventHandler> acceptorEventHandlerFunction,
                     ThreadFactory socketSelectorThreadFactory, int socketSelectorCount,
                     Supplier<EventHandler> socketEventHandlerFunction) throws IOException {
         acceptors = new ArrayList<>(acceptorCount);
@@ -63,15 +63,15 @@ public class NioGroup implements AutoCloseable {
 
         try {
             for (int i = 0; i < socketSelectorCount; ++i) {
-                SocketSelector selector = new SocketSelector(socketEventHandlerFunction.get());
+                NioSelector selector = new NioSelector(socketEventHandlerFunction.get());
                 socketSelectors.add(selector);
             }
             startSelectors(socketSelectors, socketSelectorThreadFactory);
 
             for (int i = 0; i < acceptorCount; ++i) {
-                SocketSelector[] childSelectors = this.socketSelectors.toArray(new SocketSelector[this.socketSelectors.size()]);
-                Supplier<SocketSelector> selectorSupplier = new RoundRobinSupplier<>(childSelectors);
-                SocketSelector acceptor = new SocketSelector(acceptorEventHandlerFunction.apply(selectorSupplier));
+                NioSelector[] childSelectors = this.socketSelectors.toArray(new NioSelector[this.socketSelectors.size()]);
+                Supplier<NioSelector> selectorSupplier = new RoundRobinSupplier<>(childSelectors);
+                NioSelector acceptor = new NioSelector(acceptorEventHandlerFunction.apply(selectorSupplier));
                 acceptors.add(acceptor);
             }
             startSelectors(acceptors, acceptorThreadFactory);
@@ -84,8 +84,8 @@ public class NioGroup implements AutoCloseable {
             throw e;
         }
 
-        socketSelectorSupplier = new RoundRobinSupplier<>(socketSelectors.toArray(new SocketSelector[socketSelectors.size()]));
-        acceptorSupplier = new RoundRobinSupplier<>(acceptors.toArray(new SocketSelector[acceptors.size()]));
+        socketSelectorSupplier = new RoundRobinSupplier<>(socketSelectors.toArray(new NioSelector[socketSelectors.size()]));
+        acceptorSupplier = new RoundRobinSupplier<>(acceptors.toArray(new NioSelector[acceptors.size()]));
     }
 
     public <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory)
@@ -105,9 +105,9 @@ public class NioGroup implements AutoCloseable {
     @Override
     public void close() throws IOException {
         if (isOpen.compareAndSet(true, false)) {
-            List<SocketSelector> toClose = Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList());
+            List<NioSelector> toClose = Stream.concat(acceptors.stream(), socketSelectors.stream()).collect(Collectors.toList());
             List<IOException> closingExceptions = new ArrayList<>();
-            for (SocketSelector selector : toClose) {
+            for (NioSelector selector : toClose) {
                 try {
                     selector.close();
                 } catch (IOException e) {
@@ -118,12 +118,12 @@ public class NioGroup implements AutoCloseable {
         }
     }
 
-    private static void startSelectors(Iterable<org.elasticsearch.nio.SocketSelector> selectors, ThreadFactory threadFactory) {
-        for (SocketSelector acceptor : selectors) {
-            if (acceptor.isRunning() == false) {
-                threadFactory.newThread(acceptor::runLoop).start();
+    private static void startSelectors(Iterable<NioSelector> selectors, ThreadFactory threadFactory) {
+        for (NioSelector selector : selectors) {
+            if (selector.isRunning() == false) {
+                threadFactory.newThread(selector::runLoop).start();
                 try {
-                    acceptor.isRunningFuture().get();
+                    selector.isRunningFuture().get();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while waiting for selector to start.", e);

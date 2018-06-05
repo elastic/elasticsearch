@@ -38,7 +38,7 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
@@ -176,7 +176,7 @@ public class NioTransport extends TcpTransport {
         }
 
         @Override
-        public TcpNioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
+        public TcpNioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             TcpNioSocketChannel nioChannel = new TcpNioSocketChannel(profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
@@ -191,7 +191,7 @@ public class NioTransport extends TcpTransport {
         }
 
         @Override
-        public TcpNioServerSocketChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
+        public TcpNioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
             TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);

@@ -105,7 +105,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
      */
     public abstract void closeChannel();
 
-    public abstract SocketSelector getSelector();
+    public abstract NioSelector getSelector();
 
     public abstract NioChannel getChannel();
 

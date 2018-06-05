@@ -28,13 +28,13 @@ import java.util.function.Supplier;
 public class EventHandler {
 
     protected final Consumer<Exception> exceptionHandler;
-    private final Supplier<SocketSelector> selectorSupplier;
+    private final Supplier<NioSelector> selectorSupplier;
 
     public EventHandler(Consumer<Exception> exceptionHandler) {
         this(exceptionHandler, null);
     }
 
-    public EventHandler(Consumer<Exception> exceptionHandler, Supplier<SocketSelector> selectorSupplier) {
+    public EventHandler(Consumer<Exception> exceptionHandler, Supplier<NioSelector> selectorSupplier) {
         this.exceptionHandler = exceptionHandler;
         this.selectorSupplier = selectorSupplier;
     }
@@ -49,7 +49,7 @@ public class EventHandler {
         if (selectorSupplier != null) {
             context.acceptChannels(selectorSupplier);
         } else {
-            context.acceptChannels(() -> (SocketSelector) context.getSelector());
+            context.acceptChannels(context::getSelector);
         }
     }
 
@@ -80,6 +80,7 @@ public class EventHandler {
                 SelectionKeyUtils.setConnectAndReadInterested(context.getSelectionKey());
             }
         } else {
+            assert context instanceof ServerChannelContext : "If not SocketChannelContext the context must be a ServerChannelContext";
             SelectionKeyUtils.setAcceptInterested(context.getSelectionKey());
         }
     }

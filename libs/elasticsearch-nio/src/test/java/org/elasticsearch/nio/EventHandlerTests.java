@@ -41,19 +41,19 @@ public class EventHandlerTests extends ESTestCase {
     private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
     private NioServerSocketChannel channel;
     private DoNotRegisterContext context;
-    private RoundRobinSupplier<SocketSelector> selectorSupplier;
+    private RoundRobinSupplier<NioSelector> selectorSupplier;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         channelFactory = mock(ChannelFactory.class);
-        ArrayList<SocketSelector> selectors = new ArrayList<>();
-        selectors.add(mock(SocketSelector.class));
-        selectorSupplier = new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()]));
+        ArrayList<NioSelector> selectors = new ArrayList<>();
+        selectors.add(mock(NioSelector.class));
+        selectorSupplier = new RoundRobinSupplier<>(selectors.toArray(new NioSelector[selectors.size()]));
         handler = new EventHandler(mock(Consumer.class), selectorSupplier);
 
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
-        context = new DoNotRegisterContext(channel, mock(SocketSelector.class), mock(Consumer.class));
+        context = new DoNotRegisterContext(channel, mock(NioSelector.class), mock(Consumer.class));
         channel.setContext(context);
     }
 
@@ -111,7 +111,7 @@ public class EventHandlerTests extends ESTestCase {
 
 
         @SuppressWarnings("unchecked")
-        DoNotRegisterContext(NioServerSocketChannel channel, SocketSelector selector, Consumer<NioSocketChannel> acceptor) {
+        DoNotRegisterContext(NioServerSocketChannel channel, NioSelector selector, Consumer<NioSocketChannel> acceptor) {
             super(channel, channelFactory, selector, acceptor, mock(Consumer.class));
         }
 

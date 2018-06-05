@@ -39,7 +39,7 @@ import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
@@ -158,7 +158,7 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
+        public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             MockSocketChannel nioChannel = new MockSocketChannel(profileName, channel, selector);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
@@ -172,7 +172,7 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockServerChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
+        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
             MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel, this, selector);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
@@ -204,7 +204,7 @@ public class MockNioTransport extends TcpTransport {
 
         private final String profile;
 
-        MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, SocketSelector selector)
+        MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector)
             throws IOException {
             super(channel);
             this.profile = profile;
@@ -245,7 +245,7 @@ public class MockNioTransport extends TcpTransport {
 
         private final String profile;
 
-        private MockSocketChannel(String profile, java.nio.channels.SocketChannel socketChannel, SocketSelector selector)
+        private MockSocketChannel(String profile, java.nio.channels.SocketChannel socketChannel, NioSelector selector)
             throws IOException {
             super(socketChannel);
             this.profile = profile;

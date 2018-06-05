@@ -57,7 +57,7 @@ import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -358,7 +358,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         }
 
         @Override
-        public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
+        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioChannel = new NioSocketChannel(channel);
             HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(nioChannel,NioHttpServerTransport.this,
                 httpHandlingSettings, xContentRegistry, corsConfig, threadPool.getThreadContext());
@@ -370,7 +370,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(SocketSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
             NioServerSocketChannel nioChannel = new NioServerSocketChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);

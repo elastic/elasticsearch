@@ -87,7 +87,7 @@ setup:
       search:
         body:
           query:
-            feature_vector:
+            feature:
               field: tags.bar
               sigmoid:
                 pivot: 20

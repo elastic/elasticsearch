@@ -549,3 +549,9 @@ See <<security-api-has-privileges>>.
 === X-Pack commands
 
 See <<commands>>. 
+
+[role="exclude",id="ml-api-definitions"]
+=== Machine learning API definitions
+
+See <<api-definitions>>.
+

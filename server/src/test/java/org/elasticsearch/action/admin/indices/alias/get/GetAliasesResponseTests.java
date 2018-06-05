@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.alias;
+package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -64,7 +63,7 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
 
     @Override
     protected GetAliasesResponse createBlankInstance() {
-        return new GetAliasesResponse(null);
+        return new GetAliasesResponse();
     }
 
     @Override
@@ -264,18 +263,24 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
 
             try (ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
                     StreamInput in = new InputStreamStreamInput(inBuffer);) {
-                final GetAliasesResponse inResponse = new GetAliasesResponse(null);
+                final GetAliasesResponse inResponse = new GetAliasesResponse();
                 in.setVersion(targetNodeVersion);
                 inResponse.readFrom(in);
 
-                assertThat(outResponse.getAliases(), equalTo(inResponse.getAliases()));
+                assertThat(inResponse.getAliases(), equalTo(outResponse.getAliases()));
                 if (targetNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
                     // if (targetNodeVersion.onOrAfter(Version.V_6_4_0_ID)) {
-                    assertThat(outResponse.status(), equalTo(inResponse.status()));
-                    assertThat(outResponse.errorMessage(), equalTo(inResponse.errorMessage()));
+                    assertThat(inResponse.status(), equalTo(outResponse.status()));
+                    assertThat(inResponse.errorMessage(), equalTo(outResponse.errorMessage()));
                 } else {
-                    assertThat(inResponse.status(), equalTo(null));
+                    assertThat(inResponse.status(), equalTo(RestStatus.OK));
                     assertThat(inResponse.errorMessage(), equalTo(null));
+                }
+
+                try (ByteArrayOutputStream outBuffer2 = new ByteArrayOutputStream();
+                     OutputStreamStreamOutput out2 = new OutputStreamStreamOutput(outBuffer);) {
+                    out2.setVersion(randomVersion(random()));
+                    inResponse.writeTo(out2);
                 }
             }
         }
@@ -283,39 +288,40 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
 
     // testing that a response serialized by ES6.3 can be successfully deserialized on master
     public void testSerializationFwd_6_3_0() throws IOException {
-
-//      The following response has been serialized on v6.3 and Base64 encoded
-//      "{" +
-//      "  \"index2\": {" +
-//      "    \"aliases\": {" +
-//      "      \"alias2\": {" +
-//      "        \"search_routing\": \"1,2\"" +
-//      "      }" +
-//      "    }" +
-//      "  }," +
-//      "  \"index1\": {" +
-//      "    \"aliases\": {" +
-//      "      \"alias1\": {}," +
-//      "      \"alias11\": {" +
-//      "        \"filter\": {" +
-//      "          \"term\": {" +
-//      "            \"year\": \"2018\"" +
-//      "          }" +
-//      "        }," +
-//      "        \"index_routing\": \"2\"," +
-//      "        \"search_routing\": \"1,2\"" +
-//      "      }" +
-//      "    }" +
-//      "  }," +
-//      "  \"index3\": {" +
-//      "    \"aliases\": {}" +
-//      "  }" +
-//      "}";
+        /*
+            The following response has been serialized on v6.3 and Base64 encoded
+            "{" +
+            "  \"index2\": {" +
+            "    \"aliases\": {" +
+            "      \"alias2\": {" +
+            "        \"search_routing\": \"1,2\"" +
+            "      }" +
+            "    }" +
+            "  }," +
+            "  \"index1\": {" +
+            "    \"aliases\": {" +
+            "      \"alias1\": {}," +
+            "      \"alias11\": {" +
+            "        \"filter\": {" +
+            "          \"term\": {" +
+            "            \"year\": \"2018\"" +
+            "          }" +
+            "        }," +
+            "        \"index_routing\": \"2\"," +
+            "        \"search_routing\": \"1,2\"" +
+            "      }" +
+            "    }" +
+            "  }," +
+            "  \"index3\": {" +
+            "    \"aliases\": {}" +
+            "  }" +
+            "}";
+         */
         String out63 = "AwZpbmRleDECBmFsaWFzMQAAAAdhbGlhczExAS5VAaEbREZMAKpWqkxNLFKyUjIyMLRQqgUAAAD//wMAAQEyAQMxLDIGaW5kZXgyAQZhbGlhcz"
                 + "IAAAEDMSwyBmluZGV4MwA=";
 
         byte[] decode = Base64.getDecoder().decode(out63);
-        GetAliasesResponse inResponse = new GetAliasesResponse(null);
+        GetAliasesResponse inResponse = new GetAliasesResponse();
 
         try (InputStream inBytes = new ByteArrayInputStream(decode);
                 StreamInput in = new InputStreamStreamInput(inBytes);) {
@@ -358,5 +364,4 @@ public class GetAliasesResponseTests extends AbstractStreamableXContentTestCase<
             assertThat(aliasesIndex3.size(), equalTo(0));
         }
     }
-
 }

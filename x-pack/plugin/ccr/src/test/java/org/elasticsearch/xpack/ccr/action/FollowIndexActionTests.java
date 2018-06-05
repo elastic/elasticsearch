@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -25,26 +27,26 @@ public class FollowIndexActionTests extends ESTestCase {
         request.setFollowIndex("index2");
 
         {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(null, null, request));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(request, null, null, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not exist"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(leaderIMD, null, request));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(request, leaderIMD, null, null));
             assertThat(e.getMessage(), equalTo("follow index [index2] does not exist"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5);
             IndexMetaData followIMD = createIMD("index2", 5);
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> FollowIndexAction.validate(leaderIMD, followIMD, request));
+                () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 4);
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> FollowIndexAction.validate(leaderIMD, followIMD, request));
+                () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(),
                 equalTo("leader index primary shards [5] does not match with the number of shards of the follow index [4]"));
         }
@@ -54,16 +56,18 @@ public class FollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{}", 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> FollowIndexAction.validate(leaderIMD, followIMD, request));
+                () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(), equalTo("leader and follow index must be open"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"keyword\"}}}", 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"text\"}}}", 5);
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
+            mapperService.updateMapping(followIMD);
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> FollowIndexAction.validate(leaderIMD, followIMD, request));
-            assertThat(e.getMessage(), equalTo("the leader and follower mappings must be identical"));
+                () -> FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService));
+            assertThat(e.getMessage(), equalTo("mapper [field] of different type, current_type [text], merged_type [keyword]"));
         }
         {
             String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
@@ -75,13 +79,15 @@ public class FollowIndexActionTests extends ESTestCase {
                 new Tuple<>("index.analysis.analyzer.my_analyzer.type", "custom"),
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> FollowIndexAction.validate(leaderIMD, followIMD, request));
+                () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(), equalTo("the leader and follower index analysis settings must be identical"));
         }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 5);
-            FollowIndexAction.validate(leaderIMD, followIMD, request);
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
+            mapperService.updateMapping(followIMD);
+            FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
         {
             String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
@@ -92,7 +98,10 @@ public class FollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5,
                 new Tuple<>("index.analysis.analyzer.my_analyzer.type", "custom"),
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
-            FollowIndexAction.validate(leaderIMD, followIMD, request);
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
+                followIMD.getSettings(), "index2");
+            mapperService.updateMapping(followIMD);
+            FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
         {
             String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
@@ -105,12 +114,15 @@ public class FollowIndexActionTests extends ESTestCase {
                 new Tuple<>(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s"),
                 new Tuple<>("index.analysis.analyzer.my_analyzer.type", "custom"),
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
-            FollowIndexAction.validate(leaderIMD, followIMD, request);
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
+                followIMD.getSettings(), "index2");
+            mapperService.updateMapping(followIMD);
+            FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
     }
     
     private static IndexMetaData createIMD(String index, int numShards, Tuple<?, ?>... settings) throws IOException {
-        return createIMD(index, State.OPEN, "{}", numShards, settings);
+        return createIMD(index, State.OPEN, "{\"properties\": {}}", numShards, settings);
     }
     
     private static IndexMetaData createIMD(String index, State state, String mapping, int numShards,

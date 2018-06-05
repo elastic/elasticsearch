@@ -19,14 +19,15 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -152,16 +153,18 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowI
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final PersistentTasksService persistentTasksService;
+        private final IndicesService indicesService;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver, Client client, ClusterService clusterService,
-                               PersistentTasksService persistentTasksService) {
+                               PersistentTasksService persistentTasksService, IndicesService indicesService) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.persistentTasksService = persistentTasksService;
+            this.indicesService = indicesService;
         }
 
         @Override
@@ -174,7 +177,11 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowI
             if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                 // Following an index in local cluster, so use local cluster state to fetch leader IndexMetaData:
                 IndexMetaData leaderIndexMetadata = localClusterState.getMetaData().index(request.leaderIndex);
-                start(request, null, leaderIndexMetadata, followIndexMetadata, listener);
+                try {
+                    start(request, null, leaderIndexMetadata, followIndexMetadata, listener);
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                }
             } else {
                 // Following an index in remote cluster, so use remote client to fetch leader IndexMetaData:
                 assert remoteClusterIndices.size() == 1;
@@ -207,8 +214,9 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowI
          * </ul>
          */
         void start(Request request, String clusterNameAlias, IndexMetaData leaderIndexMetadata, IndexMetaData followIndexMetadata,
-                   ActionListener<Response> handler) {
-            validate(leaderIndexMetadata ,followIndexMetadata , request);
+                   ActionListener<Response> handler) throws IOException {
+            MapperService mapperService = indicesService.createIndexMapperService(followIndexMetadata);
+            validate(request, leaderIndexMetadata, followIndexMetadata, mapperService);
                 final int numShards = followIndexMetadata.getNumberOfShards();
                 final AtomicInteger counter = new AtomicInteger(numShards);
                 final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
@@ -264,7 +272,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowI
         }
     }
 
-    static void validate(IndexMetaData leaderIndex, IndexMetaData followIndex, Request request) {
+    static void validate(Request request, IndexMetaData leaderIndex, IndexMetaData followIndex, MapperService followerMapperService) {
         if (leaderIndex == null) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not exist");
         }
@@ -285,22 +293,16 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowI
         if (leaderIndex.getState() != IndexMetaData.State.OPEN || followIndex.getState() != IndexMetaData.State.OPEN) {
             throw new IllegalArgumentException("leader and follow index must be open");
         }
-        Map<String, Object> leaderMapping = getMapping(leaderIndex);
-        Map<String, Object> followerMapping = getMapping(followIndex);
-        if (leaderMapping.equals(followerMapping) == false) {
-            throw new IllegalArgumentException("the leader and follower mappings must be identical");
-        }
+    
         Map<String, Settings> leaderAnalysisSettings = leaderIndex.getSettings().getGroups("index.analysis");
         Map<String, Settings> followerAnalysisSettings = followIndex.getSettings().getGroups("index.analysis");
         if (leaderAnalysisSettings.equals(followerAnalysisSettings) == false) {
             throw new IllegalArgumentException("the leader and follower index analysis settings must be identical");
         }
+    
+        // Validates if the current follower mapping is mergable with the leader mapping.
+        // This also validates for example whether specific mapper plugins have been installed
+        followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
     }
     
-    private static Map<String, Object> getMapping(IndexMetaData indexMetaData) {
-        assert indexMetaData.getMappings().size() == 1;
-        MappingMetaData mappingMetaData = indexMetaData.getMappings().values().iterator().next().value;
-        return mappingMetaData.getSourceAsMap();
-    }
-
 }

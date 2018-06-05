@@ -135,6 +135,6 @@ PUT my_index/_doc/1
 }
 --------------------------------------------------
 // CONSOLE
-<1> The `my_float` field is added as a <<number,`double`>> field.
+<1> The `my_float` field is added as a <<number,`float`>> field.
 <2> The `my_integer` field is added as a <<number,`long`>> field.
 

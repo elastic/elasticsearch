@@ -86,7 +86,7 @@ class NodeFailureListener extends RestClient.FailureListener {
             resource.markDirty();
         }
         if (sniffer != null) {
-            sniffer.sniffOnFailure(host);
+            sniffer.sniffOnFailure();
         }
     }
 

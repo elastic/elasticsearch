@@ -1424,10 +1424,6 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void close() {
-            release();
-        }
-
-        public void release() {
             Releasables.close(searcher);
         }
     }

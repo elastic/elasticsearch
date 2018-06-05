@@ -25,6 +25,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -248,6 +249,37 @@ public class RestClientTests extends RestClientTestCase {
             fail("setHosts should have failed");
         } catch (NullPointerException e) {
             assertEquals("host cannot be null", e.getMessage());
+        }
+    }
+
+    public void testSetHostsPreservesOrdering() throws Exception {
+        try (RestClient restClient = createRestClient()) {
+            HttpHost[] hosts = randomHosts();
+            restClient.setHosts(hosts);
+            assertEquals(Arrays.asList(hosts), restClient.getHosts());
+        }
+    }
+
+    private static HttpHost[] randomHosts() {
+        int numHosts = randomIntBetween(1, 10);
+        HttpHost[] hosts = new HttpHost[numHosts];
+        for (int i = 0; i < hosts.length; i++) {
+            hosts[i] = new HttpHost("host-" + i, 9200);
+        }
+        return hosts;
+    }
+
+    public void testSetHostsDuplicatedHosts() throws Exception {
+        try (RestClient restClient = createRestClient()) {
+            int numHosts = randomIntBetween(1, 10);
+            HttpHost[] hosts = new HttpHost[numHosts];
+            HttpHost host = new HttpHost("host", 9200);
+            for (int i = 0; i < hosts.length; i++) {
+                hosts[i] = host;
+            }
+            restClient.setHosts(hosts);
+            assertEquals(1, restClient.getHosts().size());
+            assertEquals(host, restClient.getHosts().get(0));
         }
     }
 

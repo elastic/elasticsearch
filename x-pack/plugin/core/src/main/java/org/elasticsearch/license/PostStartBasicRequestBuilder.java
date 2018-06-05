@@ -8,8 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-class PostStartBasicRequestBuilder extends ActionRequestBuilder<PostStartBasicRequest,
-        PostStartBasicResponse, PostStartBasicRequestBuilder> {
+class PostStartBasicRequestBuilder extends ActionRequestBuilder<PostStartBasicRequest, PostStartBasicResponse> {
 
     PostStartBasicRequestBuilder(ElasticsearchClient client, PostStartBasicAction action) {
         super(client, action, new PostStartBasicRequest());

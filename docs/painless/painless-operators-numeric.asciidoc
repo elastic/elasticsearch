@@ -4,15 +4,16 @@
 [[post-increment-operator]]
 ==== Post Increment
 
-Use the *post increment operator* to increase the value of numerical type
-variable/field by `1`. There is an extra implicit cast when necessary to return
-the promoted numeric type value to the original numeric type value of the
-variable/field and can result in data loss. If a variable/field is read as part
-of an expression the value is loaded prior to the increment.
+Use the `post increment operator '++'` to INCREASE the value of a numeric type
+variable/field by `1`. An extra implicit cast is necessary to return the
+promoted numeric type value to the original numeric type value of the
+variable/field for the following types: `byte`, `short`, and `char`. If a
+variable/field is read as part of an expression the value is loaded prior to the
+increment.
 
 *Errors*
 
-* If the evaluated variable/field is a non-numeric type.
+* If the variable/field is a non-numeric type.
 
 *Grammar*
 
@@ -38,7 +39,7 @@ post_increment: ( variable | field ) '++';
 
 *Examples*
 
-* Use of the *post increment operator*.
+* Post increment with different numeric types.
 +
 [source,Painless]
 ----
@@ -66,7 +67,7 @@ post_increment: ( variable | field ) '++';
     add `long 1` and `long 1` -> `long 2`;
     store `long 2` to `j`
 +
-* Use of the *post increment operator* with the `def` type.
+* Post increment with the `def` type.
 +
 [source,Painless]
 ----
@@ -86,15 +87,16 @@ post_increment: ( variable | field ) '++';
 [[post-decrement-operator]]
 ==== Post Decrement
 
-Use the *post decrement operator* to decrease the value of numerical type
-variable/field by `1`. There is an extra implicit cast when necessary to return
-the promoted numeric type value to the original numeric type value of the
-variable/field and can result in data loss. If a variable/field is read as part
-of an expression the value is loaded prior to the decrement.
+Use the `post decrement operator '--'` to DECREASE the value of a numeric type
+variable/field by `1`. An extra implicit cast is necessary to return the
+promoted numeric type value to the original numeric type value of the
+variable/field for the following types: `byte`, `short`, and `char`. If a
+variable/field is read as part of an expression the value is loaded prior to
+the decrement.
 
 *Errors*
 
-* If the evaluated variable/field is a non-numeric type.
+* If the variable/field is a non-numeric type.
 
 *Grammar*
 
@@ -120,7 +122,7 @@ post_decrement: ( variable | field ) '--';
 
 *Examples*
 
-* Use of the *post decrement operator*.
+* Post decrement with different numeric types.
 +
 [source,Painless]
 ----
@@ -148,7 +150,7 @@ post_decrement: ( variable | field ) '--';
     subtract `long 1` from `long 1` -> `long 0`;
     store `long 0` to `j`
 +
-* Use of the *post decrement operator* with the `def` type.
+* Post decrement with the `def` type.
 +
 [source,Painless]
 ----
@@ -168,15 +170,16 @@ post_decrement: ( variable | field ) '--';
 [[pre-increment-operator]]
 ==== Pre Increment
 
-Use the *pre increment operator* to increase the value of numerical type
-variable/field by `1`. There is an extra implicit cast when necessary to return
-the promoted numeric type value to the original numeric type value of the
-variable/field and can result in data loss. If a variable/field is read as part
-of an expression the value is loaded after the increment.
+Use the `pre increment operator '++'` to INCREASE the value of a numeric type
+variable/field by `1`. An extra implicit cast is necessary to return the
+promoted numeric type value to the original numeric type value of the
+variable/field for the following types: `byte`, `short`, and `char`. If a
+variable/field is read as part of an expression the value is loaded after the
+increment.
 
 *Errors*
 
-* If the evaluated variable/field is a non-numeric type.
+* If the variable/field is a non-numeric type.
 
 *Grammar*
 
@@ -202,7 +205,7 @@ pre_increment: '++' ( variable | field );
 
 *Examples*
 
-* Use of the *pre increment operator*.
+* Pre increment with different numeric types.
 +
 [source,Painless]
 ----
@@ -230,7 +233,7 @@ pre_increment: '++' ( variable | field );
     store `long 2` to `j`;
     store `long 2` to `k`
 +
-* Use of the *post increment operator* with the `def` type.
+* Pre increment with the `def` type.
 +
 [source,Painless]
 ----
@@ -250,15 +253,16 @@ pre_increment: '++' ( variable | field );
 [[pre-decrement-operator]]
 ==== Pre Decrement
 
-Use the *pre decrement operator* to decrease the value of numerical type
-variable/field by `1`. There is an extra implicit cast when necessary to return
-the promoted numeric type value to the original numeric type value of the
-variable/field and can result in data loss. If a variable/field is read as part
-of an expression the value is loaded after the decrement.
+Use the `pre decrement operator '--'` to DECREASE the value of a numeric type
+variable/field by `1`. An extra implicit cast is necessary to return the
+promoted numeric type value to the original numeric type value of the
+variable/field for the following types: `byte`, `short`, and `char`. If a
+variable/field is read as part of an expression the value is loaded after the
+decrement.
 
 *Errors*
 
-* If the evaluated variable/field is a non-numeric type.
+* If the variable/field is a non-numeric type.
 
 *Grammar*
 
@@ -284,7 +288,7 @@ pre_increment: '--' ( variable | field );
 
 *Examples*
 
-* Use of the *pre decrement operator*.
+* Pre decrement with different numeric types.
 +
 [source,Painless]
 ----
@@ -312,7 +316,7 @@ pre_increment: '--' ( variable | field );
     store `long 0` to `j`
     store `long 0` to `k`;
 +
-* Use of the *pre decrement operator* with the `def` type.
+* Pre decrement operator with the `def` type.
 +
 [source,Painless]
 ----
@@ -332,12 +336,12 @@ pre_increment: '--' ( variable | field );
 [[unary-positive-operator]]
 ==== Unary Positive
 
-Use the *unary positive operator* to the retrieve the identity of a numeric
-value.
+Use the `unary positive operator '+'` to the preserve the IDENTITY of a
+numeric type value.
 
 *Errors*
 
-* If the evaluated value is a non-numeric type.
+* If the value is a non-numeric type.
 
 *Grammar*
 
@@ -348,7 +352,7 @@ unary_positive: '+' expression;
 
 *Examples*
 
-* Use of the *unary positive operator*.
+* Unary positive with different numeric types.
 +
 [source,Painless]
 ----
@@ -365,7 +369,7 @@ unary_positive: '+' expression;
     implicit cast `int 1` to `long 1` -> `long 1`;
     store `long 1` to `y`
 +
-* Use of the *unary positive operator* with the `def` type.
+* Unary positive with the `def` type.
 +
 [source,Painless]
 ----
@@ -385,11 +389,11 @@ unary_positive: '+' expression;
 [[unary-negative-operator]]
 ==== Unary Negative
 
-Use the *unary negative operator* to negate a numeric type value.
+Use the `unary negative operator '-'` to NEGATE a numeric type value.
 
 *Errors*
 
-* If the evaluated value is a non-numeric type.
+* If the value is a non-numeric type.
 
 *Grammar*
 
@@ -400,7 +404,7 @@ unary_negative: '-' expression;
 
 *Examples*
 
-* Use of the *unary negative operator*.
+* Unary negative with different numeric types.
 +
 [source,Painless]
 ----
@@ -417,7 +421,7 @@ unary_negative: '-' expression;
     implicit cast `int 1` to `long 1` -> `long 1`;
     store `long 1` to `y`
 +
-* Use of the *unary negative operator* with the `def` type.
+* Unary negative with the `def` type.
 +
 [source,Painless]
 ----
@@ -437,12 +441,13 @@ unary_negative: '-' expression;
 [[bitwise-not-operator]]
 ==== Bitwise Not
 
-Use the *bitwise not operator* to flip each bit in an integer type value where
-if a bit is `1` it becomes `0` and if a bit is `0` it becomes `1`.
+Use the `bitwise not operator '~'` to NOT each bit in an integer type value
+where a `1-bit` is flipped to a resultant `0-bit` and a `0-bit` is flipped to a
+resultant `1-bit`.
 
 *Errors*
 
-* If the evaluated value is a non-integer type.
+* If the value is a non-integer type.
 
 *Bits*
 
@@ -475,7 +480,7 @@ bitwise_not: '~' expression;
 
 *Examples*
 
-* Uses of the *bitwise not operator*.
+* Bitwise not with different numeric types.
 +
 [source,Painless]
 ----
@@ -497,7 +502,7 @@ bitwise_not: '~' expression;
     bitwise not `long -2` -> `long 1`;
     store `long 1` to `l`
 +
-* Uses of the *bitwise not operator* with the `def` type.
+* Bitwise not with the `def` type.
 +
 [source,Painless]
 ----
@@ -518,13 +523,13 @@ bitwise_not: '~' expression;
 [[multiplication-operator]]
 ==== Multiplication
 
-Use the *multiplication operator* to multiply together two numerical
+Use the `multiplication operator '*'` to MULTIPLY together two numeric type
 values. Rules for resultant overflow and NaN values follow the JVM
 specification.
 
 *Errors*
 
-* If either of the evaluated values is a non-numeric type.
+* If either of the values is a non-numeric type.
 
 *Grammar*
 
@@ -550,7 +555,7 @@ multiplication: expression '*' expression;
 
 *Examples*
 
-* Uses of the *multiplication operator*.
+* Multiplication with different numeric types.
 +
 [source,Painless]
 ----
@@ -568,7 +573,7 @@ multiplication: expression '*' expression;
     multiply `double 20.0` by `double 7.0` -> `double 140.0`;
     store `double 140.0` to `d`
 +
-* Uses of the *multiplication operator* with the `def` type.
+* Multiplication with the `def` type.
 +
 [source,Painless]
 ----
@@ -589,13 +594,13 @@ multiplication: expression '*' expression;
 [[division-operator]]
 ==== Division
 
-Use the *division operator* to divide two numerical values.  Rules for NaN
-values and division by zero follow the JVM specification.  Division with integer
-values drops the remainder of the resultant value.
+Use the `division operator '/'` to DIVIDE one numeric type value by another.
+Rules for NaN values and division by zero follow the JVM specification. Division
+with integer values drops the remainder of the resultant value.
 
 *Errors*
 
-* If either of the evaluated values is a non-numeric type.
+* If either of the values is a non-numeric type.
 * If a left-hand side integer type value is divided by a right-hand side integer
   type value of `0`.
 
@@ -623,7 +628,7 @@ division: expression '/' expression;
 
 *Examples*
 
-* Uses of the *division operator*.
+* Division with different numeric types.
 +
 [source,Painless]
 ----
@@ -641,7 +646,7 @@ division: expression '/' expression;
     divide `double 7.0` by `double 7.0` -> `double 1.0`;
     store `double 1.0` to `d`
 +
-* Uses of the *division operator* with the `def` type.
+* Division with the `def` type.
 +
 [source,Painless]
 ----
@@ -662,13 +667,13 @@ division: expression '/' expression;
 [[remainder-operator]]
 ==== Remainder
 
-Use the *remainder operator* to calculate the remainder for division between
-two numerical values.  Rules for NaN values and division by zero follow the JVM
+Use the `remainder operator '%'` to calculate the REMAINDER for division
+between two numeric type values.  Rules for NaN values and division by zero follow the JVM
 specification.
 
 *Errors*
 
-* If either of the evaluated values is a non-numeric type.
+* If either of the values is a non-numeric type.
 
 *Grammar*
 
@@ -694,7 +699,7 @@ remainder: expression '%' expression;
 
 *Examples*
 
-* Uses of the *remainder operator*.
+* Remainder with different numeric types.
 +
 [source,Painless]
 ----
@@ -712,7 +717,7 @@ remainder: expression '%' expression;
     remainder `double 1.0` by `double 7.0` -> `double 1.0`;
     store `double 1.0` to `d`
 +
-* Uses of the *remainder operator* with the `def` type.
+* Remainder with the `def` type.
 +
 [source,Painless]
 ----
@@ -733,12 +738,12 @@ remainder: expression '%' expression;
 [[addition-operator]]
 ==== Addition
 
-Use the *addition operator* to add together two numerical values.  Rules for
-resultant overflow and NaN values follow the JVM specification.
+Use the `addition operator '+'` to ADD together two numeric type values. Rules
+for resultant overflow and NaN values follow the JVM specification.
 
 *Errors*
 
-* If either of the evaluated values is a non-numeric type.
+* If either of the values is a non-numeric type.
 
 *Grammar*
 
@@ -764,7 +769,7 @@ addition: expression '+' expression;
 
 *Examples*
 
-* Uses of the *addition operator*.
+* Addition operator with different numeric types.
 +
 [source,Painless]
 ----
@@ -782,7 +787,7 @@ addition: expression '+' expression;
     add `double 33.0` and `double 7.0` -> `double 40.0`;
     store `double 40.0` to `d`
 +
-* Uses of the *addition operator* with the `def` type.
+* Addition with the `def` type.
 +
 [source,Painless]
 ----
@@ -803,13 +808,13 @@ addition: expression '+' expression;
 [[subtraction-operator]]
 ==== Subtraction
 
-Use the *subtraction operator* to subtract a right-hand side numerical value
-from a left-hand side numerical value.  Rules for resultant overflow and NaN
-values follow the JVM specification.
+Use the `subtraction operator '-'` to SUBTRACT a right-hand side numeric type
+value from a left-hand side numeric type value.  Rules for resultant overflow
+and NaN values follow the JVM specification.
 
 *Errors*
 
-* If either of the evaluated values is a non-numeric type.
+* If either of the values is a non-numeric type.
 
 *Grammar*
 
@@ -835,7 +840,7 @@ subtraction: expression '-' expression;
 
 *Examples*
 
-* Uses of the *subtraction operator*.
+* Subtraction with different numeric types.
 +
 [source,Painless]
 ----
@@ -853,7 +858,7 @@ subtraction: expression '-' expression;
     subtract `double 33.0` by `double 7.5` -> `double 25.5`;
     store `double 25.5` to `d`
 +
-* Uses of the *subtraction operator* with the `def` type.
+* Subtraction with the `def` type.
 +
 [source,Painless]
 ----
@@ -874,14 +879,14 @@ subtraction: expression '-' expression;
 [[left-shift-operator]]
 ==== Left Shift
 
-Use the *left shift operator* to shift lower order bits to higher order bits in
-a left-hand side integer type value by the distance specified in a right-hand
-side integer type value.
+Use the `left shift operator '<<'` to SHIFT lower order bits to higher order
+bits in a left-hand side integer type value by the distance specified in a
+right-hand side integer type value.
 
 *Errors*
 
-* If either of the evaluated values is a non-integer type.
-* If the evaluated right-hand side value cannot be cast to an `int` type.
+* If either of the values is a non-integer type.
+* If the right-hand side value cannot be cast to an int type.
 
 *Grammar*
 
@@ -909,7 +914,7 @@ below. The right-hand side integer type value is always implicitly cast to an
 
 *Examples*
 
-* Uses of the *left shift operator*.
+* Left shift with different integer types.
 +
 [source,Painless]
 ----
@@ -927,7 +932,7 @@ below. The right-hand side integer type value is always implicitly cast to an
     implicit cast `int 32` to `long 32` -> `long 32`;
     store `long 32` to `l`
 +
-* Uses of the *left shift operator* with the `def` type.
+* Left shift with the `def` type.
 +
 [source,Painless]
 ----
@@ -948,15 +953,15 @@ below. The right-hand side integer type value is always implicitly cast to an
 [[right-shift-operator]]
 ==== Right Shift
 
-Use the *right shift operator* to shift higher order bits to lower order bits in
-a left-hand side integer type value by the distance specified in a right-hand
-side integer type value.  The highest order bit of the left-hand side integer
-type value is preserved.
+Use the `right shift operator '>>'` to SHIFT higher order bits to lower order
+bits in a left-hand side integer type value by the distance specified in a
+right-hand side integer type value.  The highest order bit of the left-hand side
+integer type value is preserved.
 
 *Errors*
 
-* If either of the evaluated values is a non-integer type.
-* If the evaluated right-hand side value cannot be cast to an `int` type.
+* If either of the values is a non-integer type.
+* If the right-hand side value cannot be cast to an int type.
 
 *Grammar*
 
@@ -984,7 +989,7 @@ below. The right-hand side integer type value is always implicitly cast to an
 
 *Examples*
 
-* Uses of the *right shift operator*.
+* Right shift with different integer types.
 +
 [source,Painless]
 ----
@@ -1002,7 +1007,7 @@ below. The right-hand side integer type value is always implicitly cast to an
     implicit cast `int 4` to `long 4` -> `long 4`;
     store `long 4` to `l`
 +
-* Uses of the *right shift operator* with the `def` type.
+* Right shift with the `def` type.
 +
 [source,Painless]
 ----
@@ -1023,16 +1028,15 @@ below. The right-hand side integer type value is always implicitly cast to an
 [[unsigned-right-shift-operator]]
 ==== Unsigned Right Shift
 
-Use the *unsigned right shift operator* to shift higher order bits to lower
-order bits in a left-hand side integer type value by the distance specified in a
-right-hand side type integer value.  The highest order bit of the left-hand side
-integer type value is *not* preserved.
+Use the `unsigned right shift operator '>>>'` to SHIFT higher order bits to
+lower order bits in a left-hand side integer type value by the distance
+specified in a right-hand side type integer value. The highest order bit of the
+left-hand side integer type value is *not* preserved.
 
 *Errors*
 
-* If either of the evaluated values is a non-integer type.
-* If the evaluated right-hand side is a value other than an `int` type value or
-  a value that is castable to an `int` type value.
+* If either of the values is a non-integer type.
+* If the right-hand side value cannot be cast to an int type.
 
 *Grammar*
 
@@ -1060,7 +1064,7 @@ below. The right-hand side integer type value is always implicitly cast to an
 
 *Examples*
 
-* Uses of the *unsigned right shift operator*.
+* Unsigned right shift with different integer types.
 +
 [source,Painless]
 ----
@@ -1078,7 +1082,7 @@ below. The right-hand side integer type value is always implicitly cast to an
     implicit cast `int 3` to `long 3` -> `long 3`;
     store `long 3` to `l`
 +
-* Uses of the *unsigned right shift operator* with the `def` type.
+* Unsigned right shift with the `def` type.
 +
 [source,Painless]
 ----
@@ -1099,13 +1103,13 @@ below. The right-hand side integer type value is always implicitly cast to an
 [[bitwise-and-operator]]
 ==== Bitwise And
 
-Use the *bitwise and operator* to bitwise and together each bit within two
+Use the `bitwise and operator '&'` to AND together each bit within two
 integer type values where if both bits at the same index are `1` the resultant
 bit is `1` and `0` otherwise.
 
 *Errors*
 
-* If either of the evaluated values is a non-integer type.
+* If either of the values is a non-integer type.
 
 *Bits*
 
@@ -1138,7 +1142,7 @@ bitwise_and: expression '&' expression;
 
 *Examples*
 
-* Uses of the *bitwise and operator*.
+* Bitwise and with different integer types.
 +
 [source,Painless]
 ----
@@ -1156,7 +1160,7 @@ bitwise_and: expression '&' expression;
     bitwise and `long 4` and `long 5` -> `long 4`;
     store `long 4` to `l`
 +
-* Uses of the *bitwise and operator* with the `def` type.
+* Bitwise and with the `def` type.
 +
 [source,Painless]
 ----
@@ -1177,15 +1181,17 @@ bitwise_and: expression '&' expression;
 [[bitwise-xor-operator]]
 ==== Bitwise Xor
 
-Use the *bitwise xor operator* to bitwise xor together each bit within two
-integer type values where if one bit is a `1` and the other bit is a `0` at the
-same index the resultant bit is `1` and `0` otherwise.
+Use the `bitwise xor operator '^'` to XOR together each bit within two integer
+type values where if one bit is a `1` and the other bit is a `0` at the same
+index the resultant bit is `1` otherwise the resultant bit is `0`.
 
 *Errors*
 
-* If either of the evaluated values is a non-integer type.
+* If either of the values is a non-integer type.
 
 *Bits*
+
+The following table illustrates the resultant bit from the xoring of two bits.
 
 [cols="^1,^1,^1"]
 |====
@@ -1216,7 +1222,7 @@ bitwise_and: expression '^' expression;
 
 *Examples*
 
-* Uses of the *bitwise xor operator*.
+* Bitwise xor with different integer types.
 +
 [source,Painless]
 ----
@@ -1234,7 +1240,7 @@ bitwise_and: expression '^' expression;
     bitwise xor `long 3` and `long 5` -> `long 6`;
     store `long 6` to `l`
 +
-* Uses of the *bitwise xor operator* with the `def` type.
+* Bitwise xor with the `def` type.
 +
 [source,Painless]
 ----
@@ -1255,15 +1261,17 @@ bitwise_and: expression '^' expression;
 [[bitwise-or-operator]]
 ==== Bitwise Or
 
-Use the *bitwise or operator* to bitwise or together each bit within two integer
-type values where if at least one bit is a `1`  at the same index the resultant
-bit is `1` and `0` otherwise.
+Use the `bitwise or operator '|'` to OR together each bit within two integer
+type values where if at least one bit is a `1` at the same index the resultant
+bit is `1` otherwise the resultant bit is `0`.
 
 *Errors*
 
-* If either of the evaluated values is a non-integer type.
+* If either of the values is a non-integer type.
 
 *Bits*
+
+The following table illustrates the resultant bit from the oring of two bits.
 
 [cols="^1,^1,^1"]
 |====
@@ -1294,7 +1302,7 @@ bitwise_and: expression '|' expression;
 
 *Examples*
 
-* Uses of the *bitwise or operator*.
+* Bitwise or with different integer types.
 +
 [source,Painless]
 ----
@@ -1312,7 +1320,7 @@ bitwise_and: expression '|' expression;
     bitwise or `long 7` and `long 8` -> `long 15`;
     store `long 15` to `l`
 +
-* Uses of the *bitwise or operator* with the `def` type.
+* Bitwise or with the `def` type.
 +
 [source,Painless]
 ----

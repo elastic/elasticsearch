@@ -95,6 +95,7 @@ include::indices/clear_cache.asciidoc[]
 include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
+include::indices/get_mappings.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/put_settings.asciidoc[]
@@ -106,14 +107,19 @@ include::indices/put_template.asciidoc[]
 The Java High Level REST Client supports the following Cluster APIs:
 
 * <<java-rest-high-cluster-put-settings>>
-* <<java-rest-high-cluster-put-pipeline>>
-* <<java-rest-high-cluster-get-pipeline>>
-* <<java-rest-high-cluster-delete-pipeline>>
 
 include::cluster/put_settings.asciidoc[]
-include::cluster/put_pipeline.asciidoc[]
-include::cluster/get_pipeline.asciidoc[]
-include::cluster/delete_pipeline.asciidoc[]
+
+== Ingest APIs
+The Java High Level REST Client supports the following Ingest APIs:
+
+* <<java-rest-high-ingest-put-pipeline>>
+* <<java-rest-high-ingest-get-pipeline>>
+* <<java-rest-high-ingest-delete-pipeline>>
+
+include::ingest/put_pipeline.asciidoc[]
+include::ingest/get_pipeline.asciidoc[]
+include::ingest/delete_pipeline.asciidoc[]
 
 == Snapshot APIs
 

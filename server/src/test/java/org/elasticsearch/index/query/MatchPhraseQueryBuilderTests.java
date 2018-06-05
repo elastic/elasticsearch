@@ -64,7 +64,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
 
         MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(fieldName, value);
 
-        if (randomBoolean()) {
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 

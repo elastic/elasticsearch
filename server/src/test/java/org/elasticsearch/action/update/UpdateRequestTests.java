@@ -292,6 +292,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(request.fields(), arrayContaining("field1", "field2"));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31092")
     public void testUnknownFieldParsing() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         XContentParser contentParser = createParser(XContentFactory.jsonBuilder()

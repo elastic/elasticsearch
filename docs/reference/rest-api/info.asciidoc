@@ -1,8 +1,9 @@
 [role="xpack"]
+[testenv="basic"]
 [[info-api]]
 == Info API
 
-The info API provides general information about the installed {xpack}.
+The info API provides general information about the installed {xpack} features.
 
 [float]
 === Request

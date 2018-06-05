@@ -309,6 +309,11 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
 
         @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
+        @Override
         public EnumSet<MetaData.XContentContext> context() {
             return EnumSet.of(MetaData.XContentContext.GATEWAY);
         }
@@ -322,6 +327,11 @@ public class ClusterChangedEventTests extends ESTestCase {
         @Override
         public String getWriteableName() {
             return "1";
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         @Override

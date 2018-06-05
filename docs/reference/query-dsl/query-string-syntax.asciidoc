@@ -256,7 +256,6 @@ would look like this:
         }
     }
 
-****
 
 ===== Grouping
 

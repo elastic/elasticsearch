@@ -58,6 +58,10 @@ public class Shell {
         this.workingDirectory = workingDirectory;
     }
 
+    public Map<String, String> getEnv() {
+        return env;
+    }
+
     /**
      * Runs a script in a bash shell, throwing an exception if its exit code is nonzero
      */

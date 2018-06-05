@@ -18,7 +18,7 @@ subprojects {
     if (project.plugins.hasPlugin(PluginBuildPlugin)) {
       // see the root Gradle file for additional logic regarding this configuration
       project.configurations.create('featureAwarePlugin')
-      project.dependencies.add('featureAwarePlugin', project.configurations.runtime)
+      project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
       project.dependencies.add(
               'featureAwarePlugin',
               "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")

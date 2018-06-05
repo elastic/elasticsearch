@@ -19,8 +19,8 @@
 package org.elasticsearch.http;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -39,7 +39,9 @@ public class HttpCompressionIT extends ESRestTestCase {
 
     public void testCompressesResponseIfRequested() throws IOException {
         Request request = new Request("GET", "/");
-        request.setHeaders(new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING));
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING);
+        request.setOptions(options);
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));

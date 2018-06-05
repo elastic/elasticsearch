@@ -50,19 +50,11 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
                 values[d][i] = expectedDates[d][i].getMillis();
             }
         }
-        Set<String> warnings = new HashSet<>();
-        Dates dates = wrap(values, deprecationMessage -> {
-            warnings.add(deprecationMessage);
-            /* Create a temporary directory to prove we are running with the
-             * server's permissions. */
-            createTempDir();
-        });
-
+        Dates dates = wrap(values);
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
             assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dates.getValue());
-            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dates.getDate());
 
             assertEquals(values[d].length, dates.size());
             for (int i = 0; i < values[d].length; i++) {
@@ -72,33 +64,9 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             Exception e = expectThrows(UnsupportedOperationException.class, () -> dates.add(new DateTime()));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
-
-        /*
-         * Invoke getDates without any privileges to verify that
-         * it still works without any. In particularly, this
-         * verifies that the callback that we've configured
-         * above works. That callback creates a temporary
-         * directory which is not possible with "noPermissions".
-         */
-        PermissionCollection noPermissions = new Permissions();
-        AccessControlContext noPermissionsAcc = new AccessControlContext(
-            new ProtectionDomain[] {
-                new ProtectionDomain(null, noPermissions)
-            }
-        );
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            public Void run() {
-                dates.getDates();
-                return null;
-            }
-        }, noPermissionsAcc);
-
-        assertThat(warnings, containsInAnyOrder(
-            "getDate is no longer necessary on date fields as the value is now a date.",
-            "getDates is no longer necessary on date fields as the values are now dates."));
     }
 
-    private Dates wrap(long[][] values, Consumer<String> deprecationHandler) {
+    private Dates wrap(long[][] values) {
         return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -117,6 +85,6 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        }, deprecationHandler);
+        });
     }
 }

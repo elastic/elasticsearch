@@ -108,7 +108,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 double value = value(keys[i]);
                 builder.field(key, state.size() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.size() > 0) {
-                    builder.field(key + "_as_string", format.format(value));
+                    builder.field(key + "_as_string", format.format(value).toString());
                 }
             }
             builder.endObject();
@@ -120,7 +120,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
                 builder.field(CommonFields.VALUE.getPreferredName(), state.size() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.size() > 0) {
-                    builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
+                    builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
                 }
                 builder.endObject();
             }

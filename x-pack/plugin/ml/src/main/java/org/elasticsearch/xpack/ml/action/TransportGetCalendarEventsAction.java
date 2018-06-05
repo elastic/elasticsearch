@@ -15,7 +15,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
@@ -70,7 +69,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
 
                     if (request.getJobId() != null) {
                         ClusterState state = clusterService.state();
-                        MlMetadata currentMlMetadata = state.metaData().custom(MLMetadataField.TYPE);
+                        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
 
                         List<String> jobGroups;
                         String requestId = request.getJobId();

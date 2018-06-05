@@ -239,7 +239,7 @@ public class IndicesOptions {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeEnumSet(options);
             out.writeEnumSet(expandWildcards);
         } else {
@@ -248,7 +248,7 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             return new IndicesOptions(in.readEnumSet(Option.class), in.readEnumSet(WildcardStates.class));
         } else {
             byte id = in.readByte();

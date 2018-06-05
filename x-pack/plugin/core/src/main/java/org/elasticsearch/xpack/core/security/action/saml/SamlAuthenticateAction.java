@@ -11,19 +11,13 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action for authenticating using SAML assertions
  */
-public final class SamlAuthenticateAction
-        extends Action<SamlAuthenticateRequest, SamlAuthenticateResponse, SamlAuthenticateRequestBuilder> {
+public final class SamlAuthenticateAction extends Action<SamlAuthenticateRequest, SamlAuthenticateResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/authenticate";
     public static final SamlAuthenticateAction INSTANCE = new SamlAuthenticateAction();
 
     private SamlAuthenticateAction() {
         super(NAME);
-    }
-
-    @Override
-    public SamlAuthenticateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SamlAuthenticateRequestBuilder(client);
     }
 
     @Override

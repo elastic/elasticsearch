@@ -37,9 +37,12 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -55,8 +58,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -64,6 +65,9 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -534,17 +538,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::put-mapping-execute-listener
             ActionListener<PutMappingResponse> listener =
-                    new ActionListener<PutMappingResponse>() {
-                @Override
-                public void onResponse(PutMappingResponse putMappingResponse) {
-                    // <1>
-                }
+                new ActionListener<PutMappingResponse>() {
+                    @Override
+                    public void onResponse(PutMappingResponse putMappingResponse) {
+                        // <1>
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
             // end::put-mapping-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -554,6 +558,133 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-mapping-execute-async
             client.indices().putMappingAsync(request, listener); // <1>
             // end::put-mapping-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetMapping() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            PutMappingRequest request = new PutMappingRequest("twitter");
+            request.type("tweet");
+            request.source(
+                "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                XContentType.JSON);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            assertTrue(putMappingResponse.isAcknowledged());
+        }
+
+        {
+            // tag::get-mapping-request
+            GetMappingsRequest request = new GetMappingsRequest(); // <1>
+            request.indices("twitter"); // <2>
+            request.types("tweet"); // <3>
+            // end::get-mapping-request
+
+            // tag::get-mapping-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::get-mapping-request-masterTimeout
+
+            // tag::get-mapping-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::get-mapping-request-indicesOptions
+
+            // tag::get-mapping-execute
+            GetMappingsResponse getMappingResponse = client.indices().getMappings(request);
+            // end::get-mapping-execute
+
+            // tag::get-mapping-response
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = getMappingResponse.mappings(); // <1>
+            MappingMetaData typeMapping = allMappings.get("twitter").get("tweet"); // <2>
+            Map<String, Object> tweetMapping = typeMapping.sourceAsMap(); // <3>
+            // end::get-mapping-response
+
+            Map<String, String> type = new HashMap<>();
+            type.put("type", "text");
+            Map<String, Object> field = new HashMap<>();
+            field.put("message", type);
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("properties", field);
+            assertThat(tweetMapping, equalTo(expected));
+        }
+    }
+
+    public void testGetMappingAsync() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            PutMappingRequest request = new PutMappingRequest("twitter");
+            request.type("tweet");
+            request.source(
+                "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                XContentType.JSON);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            assertTrue(putMappingResponse.isAcknowledged());
+        }
+
+        {
+            GetMappingsRequest request = new GetMappingsRequest();
+            request.indices("twitter");
+            request.types("tweet");
+
+            // tag::get-mapping-execute-listener
+            ActionListener<GetMappingsResponse> listener =
+                new ActionListener<GetMappingsResponse>() {
+                    @Override
+                    public void onResponse(GetMappingsResponse putMappingResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-mapping-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<GetMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
+            listener = ActionListener.wrap(r -> {
+                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = r.mappings();
+                MappingMetaData typeMapping = allMappings.get("twitter").get("tweet");
+                Map<String, Object> tweetMapping = typeMapping.sourceAsMap();
+
+                Map<String, String> type = new HashMap<>();
+                type.put("type", "text");
+                Map<String, Object> field = new HashMap<>();
+                field.put("message", type);
+                Map<String, Object> expected = new HashMap<>();
+                expected.put("properties", field);
+                assertThat(tweetMapping, equalTo(expected));
+                latchListener.onResponse(r);
+            }, e -> {
+                latchListener.onFailure(e);
+                fail("should not fail");
+            });
+
+            // tag::get-mapping-execute-async
+            client.indices().getMappingsAsync(request, listener); // <1>
+            // end::get-mapping-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -781,6 +912,89 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             }
             // end::flush-notfound
+        }
+    }
+
+    public void testSyncedFlushIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::flush-synced-request
+            SyncedFlushRequest request = new SyncedFlushRequest("index1"); // <1>
+            SyncedFlushRequest requestMultiple = new SyncedFlushRequest("index1", "index2"); // <2>
+            SyncedFlushRequest requestAll = new SyncedFlushRequest(); // <3>
+            // end::flush-synced-request
+
+            // tag::flush-synced-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::flush-synced-request-indicesOptions
+
+            // tag::flush-synced-execute
+            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request);
+            // end::flush-synced-execute
+
+            // tag::flush-synced-response
+            int totalShards = flushSyncedResponse.totalShards(); // <1>
+            int successfulShards = flushSyncedResponse.successfulShards(); // <2>
+            int failedShards = flushSyncedResponse.failedShards(); // <3>
+
+            for (Map.Entry<String, SyncedFlushResponse.IndexResult> responsePerIndexEntry:
+                flushSyncedResponse.getIndexResults().entrySet()) {
+                String indexName = responsePerIndexEntry.getKey(); // <4>
+                SyncedFlushResponse.IndexResult indexResult = responsePerIndexEntry.getValue();
+                int totalShardsForIndex = indexResult.totalShards(); // <5>
+                int successfulShardsForIndex = indexResult.successfulShards(); // <6>
+                int failedShardsForIndex = indexResult.failedShards(); // <7>
+                if (failedShardsForIndex > 0) {
+                    for (SyncedFlushResponse.ShardFailure failureEntry: indexResult.failures()) {
+                        int shardId = failureEntry.getShardId(); // <8>
+                        String failureReason = failureEntry.getFailureReason(); // <9>
+                        Map<String, Object> routing = failureEntry.getRouting(); // <10>
+                    }
+                }
+            }
+            // end::flush-synced-response
+
+            // tag::flush-synced-execute-listener
+            ActionListener<SyncedFlushResponse> listener = new ActionListener<SyncedFlushResponse>() {
+                @Override
+                public void onResponse(SyncedFlushResponse refreshResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::flush-synced-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::flush-synced-execute-async
+            client.indices().flushSyncedAsync(request, listener); // <1>
+            // end::flush-synced-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::flush-synced-notfound
+            try {
+                SyncedFlushRequest request = new SyncedFlushRequest("does_not_exist");
+                client.indices().flushSynced(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::flush-synced-notfound
         }
     }
 
@@ -1305,7 +1519,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::shrink-index-request-waitForActiveShards
         // tag::shrink-index-request-settings
         request.getTargetIndexRequest().settings(Settings.builder()
-                .put("index.number_of_shards", 2)); // <1>
+                .put("index.number_of_shards", 2) // <1>
+                .putNull("index.routing.allocation.require._name")); // <2>
         // end::shrink-index-request-settings
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>

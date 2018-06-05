@@ -120,8 +120,10 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
                 valueFieldType.setName(VALUE_FIELD);
                 valueFieldType.setHasDocValues(true);
 
-                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, new MappedFieldType[]{fieldType, valueFieldType});
-                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000,  new MappedFieldType[]{fieldType, valueFieldType});
+                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, null,
+                    new MappedFieldType[]{fieldType, valueFieldType});
+                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, null,
+                    new MappedFieldType[]{fieldType, valueFieldType});
             }
 
             // Finally, reduce the pipeline agg

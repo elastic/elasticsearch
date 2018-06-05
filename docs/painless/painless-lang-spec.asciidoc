@@ -6,7 +6,7 @@ Painless syntax is similar to Java syntax along with some additional
 features such as dynamic typing, Map and List accessor shortcuts, and array
 initializers. As a direct comparison to Java, there are some important
 differences, especially related to the casting model. For more detailed
-conceptual information about the basic constructs that Java and Painless share,
+conceptual information about the basic constructs that Painless and Java share,
 refer to the corresponding topics in the
 https://docs.oracle.com/javase/specs/jls/se8/html/index.html[Java Language
 Specification].

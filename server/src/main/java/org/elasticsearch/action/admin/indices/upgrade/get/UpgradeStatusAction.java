@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.upgrade.get;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class UpgradeStatusAction extends Action<UpgradeStatusRequest, UpgradeStatusResponse, UpgradeStatusRequestBuilder> {
+public class UpgradeStatusAction extends Action<UpgradeStatusRequest, UpgradeStatusResponse> {
 
     public static final UpgradeStatusAction INSTANCE = new UpgradeStatusAction();
     public static final String NAME = "indices:monitor/upgrade";
@@ -34,10 +33,5 @@ public class UpgradeStatusAction extends Action<UpgradeStatusRequest, UpgradeSta
     @Override
     public UpgradeStatusResponse newResponse() {
         return new UpgradeStatusResponse();
-    }
-
-    @Override
-    public UpgradeStatusRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new UpgradeStatusRequestBuilder(client, this);
     }
 }

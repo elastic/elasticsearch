@@ -1,0 +1,40 @@
+[role="xpack"]
+[[auditing]]
+== Auditing security events
+
+You can enable auditing to keep track of security-related events such as
+authentication failures and refused connections. Logging these events enables you
+to monitor your cluster for suspicious activity and provides evidence in the
+event of an attack.
+
+[IMPORTANT]
+============================================================================
+Audit logs are **disabled** by default. To enable this functionality, you
+must set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
+============================================================================
+
+{Security} provides two ways to persist audit logs:
+
+* The <<audit-log-output, `logfile`>> output, which persists events to
+  a dedicated `<clustername>_access.log` file on the host's file system.
+* The <<audit-index, `index`>> output, which persists events to an Elasticsearch index.
+The audit index can reside on the same cluster, or a separate cluster.
+
+By default, only the `logfile` output is used when enabling auditing.
+To facilitate browsing and analyzing the events, you can also enable
+indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
+
+[source,yaml]
+----------------------------
+xpack.security.audit.outputs: [ index, logfile ]
+----------------------------
+
+The `index` output type should be used in conjunction with the `logfile`
+output type Because it is possible for the `index` output type to lose
+messages if the target index is unavailable, the `access.log` should be
+used as the official record of events.
+
+NOTE: Audit events are batched for indexing so there is a lag before
+events appear in the index. You can control how frequently batches of
+events are pushed to the index by setting
+`xpack.security.audit.index.flush_interval` in `elasticsearch.yml`.

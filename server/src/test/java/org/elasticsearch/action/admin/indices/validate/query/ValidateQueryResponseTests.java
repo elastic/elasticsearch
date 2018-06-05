@@ -21,22 +21,34 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-public class ValidateQueryResponseTests extends AbstractStreamableXContentTestCase<ValidateQueryResponse> {
+public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCase<ValidateQueryResponse> {
 
-    @Override
-    protected boolean assertToXContentEquivalence() {
-        // We cannot have XContent equivalence for ValidateResponseTests as it holds the BroadcastResponse which
-        // holds a List<DefaultShardOperationFailedException>. The DefaultShardOperationFailedException uses ElasticSearchException
-        // for serializing/deserializing a Throwable and the serialized and deserialized versions do not match.
-        return false;
+    protected static ValidateQueryResponse createRandomValidateQueryResponse(
+        int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> failures) {
+        boolean valid = failedShards == 0;
+        List<QueryExplanation> queryExplanations = new ArrayList<>(totalShards);
+        for(DefaultShardOperationFailedException failure: failures) {
+            queryExplanations.add(
+                new QueryExplanation(
+                    failure.index(), failure.shardId(), false, failure.reason(), null
+                )
+            );
+        }
+        return new ValidateQueryResponse(
+            valid, queryExplanations, totalShards, successfulShards, failedShards, failures
+        );
     }
 
     protected static ValidateQueryResponse createRandomValidateQueryResponse() {
@@ -72,12 +84,29 @@ public class ValidateQueryResponseTests extends AbstractStreamableXContentTestCa
     }
 
     @Override
-    protected ValidateQueryResponse createBlankInstance() {
-        return new ValidateQueryResponse();
+    protected ValidateQueryResponse createTestInstance() {
+        return createRandomValidateQueryResponse();
     }
 
     @Override
-    protected ValidateQueryResponse createTestInstance() {
-        return createRandomValidateQueryResponse();
+    protected void assertEqualInstances(ValidateQueryResponse response, ValidateQueryResponse parsedResponse) {
+        super.assertEqualInstances(response, parsedResponse);
+        Set<QueryExplanation> queryExplSet = new HashSet<>(response.getQueryExplanation());
+        assertEquals(response.isValid(), parsedResponse.isValid());
+        assertEquals(response.getQueryExplanation().size(), parsedResponse.getQueryExplanation().size());
+        assertTrue(queryExplSet.containsAll(parsedResponse.getQueryExplanation()));
+    }
+
+    @Override
+    protected ValidateQueryResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
+                                                       List<DefaultShardOperationFailedException> failures) {
+        return createRandomValidateQueryResponse(totalShards, successfulShards, failedShards, failures);
+    }
+
+    @Override
+    public void testToXContent() {
+        ValidateQueryResponse response = createTestInstance(10, 10, 0, new ArrayList<>());
+        String output = Strings.toString(response);
+        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"valid\":true}", output);
     }
 }

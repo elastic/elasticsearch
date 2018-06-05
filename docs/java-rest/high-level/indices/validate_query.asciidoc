@@ -4,7 +4,7 @@
 [[java-rest-high-indices-validate-query-request]]
 ==== Validate Query Request
 
-A `ValidateRequest` requires one or more `indices` on which to the query is validated. If not index
+A `ValidateQueryRequest` requires one or more `indices` on which the query is validated. If no index
 is provided the request is executed on all indices.
 
 ["source","java",subs="attributes,callouts,macros"]

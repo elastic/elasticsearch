@@ -820,9 +820,12 @@ final class RequestConverters {
     }
 
     static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
-        String endpoint = endpoint(validateQueryRequest.indices(), validateQueryRequest.types(),"_validate/query");
+        String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
+        String[] types = validateQueryRequest.types() == null || indices.length <= 0 ? Strings.EMPTY_ARRAY : validateQueryRequest.types();
+        String endpoint = endpoint(indices, types, "_validate/query");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params(request);
+        params.withIndicesOptions(validateQueryRequest.indicesOptions());
         params.putParam("explain", Boolean.toString(validateQueryRequest.explain()));
         params.putParam("all_shards", Boolean.toString(validateQueryRequest.allShards()));
         params.putParam("rewrite", Boolean.toString(validateQueryRequest.rewrite()));

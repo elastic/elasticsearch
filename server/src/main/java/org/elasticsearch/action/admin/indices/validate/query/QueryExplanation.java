@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -178,48 +178,32 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (o instanceof QueryExplanation) {
-            QueryExplanation other = (QueryExplanation) o;
-            boolean result;
-            if (getIndex() == null) {
-                result = other.getIndex() == null;
-            } else {
-                result = getIndex().equals(other.getIndex());
-            }
-            result &= this.getShard() == other.getShard();
-            result &= isValid() == other.isValid();
-            if (getError() == null) {
-                result &= other.getError() == null;
-            } else {
-                result &= getError().equals(other.getError());
-            }
-            if (getExplanation() == null) {
-                result &= other.getExplanation() == null;
-            } else {
-                result &= getExplanation().equals(other.getExplanation());
-            }
-            return result;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        QueryExplanation other = (QueryExplanation) o;
+        boolean result;
+        if (getIndex() == null) {
+            result = other.getIndex() == null;
         } else {
-            return false;
+            result = getIndex().equals(other.getIndex());
         }
+        result &= this.getShard() == other.getShard();
+        result &= isValid() == other.isValid();
+        if (getError() == null) {
+            result &= other.getError() == null;
+        } else {
+            result &= getError().equals(other.getError());
+        }
+        if (getExplanation() == null) {
+            result &= other.getExplanation() == null;
+        } else {
+            result &= getExplanation().equals(other.getExplanation());
+        }
+        return result;
     }
 
     @Override
     public int hashCode() {
-        int result = 1;
-        if (getIndex() != null) {
-            result = 31 * result + getIndex().hashCode();
-        }
-        if(getShard() >= 0) {
-            result = 31 * result + getShard();
-        }
-        result = 31 * result + (isValid() ? 1 : 0);
-        if (getError() != null) {
-            result = 31 * result + getError().hashCode();
-        }
-        if (getExplanation() != null) {
-            result = 31 * result + getExplanation().hashCode();
-        }
-        return result;
+        return Objects.hash(getIndex(), getShard(), isValid(), getError(), getExplanation());
     }
 }

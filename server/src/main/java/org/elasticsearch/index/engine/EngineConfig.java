@@ -30,6 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
@@ -142,7 +143,16 @@ public final class EngineConfig {
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
         // IndexingMemoryController rather than Lucene.
-        indexingBufferSize = indexSettings.getValue(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING);
+        // Add an escape hatch in case this change proves problematic - it used
+        // to be a fixed amound of RAM: 256 MB.
+        // TODO: Remove this escape hatch in 8.x
+        final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";
+        String maxBufferSize = System.getProperty(escapeHatchProperty);
+        if (maxBufferSize != null) {
+            indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
+        } else {
+            indexingBufferSize = indexSettings.getValue(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING);
+        }
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;

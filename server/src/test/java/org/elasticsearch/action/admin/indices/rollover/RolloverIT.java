@@ -43,6 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -65,6 +66,7 @@ public class RolloverIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-1");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
+        assertThat(IndexMetaData.ROLLOVER_CREATION_DATE_SETTING.get(oldIndex.getSettings()), greaterThan(0L));
         final IndexMetaData newIndex = state.metaData().index("test_index-000002");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
     }
@@ -81,6 +83,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-2");
+        assertThat(IndexMetaData.ROLLOVER_CREATION_DATE_SETTING.get(oldIndex.getSettings()), greaterThan(0L));
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-000003");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
@@ -104,6 +107,7 @@ public class RolloverIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-2");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
+        assertThat(IndexMetaData.ROLLOVER_CREATION_DATE_SETTING.get(oldIndex.getSettings()), greaterThan(0L));
         final IndexMetaData newIndex = state.metaData().index("test_index-000003");
         assertThat(newIndex.getNumberOfShards(), equalTo(1));
         assertThat(newIndex.getNumberOfReplicas(), equalTo(0));
@@ -123,6 +127,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-1");
+        assertThat(IndexMetaData.ROLLOVER_CREATION_DATE_SETTING.get(oldIndex.getSettings()), equalTo(-1L));
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-000002");
         assertNull(newIndex);
@@ -149,6 +154,7 @@ public class RolloverIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-0");
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
+        assertThat(IndexMetaData.ROLLOVER_CREATION_DATE_SETTING.get(oldIndex.getSettings()), equalTo(-1L));
         final IndexMetaData newIndex = state.metaData().index("test_index-000001");
         assertNull(newIndex);
     }
@@ -167,6 +173,7 @@ public class RolloverIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
+        assertThat(IndexMetaData.ROLLOVER_CREATION_DATE_SETTING.get(oldIndex.getSettings()), greaterThan(0L));
         final IndexMetaData newIndex = state.metaData().index("test_new_index");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
     }

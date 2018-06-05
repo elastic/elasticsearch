@@ -271,6 +271,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
         // this is only setable internally not a registered setting!!
 
+    public static final String SETTING_ROLLOVER_CREATION_DATE = "index.rollover.creation_date";
+    public static final Setting<Long> ROLLOVER_CREATION_DATE_SETTING = Setting.longSetting(SETTING_ROLLOVER_CREATION_DATE,
+        -1, -1, Property.Dynamic, Property.IndexScope);
+
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
      */

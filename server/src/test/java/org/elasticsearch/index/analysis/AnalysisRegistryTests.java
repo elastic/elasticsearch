@@ -58,7 +58,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
     private static AnalysisRegistry emptyAnalysisRegistry(Settings settings) {
         return new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), emptyMap());
+                emptyMap(), emptyMap(), emptyMap(), emptyMap());
     }
 
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {

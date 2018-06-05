@@ -65,6 +65,7 @@ class PrecommitTasks {
             precommitTasks.add(configureLoggerUsage(project))
         }
 
+
         Map<String, Object> precommitOptions = [
             name: 'precommit',
             group: JavaBasePlugin.VERIFICATION_GROUP,
@@ -175,5 +176,4 @@ class PrecommitTasks {
 
         return loggerUsageTask
     }
-
 }

@@ -461,9 +461,10 @@ type value is derived from what the `def` type value represents at run-time.
 [[allowed-casts]]
 ==== Allowed Casts
 
-The following tables list all allowed casts read as row (original type) to
-column (target type) with implicit as `I`, explicit as `E`, and not allowed as
-`-`:
+The following tables show all allowed casts. Read the tables row by row, where
+the original type is shown in the first column, and each subsequent column
+indicates whether a cast to the specified type can be implicit (I), explicit
+(E), or is not allowed (-).
 
 *Primitive/Reference Types*
 

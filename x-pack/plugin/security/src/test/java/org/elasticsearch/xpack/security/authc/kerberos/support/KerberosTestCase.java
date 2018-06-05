@@ -43,6 +43,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     @Before
     public void startMiniKdc() throws Exception {
+
         workDir = createTempDir();
         globalSettings = Settings.builder().put("path.home", workDir).build();
 
@@ -52,12 +53,12 @@ public abstract class KerberosTestCase extends ESTestCase {
         // Create SPNs and UPNs
         serviceUserNames.clear();
         Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
-            serviceUserNames.add("HTTP/" + randomAlphaOfLength(6));
+            serviceUserNames.add("HTTP/" + randomAlphaOfLength(8));
         });
         final Path ktabPathForService = createPrincipalKeyTab(workDir, serviceUserNames.toArray(new String[0]));
         clientUserNames.clear();
         Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
-            String clientUserName = "client-" + randomAlphaOfLength(6);
+            String clientUserName = "client-" + randomAlphaOfLength(8);
             clientUserNames.add(clientUserName);
             try {
                 createPrincipal(clientUserName, "pwd".toCharArray());

@@ -6,7 +6,10 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.ietf.jgss.GSSContext;
@@ -43,6 +46,7 @@ import javax.security.auth.login.LoginException;
  * Not thread safe
  */
 public class SpnegoClient {
+    private static final Logger LOGGER = ESLoggerFactory.getLogger(SpnegoClient.class);
     public static final Oid SPNEGO_OID = getSpnegoOid();
 
     private static Oid getSpnegoOid() {
@@ -64,17 +68,28 @@ public class SpnegoClient {
 
     public SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName)
             throws PrivilegedActionException, GSSException {
-        final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
-        final GSSName gssServicePrincipalName = gssManager.createName(servicePrincipalName, GSSName.NT_USER_NAME);
-        loginContext = AccessController
-                .doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password));
-        final GSSCredential userCreds =
-                KerberosTestCase.doAsWrapper(loginContext.getSubject(), (PrivilegedExceptionAction<GSSCredential>) () -> gssManager
-                        .createCredential(gssUserPrincipalName, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY));
-        gssContext = gssManager.createContext(gssServicePrincipalName.canonicalize(SPNEGO_OID), SPNEGO_OID, userCreds,
-                GSSCredential.DEFAULT_LIFETIME);
-        gssContext.requestMutualAuth(true);
-        isEstablished = gssContext.isEstablished();
+        String oldUseSubjectCredsOnlyFlag = null;
+        try {
+            oldUseSubjectCredsOnlyFlag = getAndSetSystemProperty("javax.security.auth.useSubjectCredsOnly", "true");
+
+            LOGGER.info("SpnegoClient with princName : {}", userPrincipalName);
+            final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
+            final GSSName gssServicePrincipalName = gssManager.createName(servicePrincipalName, GSSName.NT_USER_NAME);
+            loginContext = AccessController
+                    .doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password));
+            final GSSCredential userCreds = KerberosTestCase.doAsWrapper(loginContext.getSubject(),
+                    (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(gssUserPrincipalName,
+                            GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY));
+            gssContext = gssManager.createContext(gssServicePrincipalName.canonicalize(SPNEGO_OID), SPNEGO_OID, userCreds,
+                    GSSCredential.DEFAULT_LIFETIME);
+            gssContext.requestMutualAuth(true);
+            isEstablished = gssContext.isEstablished();
+        } catch (PrivilegedActionException pve) {
+            LOGGER.error("privileged action exception, with root cause", pve.getException());
+            throw pve;
+        } finally {
+            getAndSetSystemProperty("javax.security.auth.useSubjectCredsOnly", oldUseSubjectCredsOnlyFlag);
+        }
     }
 
     public String getBase64TicketForSpnegoHeader() throws PrivilegedActionException {
@@ -186,5 +201,28 @@ public class SpnegoClient {
                 }
             }
         }
+    }
+
+    private static String getAndSetSystemProperty(final String systemProperty, final String value) {
+        String retVal = null;
+        try {
+            retVal = AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
+
+                @Override
+                @SuppressForbidden(
+                        reason = "For testing we want to provide credentials, so setting system property javax.security.auth.useSubjectCredsOnly")
+                public String run() throws Exception {
+                    String oldValue = System.getProperty(systemProperty);
+                    if (value != null) {
+                        System.setProperty(systemProperty, value);
+                    }
+                    return oldValue;
+                }
+
+            });
+        } catch (PrivilegedActionException e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
+        return retVal;
     }
 }

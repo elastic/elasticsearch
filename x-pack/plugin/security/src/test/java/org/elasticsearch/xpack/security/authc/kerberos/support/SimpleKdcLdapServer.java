@@ -11,6 +11,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 
 import org.apache.kerby.kerberos.kerb.KrbException;
 import org.apache.kerby.kerberos.kerb.client.KrbConfig;
+import org.apache.kerby.kerberos.kerb.server.KdcConfigKey;
 import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.kerby.util.NetworkUtil;
 import org.apache.logging.log4j.Logger;
@@ -66,7 +67,7 @@ public class SimpleKdcLdapServer {
      */
     public SimpleKdcLdapServer(final Path workDir, final String orgName, final String domainName, final Path ldiff) throws Exception {
         this.workDir = workDir;
-        this.realm = orgName.toUpperCase(Locale.ROOT) + "." + domainName.toUpperCase(Locale.ROOT);
+        this.realm = domainName.toUpperCase(Locale.ROOT) + "." + orgName.toUpperCase(Locale.ROOT);
         this.baseDn = "dc=" + domainName + ",dc=" + orgName;
         this.ldiff = ldiff;
         this.krb5DebugBackupConfigValue = AccessController.doPrivileged(new PrivilegedExceptionAction<Boolean>() {
@@ -137,8 +138,15 @@ public class SimpleKdcLdapServer {
         } else {
             throw new IllegalArgumentException("Need to set transport!");
         }
+        long minimumTicketLifeTime = simpleKdc.getKdcConfig().getMinimumTicketLifetime();
+        long maxRenewableLifeTime = simpleKdc.getKdcConfig().getMaximumRenewableLifetime();
+        simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, 86400000L);
+        simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, 604800000L);
+        logger.info("MINIMUM_TICKET_LIFETIME changed from {}  to {}", minimumTicketLifeTime, 86400000L);
+        logger.info("MAXIMUM_RENEWABLE_LIFETIME changed from {}  to {}", maxRenewableLifeTime, 604800000L);
         simpleKdc.init();
         simpleKdc.start();
+
     }
 
     public String getRealm() {

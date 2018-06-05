@@ -40,6 +40,7 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.translog.Translog;
@@ -196,7 +197,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             return null;
         }
         final long version = docValues[leaf.ord].docVersion(segmentDocID);
-        final FieldsVisitor fields = new FieldsVisitor(true);
+        final String sourceField = docValues[leaf.ord].hasRecoverySource(segmentDocID) ? SourceFieldMapper.RECOVERY_SOURCE_NAME :
+            SourceFieldMapper.NAME;
+        final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
         indexSearcher.doc(docID, fields);
         fields.postProcess(mapperService);
 
@@ -240,6 +243,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         private NumericDocValues seqNoDV;
         private NumericDocValues primaryTermDV;
         private NumericDocValues tombstoneDV;
+        private NumericDocValues recoverySource;
 
         CombinedDocValues(LeafReader leafReader) throws IOException {
             this.leafReader = leafReader;
@@ -248,6 +252,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             this.primaryTermDV = Objects.requireNonNull(
                 leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME), "PrimaryTermDV is missing");
             this.tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+            this.recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
         }
 
         long docVersion(int segmentDocId) throws IOException {
@@ -292,6 +297,16 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
             }
             return tombstoneDV.advanceExact(segmentDocId) && tombstoneDV.longValue() > 0;
+        }
+
+        boolean hasRecoverySource(int segmentDocId) throws IOException {
+            if (recoverySource == null) {
+                return false;
+            }
+            if (tombstoneDV.docID() > segmentDocId) {
+                recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
+            }
+            return tombstoneDV.advanceExact(segmentDocId);
         }
     }
 }

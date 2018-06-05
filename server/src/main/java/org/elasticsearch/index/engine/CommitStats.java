@@ -39,13 +39,13 @@ public final class CommitStats implements Streamable, ToXContentFragment {
     private String id; // lucene commit id in base 64;
     private int numDocs;
 
-    public CommitStats(SegmentInfos segmentInfos, int numDocs) {
+    public CommitStats(SegmentInfos segmentInfos) {
         // clone the map to protect against concurrent changes
         userData = MapBuilder.<String, String>newMapBuilder().putAll(segmentInfos.getUserData()).immutableMap();
         // lucene calls the current generation, last generation.
         generation = segmentInfos.getLastGeneration();
         id = Base64.getEncoder().encodeToString(segmentInfos.getId());
-        this.numDocs = numDocs;
+        numDocs = Lucene.getNumDocs(segmentInfos);
     }
 
     private CommitStats() {

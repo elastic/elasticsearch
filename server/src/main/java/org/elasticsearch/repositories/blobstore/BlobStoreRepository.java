@@ -1425,6 +1425,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
                     // shard anyway, we just create the empty shard here and then exit.
                     IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(null)
+                        .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
                         .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
                         .setCommitOnClose(true));
                     writer.close();

@@ -80,11 +80,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         String message = null;
         RestStatus status = RestStatus.OK;
         if (false == Strings.isAllOrWildcard(request.aliases())) {
-            String[] aliasesNames = Strings.EMPTY_ARRAY;
-
-            if (false == Strings.isAllOrWildcard(request.aliases())) {
-                aliasesNames = request.aliases();
-            }
+            String[] aliasesNames = request.aliases();
 
             final Set<String> aliasNames = new HashSet<>();
             for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : result) {
@@ -122,5 +118,4 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         }
         listener.onResponse(new GetAliasesResponse(result, status, message));
     }
-
 }

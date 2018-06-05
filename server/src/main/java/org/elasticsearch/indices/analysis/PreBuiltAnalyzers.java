@@ -465,7 +465,7 @@ public enum PreBuiltAnalyzers {
         cache = PreBuiltCacheFactory.getCache(cachingStrategy);
     }
 
-    PreBuiltCacheFactory.PreBuiltCache<Analyzer> getCache() {
+    public PreBuiltCacheFactory.PreBuiltCache<Analyzer> getCache() {
         return cache;
     }
 

@@ -120,7 +120,7 @@ public final class AnalysisModule {
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
         Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = setupPreConfiguredTokenizers(plugins);
-        Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers = setPreBuiltAnalyzerProviderFactory(plugins);
+        Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers = setupPreBuiltAnalyzerProviderFactories(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment,
                 charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers.getRegistry(),
@@ -161,7 +161,7 @@ public final class AnalysisModule {
         return tokenFilters;
     }
 
-    static Map<String, PreBuiltAnalyzerProviderFactory> setPreBuiltAnalyzerProviderFactory(List<AnalysisPlugin> plugins) {
+    static Map<String, PreBuiltAnalyzerProviderFactory> setupPreBuiltAnalyzerProviderFactories(List<AnalysisPlugin> plugins) {
         NamedRegistry<PreBuiltAnalyzerProviderFactory> preConfiguredCharFilters = new NamedRegistry<>("pre-built analyzer");
         for (AnalysisPlugin plugin : plugins) {
             for (PreBuiltAnalyzerProviderFactory factory : plugin.getPreBuiltAnalyzerProviderFactories()) {

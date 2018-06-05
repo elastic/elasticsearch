@@ -397,10 +397,10 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, ? extends AnalysisProvider<CharFilterFactory>> preConfiguredCharFilterFactories;
 
         private PrebuiltAnalysis(
-            Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
-            Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
-            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
-            Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
+                Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
+                Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
+                Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
+                Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
 
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
             analyzerProviderFactories.putAll(preConfiguredAnalyzers);

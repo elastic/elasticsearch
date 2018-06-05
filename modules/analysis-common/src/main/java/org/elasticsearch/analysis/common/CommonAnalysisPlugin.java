@@ -213,7 +213,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip",
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.LUCENE,
             version -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH, version ->
             new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET)));

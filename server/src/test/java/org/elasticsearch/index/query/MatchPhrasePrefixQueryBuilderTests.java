@@ -119,6 +119,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     }
 
     public void testPhraseOnFieldWithNoTerms() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
         expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createShardContext()));

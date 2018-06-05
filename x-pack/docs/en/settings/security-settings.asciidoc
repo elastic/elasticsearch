@@ -1225,6 +1225,19 @@ Password to the truststore.
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+[[pkcs12-truststore-note]]
+[NOTE]
+Storing trusted certificates in a PKCS#12 file, although supported, is
+uncommon in practice. The {ref}/certutil.html[`elasticsearch-certutil`] tool,
+as well as Java's `keytool`, are designed to generate PKCS#12 files that
+can be used both as a keystore and as a truststore, but this may not be the
+case for container files that are created using other tools. Usually,
+PKCS#12 files only contain secret and private entries. To confirm that
+a PKCS#12 container includes trusted certificate ("anchor") entries look for
+`2.16.840.1.113894.746875.1.1: <Unsupported tag 6>` in the
+`openssl pkcs12 -info` output, or `trustedCertEntry` in the
+`keytool -list` output.
+
 [[http-tls-ssl-settings]]
 :ssl-prefix:             xpack.security.http
 :component:              HTTP

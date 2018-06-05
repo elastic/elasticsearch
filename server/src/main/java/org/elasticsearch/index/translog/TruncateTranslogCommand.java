@@ -33,6 +33,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.OutputStreamDataOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -179,6 +180,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
             terminal.println("Marking index with the new history uuid");
             // commit the new histroy id
             IndexWriterConfig iwc = new IndexWriterConfig(null)
+                .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
                 .setCommitOnClose(false)
                 // we don't want merges to happen here - we call maybe merge on the engine
                 // later once we stared it up otherwise we would need to wait for it here

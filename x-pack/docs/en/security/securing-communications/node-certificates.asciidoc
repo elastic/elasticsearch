@@ -4,7 +4,7 @@
 TLS requires X.509 certificates to perform encryption and authentication of the
 application that is being communicated with. In order for the communication
 between nodes to be truly secure, the certificates must be validated. The
-recommended approach for validating certificate authenticity in a {es} cluster
+recommended approach for validating certificate authenticity in an {es} cluster
 is to trust the certificate authority (CA) that signed the certificate. By doing
 this, as nodes are added to your cluster they just need to use a certificate
 signed by the same CA and the node is automatically allowed to join the cluster.

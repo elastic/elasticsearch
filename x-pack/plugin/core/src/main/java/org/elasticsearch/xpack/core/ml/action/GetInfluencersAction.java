@@ -29,18 +29,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GetInfluencersAction
-extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetInfluencersAction.RequestBuilder> {
+extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/influencers/get";
 
     private GetInfluencersAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -224,7 +219,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

@@ -38,9 +38,12 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -78,6 +81,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -327,6 +331,42 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetMapping() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        putMappingRequest.type("_doc");
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        PutMappingResponse putMappingResponse =
+            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        Map<String, Object> getIndexResponse = getAsMap(indexName);
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings._doc.properties.field.type", getIndexResponse));
+
+        GetMappingsRequest request = new GetMappingsRequest()
+            .indices(indexName)
+            .types("_doc");
+
+        GetMappingsResponse getMappingsResponse =
+            execute(request, highLevelClient().indices()::getMappings, highLevelClient().indices()::getMappingsAsync);
+
+        Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
+        Map<String, String> type = new HashMap<>();
+        type.put("type", "text");
+        Map<String, Object> field = new HashMap<>();
+        field.put("field", type);
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("properties", field);
+        assertThat(mappings, equalTo(expected));
+    }
+
     public void testDeleteIndex() throws IOException {
         {
             // Delete index if exists
@@ -562,6 +602,39 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }
+
+    public void testSyncedFlush() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                    .put("number_of_shards", 1)
+                    .put("number_of_replicas", 0)
+                    .build();
+            createIndex(index, settings);
+            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
+            SyncedFlushResponse flushResponse =
+                    execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync);
+            assertThat(flushResponse.totalShards(), equalTo(1));
+            assertThat(flushResponse.successfulShards(), equalTo(1));
+            assertThat(flushResponse.failedShards(), equalTo(0));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () ->
+                    execute(
+                        syncedFlushRequest,
+                        highLevelClient().indices()::flushSynced,
+                        highLevelClient().indices()::flushSyncedAsync
+                    )
+            );
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
 
     public void testClearCache() throws IOException {
         {

@@ -10,6 +10,12 @@ do
   source "`dirname "$0"`"/$additional_source
 done
 
+IFS=';' read -r -a additional_classpath_directories <<< "$ES_ADDITIONAL_CLASSPATH_DIRECTORIES"
+for additional_classpath_directory in "${additional_classpath_directories[@]}"
+do
+  ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/$additional_classpath_directory/*"
+done
+
 exec \
   "$JAVA" \
   $ES_JAVA_OPTS \

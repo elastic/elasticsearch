@@ -25,18 +25,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response, PutJobAction.RequestBuilder> {
+public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response> {
 
     public static final PutJobAction INSTANCE = new PutJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/put";
 
     private PutJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override

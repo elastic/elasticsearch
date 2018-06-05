@@ -227,6 +227,7 @@ public class TcpTransportTests extends ESTestCase {
                     .streamInput(streamIn);
                 }
             threadPool.getThreadContext().readHeaders(streamIn);
+            assertThat(streamIn.readStringArray(), equalTo(new String[0])); // features
             assertEquals("foobar", streamIn.readString());
             Req readReq = new Req("");
             readReq.readFrom(streamIn);

@@ -36,7 +36,7 @@ public class StoreKeyConfigTests extends ESTestCase {
         final StoreKeyConfig keyConfig = new StoreKeyConfig(path, type, keyStorePassword, keyStorePassword,
                 KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
         final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings));
-        final PrivateKey key = keyManager.getPrivateKey("testnode");
+        final PrivateKey key = keyManager.getPrivateKey("testnode_rsa");
         assertThat(key, notNullValue());
         assertThat(key.getAlgorithm(), equalTo("RSA"));
         assertThat(key.getFormat(), equalTo("PKCS#8"));

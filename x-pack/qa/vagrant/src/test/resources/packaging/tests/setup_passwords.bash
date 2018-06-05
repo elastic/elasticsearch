@@ -14,6 +14,7 @@ setup() {
         export PACKAGE_NAME="elasticsearch"
         clean_before_test
         install
+        set_debug_logging
 
         generate_trial_license
         verify_xpack_installation

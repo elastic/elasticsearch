@@ -22,16 +22,17 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
+public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
@@ -39,11 +40,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     private OpenJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -132,7 +128,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
     }
 
-    public static class JobParams implements PersistentTaskParams {
+    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
@@ -242,6 +238,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         public String toString() {
             return Strings.toString(this);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
     }
 
     public static class Response extends AcknowledgedResponse {
@@ -251,16 +252,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
         }
 
         @Override
@@ -286,7 +277,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());

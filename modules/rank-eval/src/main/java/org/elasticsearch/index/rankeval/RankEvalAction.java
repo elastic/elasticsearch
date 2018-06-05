@@ -20,23 +20,17 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for explaining evaluating search ranking results.
  */
-public class RankEvalAction extends Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
+public class RankEvalAction extends Action<RankEvalRequest, RankEvalResponse> {
 
     public static final RankEvalAction INSTANCE = new RankEvalAction();
     public static final String NAME = "indices:data/read/rank_eval";
 
     private RankEvalAction() {
         super(NAME);
-    }
-
-    @Override
-    public RankEvalRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RankEvalRequestBuilder(client, this, new RankEvalRequest());
     }
 
     @Override

@@ -66,6 +66,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -84,6 +85,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -148,6 +150,35 @@ public class ClusterModule extends AbstractModule {
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
+    }
+
+    static final Set<String> PRE_6_3_METADATA_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+        IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE));
+
+    static final Set<String> PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
+        RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE));
+
+    /**
+     * For interoperability with transport clients older than 6.3, we need to strip customs
+     * from the cluster state that the client might not be able to deserialize
+     *
+     * @param clusterState the cluster state to filter the customs from
+     * @return the adapted cluster state
+     */
+    public static ClusterState filterCustomsForPre63Clients(ClusterState clusterState) {
+        final ClusterState.Builder builder = ClusterState.builder(clusterState);
+        clusterState.customs().keysIt().forEachRemaining(name -> {
+            if (PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST.contains(name) == false) {
+                builder.removeCustom(name);
+            }
+        });
+        final MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
+        clusterState.metaData().customs().keysIt().forEachRemaining(name -> {
+            if (PRE_6_3_METADATA_CUSTOMS_WHITE_LIST.contains(name) == false) {
+                metaBuilder.removeCustom(name);
+            }
+        });
+        return builder.metaData(metaBuilder).build();
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXWriteables() {

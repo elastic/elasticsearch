@@ -83,8 +83,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         client = new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-            void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                RequestBuilder extends ActionRequestBuilder<Request, Response>>
+            void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
                 NativePrivilegeStoreTests.this.requests.add(request);
                 NativePrivilegeStoreTests.this.listener.set(listener);
             }

@@ -11,8 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Builder for {@link GetPrivilegesRequest}
  */
-public final class GetPrivilegesRequestBuilder
-    extends ActionRequestBuilder<GetPrivilegesRequest, GetPrivilegesResponse, GetPrivilegesRequestBuilder> {
+public final class GetPrivilegesRequestBuilder extends ActionRequestBuilder<GetPrivilegesRequest, GetPrivilegesResponse> {
 
     public GetPrivilegesRequestBuilder(ElasticsearchClient client, GetPrivilegesAction action) {
         super(client, action, new GetPrivilegesRequest());

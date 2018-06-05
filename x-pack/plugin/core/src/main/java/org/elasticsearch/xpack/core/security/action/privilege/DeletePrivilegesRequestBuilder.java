@@ -14,8 +14,7 @@ import java.util.Collection;
 /**
  * Builder for {@link DeletePrivilegesRequest}
  */
-public final class DeletePrivilegesRequestBuilder
-        extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse, DeletePrivilegesRequestBuilder>
+public final class DeletePrivilegesRequestBuilder     extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse>
         implements WriteRequestBuilder<DeletePrivilegesRequestBuilder> {
 
     public DeletePrivilegesRequestBuilder(ElasticsearchClient client, DeletePrivilegesAction action) {

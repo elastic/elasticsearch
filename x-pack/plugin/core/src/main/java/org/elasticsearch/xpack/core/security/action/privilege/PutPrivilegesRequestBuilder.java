@@ -27,8 +27,7 @@ import java.util.Objects;
 /**
  * Request builder for {@link PutPrivilegesRequest}
  */
-public final class PutPrivilegesRequestBuilder
-    extends ActionRequestBuilder<PutPrivilegesRequest, PutPrivilegesResponse, PutPrivilegesRequestBuilder>
+public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutPrivilegesRequest, PutPrivilegesResponse>
     implements WriteRequestBuilder<PutPrivilegesRequestBuilder> {
 
     public PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {

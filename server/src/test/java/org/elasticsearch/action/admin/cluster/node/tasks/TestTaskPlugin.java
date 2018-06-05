@@ -323,7 +323,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     }
 
-    public static class TestTaskAction extends Action<NodesRequest, NodesResponse, NodesRequestBuilder> {
+    public static class TestTaskAction extends Action<NodesRequest, NodesResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/tasks/test";
@@ -336,16 +336,11 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         public NodesResponse newResponse() {
             return new NodesResponse();
         }
-
-        @Override
-        public NodesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-            return new NodesRequestBuilder(client, this);
-        }
     }
 
     public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
 
-        protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesRequest, NodesResponse, NodesRequestBuilder> action) {
+        protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesRequest, NodesResponse> action) {
             super(client, action, new NodesRequest("test"));
         }
 
@@ -459,8 +454,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     }
 
-    public static class UnblockTestTasksAction extends Action<UnblockTestTasksRequest, UnblockTestTasksResponse,
-        UnblockTestTasksRequestBuilder> {
+    public static class UnblockTestTasksAction extends Action<UnblockTestTasksRequest, UnblockTestTasksResponse> {
 
         public static final UnblockTestTasksAction INSTANCE = new UnblockTestTasksAction();
         public static final String NAME = "cluster:admin/tasks/testunblock";
@@ -473,18 +467,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         public UnblockTestTasksResponse newResponse() {
             return new UnblockTestTasksResponse();
         }
-
-        @Override
-        public UnblockTestTasksRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-            return new UnblockTestTasksRequestBuilder(client, this);
-        }
     }
 
-    public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse,
-        UnblockTestTasksRequestBuilder> {
+    public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse> {
 
-        protected UnblockTestTasksRequestBuilder(ElasticsearchClient client, Action<UnblockTestTasksRequest, UnblockTestTasksResponse,
-            UnblockTestTasksRequestBuilder> action) {
+        protected UnblockTestTasksRequestBuilder(ElasticsearchClient client,
+                                                 Action<UnblockTestTasksRequest, UnblockTestTasksResponse> action) {
             super(client, action, new UnblockTestTasksRequest());
         }
     }

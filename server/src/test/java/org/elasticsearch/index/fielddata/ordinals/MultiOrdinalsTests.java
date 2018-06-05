@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.packed.PackedInts;
@@ -261,7 +262,7 @@ public class MultiOrdinalsTests extends ESTestCase {
             }
         }
         assertThat(docs.getValueCount(), equalTo(maxOrd));
-        assertThat(FieldData.isMultiValued(docs), equalTo(true));
+        assertNull(DocValues.unwrapSingleton(docs));
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             long[] ords = ordinalPlan[doc];
             assertEquals(ords.length > 0, docs.advanceExact(doc));

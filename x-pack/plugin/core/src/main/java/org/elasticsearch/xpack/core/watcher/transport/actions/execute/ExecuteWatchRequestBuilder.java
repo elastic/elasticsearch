@@ -19,8 +19,7 @@ import java.util.Map;
 /**
  * A execute watch action request builder.
  */
-public class ExecuteWatchRequestBuilder extends ActionRequestBuilder<ExecuteWatchRequest, ExecuteWatchResponse,
-        ExecuteWatchRequestBuilder> {
+public class ExecuteWatchRequestBuilder extends ActionRequestBuilder<ExecuteWatchRequest, ExecuteWatchResponse> {
 
     public ExecuteWatchRequestBuilder(ElasticsearchClient client) {
         super(client, ExecuteWatchAction.INSTANCE, new ExecuteWatchRequest());

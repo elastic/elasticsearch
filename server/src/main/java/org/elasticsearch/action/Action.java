@@ -19,20 +19,13 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.client.ElasticsearchClient;
-
 /**
  * Base action. Supports building the <code>Request</code> through a <code>RequestBuilder</code>.
  */
-public abstract class Action<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
+public abstract class Action<Request extends ActionRequest, Response extends ActionResponse>
         extends GenericAction<Request, Response> {
 
     protected Action(String name) {
         super(name);
     }
-
-    /**
-     * Creates a new request builder given the client provided as argument
-     */
-    public abstract RequestBuilder newRequestBuilder(ElasticsearchClient client);
 }

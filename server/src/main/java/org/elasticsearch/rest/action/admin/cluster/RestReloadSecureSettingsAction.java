@@ -19,19 +19,13 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
 
@@ -59,19 +53,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
                 .setTimeout(request.param("timeout"))
                 .setNodesIds(nodesIds)
                 .setSecureStorePassword(request.param("secure_settings_password", ""))
-                .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
-                            throws Exception {
-                        builder.startObject();
-                        RestActions.buildNodesHeader(builder, channel.request(), response);
-                        builder.field("cluster_name", response.getClusterName().value());
-                        response.toXContent(builder, channel.request());
-                        builder.endObject();
-
-                        return new BytesRestResponse(RestStatus.OK, builder);
-                    }
-                });
+                .execute(new NodesResponseRestListener<>(channel));
     }
 
     @Override

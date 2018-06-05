@@ -102,6 +102,6 @@ public class ClusterUpdateSettingsResponseTests extends AbstractStreamableXConte
 
     public void testOldSerialisation() throws IOException {
         ClusterUpdateSettingsResponse original = createTestInstance();
-        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0_alpha1));
+        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0));
     }
 }

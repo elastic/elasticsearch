@@ -20,10 +20,9 @@
 package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 public class NodesReloadSecureSettingsAction
-        extends Action<NodesReloadSecureSettingsRequest, NodesReloadSecureSettingsResponse, NodesReloadSecureSettingsRequestBuilder> {
+        extends Action<NodesReloadSecureSettingsRequest, NodesReloadSecureSettingsResponse> {
 
     public static final NodesReloadSecureSettingsAction INSTANCE = new NodesReloadSecureSettingsAction();
     public static final String NAME = "cluster:admin/nodes/reload_secure_settings";
@@ -37,8 +36,4 @@ public class NodesReloadSecureSettingsAction
         return new NodesReloadSecureSettingsResponse();
     }
 
-    @Override
-    public NodesReloadSecureSettingsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new NodesReloadSecureSettingsRequestBuilder(client, this);
-    }
 }

@@ -11,6 +11,7 @@ buildscript {
 }
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'maven-publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
@@ -46,9 +47,34 @@ dependencyLicenses {
 }
 
 shadowJar {
-    baseName = 'elasticsearch-jdbc'
     classifier = null
     relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
+}
+
+// We don't need normal jar, we use shadow jar instead
+jar.enabled = false
+
+// We need a no-depenencies jar though for qa testing so it doesn't conflict with cli
+configurations {
+    nodeps
+}
+
+task nodepsJar(type: Jar) {
+    appendix 'nodeps'
+    from sourceSets.main.output
+}
+
+artifacts  {
+    nodeps nodepsJar
+    archives shadowJar
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifact shadowJar
+        }
+    }
 }
 
 assemble.dependsOn shadowJar

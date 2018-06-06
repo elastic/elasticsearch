@@ -43,7 +43,6 @@ import org.elasticsearch.index.analysis.CzechAnalyzerProvider;
 import org.elasticsearch.index.analysis.DanishAnalyzerProvider;
 import org.elasticsearch.index.analysis.DutchAnalyzerProvider;
 import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
-import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
 import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
 import org.elasticsearch.index.analysis.FrenchAnalyzerProvider;
 import org.elasticsearch.index.analysis.GalicianAnalyzerProvider;
@@ -59,9 +58,9 @@ import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
 import org.elasticsearch.index.analysis.LatvianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
-import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -73,7 +72,6 @@ import org.elasticsearch.index.analysis.SnowballAnalyzerProvider;
 import org.elasticsearch.index.analysis.SoraniAnalyzerProvider;
 import org.elasticsearch.index.analysis.SpanishAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopAnalyzerProvider;
@@ -122,11 +120,12 @@ public final class AnalysisModule {
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
         Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = setupPreConfiguredTokenizers(plugins);
+        Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers = setupPreBuiltAnalyzerProviderFactories(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment,
                 charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers.getRegistry(),
                 analyzers.getRegistry(), normalizers.getRegistry(),
-                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
+                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers, preConfiguredAnalyzers);
     }
 
     HunspellService getHunspellService() {
@@ -160,6 +159,16 @@ public final class AnalysisModule {
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreBuiltAnalyzerProviderFactory> setupPreBuiltAnalyzerProviderFactories(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreBuiltAnalyzerProviderFactory> preConfiguredCharFilters = new NamedRegistry<>("pre-built analyzer");
+        for (AnalysisPlugin plugin : plugins) {
+            for (PreBuiltAnalyzerProviderFactory factory : plugin.getPreBuiltAnalyzerProviderFactories()) {
+                preConfiguredCharFilters.register(factory.getName(), factory);
+            }
+        }
+        return unmodifiableMap(preConfiguredCharFilters.getRegistry());
     }
 
     static Map<String, PreConfiguredCharFilter> setupPreConfiguredCharFilters(List<AnalysisPlugin> plugins) {
@@ -232,12 +241,10 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = new NamedRegistry<>("analyzer");
         analyzers.register("default", StandardAnalyzerProvider::new);
         analyzers.register("standard", StandardAnalyzerProvider::new);
-        analyzers.register("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.register("simple", SimpleAnalyzerProvider::new);
         analyzers.register("stop", StopAnalyzerProvider::new);
         analyzers.register("whitespace", WhitespaceAnalyzerProvider::new);
         analyzers.register("keyword", KeywordAnalyzerProvider::new);
-        analyzers.register("pattern", PatternAnalyzerProvider::new);
         analyzers.register("snowball", SnowballAnalyzerProvider::new);
         analyzers.register("arabic", ArabicAnalyzerProvider::new);
         analyzers.register("armenian", ArmenianAnalyzerProvider::new);
@@ -274,7 +281,6 @@ public final class AnalysisModule {
         analyzers.register("swedish", SwedishAnalyzerProvider::new);
         analyzers.register("turkish", TurkishAnalyzerProvider::new);
         analyzers.register("thai", ThaiAnalyzerProvider::new);
-        analyzers.register("fingerprint", FingerprintAnalyzerProvider::new);
         analyzers.extractAndRegister(plugins, AnalysisPlugin::getAnalyzers);
         return analyzers;
     }

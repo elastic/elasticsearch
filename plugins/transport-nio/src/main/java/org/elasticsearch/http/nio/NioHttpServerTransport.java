@@ -108,9 +108,6 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "http.nio.worker_count"), Setting.Property.NodeScope);
 
-    private static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "http_nio_transport_worker";
-    private static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = "http_nio_transport_acceptor";
-
     private final BigArrays bigArrays;
     private final ThreadPool threadPool;
     private final NamedXContentRegistry xContentRegistry;
@@ -177,8 +174,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         try {
             int acceptorCount = NIO_HTTP_ACCEPTOR_COUNT.get(settings);
             int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), workerCount,
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+                daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX), workerCount,
                 (s) -> new EventHandler(this::nonChannelExceptionCaught, s));
             channelFactory = new HttpChannelFactory();
             this.boundAddress = createBoundHttpAddress();

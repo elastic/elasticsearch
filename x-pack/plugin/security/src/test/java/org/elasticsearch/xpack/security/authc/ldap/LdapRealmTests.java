@@ -360,7 +360,9 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm realm = new LdapRealm(LdapRealmSettings.LDAP_TYPE, config, ldapFactory,
                 new DnRoleMapper(config, resourceWatcherService), threadPool);
 
-        Map<String, Object> stats = realm.usageStats();
+        PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        realm.usageStats(future);
+        Map<String, Object> stats = future.get();
         assertThat(stats, is(notNullValue()));
         assertThat(stats, hasEntry("name", "ldap-realm"));
         assertThat(stats, hasEntry("order", realm.order()));

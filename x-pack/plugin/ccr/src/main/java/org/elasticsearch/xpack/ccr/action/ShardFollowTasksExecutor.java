@@ -234,11 +234,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             this.countDown = new CountDown(concurrentProcessors);
         }
 
-        void createChucks(long from, long to) {
+        /**
+         * Creates chunks of the specified range, inclusive.
+         *
+         * @param from the lower end of the range (inclusive)
+         * @param to   the upper end of the range (inclusive)
+         */
+        void createChucks(final long from, final long to) {
             LOGGER.debug("{} Creating chunks for operation range [{}] to [{}]", leaderShard, from, to);
             for (long i = from; i < to; i += batchSize) {
-                long v2 = i + batchSize < to ? i + batchSize : to;
-                chunks.add(new long[]{i == from ? i : i + 1, v2});
+                long v2 = i + batchSize <= to ? i + batchSize - 1 : to;
+                chunks.add(new long[]{i, v2});
             }
         }
 

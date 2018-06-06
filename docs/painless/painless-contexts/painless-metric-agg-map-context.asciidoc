@@ -4,9 +4,9 @@
 Use a Painless script to
 {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[map]
 values for use in a scripted metric aggregation. A map script is run once per
-collected document following an
+collected document following an optional
 <<painless-metric-agg-init-context, initialization script>> and is required as
-part of a full aggregation.
+part of a full metric aggregation.
 
 *Variables*
 
@@ -25,17 +25,18 @@ part of a full aggregation.
 *Side Effects*
 
 `params['_agg']` (`Map`)::
-        Use this `Map` to add values for processing in a
-        <<painless-metric-agg-combine-context, combine script>>.  Additional
-        values must be of the type `Map`, `List`, `String` or primitive.  If an
-        <<painless-metric-agg-init-context, initialization script>> is
-        provided as part the aggregation then values added from the
-        initialization script are available as well.  If no combine script is
-        specified, values must be directly stored in `_agg`.
+        Use this `Map` to add values for processing in a combine script.
+        Additional values must be of the type `Map`, `List`, `String` or
+        primitive. If an initialization script is provided as part the
+        aggregation then values added from the initialization script are
+        available as well.  If no combine script is specified, values must be
+        directly stored in `_agg`. If no combine script and no
+        <<painless-metric-agg-reduce-context, reduce script>> are specified, the
+        values are used as the result.
 
 *Return*
 
-`void`:
+`void`::
         No expected return value.
 
 *API*

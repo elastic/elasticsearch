@@ -5,7 +5,7 @@ Use a Painless script to
 {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[initialize]
 values for use in a scripted metric aggregation. An initialization script is
 run prior to document collection once per shard and is optional as part of the
-full aggregation.
+full metric aggregation.
 
 *Variables*
 
@@ -13,19 +13,18 @@ full aggregation.
         User-defined parameters passed in at query-time.
 
 `params['_agg']` (`Map`)::
-        Empty `Map` used to add values for collection in a
+        Empty `Map` used to add values for use in a
         <<painless-metric-agg-map-context, map script>>.
 
 *Side Effects*
 
 `params['_agg']` (`Map`)::
-        Use this `Map` to add values for use in collection with a
-        <<painless-metric-agg-map-context, map script>>.  Additional values must
+        Add values to this `Map` to for use in a map.  Additional values must
         be of the type `Map`, `List`, `String` or primitive.
 
 *Return*
 
-`void`:
+`void`::
         No expected return value.
 
 *API*

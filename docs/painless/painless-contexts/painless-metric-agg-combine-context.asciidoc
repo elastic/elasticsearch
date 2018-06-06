@@ -5,7 +5,7 @@ Use a Painless script to
 {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[combine]
 values for use in a scripted metric aggregation. A combine script is run once
 per shard following a <<painless-metric-agg-map-context, map script>> and is
-optional as part of a full aggregation.
+optional as part of a full metric aggregation.
 
 *Variables*
 
@@ -13,15 +13,14 @@ optional as part of a full aggregation.
         User-defined parameters passed in at query-time.
 
 `params['_agg']` (`Map`)::
-        `Map` used to add values for processing in a
-        <<painless-metric-agg-map-context, combine script>> or returned
-        directly.
+        `Map` with values available from the prior map script.
 
 *Return*
 
-`List`, 'Map', `String`, or primitive:
-        A value collected for use in a the <<reduce-script
-
+`List`, `Map`, `String`, or primitive::
+        A value collected for use in a
+        <<painless-metric-agg-reduce-context, reduce script>>. If no reduce
+        script is specified, the value is used as part of the result.
 
 *API*
 

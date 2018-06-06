@@ -154,10 +154,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                another shard)
      */
     protected IndexShard newShard(boolean primary) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary,
-                ShardRoutingState.INITIALIZING,
-                primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
-        return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory());
+        return newShard(primary, Settings.EMPTY, new InternalEngineFactory());
     }
 
     /**
@@ -169,9 +166,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param engineFactory the engine factory to use for this shard
      */
     protected IndexShard newShard(boolean primary, Settings settings, EngineFactory engineFactory) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary,
-                ShardRoutingState.INITIALIZING,
-                primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
+        final RecoverySource recoverySource =
+                primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE;
+        final ShardRouting shardRouting =
+                TestShardRouting.newShardRouting(
+                        new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary, ShardRoutingState.INITIALIZING, recoverySource);
         return newShard(shardRouting, settings, engineFactory);
     }
 

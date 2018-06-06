@@ -2133,7 +2133,7 @@ public class RequestConvertersTests extends ESTestCase {
             }
             setter.accept(ActiveShardCount.parseString(waitForActiveShardsString));
             expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
-        } else if (defaultValue != null){
+        } else if (defaultValue != null) {
             expectedParams.put("wait_for_active_shards", defaultValue);
         }
     }

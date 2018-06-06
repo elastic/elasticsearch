@@ -33,7 +33,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-ind
 
 ==== Other parameters
 
-Other parameters can be passed only through setters methods:
+Other parameters can be passed only through setter methods:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -53,29 +53,26 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-mas
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-status]
 --------------------------------------------------
-<1> The status to wait for or better i.e. `green` > `yellow` > `red`. Accepts `ClusterHealthStatus` instance
+<1> The status to wait (e.g. `green`, `yellow`, or `red`). Accepts a `ClusterHealthStatus` value.
 <2> Using predefined method
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-level]
 --------------------------------------------------
-<1> The level of representation. Possible levels:
-- `cluster` - indices collection will be empty
-- `indices` - indices will have empty shards collections
-- `shards` - full details. Used by default
+<1> The level of detail of the returned health information. Accepts a `ClusterHealthRequest.Level` value.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-relocation]
 --------------------------------------------------
-<1> Wait for 0 relocating shards. Default `false`
+<1> Wait for 0 relocating shards. Defaults to `false`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-initializing]
 --------------------------------------------------
-<1> Wait for 0 initializing shards. Default `false`
+<1> Wait for 0 initializing shards. Defaults to `false`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -187,3 +184,15 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-ta
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-indices]
 --------------------------------------------------
 <1> Detailed information about indices in the cluster
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-index]
+--------------------------------------------------
+<1> Detailed information about a specific index
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-shard-details]
+--------------------------------------------------
+<1> Detailed information about a specific shard

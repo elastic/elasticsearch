@@ -132,7 +132,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.level(ClusterHealthRequest.Level.CLUSTER);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
-        assertTenYellowShards(response);
+        assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
@@ -144,14 +144,14 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.level(ClusterHealthRequest.Level.INDICES);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
-        assertTenYellowShards(response);
+        assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(2));
         for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {
             assertYellowIndex(entry.getKey(), entry.getValue(), true);
         }
     }
 
-    private static void assertTenYellowShards(ClusterHealthResponse response) {
+    private static void assertYellowShards(ClusterHealthResponse response) {
         assertThat(response, notNullValue());
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
@@ -165,7 +165,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getUnassignedShards(), equalTo(2));
         assertThat(response.getActiveShardsPercent(), equalTo(50d));
     }
-
 
     public void testClusterHealthYellowSpecificIndex() throws IOException {
         createIndex("index", Settings.EMPTY);
@@ -233,7 +232,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertNoIndices(response);
     }
 
-    public static void assertNoIndices(ClusterHealthResponse response) {
+    private static void assertNoIndices(ClusterHealthResponse response) {
         assertThat(response.getIndices(), equalTo(emptyMap()));
         assertThat(response.getActivePrimaryShards(), equalTo(0));
         assertThat(response.getNumberOfDataNodes(), equalTo(1));

@@ -25,12 +25,13 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.ClusterClientIT;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -188,6 +189,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();
+        client.indices().create(new CreateIndexRequest("index"));
         {
             // tag::health-request
             ClusterHealthRequest request = new ClusterHealthRequest();
@@ -252,23 +254,26 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         ClusterHealthResponse response = client.cluster().health(request);
         // end::health-execute
 
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(response, notNullValue());
+        // tag::health-response-general
+        String clusterName = response.getClusterName(); // <1>
+        ClusterHealthStatus status = response.getStatus(); // <2>
+        // end::health-response-general
+
+        // tag::health-response-request-status
+        boolean timedOut = response.isTimedOut(); // <1>
+        RestStatus restStatus = response.status(); // <2>
+        // end::health-response-request-status
+
+        // tag::health-response-nodes
+        int numberOfNodes = response.getNumberOfNodes(); // <1>
+        int numberOfDataNodes = response.getNumberOfDataNodes(); // <2>
+        // end::health-response-nodes
+
         {
-            // tag::health-response-general
-            String clusterName = response.getClusterName(); // <1>
-            ClusterHealthStatus status = response.getStatus(); // <2>
-            // end::health-response-general
-
-            // tag::health-response-request-status
-            boolean timedOut = response.isTimedOut(); // <1>
-            RestStatus restStatus = response.status(); // <2>
-            // end::health-response-request-status
-
-            // tag::health-response-nodes
-            int numberOfNodes = response.getNumberOfNodes(); // <1>
-            int numberOfDataNodes = response.getNumberOfDataNodes(); // <2>
-            // end::health-response-nodes
-
             // tag::health-response-shards
             int activeShards = response.getActiveShards(); // <1>
             int activePrimaryShards = response.getActivePrimaryShards(); // <2>
@@ -278,21 +283,43 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             int delayedUnassignedShards = response.getDelayedUnassignedShards(); // <6>
             double activeShardsPercent = response.getActiveShardsPercent(); // <7>
             // end::health-response-shards
-
-            // tag::health-response-task
-            TimeValue taskMaxWaitingTime = response.getTaskMaxWaitingTime(); // <1>
-            int numberOfPendingTasks = response.getNumberOfPendingTasks(); // <2>
-            int numberOfInFlightFetch = response.getNumberOfInFlightFetch(); // <3>
-            // end::health-response-task
-
-            // tag::health-response-indices
-            Map<String, ClusterIndexHealth> indices = response.getIndices(); // <1>
-            // end::health-response-indices
         }
-        assertThat(response.isTimedOut(), equalTo(false));
-        assertThat(response.status(), equalTo(RestStatus.OK));
-        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        ClusterClientIT.assertNoIndices(response);
+
+        // tag::health-response-task
+        TimeValue taskMaxWaitingTime = response.getTaskMaxWaitingTime(); // <1>
+        int numberOfPendingTasks = response.getNumberOfPendingTasks(); // <2>
+        int numberOfInFlightFetch = response.getNumberOfInFlightFetch(); // <3>
+        // end::health-response-task
+
+        // tag::health-response-indices
+        Map<String, ClusterIndexHealth> indices = response.getIndices(); // <1>
+        // end::health-response-indices
+
+        {
+            // tag::health-response-index
+            ClusterIndexHealth index = indices.get("index"); // <1>
+            ClusterHealthStatus indexStatus = index.getStatus();
+            int numberOfShards = index.getNumberOfShards();
+            int numberOfReplicas = index.getNumberOfReplicas();
+            int activeShards = index.getActiveShards();
+            int activePrimaryShards = index.getActivePrimaryShards();
+            int initializingShards = index.getInitializingShards();
+            int relocatingShards = index.getRelocatingShards();
+            int unassignedShards = index.getUnassignedShards();
+            // end::health-response-index
+
+            // tag::health-response-shard-details
+            Map<Integer, ClusterShardHealth> shards = index.getShards(); // <1>
+            ClusterShardHealth shardHealth = shards.get(0);
+            int shardId = shardHealth.getShardId();
+            ClusterHealthStatus shardStatus = shardHealth.getStatus();
+            int active = shardHealth.getActiveShards();
+            int initializing = shardHealth.getInitializingShards();
+            int unassigned = shardHealth.getUnassignedShards();
+            int relocating = shardHealth.getRelocatingShards();
+            boolean primaryActive = shardHealth.isPrimaryActive();
+            // end::health-response-shard-details
+        }
     }
 
     public void testClusterHealthAsync() throws Exception {

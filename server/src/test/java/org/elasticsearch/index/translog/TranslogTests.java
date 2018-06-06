@@ -1601,19 +1601,18 @@ public class TranslogTests extends ESTestCase {
      * this class mimic behaviour of original {@link Translog}
      */
     static class InMemoryTranslog {
-        private List<Translog.Operation> currentOperations = new LinkedList<>();
         private final List<List<Translog.Operation>> operationsList = new ArrayList<>();
 
         InMemoryTranslog() {
+            operationsList.add(new LinkedList<>());
         }
 
         void add(Translog.Operation operation) {
-            currentOperations.add(operation);
+            operationsList.get(operationsList.size() - 1).add(operation);
         }
 
         void rollGeneration() {
-            operationsList.add(currentOperations);
-            currentOperations = new LinkedList<>();
+            operationsList.add(new LinkedList<>());
         }
 
         void trimOperations(long belowTerm, long aboveSeqNo) {
@@ -1634,9 +1633,9 @@ public class TranslogTests extends ESTestCase {
             final Set<Long> seenSeqNo = new HashSet<>();
 
             int size = operationsList.size();
-            return IntStream.range(0, size + 1)
-                // current + reverse traverse of operations
-                .mapToObj(i -> i == 0 ? currentOperations : operationsList.get(size - i))
+            return IntStream.range(0, size)
+                // reverse traverse of operations
+                .mapToObj(i -> operationsList.get(size - i - 1))
                 .flatMap(operations -> operations.stream())
                 // latest ops override firsts
                 .filter(operation -> seenSeqNo.add(operation.seqNo()))

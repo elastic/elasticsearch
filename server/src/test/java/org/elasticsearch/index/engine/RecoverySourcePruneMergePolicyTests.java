@@ -38,6 +38,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.InfoStream;
@@ -54,7 +55,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneAll() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy("extra_source", MatchAllDocsQuery::new,
+            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy("extra_source", MatchNoDocsQuery::new,
                 newLogMergePolicy());
             iwc.setMergePolicy(mp);
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
@@ -121,7 +122,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source",
-                () -> new TermQuery(new Term("even", "false")), iwc.getMergePolicy()));
+                () -> new TermQuery(new Term("even", "true")), iwc.getMergePolicy()));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {

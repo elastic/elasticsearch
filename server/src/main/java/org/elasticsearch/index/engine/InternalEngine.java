@@ -2014,7 +2014,7 @@ public class InternalEngine extends Engine {
         MergePolicy mergePolicy = config().getMergePolicy();
         if (softDeleteEnabled) {
             iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
-            mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, this::recoverySourcePruneQuery,
+            mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, this::softDeletesRetentionQuery,
                 new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, this::softDeletesRetentionQuery, mergePolicy));
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
@@ -2040,13 +2040,6 @@ public class InternalEngine extends Engine {
         // then we may not have all required operations whose seq# greater than the global checkpoint after restarted.
         final long persistedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
         return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, persistedGlobalCheckpoint + 1 - retainedExtraOps, Long.MAX_VALUE);
-    }
-
-    private Query recoverySourcePruneQuery() {
-        ensureOpen();
-        final long retainedExtraOps = engineConfig.getIndexSettings().getSoftDeleteRetentionOperations();
-        final long persistedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
-        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Long.MIN_VALUE, persistedGlobalCheckpoint - retainedExtraOps);
     }
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */

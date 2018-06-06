@@ -42,52 +42,52 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
-    RecoverySourcePruneMergePolicy(String recoverySourceField, Supplier<Query> prunePolicySupplier, MergePolicy in) {
+    RecoverySourcePruneMergePolicy(String recoverySourceField, Supplier<Query> retainSourceQuerySupplier, MergePolicy in) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                NumericDocValues recovery_source = wrapped.getNumericDocValues(recoverySourceField);
-                if (recovery_source == null || recovery_source.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
-                    return wrapped;
-                }
-                return wrapReader(recoverySourceField, wrapped, prunePolicySupplier);
+                return wrapReader(recoverySourceField, wrapped, retainSourceQuerySupplier);
             }
         });
 
     }
 
     // pkg private for testing
-    static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier<Query> prunePolicySupplier)
+    static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier<Query> retainSourceQuerySupplier)
         throws IOException {
+        NumericDocValues recovery_source = reader.getNumericDocValues(recoverySourceField);
+        if (recovery_source == null || recovery_source.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+            return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
+        }
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new DocValuesFieldExistsQuery(recoverySourceField), BooleanClause.Occur.FILTER);
-        builder.add(prunePolicySupplier.get(), BooleanClause.Occur.FILTER);
+        builder.add(retainSourceQuerySupplier.get(), BooleanClause.Occur.FILTER);
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
         Weight weight = s.createWeight(builder.build(), false, 1.0f);
         Scorer scorer = weight.scorer(reader.getContext());
         if (scorer != null) {
-            BitSet sourceToDrop = BitSet.of(scorer.iterator(), reader.maxDoc());
-            return new SourcePruningFilterCodecReader(recoverySourceField, reader, sourceToDrop);
+            return new SourcePruningFilterCodecReader(recoverySourceField, reader, BitSet.of(scorer.iterator(), reader.maxDoc()));
         } else {
-            return reader;
+            return new SourcePruningFilterCodecReader(recoverySourceField, reader, new BitSet.MatchNoBits(reader.maxDoc()));
         }
     }
 
     private static class SourcePruningFilterCodecReader extends FilterCodecReader {
-        private final BitSet sourceToDrop;
+        private final Bits recoverySourceToKeep;
         private final String recoverySourceField;
 
-        SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, BitSet sourceToDrop) {
+        SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, Bits recoverySourceToKeep) {
             super(reader);
             this.recoverySourceField = recoverySourceField;
-            this.sourceToDrop = sourceToDrop;
+            this.recoverySourceToKeep = recoverySourceToKeep;
         }
 
         @Override
@@ -105,7 +105,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                                 int doc;
                                 do {
                                     doc = super.nextDoc();
-                                } while (doc != NO_MORE_DOCS && sourceToDrop.get(doc));
+                                } while (doc != NO_MORE_DOCS && recoverySourceToKeep.get(doc) == false);
                                 return doc;
                             }
 
@@ -131,8 +131,10 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             return new FilterStoredFieldsReader(fieldsReader) {
                 @Override
                 public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                    if (sourceToDrop.get(docID)) {
-                        visitor = new FilterStoredFieldVisitor(visitor) {
+                    if (recoverySourceToKeep.get(docID)) {
+                        super.visitDocument(docID, visitor);
+                    } else {
+                        super.visitDocument(docID, new FilterStoredFieldVisitor(visitor) {
                             @Override
                             public Status needsField(FieldInfo fieldInfo) throws IOException {
                                 if (recoverySourceField.equals(fieldInfo.name)) {
@@ -140,9 +142,8 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                                 }
                                 return super.needsField(fieldInfo);
                             }
-                        };
+                        });
                     }
-                    super.visitDocument(docID, visitor);
                 }
             };
         }

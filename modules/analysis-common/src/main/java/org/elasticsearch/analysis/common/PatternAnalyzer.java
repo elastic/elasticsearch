@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
@@ -25,30 +25,41 @@ import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
-import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.pattern.PatternTokenizer;
 
-/** OpenRefine Fingerprinting, which uses a Standard tokenizer and lowercase + stop + fingerprint + asciifolding filters */
-public final class FingerprintAnalyzer extends Analyzer {
-    private final char separator;
-    private final int maxOutputSize;
+import java.util.regex.Pattern;
+
+/** Simple regex-based analyzer based on PatternTokenizer + lowercase + stopwords */
+public final class PatternAnalyzer extends Analyzer {
+    private final Pattern pattern;
+    private final boolean lowercase;
     private final CharArraySet stopWords;
 
-    public FingerprintAnalyzer(CharArraySet stopWords, char separator, int maxOutputSize) {
-        this.separator = separator;
-        this.maxOutputSize = maxOutputSize;
+    PatternAnalyzer(Pattern pattern, boolean lowercase, CharArraySet stopWords) {
+        this.pattern = pattern;
+        this.lowercase = lowercase;
         this.stopWords = stopWords;
     }
 
     @Override
     protected TokenStreamComponents createComponents(String s) {
-        final Tokenizer tokenizer = new StandardTokenizer();
+        final Tokenizer tokenizer = new PatternTokenizer(pattern, -1);
         TokenStream stream = tokenizer;
-        stream = new LowerCaseFilter(stream);
-        stream = new ASCIIFoldingFilter(stream, false);
-        stream = new StopFilter(stream, stopWords);
-        stream = new FingerprintFilter(stream, maxOutputSize, separator);
+        if (lowercase) {
+            stream = new LowerCaseFilter(stream);
+        }
+        if (stopWords != null) {
+            stream = new StopFilter(stream, stopWords);
+        }
         return new TokenStreamComponents(tokenizer, stream);
+    }
+
+    @Override
+    protected TokenStream normalize(String fieldName, TokenStream in) {
+        TokenStream stream = in;
+        if (lowercase) {
+            stream = new LowerCaseFilter(stream);
+        }
+        return stream;
     }
 }

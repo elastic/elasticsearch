@@ -96,6 +96,11 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
             new ByteSizeValue(10, ByteSizeUnit.MB), "public-read-write", "standard");
     }
 
+    @Override
+    public void testVerifyOverwriteFails() {
+        assumeFalse("not implemented because of S3's weak consistency model", true);
+    }
+
     public void testExecuteSingleUploadBlobSizeTooLarge() throws IOException {
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(6, 10));
         final S3BlobStore blobStore = mock(S3BlobStore.class);

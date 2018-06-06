@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 
 import java.io.IOException;
 
@@ -115,5 +117,29 @@ public final class SnapshotClient {
                                       ActionListener<DeleteRepositoryResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteRepositoryRequest, RequestConverters::deleteRepository,
             DeleteRepositoryResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Verifies a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public VerifyRepositoryResponse verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest, Header... headers)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository,
+            VerifyRepositoryResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously verifies a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public void verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest,
+                                      ActionListener<VerifyRepositoryResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository,
+            VerifyRepositoryResponse::fromXContent, listener, emptySet(), headers);
     }
 }

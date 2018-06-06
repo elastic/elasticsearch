@@ -11,19 +11,13 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action for adding a role to the security index
  */
-public class PutRoleMappingAction extends Action<PutRoleMappingRequest, PutRoleMappingResponse,
-        PutRoleMappingRequestBuilder> {
+public class PutRoleMappingAction extends Action<PutRoleMappingRequest, PutRoleMappingResponse> {
 
     public static final PutRoleMappingAction INSTANCE = new PutRoleMappingAction();
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/put";
 
     private PutRoleMappingAction() {
         super(NAME);
-    }
-
-    @Override
-    public PutRoleMappingRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PutRoleMappingRequestBuilder(client, this);
     }
 
     @Override

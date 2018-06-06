@@ -22,6 +22,7 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queryparser.xml.builders.DisjunctionMaxQueryBuilder;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -33,9 +34,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -43,12 +47,16 @@ import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MultiMatchQuery.FieldAndFieldType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockKeywordPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +67,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
     private IndexService indexService;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(MockKeywordPlugin.class);
+    }
 
     @Before
     public void setup() throws IOException {
@@ -275,5 +288,59 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             )
             .build();
         assertEquals(expected, query);
+    }
+
+    public void testKeywordSplitQueriesOnWhitespace() throws IOException {
+        IndexService indexService = createIndex("test_keyword", Settings.builder()
+            .put("index.analysis.normalizer.my_lowercase.type", "custom")
+            .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase").build());
+        MapperService mapperService = indexService.mapperService();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "keyword")
+                    .endObject()
+                    .startObject("field_normalizer")
+                        .field("type", "keyword")
+                        .field("normalizer", "my_lowercase")
+                    .endObject()
+                    .startObject("field_split")
+                        .field("type", "keyword")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                    .startObject("field_split_normalizer")
+                        .field("type", "keyword")
+                        .field("normalizer", "my_lowercase")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                .endObject()
+            .endObject().endObject());
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> {
+                throw new UnsupportedOperationException();
+            }, null);
+        MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("field", 1.0f);
+        fieldNames.put("field_split", 1.0f);
+        fieldNames.put("field_normalizer", 1.0f);
+        fieldNames.put("field_split_normalizer", 1.0f);
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.BEST_FIELDS, fieldNames, "Foo Bar", null);
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term("field_normalizer", "foo bar")),
+                new TermQuery(new Term("field", "Foo Bar")),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term("field_split", "Foo")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term("field_split", "Bar")), BooleanClause.Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term("field_split_normalizer", "foo")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term("field_split_normalizer", "bar")), BooleanClause.Occur.SHOULD)
+                    .build()
+        ), 0.0f);
+        assertThat(query, equalTo(expected));
     }
 }

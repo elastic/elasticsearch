@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -23,7 +24,7 @@ import java.util.EnumSet;
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom,
+public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom,
         MergableCustomMetaData<LicensesMetaData> {
 
     public static final String TYPE = "licenses";
@@ -105,6 +106,11 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

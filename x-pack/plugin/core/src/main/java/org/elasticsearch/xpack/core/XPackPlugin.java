@@ -40,6 +40,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
@@ -59,19 +60,15 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 
-import javax.security.auth.DestroyFailedException;
-
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
-import java.security.GeneralSecurityException;
 import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -316,4 +313,31 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         }
         return config;
     }
+
+    public interface XPackClusterStateCustom extends ClusterState.Custom {
+
+        @Override
+        default Optional<String> getRequiredFeature() {
+            return XPackClientPlugin.X_PACK_FEATURE;
+        }
+
+    }
+
+    public interface XPackMetaDataCustom extends MetaData.Custom {
+
+        @Override
+        default Optional<String> getRequiredFeature() {
+            return XPackClientPlugin.X_PACK_FEATURE;
+        }
+
+    }
+
+    public interface XPackPersistentTaskParams extends PersistentTaskParams {
+
+        @Override
+        default Optional<String> getRequiredFeature() {
+            return XPackClientPlugin.X_PACK_FEATURE;
+        }
+    }
+
 }

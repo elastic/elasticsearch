@@ -67,7 +67,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     }
 
     /**
-     * Params that have to be provided when calling calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} 
+     * Params that have to be provided when calling calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)}
      */
     protected ToXContent.Params getToXContentParams() {
         return ToXContent.EMPTY_PARAMS;

@@ -89,7 +89,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
                 return ctor.apply(tasks,tasksFailures, nodeFailures);
             });
-        parser.declareObjectArray(constructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
+        parser.declareObjectArray(optionalConstructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
         parser.declareObjectArray(optionalConstructorArg(),
             (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(NODE_FAILURES));

@@ -38,7 +38,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
 
     public void testListTasks() throws IOException {
         ListTasksRequest request = new ListTasksRequest();
-        ListTasksResponse response = executeWithOptions(request, highLevelClient().tasks()::list, highLevelClient().tasks()::listAsync, RequestOptions.DEFAULT);
+        ListTasksResponse response = execute(request, highLevelClient().tasks()::list, highLevelClient().tasks()::listAsync);
 
         assertThat(response, notNullValue());
         assertThat(response.getNodeFailures(), equalTo(emptyList()));
@@ -63,11 +63,10 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
 
     public void testCancelTasks() throws IOException {
         ListTasksRequest listRequest = new ListTasksRequest();
-        ListTasksResponse listResponse = executeWithOptions(
+        ListTasksResponse listResponse = execute(
             listRequest,
             highLevelClient().tasks()::list,
-            highLevelClient().tasks()::listAsync,
-            RequestOptions.DEFAULT
+            highLevelClient().tasks()::listAsync
         );
 
         // TODO[PCS] submit a task that is cancellable and assert it's cancelled
@@ -75,20 +74,15 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
-        CancelTasksRequest request = new CancelTasksRequest();
-        request.setTaskId(new TaskId(node, firstTask.getId()));
-        request.setReason("testreason");
-        CancelTasksResponse response = executeWithOptions(
-            request,
-            highLevelClient().tasks()::cancel,
-            highLevelClient().tasks()::cancelAsync,
-            RequestOptions.DEFAULT
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setTaskId(new TaskId(node, firstTask.getId()));
+        cancelTasksRequest.setReason("testreason");
+
+        CancelTasksResponse response = execute(cancelTasksRequest, highLevelClient().tasks()::cancel, highLevelClient().tasks()::cancelAsync
         );
         // Since the task may or may not have been cancelled, assert that we received a response only
         // The actual testing of task cancellation is covered by TasksIT.testTasksCancellation
         assertThat(response, notNullValue());
+
     }
-
-
-
 }

@@ -142,7 +142,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::list-tasks-execute-async
-            client.tasks().listAsync(request, listener, RequestOptions.DEFAULT); // <1>
+            client.tasks().listAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::list-tasks-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -212,7 +212,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::cancel-tasks-execute-async
-            client.tasks().cancelAsync(request, listener, RequestOptions.DEFAULT); // <1>
+            client.tasks().cancelAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::cancel-tasks-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

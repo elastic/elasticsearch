@@ -34,7 +34,7 @@ import static java.util.Collections.emptySet;
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
  */
-public class TasksClient {
+public final class TasksClient {
     private final RestHighLevelClient restHighLevelClient;
 
     TasksClient(RestHighLevelClient restHighLevelClient) {
@@ -42,44 +42,42 @@ public class TasksClient {
     }
 
     /**
-     * Get current tasks using the Task Management API
-     * <p>
+     * Get current tasks using the Task Management API.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            RequestConverters::listTasks,
-            options,
-            ListTasksResponse::fromXContent,
-            emptySet()
-        );
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, options,
+                ListTasksResponse::fromXContent, emptySet());
     }
 
     /**
-     * Asynchronously get current tasks using the Task Management API
-     * <p>
+     * Asynchronously get current tasks using the Task Management API.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public void listAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, RequestOptions options) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
-            request,
-            RequestConverters::listTasks,
-            options,
-            ListTasksResponse::fromXContent,
-            listener,
-            emptySet()
-        );
+    public void listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
     }
 
     /**
      * Cancel one or more cluster tasks using the Task Management API
-     * <p>
+     *
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
-     * </p>
+     * @param cancelTasksRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     *
      */
     public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options ) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
@@ -93,12 +91,14 @@ public class TasksClient {
 
     /**
      * Asynchronously cancel one or more cluster tasks using the Task Management API
-     * <p>
+     *
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
-     * </p>
+     * @param cancelTasksRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public void cancelAsync(CancelTasksRequest cancelTasksRequest, ActionListener<CancelTasksResponse> listener, RequestOptions options) {
+    public void cancelAsync(CancelTasksRequest cancelTasksRequest, RequestOptions options, ActionListener<CancelTasksResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(
             cancelTasksRequest,
             RequestConverters::cancelTasks,

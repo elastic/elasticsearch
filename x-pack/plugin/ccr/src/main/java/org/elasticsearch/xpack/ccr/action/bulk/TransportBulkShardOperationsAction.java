@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -144,9 +145,11 @@ public class TransportBulkShardOperationsAction
 
         @Override
         public synchronized void respond(ActionListener<BulkShardOperationsResponse> listener) {
-            // Return a fresh global checkpoint after the operations have been replicated for the shard follow task:
-            BulkShardOperationsResponse response = finalResponseIfSuccessful;
-            response.setGlobalCheckpoint(primary.getGlobalCheckpoint());
+            final BulkShardOperationsResponse response = finalResponseIfSuccessful;
+            final SeqNoStats seqNoStats = primary.seqNoStats();
+            // return a fresh global checkpoint after the operations have been replicated for the shard follow task
+            response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
+            response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
             listener.onResponse(response);
         }
 

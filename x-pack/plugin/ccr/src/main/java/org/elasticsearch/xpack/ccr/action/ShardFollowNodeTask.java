@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.Logger;
@@ -16,13 +17,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,9 +38,12 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 /**
  * The node task that fetch the write operations from a leader shard and
@@ -59,29 +66,56 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final TimeValue retryTimeout;
     private final TimeValue idleShardChangesRequestDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
+    private final LongSupplier relativeTimeProvider;
 
-    private volatile long lastRequestedSeqno;
+    private final ReleasableLock readLock;
+    private final ReleasableLock writeLock;
+
+    {
+        final ReadWriteLock lock = new ReentrantReadWriteLock();
+        this.readLock = new ReleasableLock(lock.readLock());
+        this.writeLock = new ReleasableLock(lock.writeLock());
+    }
+
     private volatile long leaderGlobalCheckpoint;
-
+    private volatile long leaderMaxSeqNo;
+    private volatile long lastRequestedSeqNo;
+    private volatile long followerGlobalCheckpoint = 0;
+    private volatile long followerMaxSeqNo = 0;
     private volatile int numConcurrentReads = 0;
     private volatile int numConcurrentWrites = 0;
-    private volatile long followerGlobalCheckpoint = 0;
     private volatile long currentIndexMetadataVersion = 0;
+    private volatile long totalFetchTimeNanos = 0;
+    private volatile long numberOfSuccessfulFetches = 0;
+    private volatile long numberOfFailedFetches = 0;
+    private volatile long operationsReceived = 0;
+    private volatile long totalTransferredBytes = 0;
+    private volatile long totalIndexTimeNanos = 0;
+    private volatile long numberOfSuccessfulBulkOperations = 0;
+    private volatile long numberOfFailedBulkOperations = 0;
+    private volatile long numberOfOperationsIndexed = 0;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
-                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler) {
+                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
         super(id, type, action, description, parentTask, headers);
         this.params = params;
         this.scheduler = scheduler;
+        this.relativeTimeProvider = relativeTimeProvider;
         this.retryTimeout = params.getRetryTimeout();
         this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
     }
 
-    void start(long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {
-        this.lastRequestedSeqno = followerGlobalCheckpoint;
-        this.followerGlobalCheckpoint = followerGlobalCheckpoint;
+    void start(
+            final long leaderGlobalCheckpoint,
+            final long leaderMaxSeqNo,
+            final long followerGlobalCheckpoint,
+            final long followerMaxSeqNo) {
         this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
+        this.leaderMaxSeqNo = leaderMaxSeqNo;
+        this.followerGlobalCheckpoint = followerGlobalCheckpoint;
+        this.followerMaxSeqNo = followerMaxSeqNo;
+        this.lastRequestedSeqNo = followerGlobalCheckpoint;
 
         // Forcefully updates follower mapping, this gets us the leader imd version and
         // makes sure that leader and follower mapping are identical.
@@ -99,27 +133,27 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return;
         }
 
-        LOGGER.trace("{} coordinate reads, lastRequestedSeqno={}, leaderGlobalCheckpoint={}",
-            params.getFollowShardId(), lastRequestedSeqno, leaderGlobalCheckpoint);
+        LOGGER.trace("{} coordinate reads, lastRequestedSeqNo={}, leaderGlobalCheckpoint={}",
+            params.getFollowShardId(), lastRequestedSeqNo, leaderGlobalCheckpoint);
         final int maxBatchOperationCount = params.getMaxBatchOperationCount();
-        while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
+        while (hasReadBudget() && lastRequestedSeqNo < leaderGlobalCheckpoint) {
             numConcurrentReads++;
-            long from = lastRequestedSeqno + 1;
+            long from = lastRequestedSeqNo + 1;
             // -1 is needed, because maxRequiredSeqno is inclusive
             long maxRequiredSeqno = Math.min(leaderGlobalCheckpoint, (from + maxBatchOperationCount) - 1);
             LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxBatchOperationCount);
             sendShardChangesRequest(from, maxBatchOperationCount, maxRequiredSeqno);
-            lastRequestedSeqno = maxRequiredSeqno;
+            lastRequestedSeqNo = maxRequiredSeqno;
         }
 
         if (numConcurrentReads == 0 && hasReadBudget()) {
-            assert lastRequestedSeqno == leaderGlobalCheckpoint;
+            assert lastRequestedSeqNo == leaderGlobalCheckpoint;
             // We sneak peek if there is any thing new in the leader.
             // If there is we will happily accept
             numConcurrentReads++;
-            long from = lastRequestedSeqno + 1;
+            long from = lastRequestedSeqNo + 1;
             LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-            sendShardChangesRequest(from, maxBatchOperationCount, lastRequestedSeqno);
+            sendShardChangesRequest(from, maxBatchOperationCount, lastRequestedSeqNo);
         }
     }
 
@@ -177,9 +211,30 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private void sendShardChangesRequest(long from, int maxOperationCount, long maxRequiredSeqNo, AtomicInteger retryCounter) {
+        final long startTime = relativeTimeProvider.getAsLong();
         innerSendShardChangesRequest(from, maxOperationCount,
-            response -> handleReadResponse(from, maxRequiredSeqNo, response),
-            e -> handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter)));
+                response -> {
+                    try (ReleasableLock ignored = writeLock.acquire()) {
+                        // noinspection NonAtomicOperationOnVolatileField
+                        totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        // noinspection NonAtomicOperationOnVolatileField
+                        numberOfSuccessfulFetches++;
+                        // noinspection NonAtomicOperationOnVolatileField
+                        operationsReceived += response.getOperations().length;
+                        // noinspection NonAtomicOperationOnVolatileField
+                        totalTransferredBytes += Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                    }
+                    handleReadResponse(from, maxRequiredSeqNo, response);
+                },
+                e -> {
+                    try (ReleasableLock ignored = writeLock.acquire()) {
+                        // noinspection NonAtomicOperationOnVolatileField
+                        totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        // noinspection NonAtomicOperationOnVolatileField
+                        numberOfFailedFetches++;
+                    }
+                    handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
+                });
     }
 
     void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
@@ -187,7 +242,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
+            leaderMaxSeqNo = Math.max(leaderMaxSeqNo, response.getMaxSeqNo());
+        }
         final long newFromSeqNo;
         if (response.getOperations().length == 0) {
             newFromSeqNo = from;
@@ -200,8 +258,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
             newFromSeqNo = maxSeqNo + 1;
             // update last requested seq no as we may have gotten more than we asked for and we don't want to ask it again.
-            lastRequestedSeqno = Math.max(lastRequestedSeqno, maxSeqNo);
-            assert lastRequestedSeqno <= leaderGlobalCheckpoint :  "lastRequestedSeqno [" + lastRequestedSeqno +
+            lastRequestedSeqNo = Math.max(lastRequestedSeqNo, maxSeqNo);
+            assert lastRequestedSeqNo <= leaderGlobalCheckpoint :  "lastRequestedSeqNo [" + lastRequestedSeqNo +
                 "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
             coordinateWrites();
         }
@@ -213,7 +271,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         } else {
             // read is completed, decrement
             numConcurrentReads--;
-            if (response.getOperations().length == 0 && leaderGlobalCheckpoint == lastRequestedSeqno)  {
+            if (response.getOperations().length == 0 && leaderGlobalCheckpoint == lastRequestedSeqNo)  {
                 // we got nothing and we have no reason to believe asking again well get us more, treat shard as idle and delay
                 // future requests
                 LOGGER.trace("{} received no ops and no known ops to fetch, scheduling to coordinate reads",
@@ -230,14 +288,36 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private void sendBulkShardOperationsRequest(List<Translog.Operation> operations, AtomicInteger retryCounter) {
+        final long startTime = relativeTimeProvider.getAsLong();
         innerSendBulkShardOperationsRequest(operations,
-            this::handleWriteResponse,
-            e -> handleFailure(e, retryCounter, () -> sendBulkShardOperationsRequest(operations, retryCounter))
+                response -> {
+                    try (ReleasableLock ignored = writeLock.acquire()) {
+                        // noinspection NonAtomicOperationOnVolatileField
+                        totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        // noinspection NonAtomicOperationOnVolatileField
+                        numberOfSuccessfulBulkOperations++;
+                        // noinspection NonAtomicOperationOnVolatileField
+                        numberOfOperationsIndexed += operations.size();
+                    }
+                    handleWriteResponse(response);
+                },
+                e -> {
+                    try (ReleasableLock ignored = writeLock.acquire()) {
+                        // noinspection NonAtomicOperationOnVolatileField
+                        totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        // noinspection NonAtomicOperationOnVolatileField
+                        numberOfFailedBulkOperations++;
+                    }
+                    handleFailure(e, retryCounter, () -> sendBulkShardOperationsRequest(operations, retryCounter));
+                }
         );
     }
 
-    private synchronized void handleWriteResponse(long followerLocalCheckpoint) {
-        this.followerGlobalCheckpoint = Math.max(this.followerGlobalCheckpoint, followerLocalCheckpoint);
+    private synchronized void handleWriteResponse(final BulkShardOperationsResponse response) {
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            this.followerGlobalCheckpoint = Math.max(this.followerGlobalCheckpoint, response.getGlobalCheckpoint());
+            this.followerMaxSeqNo = Math.max(this.followerMaxSeqNo, response.getMaxSeqNo());
+        }
         numConcurrentWrites--;
         assert numConcurrentWrites >= 0;
         coordinateWrites();
@@ -294,8 +374,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     // These methods are protected for testing purposes:
     protected abstract void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler);
 
-    protected abstract void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, LongConsumer handler,
-                                                                Consumer<Exception> errorHandler);
+    protected abstract void innerSendBulkShardOperationsRequest(
+            List<Translog.Operation> operations, Consumer<BulkShardOperationsResponse> handler, Consumer<Exception> errorHandler);
 
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                          Consumer<Exception> errorHandler);
@@ -309,10 +389,33 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return isCancelled() || isCompleted();
     }
 
+    public ShardId getFollowShardId() {
+        return params.getFollowShardId();
+    }
+
     @Override
     public Status getStatus() {
-        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads, numConcurrentWrites,
-            currentIndexMetadataVersion);
+        try (ReleasableLock ignored = readLock.acquire()) {
+            return new Status(
+                    leaderGlobalCheckpoint,
+                    leaderMaxSeqNo,
+                    followerGlobalCheckpoint,
+                    followerMaxSeqNo,
+                    lastRequestedSeqNo,
+                    numConcurrentReads,
+                    numConcurrentWrites,
+                    buffer.size(),
+                    currentIndexMetadataVersion,
+                    totalFetchTimeNanos,
+                    numberOfSuccessfulFetches,
+                    numberOfFailedFetches,
+                    operationsReceived,
+                    totalTransferredBytes,
+                    totalIndexTimeNanos,
+                    numberOfSuccessfulBulkOperations,
+                    numberOfFailedBulkOperations,
+                    numberOfOperationsIndexed);
+        }
     }
 
     public static class Status implements Task.Status {
@@ -320,72 +423,232 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         public static final String NAME = "shard-follow-node-task-status";
 
         static final ParseField LEADER_GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
+        static final ParseField LEADER_MAX_SEQ_NO_FIELD = new ParseField("leader_max_seq_no");
         static final ParseField FOLLOWER_GLOBAL_CHECKPOINT_FIELD = new ParseField("follower_global_checkpoint");
-        static final ParseField LAST_REQUESTED_SEQNO_FIELD = new ParseField("last_requested_seqno");
+        static final ParseField FOLLOWER_MAX_SEQ_NO_FIELD = new ParseField("follower_max_seq_no");
+        static final ParseField LAST_REQUESTED_SEQ_NO_FIELD = new ParseField("last_requested_seq_no");
         static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
         static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
+        static final ParseField NUMBER_OF_QUEUED_WRITES_FIELD = new ParseField("number_of_queued_writes");
         static final ParseField INDEX_METADATA_VERSION_FIELD = new ParseField("index_metadata_version");
+        static final ParseField TOTAL_FETCH_TIME_NANOS_FIELD = new ParseField("total_fetch_time_nanos");
+        static final ParseField NUMBER_OF_SUCCESSFUL_FETCHES_FIELD = new ParseField("number_of_successful_fetches");
+        static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_etches");
+        static final ParseField OPERATIONS_RECEIVED_FIELD = new ParseField("operations_received");
+        static final ParseField TOTAL_TRANSFERRED_BYTES = new ParseField("total_transferred_bytes");
+        static final ParseField TOTAL_INDEX_TIME_NANOS_FIELD = new ParseField("total_index_time_nanos");
+        static final ParseField NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD = new ParseField("number_of_successful_bulk_operations");
+        static final ParseField NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD = new ParseField("number_of_failed_bulk_operations");
+        static final ParseField NUMBER_OF_OPERATIONS_INDEXED_FIELD = new ParseField("number_of_operations_indexed");
 
         static final ConstructingObjectParser<Status, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> new Status((long) args[0], (long) args[1], (long) args[2], (int) args[3], (int) args[4], (long) args[5]));
+            args -> new Status(
+                    (long) args[0],
+                    (long) args[1],
+                    (long) args[2],
+                    (long) args[3],
+                    (long) args[4],
+                    (int) args[5],
+                    (int) args[6],
+                    (int) args[7],
+                    (long) args[8],
+                    (long) args[9],
+                    (long) args[10],
+                    (long) args[11],
+                    (long) args[12],
+                    (long) args[13],
+                    (long) args[14],
+                    (long) args[15],
+                    (long) args[16],
+                    (long) args[17]));
 
         static {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_GLOBAL_CHECKPOINT_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_REQUESTED_SEQNO_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_MAX_SEQ_NO_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_GLOBAL_CHECKPOINT_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_MAX_SEQ_NO_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_REQUESTED_SEQ_NO_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
+            PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_METADATA_VERSION_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_NANOS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_FETCHES_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_FETCHES_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_RECEIVED_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_TRANSFERRED_BYTES);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_INDEX_TIME_NANOS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
         }
 
         private final long leaderGlobalCheckpoint;
-        private final long lastRequestedSeqno;
-        private final long followerGlobalCheckpoint;
-        private final int numberOfConcurrentReads;
-        private final int numberOfConcurrentWrites;
-        private final long indexMetadataVersion;
 
-        Status(long leaderGlobalCheckpoint, long lastRequestedSeqno, long followerGlobalCheckpoint,
-               int numberOfConcurrentReads, int numberOfConcurrentWrites, long indexMetadataVersion) {
-            this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
-            this.lastRequestedSeqno = lastRequestedSeqno;
-            this.followerGlobalCheckpoint = followerGlobalCheckpoint;
-            this.numberOfConcurrentReads = numberOfConcurrentReads;
-            this.numberOfConcurrentWrites = numberOfConcurrentWrites;
-            this.indexMetadataVersion = indexMetadataVersion;
-        }
-
-        public Status(StreamInput in) throws IOException {
-            this.leaderGlobalCheckpoint = in.readZLong();
-            this.lastRequestedSeqno = in.readZLong();
-            this.followerGlobalCheckpoint = in.readZLong();
-            this.numberOfConcurrentReads = in.readVInt();
-            this.numberOfConcurrentWrites = in.readVInt();
-            this.indexMetadataVersion = in.readVLong();
-        }
-
-        public long getLeaderGlobalCheckpoint() {
+        public long leaderGlobalCheckpoint() {
             return leaderGlobalCheckpoint;
         }
 
-        public long getLastRequestedSeqno() {
-            return lastRequestedSeqno;
+        private final long leaderMaxSeqNo;
+
+        public long leaderMaxSeqNo() {
+            return leaderMaxSeqNo;
         }
 
-        public long getFollowerGlobalCheckpoint() {
+        private final long followerGlobalCheckpoint;
+
+        public long followerGlobalCheckpoint() {
             return followerGlobalCheckpoint;
         }
 
-        public int getNumberOfConcurrentReads() {
+        private final long followerMaxSeqNo;
+
+        public long followerMaxSeqNo() {
+            return followerMaxSeqNo;
+        }
+
+        private final long lastRequestedSeqNo;
+
+        public long lastRequestedSeqNo() {
+            return lastRequestedSeqNo;
+        }
+
+        private final int numberOfConcurrentReads;
+
+        public int numberOfConcurrentReads() {
             return numberOfConcurrentReads;
         }
 
-        public int getNumberOfConcurrentWrites() {
+        private final int numberOfConcurrentWrites;
+
+        public int numberOfConcurrentWrites() {
             return numberOfConcurrentWrites;
         }
 
-        public long getIndexMetadataVersion() {
+        private final int numberOfQueuedWrites;
+
+        public int numberOfQueuedWrites() {
+            return numberOfQueuedWrites;
+        }
+
+        private final long indexMetadataVersion;
+
+        public long indexMetadataVersion() {
             return indexMetadataVersion;
+        }
+
+        private final long totalFetchTimeNanos;
+
+        public long totalFetchTimeNanos() {
+            return totalFetchTimeNanos;
+        }
+
+        private final long numberOfSuccessfulFetches;
+
+        public long numberOfSuccessfulFetches() {
+            return numberOfSuccessfulFetches;
+        }
+
+        private final long numberOfFailedFetches;
+
+        public long numberOfFailedFetches() {
+            return numberOfFailedFetches;
+        }
+
+        private final long operationsReceived;
+
+        public long operationsReceived() {
+            return operationsReceived;
+        }
+
+        private final long totalTransferredBytes;
+
+        public long totalTransferredBytes() {
+            return totalTransferredBytes;
+        }
+
+        private final long totalIndexTimeNanos;
+
+        public long totalIndexTimeNanos() {
+            return totalIndexTimeNanos;
+        }
+
+        private final long numberOfSuccessfulBulkOperations;
+
+        public long numberOfSuccessfulBulkOperations() {
+            return numberOfSuccessfulBulkOperations;
+        }
+
+        private final long numberOfFailedBulkOperations;
+
+        public long numberOfFailedBulkOperations() {
+            return numberOfFailedBulkOperations;
+        }
+
+        private final long numberOfOperationsIndexed;
+
+        public long numberOfOperationsIndexed() {
+            return numberOfOperationsIndexed;
+        }
+
+        Status(
+                final long leaderGlobalCheckpoint,
+                final long leaderMaxSeqNo,
+                final long followerGlobalCheckpoint,
+                final long followerMaxSeqNo,
+                final long lastRequestedSeqNo,
+                final int numberOfConcurrentReads,
+                final int numberOfConcurrentWrites,
+                final int numberOfQueuedWrites,
+                final long indexMetadataVersion,
+                final long totalFetchTimeNanos,
+                final long numberOfSuccessfulFetches,
+                final long numberOfFailedFetches,
+                final long operationsReceived,
+                final long totalTransferredBytes,
+                final long totalIndexTimeNanos,
+                final long numberOfSuccessfulBulkOperations,
+                final long numberOfFailedBulkOperations,
+                final long numberOfOperationsIndexed) {
+            this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
+            this.leaderMaxSeqNo = leaderMaxSeqNo;
+            this.followerGlobalCheckpoint = followerGlobalCheckpoint;
+            this.followerMaxSeqNo = followerMaxSeqNo;
+            this.lastRequestedSeqNo = lastRequestedSeqNo;
+            this.numberOfConcurrentReads = numberOfConcurrentReads;
+            this.numberOfConcurrentWrites = numberOfConcurrentWrites;
+            this.numberOfQueuedWrites = numberOfQueuedWrites;
+            this.indexMetadataVersion = indexMetadataVersion;
+            this.totalFetchTimeNanos = totalFetchTimeNanos;
+            this.numberOfSuccessfulFetches = numberOfSuccessfulFetches;
+            this.numberOfFailedFetches = numberOfFailedFetches;
+            this.operationsReceived = operationsReceived;
+            this.totalTransferredBytes = totalTransferredBytes;
+            this.totalIndexTimeNanos = totalIndexTimeNanos;
+            this.numberOfSuccessfulBulkOperations = numberOfSuccessfulBulkOperations;
+            this.numberOfFailedBulkOperations = numberOfFailedBulkOperations;
+            this.numberOfOperationsIndexed = numberOfOperationsIndexed;
+        }
+
+        public Status(final StreamInput in) throws IOException {
+            this.leaderGlobalCheckpoint = in.readZLong();
+            this.leaderMaxSeqNo = in.readZLong();
+            this.followerGlobalCheckpoint = in.readZLong();
+            this.followerMaxSeqNo = in.readZLong();
+            this.lastRequestedSeqNo = in.readZLong();
+            this.numberOfConcurrentReads = in.readVInt();
+            this.numberOfConcurrentWrites = in.readVInt();
+            this.numberOfQueuedWrites = in.readVInt();
+            this.indexMetadataVersion = in.readVLong();
+            this.totalFetchTimeNanos = in.readVLong();
+            this.numberOfSuccessfulFetches = in.readVLong();
+            this.numberOfFailedFetches = in.readVLong();
+            this.operationsReceived = in.readVLong();
+            this.totalTransferredBytes = in.readVLong();
+            this.totalIndexTimeNanos = in.readVLong();
+            this.numberOfSuccessfulBulkOperations = in.readVLong();
+            this.numberOfFailedBulkOperations = in.readVLong();
+            this.numberOfOperationsIndexed = in.readVLong();
         }
 
         @Override
@@ -394,56 +657,107 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(final StreamOutput out) throws IOException {
             out.writeZLong(leaderGlobalCheckpoint);
-            out.writeZLong(lastRequestedSeqno);
+            out.writeZLong(leaderMaxSeqNo);
             out.writeZLong(followerGlobalCheckpoint);
+            out.writeZLong(followerMaxSeqNo);
+            out.writeZLong(lastRequestedSeqNo);
             out.writeVInt(numberOfConcurrentReads);
             out.writeVInt(numberOfConcurrentWrites);
+            out.writeVInt(numberOfQueuedWrites);
             out.writeVLong(indexMetadataVersion);
+            out.writeVLong(totalFetchTimeNanos);
+            out.writeVLong(numberOfSuccessfulFetches);
+            out.writeVLong(numberOfFailedFetches);
+            out.writeVLong(operationsReceived);
+            out.writeVLong(totalTransferredBytes);
+            out.writeVLong(totalIndexTimeNanos);
+            out.writeVLong(numberOfSuccessfulBulkOperations);
+            out.writeVLong(numberOfFailedBulkOperations);
+            out.writeVLong(numberOfOperationsIndexed);
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
                 builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
+                builder.field(LEADER_MAX_SEQ_NO_FIELD.getPreferredName(), leaderMaxSeqNo);
                 builder.field(FOLLOWER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), followerGlobalCheckpoint);
-                builder.field(LAST_REQUESTED_SEQNO_FIELD.getPreferredName(), lastRequestedSeqno);
+                builder.field(FOLLOWER_MAX_SEQ_NO_FIELD.getPreferredName(), followerMaxSeqNo);
+                builder.field(LAST_REQUESTED_SEQ_NO_FIELD.getPreferredName(), lastRequestedSeqNo);
                 builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
                 builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
+                builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
                 builder.field(INDEX_METADATA_VERSION_FIELD.getPreferredName(), indexMetadataVersion);
+                builder.field(TOTAL_FETCH_TIME_NANOS_FIELD.getPreferredName(), totalFetchTimeNanos);
+                builder.field(NUMBER_OF_SUCCESSFUL_FETCHES_FIELD.getPreferredName(), numberOfSuccessfulFetches);
+                builder.field(NUMBER_OF_FAILED_FETCHES_FIELD.getPreferredName(), numberOfFailedFetches);
+                builder.field(OPERATIONS_RECEIVED_FIELD.getPreferredName(), operationsReceived);
+                builder.field(TOTAL_TRANSFERRED_BYTES.getPreferredName(), totalTransferredBytes);
+                builder.field(TOTAL_INDEX_TIME_NANOS_FIELD.getPreferredName(), totalIndexTimeNanos);
+                builder.field(NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfSuccessfulBulkOperations);
+                builder.field(NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfFailedBulkOperations);
+                builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
             }
             builder.endObject();
             return builder;
         }
 
-        public static Status fromXContent(XContentParser parser) {
+        public static Status fromXContent(final XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
         @Override
-        public boolean equals(Object o) {
+        public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Status status = (Status) o;
-            return leaderGlobalCheckpoint == status.leaderGlobalCheckpoint &&
-                lastRequestedSeqno == status.lastRequestedSeqno &&
-                followerGlobalCheckpoint == status.followerGlobalCheckpoint &&
-                numberOfConcurrentReads == status.numberOfConcurrentReads &&
-                numberOfConcurrentWrites == status.numberOfConcurrentWrites &&
-                indexMetadataVersion == status.indexMetadataVersion;
+            final Status that = (Status) o;
+            return leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
+                    leaderMaxSeqNo == that.leaderMaxSeqNo &&
+                    followerGlobalCheckpoint == that.followerGlobalCheckpoint &&
+                    followerMaxSeqNo == that.followerMaxSeqNo &&
+                    lastRequestedSeqNo == that.lastRequestedSeqNo &&
+                    numberOfConcurrentReads == that.numberOfConcurrentReads &&
+                    numberOfConcurrentWrites == that.numberOfConcurrentWrites &&
+                    numberOfQueuedWrites == that.numberOfQueuedWrites &&
+                    indexMetadataVersion == that.indexMetadataVersion &&
+                    totalFetchTimeNanos == that.totalFetchTimeNanos &&
+                    numberOfSuccessfulFetches == that.numberOfSuccessfulFetches &&
+                    numberOfFailedFetches == that.numberOfFailedFetches &&
+                    operationsReceived == that.operationsReceived &&
+                    totalTransferredBytes == that.totalTransferredBytes &&
+                    numberOfSuccessfulBulkOperations == that.numberOfSuccessfulBulkOperations &&
+                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numberOfConcurrentReads,
-                numberOfConcurrentWrites, indexMetadataVersion);
+            return Objects.hash(
+                    leaderGlobalCheckpoint,
+                    leaderMaxSeqNo,
+                    followerGlobalCheckpoint,
+                    followerMaxSeqNo,
+                    lastRequestedSeqNo,
+                    numberOfConcurrentReads,
+                    numberOfConcurrentWrites,
+                    numberOfQueuedWrites,
+                    indexMetadataVersion,
+                    totalFetchTimeNanos,
+                    numberOfSuccessfulFetches,
+                    numberOfFailedFetches,
+                    operationsReceived,
+                    totalTransferredBytes,
+                    numberOfSuccessfulBulkOperations,
+                    numberOfFailedBulkOperations);
+
         }
 
         public String toString() {
             return Strings.toString(this);
         }
+
     }
 
 }

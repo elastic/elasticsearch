@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.Version;
@@ -158,6 +159,10 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     public TimeValue getIdleShardRetryDelay() {
         return idleShardRetryDelay;
+    }
+
+    public String getTaskId() {
+        return followShardId.getIndex().getUUID() + "-" + followShardId.getId();
     }
 
     public Map<String, String> getHeaders() {

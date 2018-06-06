@@ -51,7 +51,7 @@ PUT test/_doc/1
 {
   "url": "http://en.wikipedia.org/wiki/2016_Summer_Olympics",
   "content": "Rio 2016",
-  "pagerank": 50,
+  "pagerank": 50.3,
   "url_length": 42,
   "topics": {
     "sports": 50,
@@ -63,7 +63,7 @@ PUT test/_doc/2
 {
   "url": "http://en.wikipedia.org/wiki/2016_Brazilian_Grand_Prix",
   "content": "Formula One motor race held on 13 November 2016 at the Autódromo José Carlos Pace in São Paulo, Brazil",
-  "pagerank": 50,
+  "pagerank": 50.3,
   "url_length": 47,
   "topics": {
     "sports": 35,
@@ -76,7 +76,7 @@ PUT test/_doc/3
 {
   "url": "http://en.wikipedia.org/wiki/Deadpool_(film)",
   "content": "Deadpool is a 2016 American superhero film",
-  "pagerank": 50,
+  "pagerank": 50.3,
   "url_length": 37,
   "topics": {
     "movies": 60,

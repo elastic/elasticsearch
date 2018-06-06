@@ -28,15 +28,15 @@ PUT my_index/_doc/1
 {
   "topics": { <2>
     "politics": 20,
-    "economics": 50
+    "economics": 50.8
   }
 }
 
 PUT my_index/_doc/2
 {
   "topics": {
-    "politics": 5,
-    "sports": 80
+    "politics": 5.2,
+    "sports": 80.1
   }
 }
 
@@ -56,8 +56,8 @@ GET my_index/_search
 NOTE: `feature_vector` fields only support single-valued features and strictly
 positive values. Multi-valued fields and negative values will be rejected.
 
-NOTE: `feature_vector` fields do not support querying, sorting or aggregating.
-They may only be used within <<query-dsl-feature-query,`feature`>> queries.
+NOTE: `feature_vector` fields do not support sorting or aggregating and may 
+only be queried using <<query-dsl-feature-query,`feature`>> queries.
 
 NOTE: `feature_vector` fields only preserve 9 significant bits for the
 precision, which translates to a relative error of about 0.4%.

@@ -65,7 +65,7 @@ include::{xes-repo-dir}/rollup/index.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 
-include::{xes-repo-dir}/commands/index.asciidoc[]
+include::commands/index.asciidoc[]
 
 :edit_url:
 include::how-to.asciidoc[]

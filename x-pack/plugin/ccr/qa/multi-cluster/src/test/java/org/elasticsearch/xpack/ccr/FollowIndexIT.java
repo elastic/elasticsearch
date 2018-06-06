@@ -6,9 +6,8 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
@@ -21,12 +20,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -78,33 +74,36 @@ public class FollowIndexIT extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        assertOK(client.performRequest("POST", "/" + index + "/doc/" + id, emptyMap(),
-                new StringEntity(Strings.toString(document), ContentType.APPLICATION_JSON)));
+        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        request.setJsonEntity(Strings.toString(document));
+        assertOK(client.performRequest(request));
     }
 
     private static void refresh(String index) throws IOException {
-        assertOK(client().performRequest("POST", "/" + index + "/_refresh"));
+        assertOK(client().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
-        Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
-        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_follow", params));
+        final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_follow");
+        request.addParameter("leader_index", leaderIndex);
+        assertOK(client().performRequest(request));
     }
 
     private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
-        Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
-        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow", params));
+        final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow");
+        request.addParameter("leader_index", leaderIndex);
+        assertOK(client().performRequest(request));
     }
 
     private static void unfollowIndex(String followIndex) throws IOException {
-        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_unfollow"));
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_xpack/ccr/_unfollow")));
     }
 
     private static void verifyDocuments(String index, int expectedNumDocs) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("size", Integer.toString(expectedNumDocs));
-        params.put("sort", "field:asc");
-        Map<String, ?> response = toMap(client().performRequest("GET", "/" + index + "/_search", params));
+        final Request request = new Request("GET", "/" + index + "/_search");
+        request.addParameter("size", Integer.toString(expectedNumDocs));
+        request.addParameter("sort", "field:asc");
+        Map<String, ?> response = toMap(client().performRequest(request));
 
         int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(numDocs, equalTo(expectedNumDocs));
@@ -123,15 +122,6 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static Map<String, Object> toMap(String response) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
-
-    private static void ensureYellow(String index) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "yellow");
-        params.put("wait_for_no_relocating_shards", "true");
-        params.put("timeout", "30s");
-        params.put("level", "shards");
-        assertOK(client().performRequest("GET", "_cluster/health/" + index, params));
     }
 
     private RestClient buildLeaderClient() throws IOException {

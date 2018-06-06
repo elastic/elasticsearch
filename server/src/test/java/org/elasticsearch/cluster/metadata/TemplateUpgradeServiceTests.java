@@ -35,12 +35,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,13 +56,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -75,8 +82,20 @@ import static org.mockito.Mockito.when;
 
 public class TemplateUpgradeServiceTests extends ESTestCase {
 
-    private final ClusterService clusterService = new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, Collections.emptyMap());
+    private ThreadPool threadPool;
+    private ClusterService clusterService;
+
+    @Before
+    public void setUpTest() throws Exception {
+        threadPool = new TestThreadPool("TemplateUpgradeServiceTests");
+        clusterService = createClusterService(threadPool);
+    }
+
+    @After
+    public void tearDownTest() throws Exception {
+        threadPool.shutdownNow();
+        clusterService.close();
+    }
 
     public void testCalculateChangesAddChangeAndDelete() {
 
@@ -90,7 +109,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
 
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
+        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
                     if (shouldAdd) {
@@ -190,18 +209,18 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             additions.put("add_template_" + i, new BytesArray("{\"index_patterns\" : \"*\", \"order\" : " + i + "}"));
         }
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
             Collections.emptyList());
 
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.updateTemplates(additions, deletions));
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.upgradeTemplates(additions, deletions));
         assertThat(ise.getMessage(), containsString("template upgrade service should always happen in a system context"));
 
-        threadContext.markAsSystemContext();
-        service.updateTemplates(additions, deletions);
-        int updatesInProgress = service.getUpdatesInProgress();
+        service.upgradesInProgress.set(additionsCount + deletionsCount + 2); // +2 to skip tryFinishUpgrade
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            service.upgradeTemplates(additions, deletions);
+        }
 
         assertThat(putTemplateListeners, hasSize(additionsCount));
         assertThat(deleteTemplateListeners, hasSize(deletionsCount));
@@ -218,51 +237,40 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         for (int i = 0; i < deletionsCount; i++) {
             if (randomBoolean()) {
-                int prevUpdatesInProgress = service.getUpdatesInProgress();
+                int prevUpdatesInProgress = service.upgradesInProgress.get();
                 deleteTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
-                assertThat(prevUpdatesInProgress - service.getUpdatesInProgress(), equalTo(1));
+                assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             } else {
-                int prevUpdatesInProgress = service.getUpdatesInProgress();
+                int prevUpdatesInProgress = service.upgradesInProgress.get();
                 deleteTemplateListeners.get(i).onResponse(new DeleteIndexTemplateResponse(randomBoolean()) {
 
                 });
-                assertThat(prevUpdatesInProgress - service.getUpdatesInProgress(), equalTo(1));
+                assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             }
         }
-        assertThat(updatesInProgress - service.getUpdatesInProgress(), equalTo(additionsCount + deletionsCount));
+        // tryFinishUpgrade was skipped
+        assertThat(service.upgradesInProgress.get(), equalTo(2));
     }
 
     private static final Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
         Collections.unmodifiableSet(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA));
 
     @SuppressWarnings("unchecked")
-    public void testClusterStateUpdate() {
+    public void testClusterStateUpdate() throws InterruptedException {
 
-        AtomicReference<ActionListener<PutIndexTemplateResponse>> addedListener = new AtomicReference<>();
-        AtomicReference<ActionListener<PutIndexTemplateResponse>> changedListener = new AtomicReference<>();
-        AtomicReference<ActionListener<DeleteIndexTemplateResponse>> removedListener = new AtomicReference<>();
-        AtomicInteger updateInvocation = new AtomicInteger();
+        final AtomicReference<ActionListener<PutIndexTemplateResponse>> addedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<PutIndexTemplateResponse>> changedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<DeleteIndexTemplateResponse>> removedListener = new AtomicReference<>();
+        final Semaphore updateInvocation = new Semaphore(0);
+        final Semaphore calculateInvocation = new Semaphore(0);
+        final Semaphore changedInvocation = new Semaphore(0);
+        final Semaphore finishInvocation = new Semaphore(0);
 
         MetaData metaData = randomMetaData(
             IndexTemplateMetaData.builder("user_template").patterns(randomIndexPatterns()).build(),
             IndexTemplateMetaData.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
             IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
-
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        ExecutorService executorService = mock(ExecutorService.class);
-        when(threadPool.generic()).thenReturn(executorService);
-        doAnswer(invocation -> {
-            Object[] args = invocation.getArguments();
-            assert args.length == 1;
-            assertTrue(threadContext.isSystemContext());
-            Runnable runnable = (Runnable) args[0];
-            runnable.run();
-            updateInvocation.incrementAndGet();
-            return null;
-        }).when(executorService).execute(any(Runnable.class));
 
         Client mockClient = mock(Client.class);
         AdminClient mockAdminClient = mock(AdminClient.class);
@@ -293,7 +301,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
                     assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
@@ -309,26 +317,63 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                         .patterns(Collections.singletonList("*")).order(10).build()));
                     return templates;
                 }
-            ));
+                )) {
+
+            @Override
+            void tryFinishUpgrade(AtomicBoolean anyUpgradeFailed) {
+                super.tryFinishUpgrade(anyUpgradeFailed);
+                finishInvocation.release();
+            }
+
+            @Override
+            void upgradeTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
+                super.upgradeTemplates(changes, deletions);
+                updateInvocation.release();
+            }
+
+            @Override
+            Optional<Tuple<Map<String, BytesReference>, Set<String>>>
+                    calculateTemplateChanges(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
+                final Optional<Tuple<Map<String, BytesReference>, Set<String>>> ans = super.calculateTemplateChanges(templates);
+                calculateInvocation.release();
+                return ans;
+            }
+
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                super.clusterChanged(event);
+                changedInvocation.release();
+            }
+        };
 
         ClusterState prevState = ClusterState.EMPTY_STATE;
         ClusterState state = ClusterState.builder(prevState).nodes(DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, Version.CURRENT)
             ).localNodeId("node1").masterNodeId("node1").build()
         ).metaData(metaData).build();
-        service.clusterChanged(new ClusterChangedEvent("test", state, prevState));
+        setState(clusterService, state);
 
-        assertThat(updateInvocation.get(), equalTo(1));
+        changedInvocation.acquire();
+        assertThat(changedInvocation.availablePermits(), equalTo(0));
+        calculateInvocation.acquire();
+        assertThat(calculateInvocation.availablePermits(), equalTo(0));
+        updateInvocation.acquire();
+        assertThat(updateInvocation.availablePermits(), equalTo(0));
+        assertThat(finishInvocation.availablePermits(), equalTo(0));
         assertThat(addedListener.get(), notNullValue());
         assertThat(changedListener.get(), notNullValue());
         assertThat(removedListener.get(), notNullValue());
 
         prevState = state;
         state = ClusterState.builder(prevState).metaData(MetaData.builder(state.metaData()).removeTemplate("user_template")).build();
-        service.clusterChanged(new ClusterChangedEvent("test 2", state, prevState));
+        setState(clusterService, state);
 
         // Make sure that update wasn't invoked since we are still running
-        assertThat(updateInvocation.get(), equalTo(1));
+        changedInvocation.acquire();
+        assertThat(changedInvocation.availablePermits(), equalTo(0));
+        assertThat(calculateInvocation.availablePermits(), equalTo(0));
+        assertThat(updateInvocation.availablePermits(), equalTo(0));
+        assertThat(finishInvocation.availablePermits(), equalTo(0));
 
         addedListener.getAndSet(null).onResponse(new PutIndexTemplateResponse(true) {
         });
@@ -337,19 +382,40 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         removedListener.getAndSet(null).onResponse(new DeleteIndexTemplateResponse(true) {
         });
 
-        service.clusterChanged(new ClusterChangedEvent("test 3", state, prevState));
+        // 3 upgrades should be completed, in addition to the final calculate
+        finishInvocation.acquire(3);
+        assertThat(finishInvocation.availablePermits(), equalTo(0));
+        calculateInvocation.acquire();
+        assertThat(calculateInvocation.availablePermits(), equalTo(0));
+
+        setState(clusterService, state);
 
         // Make sure that update was called this time since we are no longer running
-        assertThat(updateInvocation.get(), equalTo(2));
+        changedInvocation.acquire();
+        assertThat(changedInvocation.availablePermits(), equalTo(0));
+        calculateInvocation.acquire();
+        assertThat(calculateInvocation.availablePermits(), equalTo(0));
+        updateInvocation.acquire();
+        assertThat(updateInvocation.availablePermits(), equalTo(0));
+        assertThat(finishInvocation.availablePermits(), equalTo(0));
 
         addedListener.getAndSet(null).onFailure(new RuntimeException("test - ignore"));
         changedListener.getAndSet(null).onFailure(new RuntimeException("test - ignore"));
         removedListener.getAndSet(null).onFailure(new RuntimeException("test - ignore"));
 
-        service.clusterChanged(new ClusterChangedEvent("test 3", state, prevState));
+        finishInvocation.acquire(3);
+        assertThat(finishInvocation.availablePermits(), equalTo(0));
+        calculateInvocation.acquire();
+        assertThat(calculateInvocation.availablePermits(), equalTo(0));
+
+        setState(clusterService, state);
 
         // Make sure that update wasn't called this time since the index template metadata didn't change
-        assertThat(updateInvocation.get(), equalTo(2));
+        changedInvocation.acquire();
+        assertThat(changedInvocation.availablePermits(), equalTo(0));
+        assertThat(calculateInvocation.availablePermits(), equalTo(0));
+        assertThat(updateInvocation.availablePermits(), equalTo(0));
+        assertThat(finishInvocation.availablePermits(), equalTo(0));
     }
 
     private static final int NODE_TEST_ITERS = 100;

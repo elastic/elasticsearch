@@ -207,6 +207,7 @@ minute during the weekend:
   ...
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 [[croneval]]
 ===== Verifying Cron Expressions

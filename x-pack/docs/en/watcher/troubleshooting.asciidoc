@@ -30,6 +30,7 @@ mappings:
 --------------------------------------------------
 DELETE .watches
 --------------------------------------------------
+// CONSOLE
 +
 . Disable direct access to the `.watches` index:
 .. Stop the Elasticsearch node.

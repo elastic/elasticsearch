@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
@@ -25,6 +25,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
 
 /**
@@ -42,7 +44,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
 
     private final FingerprintAnalyzer analyzer;
 
-    public FingerprintAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    FingerprintAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         char separator = parseSeparator(settings);

@@ -1,4 +1,4 @@
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 /*
  * Licensed to Elasticsearch under one or more contributor

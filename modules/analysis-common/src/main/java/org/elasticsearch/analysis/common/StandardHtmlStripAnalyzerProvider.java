@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.core.StopAnalyzer;
@@ -25,12 +25,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
 public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
 
     private final StandardHtmlStripAnalyzer analyzer;
 
-    public StandardHtmlStripAnalyzerProvider(IndexSettings indexSettings, Environment env,  String name, Settings settings) {
+    StandardHtmlStripAnalyzerProvider(IndexSettings indexSettings, Environment env,  String name, Settings settings) {
         super(indexSettings, name, settings);
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);

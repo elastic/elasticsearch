@@ -18,13 +18,8 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexNotFoundException;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -57,10 +52,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -155,37 +148,60 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will have its own unique data path.
+     * Creates a new initializing shard. The shard will have its own unique data path.
      *
-     * @param primary indicates whether to a primary shard (ready to recover from an empty store) or a replica
-     *                (ready to recover from another shard)
+     * @param primary indicates whether to a primary shard (ready to recover from an empty store) or a replica (ready to recover from
+     *                another shard)
      */
     protected IndexShard newShard(boolean primary) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary,
-            ShardRoutingState.INITIALIZING,
-            primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
-        return newShard(shardRouting);
+        return newShard(primary, Settings.EMPTY, new InternalEngineFactory());
     }
 
     /**
-     * creates a new initializing shard. The shard will have its own unique data path.
+     * Creates a new initializing shard. The shard will have its own unique data path.
      *
-     * @param shardRouting the {@link ShardRouting} to use for this shard
-     * @param listeners    an optional set of listeners to add to the shard
+     * @param primary       indicates whether to a primary shard (ready to recover from an empty store) or a replica (ready to recover from
+     *                      another shard)
+     * @param settings      the settings to use for this shard
+     * @param engineFactory the engine factory to use for this shard
+     */
+    protected IndexShard newShard(boolean primary, Settings settings, EngineFactory engineFactory) throws IOException {
+        final RecoverySource recoverySource =
+                primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE;
+        final ShardRouting shardRouting =
+                TestShardRouting.newShardRouting(
+                        new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary, ShardRoutingState.INITIALIZING, recoverySource);
+        return newShard(shardRouting, settings, engineFactory);
+    }
+
+    protected IndexShard newShard(ShardRouting shardRouting, final IndexingOperationListener... listeners) throws IOException {
+        return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
+    }
+
+    /**
+     * Creates a new initializing shard. The shard will have its own unique data path.
+     *
+     * @param shardRouting  the {@link ShardRouting} to use for this shard
+     * @param settings      the settings to use for this shard
+     * @param engineFactory the engine factory to use for this shard
+     * @param listeners     an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(
             final ShardRouting shardRouting,
+            final Settings settings,
+            final EngineFactory engineFactory,
             final IndexingOperationListener... listeners) throws IOException {
         assert shardRouting.initializing() : shardRouting;
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(settings)
+                .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
-            .settings(settings)
+            .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("_doc", "{ \"properties\": {} }");
-        return newShard(shardRouting, metaData.build(), listeners);
+        return newShard(shardRouting, metaData.build(), engineFactory, listeners);
     }
 
     /**
@@ -200,7 +216,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(5), primary,
             ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
-        return newShard(shardRouting, listeners);
+        return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
     }
 
     /**
@@ -240,9 +256,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param indexMetaData indexMetaData for the shard, including any mapping
      * @param listeners     an optional set of listeners to add to the shard
      */
-    protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData, IndexingOperationListener... listeners)
+    protected IndexShard newShard(
+            ShardRouting routing, IndexMetaData indexMetaData, EngineFactory engineFactory, IndexingOperationListener... listeners)
         throws IOException {
-        return newShard(routing, indexMetaData, null, new InternalEngineFactory(), () -> {}, listeners);
+        return newShard(routing, indexMetaData, null, engineFactory, () -> {}, listeners);
     }
 
     /**
@@ -342,19 +359,31 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * creates a new empyu shard and starts it. The shard will be either a replica or a primary.
+     * Creates a new empty shard and starts it. The shard will randomly be a replica or a primary.
      */
     protected IndexShard newStartedShard() throws IOException {
         return newStartedShard(randomBoolean());
     }
 
     /**
-     * creates a new empty shard and starts it.
+     * Creates a new empty shard and starts it.
      *
      * @param primary controls whether the shard will be a primary or a replica.
      */
-    protected IndexShard newStartedShard(boolean primary) throws IOException {
-        IndexShard shard = newShard(primary);
+    protected IndexShard newStartedShard(final boolean primary) throws IOException {
+        return newStartedShard(primary, Settings.EMPTY, new InternalEngineFactory());
+    }
+
+    /**
+     * Creates a new empty shard with the specified settings and engine factory and starts it.
+     *
+     * @param primary       controls whether the shard will be a primary or a replica.
+     * @param settings      the settings to use for this shard
+     * @param engineFactory the engine factory to use for this shard
+     */
+    protected IndexShard newStartedShard(
+            final boolean primary, final Settings settings, final EngineFactory engineFactory) throws IOException {
+        IndexShard shard = newShard(primary, settings, engineFactory);
         if (primary) {
             recoverShardFromStore(shard);
         } else {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.nio;
 
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.timeout.ReadTimeoutException;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -28,6 +29,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -38,11 +40,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.AbstractHttpServerTransport;
+import org.elasticsearch.http.nio.cors.NioCorsConfig;
+import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -56,6 +60,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -64,15 +69,23 @@ import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
@@ -86,6 +99,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECE
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
+import static org.elasticsearch.http.nio.cors.NioCorsHandler.ANY_ORIGIN;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
@@ -115,6 +129,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private final Set<NioSocketChannel> socketChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private NioGroup nioGroup;
     private HttpChannelFactory channelFactory;
+    private final NioCorsConfig corsConfig;
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                   NamedXContentRegistry xContentRegistry, HttpServerTransport.Dispatcher dispatcher) {
@@ -136,6 +151,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
             pipeliningMaxEvents);
+        this.corsConfig = buildCorsConfig(settings);
 
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
@@ -279,6 +295,38 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()), ex);
     }
 
+    static NioCorsConfig buildCorsConfig(Settings settings) {
+        if (SETTING_CORS_ENABLED.get(settings) == false) {
+            return NioCorsConfigBuilder.forOrigins().disable().build();
+        }
+        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
+        final NioCorsConfigBuilder builder;
+        if (Strings.isNullOrEmpty(origin)) {
+            builder = NioCorsConfigBuilder.forOrigins();
+        } else if (origin.equals(ANY_ORIGIN)) {
+            builder = NioCorsConfigBuilder.forAnyOrigin();
+        } else {
+            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+            if (p == null) {
+                builder = NioCorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+            } else {
+                builder = NioCorsConfigBuilder.forPattern(p);
+            }
+        }
+        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
+            builder.allowCredentials();
+        }
+        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
+        HttpMethod[] methods = Arrays.stream(strMethods)
+            .map(HttpMethod::valueOf)
+            .toArray(HttpMethod[]::new);
+        return builder.allowedRequestMethods(methods)
+            .maxAge(SETTING_CORS_MAX_AGE.get(settings))
+            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
+            .shortCircuit()
+            .build();
+    }
+
     private void closeChannels(List<NioChannel> channels) {
         List<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
 
@@ -315,7 +363,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioChannel = new NioSocketChannel(channel);
             HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(nioChannel,NioHttpServerTransport.this,
-                httpHandlingSettings, xContentRegistry, threadPool.getThreadContext());
+                httpHandlingSettings, xContentRegistry, corsConfig, threadPool.getThreadContext());
             Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
             SocketChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, httpReadWritePipeline,
                 InboundChannelBuffer.allocatingInstance());

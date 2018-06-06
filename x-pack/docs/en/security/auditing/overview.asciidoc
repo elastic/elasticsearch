@@ -29,7 +29,7 @@ indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
 xpack.security.audit.outputs: [ index, logfile ]
 ----------------------------
 
-TIP: If you use the `index` output, we strongly recommend that you still use the 
-`logfile` output as the official record of events. If the target index is 
-unavailable (for example, during a rolling upgrade), the `index` output type can 
-lose messages.
+TIP: If you choose to enable the `index` output type, we strongly recommend that 
+you still use the `logfile` output as the official record of events. If the 
+target index is unavailable (for example, during a rolling upgrade), the `index` 
+output can lose messages.

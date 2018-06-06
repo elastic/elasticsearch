@@ -8,7 +8,7 @@ documents in a query.
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query.
 
 *Variables*
 

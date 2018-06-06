@@ -8,7 +8,7 @@ re-indexed into a target index.
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query.
 
 `ctx['_op']` (`String`)::
         The name of the operation.

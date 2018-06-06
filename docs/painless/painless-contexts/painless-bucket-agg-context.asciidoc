@@ -1,15 +1,20 @@
 [[painless-bucket-agg-context]]
 === Bucket Aggregation Context
 
-Use a Painless script in an {es_version}/
+Use a Painless script in an
+{es_version}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket aggregation]
+to calculate a value as a result in a bucket.
 
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query. The parameters
+        include values defined as part of the `buckets_path`.
 
 *Return*
 
+numeric::
+        The calculated value as the result.
 
 *API*
 

@@ -10,7 +10,7 @@ full metric aggregation.
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query.
 
 `params['_agg']` (`Map`)::
         Empty `Map` used to add values for use in a

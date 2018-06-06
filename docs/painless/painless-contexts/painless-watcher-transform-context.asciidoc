@@ -1,12 +1,13 @@
 [[painless-watcher-transform-context]]
 === Watcher Transform Context
 
-Use a Painless script in an {es_version}/
+Use a Painless script to {xp_version}/transform-script.html[transform] watch
+data into a new modified payload.
 
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query.
 
 *Return*
 

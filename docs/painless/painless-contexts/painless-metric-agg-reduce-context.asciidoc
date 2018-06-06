@@ -12,7 +12,7 @@ specified) and is optional as part of a full metric aggregation.
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query.
 
 `params['_aggs']` (`Map`)::
         `Map` with values available from the prior combine script (or a map

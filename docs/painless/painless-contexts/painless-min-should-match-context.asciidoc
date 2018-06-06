@@ -9,7 +9,7 @@ results.
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query.
 
 `params['num_terms']` (`int`, read-only)::
         The number of terms specified to match with.

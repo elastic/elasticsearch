@@ -8,7 +8,7 @@ score to documents returned from a query.
 *Variables*
 
 `params` (`Map`, read-only)::
-        User-defined parameters passed in at query-time.
+        User-defined parameters passed in as part of the query.
 
 `doc` (`Map`, read-only)::
         Contains the fields of the current document where each field is a

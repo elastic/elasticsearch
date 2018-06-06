@@ -28,7 +28,6 @@
           excludes: []
         docvalue_fields:
           - field: int
-            format: null
         sort:
           - int:
               order: asc

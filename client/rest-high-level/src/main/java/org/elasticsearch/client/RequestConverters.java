@@ -116,6 +116,7 @@ final class RequestConverters {
             cancelTasksRequest.getTimeout())
             .withTaskId(cancelTasksRequest.getTaskId())
             .withNodes(cancelTasksRequest.getNodes())
+            .withParentTaskId(cancelTasksRequest.getParentTaskId())
             .withActions(cancelTasksRequest.getActions());
         return request;
     }

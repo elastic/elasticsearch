@@ -1593,8 +1593,11 @@ public class RequestConvertersTests extends ESTestCase {
         CancelTasksRequest request = new CancelTasksRequest();
         Map<String, String> expectedParams = new HashMap<>();
         TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
         request.setTaskId(taskId);
+        request.setParentTaskId(parentTaskId);
         expectedParams.put("task_id", taskId.toString());
+        expectedParams.put("parent_task_id", parentTaskId.toString());
         Request httpRequest = RequestConverters.cancelTasks(request);
         assertThat(httpRequest, notNullValue());
         assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));

@@ -171,7 +171,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         createIndex("index2", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest();
         request.timeout("5s");
-        request.level("cluster");
+        request.level(ClusterHealthRequest.Level.CLUSTER);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
         assertTenYellowShards(response);
@@ -183,7 +183,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         createIndex("index2", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest();
         request.timeout("5s");
-        request.level("indices");
+        request.level(ClusterHealthRequest.Level.INDICES);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
         assertTenYellowShards(response);

@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
@@ -46,11 +47,10 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private String waitForNodes = "";
     private Priority waitForEvents = null;
     /**
-     * Only for High-level REST Client
-     * Can be one of 'cluster', 'indices' or 'shards'. Controls the details level of the health information returned.
+     * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'shards' so it is backward compatible with the transport client behaviour.
      */
-    private String level = "shards";
+    private Level level = Level.SHARDS;
 
     public ClusterHealthRequest() {
     }
@@ -249,22 +249,20 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     /**
-     * Set level
-     * Only for High-level REST Client
-     * Can be one of 'cluster', 'indices' or 'shards'. Controls the details level of the health information returned.
+     * Set the level of detail for the health information to be returned.
+     * Only used by the high-level REST Client
      * The default value is 'shards' so it is backward compatible with the transport client behaviour.
      */
-    public void level(String level) {
-        this.level = level;
+    public void level(Level level) {
+        this.level = Objects.requireNonNull(level, "level must not be null");
     }
 
     /**
-     * Get level
-     * Only for High-level REST Client
-     * Can be one of 'cluster', 'indices' or 'shards'. Controls the details level of the health information returned.
+     * Get the level of detail for the health information to be returned.
+     * Only used by the high-level REST Client.
      * The default value is 'shards' so it is backward compatible with the transport client behaviour.
      */
-    public String level() {
+    public Level level() {
         return level;
     }
 
@@ -276,5 +274,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    public enum Level {
+        CLUSTER, INDICES, SHARDS
     }
 }

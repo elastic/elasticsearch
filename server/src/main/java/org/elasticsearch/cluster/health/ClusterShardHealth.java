@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,7 +65,6 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
                 });
 
     static {
-//        PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID));
         PARSER.declareBoolean(constructorArg(), new ParseField(PRIMARY_ACTIVE));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
@@ -229,18 +227,14 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         return PARSER.apply(parser, shardId);
     }
 
-    public static ClusterShardHealth fromXContent(XContentParser parser) {
-        try {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            XContentParser.Token token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            String shardIdStr = parser.currentName();
-            ClusterShardHealth parsed = innerFromXContent(parser, Integer.valueOf(shardIdStr));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            return parsed;
-        } catch (IOException e) {
-            throw new ParsingException(parser.getTokenLocation(), "[ClusterShardHealth::fromXContent] failed to parse object", e);
-        }
+    public static ClusterShardHealth fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        String shardIdStr = parser.currentName();
+        ClusterShardHealth parsed = innerFromXContent(parser, Integer.valueOf(shardIdStr));
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return parsed;
     }
 
     @Override

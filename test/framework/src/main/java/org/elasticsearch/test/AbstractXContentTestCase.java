@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -130,6 +131,9 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         return Strings.EMPTY_ARRAY;
     }
 
+    /**
+     * Params that have to be provided when calling calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)}
+     */
     protected ToXContent.Params getToXContentParams() {
         return ToXContent.EMPTY_PARAMS;
     }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -29,7 +30,7 @@ import java.util.stream.Collectors;
 public class ClusterShardHealthTests extends AbstractSerializingTestCase<ClusterShardHealth> {
 
     @Override
-    protected ClusterShardHealth doParseInstance(XContentParser parser) {
+    protected ClusterShardHealth doParseInstance(XContentParser parser) throws IOException {
         return ClusterShardHealth.fromXContent(parser);
     }
 
@@ -55,6 +56,7 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
+        //don't inject random fields at the root, which contains arbitrary shard ids
         return ""::equals;
     }
 

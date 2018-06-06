@@ -39,6 +39,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -49,9 +50,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestCase<ClusterHealthResponse> {
-    private final String level = randomFrom("shards", "indices", "cluster");
+    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
 
-    public void testIsTimeout() throws IOException {
+    public void testIsTimeout() {
         ClusterHealthResponse res = new ClusterHealthResponse();
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
@@ -131,7 +132,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
 
     @Override
     protected ToXContent.Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap("level", level));
+        return new ToXContent.MapParams(Collections.singletonMap("level", level.name().toLowerCase(Locale.ROOT)));
     }
 
     @Override

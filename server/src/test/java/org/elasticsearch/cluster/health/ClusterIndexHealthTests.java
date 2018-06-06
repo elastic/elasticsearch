@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -39,13 +41,14 @@ import java.util.stream.Collectors;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterIndexHealthTests extends AbstractSerializingTestCase<ClusterIndexHealth> {
-    private final String level = randomFrom("shards", "indices");
+    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.SHARDS, ClusterHealthRequest.Level.INDICES);
 
     public void testClusterIndexHealth() {
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         int numberOfShards = randomInt(3) + 1;
         int numberOfReplicas = randomInt(4);
-        IndexMetaData indexMetaData = IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
+        IndexMetaData indexMetaData = IndexMetaData.builder("test1").settings(settings(Version.CURRENT))
+                .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
         RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
 
@@ -53,7 +56,8 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
         assertIndexHealth(indexHealth, counter, indexMetaData);
     }
 
-    private void assertIndexHealth(ClusterIndexHealth indexHealth, RoutingTableGenerator.ShardCounter counter, IndexMetaData indexMetaData) {
+    private void assertIndexHealth(ClusterIndexHealth indexHealth, RoutingTableGenerator.ShardCounter counter,
+                                   IndexMetaData indexMetaData) {
         assertThat(indexHealth.getStatus(), equalTo(counter.status()));
         assertThat(indexHealth.getNumberOfShards(), equalTo(indexMetaData.getNumberOfShards()));
         assertThat(indexHealth.getNumberOfReplicas(), equalTo(indexMetaData.getNumberOfReplicas()));
@@ -75,9 +79,9 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
         return randomIndexHealth(randomAlphaOfLengthBetween(1, 10), level);
     }
 
-    public static ClusterIndexHealth randomIndexHealth(String indexName, String level) {
+    public static ClusterIndexHealth randomIndexHealth(String indexName, ClusterHealthRequest.Level level) {
         Map<Integer, ClusterShardHealth> shards = new HashMap<>();
-        if ("shards".equals(level)) {
+        if (level == ClusterHealthRequest.Level.SHARDS) {
             for (int i = 0; i < randomInt(5); i++) {
                 shards.put(i, ClusterShardHealthTests.randomShardHealth(i));
             }
@@ -92,13 +96,13 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
     }
 
     @Override
-    protected ClusterIndexHealth doParseInstance(XContentParser parser) {
+    protected ClusterIndexHealth doParseInstance(XContentParser parser) throws IOException {
         return ClusterIndexHealth.fromXContent(parser);
     }
 
     @Override
     protected ToXContent.Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap("level", level));
+        return new ToXContent.MapParams(Collections.singletonMap("level", level.name().toLowerCase(Locale.ROOT)));
     }
 
     @Override

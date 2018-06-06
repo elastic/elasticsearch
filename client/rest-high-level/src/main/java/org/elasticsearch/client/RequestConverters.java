@@ -1069,8 +1069,8 @@ final class RequestConverters {
             return putParam("wait_for_nodes", waitForNodes);
         }
 
-        Params withLevel(String level) {
-            return putParam("level", level);
+        Params withLevel(ClusterHealthRequest.Level level) {
+            return putParam("level", level.name().toLowerCase(Locale.ROOT));
         }
 
         Params withWaitForEvents(Priority waitForEvents) {

@@ -302,7 +302,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::health-request-wait-status
 
         // tag::health-request-level
-        request.level("cluster"); // <1>
+        request.level(ClusterHealthRequest.Level.CLUSTER); // <1>
         // end::health-request-level
 
         // tag::health-request-wait-relocation

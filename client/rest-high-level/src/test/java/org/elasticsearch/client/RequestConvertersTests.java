@@ -95,7 +95,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -1463,9 +1462,9 @@ public class RequestConvertersTests extends ESTestCase {
         }
         setRandomWaitForActiveShards(healthRequest::waitForActiveShards, expectedParams, "0");
         if (randomBoolean()) {
-            String level = randomFrom("cluster", "indices", "shards");
+            ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
             healthRequest.level(level);
-            expectedParams.put("level", level);
+            expectedParams.put("level", level.name().toLowerCase(Locale.ROOT));
         } else {
             expectedParams.put("level", "shards");
         }

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -284,18 +283,14 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         return PARSER.apply(parser, index);
     }
 
-    public static ClusterIndexHealth fromXContent(XContentParser parser) {
-        try {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            XContentParser.Token token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            String index = parser.currentName();
-            ClusterIndexHealth parsed = innerFromXContent(parser, index);
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            return parsed;
-        } catch (IOException e) {
-            throw new ParsingException(parser.getTokenLocation(), "[ClusterIndexHealth::fromXContent] failed to parse object", e);
-        }
+    public static ClusterIndexHealth fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        String index = parser.currentName();
+        ClusterIndexHealth parsed = innerFromXContent(parser, index);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return parsed;
     }
 
     @Override

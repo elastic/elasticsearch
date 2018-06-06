@@ -138,6 +138,7 @@ you need to parse the `@timestamp` string into a `DateTime`. For example:
 --------------------------------------------------
 org.elasticsearch.common.joda.time.DateTime.parse(@timestamp)
 --------------------------------------------------
+// NOTCONSOLE
 
 You can reference the following variables in the watch context:
 

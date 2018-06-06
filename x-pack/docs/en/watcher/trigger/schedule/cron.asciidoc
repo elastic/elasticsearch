@@ -184,6 +184,7 @@ that triggers every day at noon:
   ...
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ===== Configuring a Multiple Times Cron Schedule
 

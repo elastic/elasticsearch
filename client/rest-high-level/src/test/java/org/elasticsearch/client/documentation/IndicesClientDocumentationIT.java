@@ -88,7 +88,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -1768,7 +1768,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     new ActionListener<GetAliasesResponse>() {
                         @Override
                         public void onResponse(GetAliasesResponse getAliasesResponse) {
-
                             // <1>
                         }
 
@@ -2033,7 +2032,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse putTemplateResponse) {
-
                     // <1>
                 }
 

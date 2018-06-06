@@ -932,6 +932,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetAliasesNonExistentIndexOrAlias() throws IOException {
+        /*
+         * This test is quite extensive as this is the only way we can check that we haven't slid out of sync with the server
+         * because the server renders the xcontent in a spot that is difficult for us to access in a unit test.
+         */
         String alias = "alias";
         String index = "index";
         {
@@ -984,8 +988,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             AliasMetaData aliasMetaData = getAliasesResponse.getAliases().get(index).iterator().next();
             assertThat(aliasMetaData, notNullValue());
             assertThat(aliasMetaData.alias(), equalTo(alias));
-
             /*
+            This is the above response in json format:
             {
              "error": "alias [something] missing",
              "status": 404,

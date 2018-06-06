@@ -170,26 +170,26 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
     public void testFromXContentWithElasticsearchException() throws IOException {
         String xContent =
                 "{" +
-                        "  \"error\": {" +
-                        "    \"root_cause\": [" +
-                        "      {" +
-                        "        \"type\": \"index_not_found_exception\"," +
-                        "        \"reason\": \"no such index\"," +
-                        "        \"resource.type\": \"index_or_alias\"," +
-                        "        \"resource.id\": \"index\"," +
-                        "        \"index_uuid\": \"_na_\"," +
-                        "        \"index\": \"index\"" +
-                        "      }" +
-                        "    ]," +
-                        "    \"type\": \"index_not_found_exception\"," +
-                        "    \"reason\": \"no such index\"," +
-                        "    \"resource.type\": \"index_or_alias\"," +
-                        "    \"resource.id\": \"index\"," +
-                        "    \"index_uuid\": \"_na_\"," +
-                        "    \"index\": \"index\"" +
-                        "  }," +
-                        "  \"status\": 404" +
-                        "}";
+                "  \"error\": {" +
+                "    \"root_cause\": [" +
+                "      {" +
+                "        \"type\": \"index_not_found_exception\"," +
+                "        \"reason\": \"no such index\"," +
+                "        \"resource.type\": \"index_or_alias\"," +
+                "        \"resource.id\": \"index\"," +
+                "        \"index_uuid\": \"_na_\"," +
+                "        \"index\": \"index\"" +
+                "      }" +
+                "    ]," +
+                "    \"type\": \"index_not_found_exception\"," +
+                "    \"reason\": \"no such index\"," +
+                "    \"resource.type\": \"index_or_alias\"," +
+                "    \"resource.id\": \"index\"," +
+                "    \"index_uuid\": \"_na_\"," +
+                "    \"index\": \"index\"" +
+                "  }," +
+                "  \"status\": 404" +
+                "}";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             GetAliasesResponse getAliasesResponse = GetAliasesResponse.fromXContent(parser);

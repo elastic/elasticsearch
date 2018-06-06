@@ -39,6 +39,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.nio.cors.NioCorsConfig;
+import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -95,7 +97,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             SETTING_PIPELINING_MAX_EVENTS.getDefault(settings));
         ThreadContext threadContext = new ThreadContext(settings);
         nioSocketChannel = mock(NioSocketChannel.class);
-        handler = new HttpReadWriteHandler(nioSocketChannel, transport, httpHandlingSettings, NamedXContentRegistry.EMPTY, threadContext);
+        handler = new HttpReadWriteHandler(nioSocketChannel, transport, httpHandlingSettings, NamedXContentRegistry.EMPTY,
+            NioCorsConfigBuilder.forAnyOrigin().build(), threadContext);
     }
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,7 +26,7 @@ import java.util.Set;
 
 public class ShardFollowTask implements PersistentTaskParams {
 
-    public static final String NAME = "shard_follow";
+    public static final String NAME = "xpack/ccr/shard_follow_task";
 
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS =
@@ -183,4 +184,8 @@ public class ShardFollowTask implements PersistentTaskParams {
         return Strings.toString(this);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_6_4_0;
+    }
 }

@@ -16,18 +16,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PersistJobAction extends Action<PersistJobAction.Request, PersistJobAction.Response, PersistJobAction.RequestBuilder> {
+public class PersistJobAction extends Action<PersistJobAction.Request, PersistJobAction.Response> {
 
     public static final PersistJobAction INSTANCE = new PersistJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/persist";
 
     private PersistJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public PersistJobAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -127,7 +122,7 @@ public class PersistJobAction extends Action<PersistJobAction.Request, PersistJo
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
         RequestBuilder(ElasticsearchClient client, PersistJobAction action) {
             super(client, action, new PersistJobAction.Request());
         }

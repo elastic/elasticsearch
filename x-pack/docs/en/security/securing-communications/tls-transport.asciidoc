@@ -30,9 +30,13 @@ See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of the
 <2> If you created a separate certificate for each node, then you might need to
 customize this path on each node. If the filename matches the node name, you can
 use the `certs/${node.name}.p12` format, for example.
-<3> The `elasticsearch-certutil` output includes the CA certificate inside the
-PKCS#12 keystore, therefore the keystore can also be used as the truststore.
-This name should match the `keystore.path` value.
+<3> The `elasticsearch-certutil` outputs a PKCS#12 keystore which includes the
+CA certificate as a trusted certificate entry. This allows for the keystore to
+also be used as a truststore. In this case, the path value should match
+the `keystore.path` value.
+Note, however, that this is not the general rule. There are keystores that cannot be
+used as trustores, only 
+{ref}/security-settings.html#pkcs12-truststore-note[specifically crafted ones can]
 --
 
 ** If the certificate is in PEM format, add the following information to the

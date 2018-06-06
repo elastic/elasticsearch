@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class MultiSearchTemplateRequestBuilder
-        extends ActionRequestBuilder<MultiSearchTemplateRequest, MultiSearchTemplateResponse, MultiSearchTemplateRequestBuilder> {
+        extends ActionRequestBuilder<MultiSearchTemplateRequest, MultiSearchTemplateResponse> {
 
     protected MultiSearchTemplateRequestBuilder(ElasticsearchClient client, MultiSearchTemplateAction action) {
         super(client, action, new MultiSearchTemplateRequest());

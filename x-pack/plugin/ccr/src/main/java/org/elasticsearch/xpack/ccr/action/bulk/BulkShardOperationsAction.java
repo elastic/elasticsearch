@@ -9,18 +9,13 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class BulkShardOperationsAction
-        extends Action<BulkShardOperationsRequest, BulkShardOperationsResponse, BulkShardOperationsRequestBuilder> {
+        extends Action<BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
     public static final BulkShardOperationsAction INSTANCE = new BulkShardOperationsAction();
     public static final String NAME = "indices:data/write/bulk_shard_operations[s]";
 
     private BulkShardOperationsAction() {
         super(NAME);
-    }
-
-    @Override
-    public BulkShardOperationsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new BulkShardOperationsRequestBuilder(client);
     }
 
     @Override

@@ -374,7 +374,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final String xml = getSimpleResponse(now);
 
         // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
-        final String encrypted = encryptAssertions(xml, readKeyPair("RSA_1024"));
+        final String encrypted = encryptAssertions(xml, readKeyPair("RSA_4096_updated"));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -896,7 +896,6 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(attributes.attributes(), iterableWithSize(1));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30970")
     public void testIncorrectSigningKeyIsRejected() throws Exception {
         final CryptoTransform signer = randomBoolean() ? this::signDoc : this::signAssertions;
         Instant now = clock.instant();
@@ -938,7 +937,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         // check is rejected when signed by a different key-pair
-        final Tuple<X509Certificate, PrivateKey> wrongKey = readRandomKeyPair(randomSigningAlgorithm());
+        final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
                 () -> authenticator.authenticate(token(signer.transform(xml, wrongKey))));
         assertThat(exception.getMessage(), containsString("SAML Signature"));
@@ -954,10 +953,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         final Tuple<X509Certificate, PrivateKey> oldKeyPair = idpSigningCertificatePair;
-        //Ensure we won't read any of the ones we could have picked randomly before
+        // Ensure we won't read any of the ones we could have picked randomly before
         idpSigningCertificatePair = readKeyPair("RSA_4096_updated");
         assertThat(idpSigningCertificatePair.v2(), not(equalTo(oldKeyPair.v2())));
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
+        // Restore the keypair to one from the keypair pool of all algorithms and keys
+        idpSigningCertificatePair = readRandomKeyPair(randomSigningAlgorithm());
     }
 
     public void testParsingRejectsTamperedContent() throws Exception {

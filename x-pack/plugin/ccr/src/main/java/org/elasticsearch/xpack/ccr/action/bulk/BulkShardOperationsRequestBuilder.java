@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class BulkShardOperationsRequestBuilder
-        extends ActionRequestBuilder<BulkShardOperationsRequest, BulkShardOperationsResponse, BulkShardOperationsRequestBuilder> {
+        extends ActionRequestBuilder<BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
     public BulkShardOperationsRequestBuilder(final ElasticsearchClient client) {
         super(client, BulkShardOperationsAction.INSTANCE, new BulkShardOperationsRequest());

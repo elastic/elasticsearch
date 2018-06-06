@@ -39,18 +39,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ShardChangesAction extends Action<ShardChangesAction.Request, ShardChangesAction.Response, ShardChangesAction.RequestBuilder> {
+public class ShardChangesAction extends Action<ShardChangesAction.Request, ShardChangesAction.Response> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
 
     private ShardChangesAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -209,7 +204,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     static class RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
+        RequestBuilder(ElasticsearchClient client, Action<Request, Response> action) {
             super(client, action, new Request());
         }
     }
@@ -235,9 +230,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
-
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
-            request.maxSeqNo = Math.min(request.maxSeqNo, indexShard.getGlobalCheckpoint());
+            // The following shard generates this request based on the global checkpoint on the primary copy on the leader.
+            // Although this value might not have been synced to all replica copies on the leader, the requesting range
+            // is guaranteed to be at most the local-checkpoint of any shard copies on the leader.
+            assert request.maxSeqNo <= indexShard.getLocalCheckpoint() : "invalid request from_seqno=[" + request.minSeqNo + "]," +
+                " to_seqno=[" + request.maxSeqNo + "], local_checkpoint=[" + indexShard.getLocalCheckpoint() + "]";
             final Translog.Operation[] operations =
                 getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
             return new Response(indexMetaDataVersion, operations);

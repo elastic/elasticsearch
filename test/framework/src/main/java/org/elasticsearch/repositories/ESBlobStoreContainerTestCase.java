@@ -47,6 +47,13 @@ import static org.hamcrest.CoreMatchers.notNullValue;
  */
 public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
+    public void testReadNonExistingPath() throws IOException {
+        try(BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            expectThrows(NoSuchFileException.class, () -> container.readBlob("non-existing"));
+        }
+    }
+
     public void testWriteRead() throws IOException {
         try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
@@ -158,7 +165,11 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
     protected void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
-            container.writeBlob(blobName, stream, bytesArray.length());
+            if (randomBoolean()) {
+                container.writeBlob(blobName, stream, bytesArray.length());
+            } else {
+                container.writeBlobAtomic(blobName, stream, bytesArray.length());
+            }
         }
     }
 

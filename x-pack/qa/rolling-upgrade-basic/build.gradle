@@ -8,60 +8,7 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'runtime')
-    testCompile project(path: xpackModule('security'), configuration: 'runtime')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts') // to be moved in a later commit
-}
-
-Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-
-    // wait up to two minutes
-    final long stopTime = System.currentTimeMillis() + (2 * 60000L);
-    Exception lastException = null;
-    int lastResponseCode = 0
-
-    while (System.currentTimeMillis() < stopTime) {
-
-        lastException = null;
-        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
-        HttpURLConnection httpURLConnection = null;
-        try {
-            // TODO this sucks having to hardcode number of nodes, but node.config.numNodes isn't necessarily accurate for rolling
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=2&wait_for_status=yellow").openConnection();
-            httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-            httpURLConnection.setRequestMethod("GET");
-            httpURLConnection.setConnectTimeout(1000);
-            httpURLConnection.setReadTimeout(30000); // read needs to wait for nodes!
-            httpURLConnection.connect();
-            lastResponseCode = httpURLConnection.getResponseCode()
-            if (lastResponseCode == 200) {
-                tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-                    it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-                }
-                break;
-            }
-        } catch (Exception e) {
-            logger.debug("failed to call cluster health", e)
-            lastException = e
-        } finally {
-            if (httpURLConnection != null) {
-                httpURLConnection.disconnect();
-            }
-        }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
-    }
-    if (tmpFile.exists() == false) {
-        final String message = "final attempt of calling cluster health failed [lastResponseCode=${lastResponseCode}]"
-        if (lastException != null) {
-            logger.error(message, lastException)
-        } else {
-            logger.error(message + " [no exception]")
-        }
-    }
-    return tmpFile.exists()
 }
 
 // This is a top level task which we will add dependencies to below.
@@ -82,14 +29,13 @@ for (Version version : bwcVersions.wireCompatible) {
 
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
         if (version.before('6.3.0')) {
-          mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
+            mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
         }
         bwcVersion = version
-        numBwcNodes = 2
-        numNodes = 2
-        minimumMasterNodes = { 2 }
+        numBwcNodes = 3
+        numNodes = 3
+        minimumMasterNodes = { 3 }
         clusterName = 'rolling-upgrade-basic'
-        waitCondition = waitWithAuth
         setting 'xpack.security.enabled', 'false'
         setting 'xpack.monitoring.enabled', 'false'
         setting 'xpack.ml.enabled', 'false'
@@ -102,51 +48,62 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.suite', 'old_cluster'
     }
 
-    Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
-
-    configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
-        dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-        clusterName = 'rolling-upgrade-basic'
-        unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-        minimumMasterNodes = { 2 }
-        dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
-        waitCondition = waitWithAuth
-        setting 'xpack.security.enabled', 'false'
-        setting 'xpack.monitoring.enabled', 'false'
-        setting 'xpack.ml.enabled', 'false'
-        setting 'xpack.watcher.enabled', 'false'
-        setting 'xpack.license.self_generated.type', 'basic'
-        setting 'node.name', 'mixed-node-0'
+    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
+        configure(extensions.findByName("${baseName}#${name}")) {
+            dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
+            clusterName = 'rolling-upgrade-basic'
+            unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
+            minimumMasterNodes = { 3 }
+            /* Override the data directory so the new node always gets the node we
+            * just stopped's data directory. */
+            dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
+            setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+            setting 'xpack.security.enabled', 'false'
+            setting 'xpack.monitoring.enabled', 'false'
+            setting 'xpack.ml.enabled', 'false'
+            setting 'xpack.watcher.enabled', 'false'
+            setting 'xpack.license.self_generated.type', 'basic'
+        }
     }
 
-    Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
-    mixedClusterTestRunner.configure {
+    Task oneThirdUpgradedTest = tasks.create(name: "${baseName}#oneThirdUpgradedTest", type: RestIntegTestTask)
+
+    configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner,
+        0, { oldClusterTest.nodes.get(1).transportUri() })
+
+    Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
+    oneThirdUpgradedTestRunner.configure {
         systemProperty 'tests.rest.suite', 'mixed_cluster'
-        finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+        systemProperty 'tests.first_round', 'true'
+        finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
+    }
+
+    Task twoThirdsUpgradedTest = tasks.create(name: "${baseName}#twoThirdsUpgradedTest", type: RestIntegTestTask)
+
+    configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner,
+        1, { oneThirdUpgradedTest.nodes.get(0).transportUri() })
+
+    Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
+    twoThirdsUpgradedTestRunner.configure {
+        systemProperty 'tests.rest.suite', 'mixed_cluster'
+        systemProperty 'tests.first_round', 'false'
+        finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
-    configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
-        dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-        clusterName = 'rolling-upgrade-basic'
-        unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-        minimumMasterNodes = { 2 }
-        dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir }
-        waitCondition = waitWithAuth
-        setting 'xpack.security.enabled', 'false'
-        setting 'xpack.monitoring.enabled', 'false'
-        setting 'xpack.ml.enabled', 'false'
-        setting 'xpack.watcher.enabled', 'false'
-        setting 'xpack.license.self_generated.type', 'basic'
-        setting 'node.name', 'upgraded-node-0'
-    }
+    configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner,
+        2, { twoThirdsUpgradedTest.nodes.get(0).transportUri() })
 
     Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
     upgradedClusterTestRunner.configure {
         systemProperty 'tests.rest.suite', 'upgraded_cluster'
-        // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-        finalizedBy "${baseName}#mixedClusterTestCluster#stop"
+        /*
+         * Force stopping all the upgraded nodes after the test runner
+         * so they are alive during the test.
+         */
+        finalizedBy "${baseName}#oneThirdUpgradedTestCluster#stop"
+        finalizedBy "${baseName}#twoThirdsUpgradedTestCluster#stop"
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -169,11 +126,6 @@ task integTest {
     }
 }
 check.dependsOn(integTest)
-
-dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'runtime')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 

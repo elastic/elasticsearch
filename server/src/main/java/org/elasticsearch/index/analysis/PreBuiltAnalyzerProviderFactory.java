@@ -113,7 +113,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         public Collection<AnalyzerProvider<?>> values() {
             return preBuiltAnalyzer.getCache().values().stream()
                 // Wrap the analyzer instance in a PreBuiltAnalyzerProvider, this is what PreBuiltAnalyzerProviderFactory#close expects
-                // (other caches are not directly caching analyzers, but analyzer provider instead.
+                // (other caches are not directly caching analyzers, but analyzer provider instead)
                 .map(analyzer -> new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer))
                 .collect(Collectors.toList());
         }

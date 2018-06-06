@@ -22,14 +22,18 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class WriteableIngestDocumentTests extends ESTestCase {
+public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
@@ -146,5 +150,72 @@ public class WriteableIngestDocumentTests extends ESTestCase {
 
         IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
+    }
+
+    public void testSourceFromXContentWithByteArray() throws IOException {
+        WriteableIngestDocument testInstance = new WriteableIngestDocument(RandomDocumentPicks.randomIngestDocument(random(), true));
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false);
+        XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
+        WriteableIngestDocument parsed = doParseInstance(parser);
+        assertTrue(
+            testSourceMapEquality(
+                testInstance.getIngestDocument().getSourceAndMetadata(),
+                parsed.getIngestDocument().getSourceAndMetadata()
+            )
+        );
+    }
+
+    private boolean testSourceMapEquality(Map<String, Object> first, Map<String, Object> second) {
+        if (first == null) {
+            return second == null;
+        } else if (second == null) {
+            return false;
+        } else if (first.size() != second.size()) {
+            return false;
+        } else {
+            for (Map.Entry<String, Object> entry: first.entrySet()) {
+                Object value = entry.getValue();
+                Object value2;
+                if ((value2 = second.get(entry.getKey())) != null) {
+                    if (value2.getClass() == value.getClass()) {
+                        if (value instanceof byte[]) {
+                            if (!Arrays.equals((byte[])value, (byte[])value2)) {
+                                return false;
+                            }
+                        } else if (value instanceof Map) {
+                            //noinspection unchecked
+                            if (!testSourceMapEquality((Map<String, Object>)value, (Map<String, Object>)value2)) {
+                                return false;
+                            }
+                        } else if (!value.equals(value2)) {
+                            return false;
+                        }
+                    }
+                } else {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    @Override
+    protected WriteableIngestDocument createTestInstance() {
+        // We want to create a test instance without byte arrays. For testing byte arrays see testSourceFromXContentWithByteArray.
+        // This is needed because for comparing byte[] Object.equal fails
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), false);
+        return new WriteableIngestDocument(new IngestDocument(ingestDocument));
+    }
+
+    @Override
+    protected WriteableIngestDocument doParseInstance(XContentParser parser) {
+        return WriteableIngestDocument.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        // Cannot support unknown fields because equality changes if new keys are added to _source
+        return false;
     }
 }

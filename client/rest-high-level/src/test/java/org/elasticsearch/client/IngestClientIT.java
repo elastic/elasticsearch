@@ -23,12 +23,21 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
+import org.elasticsearch.action.ingest.SimulateDocumentResult;
+import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class IngestClientIT extends ESRestHighLevelClientTestCase {
 
@@ -79,5 +88,72 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         WritePipelineResponse response =
             execute(request, highLevelClient().ingest()::deletePipeline, highLevelClient().ingest()::deletePipelineAsync);
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testSimulatePipeline() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+        int numDocs = randomIntBetween(1, 10);
+        boolean isVerbose = randomBoolean();
+        builder.startObject();
+        {
+            builder.field("pipeline");
+            buildRandomXContentPipeline(builder);
+            builder.startArray("docs");
+            {
+                for (int i = 0; i < numDocs; i++) {
+                    builder.startObject();
+                    IngestDocument document = RandomDocumentPicks.randomIngestDocument(random());
+                    Map<IngestDocument.MetaData, Object> metadataMap = document.extractMetadata();
+                    for (Map.Entry<IngestDocument.MetaData, Object> metadata : metadataMap.entrySet()) {
+                        if (metadata.getValue() != null) {
+                            if (metadata.getKey().equals(IngestDocument.MetaData.VERSION)) {
+                                builder.field(metadata.getKey().getFieldName(), (long)metadata.getValue());
+                            } else {
+                                builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
+                            }
+                        }
+                    }
+                    document.setFieldValue("rank", Integer.toString(randomInt()));
+                    builder.field("_source", document.getSourceAndMetadata());
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+
+        SimulatePipelineRequest request = new SimulatePipelineRequest(
+            BytesReference.bytes(builder),
+            builder.contentType()
+        );
+        request.setVerbose(isVerbose);
+
+        SimulatePipelineResponse simulatePipelineResponse =
+            execute(request, highLevelClient().ingest()::simulatePipeline, highLevelClient().ingest()::simulatePipelineAsync);
+
+        for (SimulateDocumentResult result: simulatePipelineResponse.getResults()) {
+            if (isVerbose) {
+                assertTrue(result instanceof SimulateDocumentVerboseResult);
+                SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult)result;
+                assertTrue(verboseResult.getProcessorResults().size() > 0);
+                assertEquals(
+                    verboseResult.getProcessorResults().get(0).getIngestDocument()
+                        .getFieldValue("foo", String.class),
+                    "bar"
+                );
+            } else {
+                assertTrue(result instanceof SimulateDocumentBaseResult);
+                SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)result;
+                assertNotNull(baseResult.getIngestDocument());
+                assertEquals(
+                    baseResult.getIngestDocument().getFieldValue("foo", String.class),
+                    "bar"
+                );
+                assertNotNull(
+                    baseResult.getIngestDocument().getFieldValue("rank", Integer.class)
+                );
+            }
+        }
     }
 }

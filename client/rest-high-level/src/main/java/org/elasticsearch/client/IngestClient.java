@@ -24,6 +24,8 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 
 import java.io.IOException;
@@ -124,5 +126,31 @@ public final class IngestClient {
     public void deletePipelineAsync(DeletePipelineRequest request, RequestOptions options, ActionListener<WritePipelineResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline, options,
             WritePipelineResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Simulate a pipeline on a set of documents provided in the request
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html">
+     *     Simulate Pipeline API on elastic.co</a>
+     */
+    public SimulatePipelineResponse simulatePipeline(SimulatePipelineRequest request, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::simulatePipeline,
+            SimulatePipelineResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously simulate a pipeline on a set of documents provided in the request
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html">
+     *     Simulate Pipeline API on elastic.co</a>
+     */
+    public void simulatePipelineAsync(SimulatePipelineRequest request,
+                                      ActionListener<SimulatePipelineResponse> listener,
+                                      Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::simulatePipeline,
+            SimulatePipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 }

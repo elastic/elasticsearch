@@ -131,6 +131,10 @@ public final class RandomDocumentPicks {
         return randomIngestDocument(random, randomSource(random));
     }
 
+    public static IngestDocument randomIngestDocument(Random random, boolean withByteArray) {
+        return randomIngestDocument(random, randomSource(random, withByteArray));
+    }
+
     /**
      * Generates a document that holds random metadata and the document provided as a map argument
      */
@@ -149,8 +153,12 @@ public final class RandomDocumentPicks {
     }
 
     public static Map<String, Object> randomSource(Random random) {
+        return randomSource(random, true);
+    }
+
+    public static Map<String, Object> randomSource(Random random, boolean withByteArray) {
         Map<String, Object> document = new HashMap<>();
-        addRandomFields(random, document, 0);
+        addRandomFields(random, document, 0, withByteArray);
         return document;
     }
 
@@ -158,11 +166,15 @@ public final class RandomDocumentPicks {
      * Generates a random field value, can be a string, a number, a list of an object itself.
      */
     public static Object randomFieldValue(Random random) {
-        return randomFieldValue(random, 0);
+        return randomFieldValue(random, 0, true);
     }
 
-    private static Object randomFieldValue(Random random, int currentDepth) {
-        switch(RandomNumbers.randomIntBetween(random, 0, 9)) {
+    public static Object randomFieldValue(Random random, boolean withByteArray) {
+        return randomFieldValue(random, 0, withByteArray);
+    }
+
+    private static Object randomFieldValue(Random random, int currentDepth, boolean withByteArray) {
+        switch(RandomNumbers.randomIntBetween(random, 0, withByteArray ? 9 : 8)) {
             case 0:
                 return randomString(random);
             case 1:
@@ -201,7 +213,7 @@ public final class RandomDocumentPicks {
                 return doubleList;
             case 8:
                 Map<String, Object> newNode = new HashMap<>();
-                addRandomFields(random, newNode, ++currentDepth);
+                addRandomFields(random, newNode, ++currentDepth, withByteArray);
                 return newNode;
             case 9:
                 byte[] byteArray = new byte[RandomNumbers.randomIntBetween(random, 1, 1024)];
@@ -224,14 +236,14 @@ public final class RandomDocumentPicks {
         return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
     }
 
-    private static void addRandomFields(Random random, Map<String, Object> parentNode, int currentDepth) {
+    private static void addRandomFields(Random random, Map<String, Object> parentNode, int currentDepth, boolean withByteArray) {
         if (currentDepth > 5) {
             return;
         }
         int numFields = RandomNumbers.randomIntBetween(random, 1, 10);
         for (int i = 0; i < numFields; i++) {
             String fieldName = randomLeafFieldName(random);
-            Object fieldValue = randomFieldValue(random, currentDepth);
+            Object fieldValue = randomFieldValue(random, currentDepth, withByteArray);
             parentNode.put(fieldName, fieldValue);
         }
     }

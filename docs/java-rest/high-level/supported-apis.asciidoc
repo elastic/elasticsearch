@@ -123,10 +123,12 @@ The Java High Level REST Client supports the following Ingest APIs:
 * <<java-rest-high-ingest-put-pipeline>>
 * <<java-rest-high-ingest-get-pipeline>>
 * <<java-rest-high-ingest-delete-pipeline>>
+* <<java-rest-high-ingest-simulate-pipeline>>
 
 include::ingest/put_pipeline.asciidoc[]
 include::ingest/get_pipeline.asciidoc[]
 include::ingest/delete_pipeline.asciidoc[]
+include::ingest/simulate_pipeline.asciidoc[]
 
 == Snapshot APIs
 

@@ -60,7 +60,6 @@ import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31093")
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
     private static final String MISSING_WILDCARD_FIELD_NAME = "missing_*";

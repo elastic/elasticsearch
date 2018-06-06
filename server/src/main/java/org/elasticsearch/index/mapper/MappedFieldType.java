@@ -61,8 +61,6 @@ import java.util.Objects;
  */
 public abstract class MappedFieldType extends FieldType {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MappedFieldType.class));
-
     private String name;
     private float boost;
     // TODO: remove this docvalues flag and use docValuesType
@@ -389,13 +387,11 @@ public abstract class MappedFieldType extends FieldType {
     public abstract Query existsQuery(QueryShardContext context);
 
     public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        DEPRECATION_LOGGER.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
-        return new MatchNoDocsQuery("Cannot run phrase queries against fields with no terms or positions");
+        throw new IllegalArgumentException("Attempted to build a phrase query with multiple terms against non-text field [" + name + "]");
     }
 
     public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        DEPRECATION_LOGGER.deprecated("Attempted to build a phrase query with multiple terms against non-text field [{}]", name);
-        return new MatchNoDocsQuery("Cannot run phrase queries against fields with no terms or positions");
+        throw new IllegalArgumentException("Attempted to build a phrase query with multiple terms against non-text field [" + name + "]");
     }
 
     /**

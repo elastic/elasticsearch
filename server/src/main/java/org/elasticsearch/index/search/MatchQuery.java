@@ -67,6 +67,8 @@ import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQue
 
 public class MatchQuery {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MappedFieldType.class));
+
     public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
@@ -355,38 +357,51 @@ public class MatchQuery {
 
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            IllegalStateException e = checkForPositions(field);
-            if (e != null) {
+            try {
+                Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
+                if (query instanceof PhraseQuery) {
+                    // synonyms that expand to multiple terms can return a phrase query.
+                    return blendPhraseQuery((PhraseQuery) query, mapper);
+                }
+                return query;
+            }
+            catch (IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
                 throw e;
             }
-            Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
-            if (query instanceof PhraseQuery) {
-                // synonyms that expand to multiple terms can return a phrase query.
-                return blendPhraseQuery((PhraseQuery) query, mapper);
+            catch (IllegalArgumentException e) {
+                if (lenient == false) {
+                    DEPRECATION_LOGGER.deprecated(e.getMessage());
+                }
+                return newLenientFieldQuery(field, e);
             }
-            return query;
         }
 
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
-            IllegalStateException e = checkForPositions(field);
-            if (e != null) {
+            try {
+                return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+            }
+            catch (IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
                 throw e;
             }
-            return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+            catch (IllegalArgumentException e) {
+                if (lenient == false) {
+                    DEPRECATION_LOGGER.deprecated(e.getMessage());
+                }
+                return newLenientFieldQuery(field, e);
+            }
         }
 
-        private IllegalStateException checkForPositions(String field) {
+        private void checkForPositions(String field) {
             if (hasPositions(mapper) == false) {
-                return new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
-            return null;
         }
 
         /**

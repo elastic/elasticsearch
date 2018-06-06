@@ -1376,6 +1376,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
                         assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertEquals(msg, ((Translog.Index) op).source(), B_1);
                     }
                 } else {
                     assertThat(msg, ops.get(seqno), notNullValue());
@@ -1387,6 +1388,82 @@ public class InternalEngineTests extends EngineTestCase {
             engine.getTranslog().sync();
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
+            assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
+        }
+    }
+
+    public void testForceMergeWithSoftDeletesRetentionAndRecoverySource() throws Exception {
+        final long retainedExtraOps = randomLongBetween(0, 10);
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final MapperService mapperService = createMapperService("test");
+        final boolean omitSourceAllTheTime = randomBoolean();
+        final Set<String> liveDocs = new HashSet<>();
+        try (Store store = createStore();
+             Engine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null,
+                 globalCheckpoint::get))) {
+            int numDocs = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, randomBoolean()
+                    || omitSourceAllTheTime);
+                engine.index(indexForDoc(doc));
+                liveDocs.add(doc.id());
+            }
+            engine.flush();
+            for (int i = 0; i < numDocs; i++) {
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, randomBoolean()
+                    || omitSourceAllTheTime);
+                if (randomBoolean()) {
+                    engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    liveDocs.remove(doc.id());
+                }
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(doc));
+                    liveDocs.add(doc.id());
+                }
+            }
+            long localCheckpoint = engine.getLocalCheckpointTracker().getCheckpoint();
+            globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
+            engine.getTranslog().sync();
+            long keptIndex = globalCheckpoint.get() + 1 - retainedExtraOps;
+            engine.forceMerge(true, 1, false, false, false);
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
+                if (luceneOp.seqNo() >= keptIndex) {
+                    assertNotNull(luceneOp.getSource());
+                    assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+                }
+            });
+            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
+                .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+            for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
+                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
+                if (seqno < keptIndex) {
+                    Translog.Operation op = ops.get(seqno);
+                    if (op != null) {
+                        assertThat(op, instanceOf(Translog.Index.class));
+                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                    }
+                } else {
+                    Translog.Operation op = ops.get(seqno);
+                    assertThat(msg, op, notNullValue());
+                    if (op instanceof Translog.Index) {
+                        assertEquals(msg, ((Translog.Index) op).source(), B_1);
+                    }
+                }
+            }
+            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
+            indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            globalCheckpoint.set(localCheckpoint);
+            engine.getTranslog().sync();
+            engine.forceMerge(true, 1, false, false, false);
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
+                assertEquals(translogOp.getSource().source, B_1);
+            });
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
         }
     }

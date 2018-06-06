@@ -72,7 +72,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         s.setQueryCache(null);
         Weight weight = s.createWeight(builder.build(), false, 1.0f);
         Scorer scorer = weight.scorer(reader.getContext());
-
         if (scorer != null) {
             BitSet sourceToDrop = BitSet.of(scorer.iterator(), reader.maxDoc());
             return new SourcePruningFilterCodecReader(recoverySourceField, reader, sourceToDrop);

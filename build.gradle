@@ -226,6 +226,7 @@ subprojects {
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
     "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
     // for transport client
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
     "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
@@ -311,7 +312,15 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    configurations.all {
+    configurations.all { Configuration configuration ->
+      /*
+       * The featureAwarePlugin configuration has a dependency on x-pack:plugin:core and x-pack:plugin:core has a dependency on the
+       * featureAwarePlugin configuration. The below task ordering logic would force :x-pack:plugin:core:test
+       * :x-pack:test:feature-aware:test to depend on each other circularly. We break that cycle here.
+       */
+      if (configuration.name == "featureAwarePlugin") {
+        return
+      }
       dependencies.all { Dependency dep ->
         Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {

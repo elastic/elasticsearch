@@ -3,8 +3,9 @@
 
 Use a Painless script to
 {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[initialize]
-values for use in a scripted metric aggregation.  An initialization script is
-run prior to document collection once per shard.
+values for use in a scripted metric aggregation. An initialization script is
+run prior to document collection once per shard and is optional as part of the
+full aggregation.
 
 *Variables*
 
@@ -15,7 +16,7 @@ run prior to document collection once per shard.
         Empty `Map` used to add values for collection in a
         <<painless-metric-agg-map-context, map script>>.
 
-* Side Effects*
+*Side Effects*
 
 `params['_agg']` (`Map`)::
         Use this `Map` to add values for use in collection with a

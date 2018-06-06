@@ -1,14 +1,26 @@
 [[painless-metric-agg-combine-context]]
 === Metric Aggregation Combine Context
 
-Use a Painless script in an {es_version}/
+Use a Painless script to
+{es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[combine]
+values for use in a scripted metric aggregation. A combine script is run once
+per shard following a <<painless-metric-agg-map-context, map script>> and is
+optional as part of a full aggregation.
 
 *Variables*
 
 `params` (`Map`, read-only)::
         User-defined parameters passed in at query-time.
 
+`params['_agg']` (`Map`)::
+        `Map` used to add values for processing in a
+        <<painless-metric-agg-map-context, combine script>> or returned
+        directly.
+
 *Return*
+
+`List`, 'Map', `String`, or primitive:
+        A value collected for use in a the <<reduce-script
 
 
 *API*

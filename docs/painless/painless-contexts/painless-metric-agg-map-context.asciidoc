@@ -4,7 +4,9 @@
 Use a Painless script to
 {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[map]
 values for use in a scripted metric aggregation. A map script is run once per
-document.
+collected document following an
+<<painless-metric-agg-init-context, initialization script>> and is required as
+part of a full aggregation.
 
 *Variables*
 
@@ -20,7 +22,7 @@ document.
         Contains the fields of the current document where each field is a
         `List` of values.
 
-* Side Effects*
+*Side Effects*
 
 `params['_agg']` (`Map`)::
         Use this `Map` to add values for processing in a

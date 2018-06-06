@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -61,7 +62,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(fieldName, value);
 
-        if (randomBoolean()) {
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
@@ -99,15 +100,6 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
                 .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
     }
 
-    /**
-     * Overridden to allow for annotating with @AwaitsFix. Please remove this method after fixing.
-     */
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31061")
-    public void testToQuery() throws IOException {
-        super.testToQuery();
-    }
-
     public void testIllegalValues() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchPhrasePrefixQueryBuilder(null, "value"));
         assertEquals("[match_phrase_prefix] requires fieldName", e.getMessage());
@@ -117,6 +109,14 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder("fieldName", "text");
         e = expectThrows(IllegalArgumentException.class, () -> matchQuery.maxExpansions(-1));
+    }
+
+    public void testPhraseOnFieldWithNoTerms() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
+        matchQuery.analyzer("whitespace");
+        matchQuery.doToQuery(createShardContext());
+        assertWarnings("Attempted to build a phrase query with multiple terms against non-text field [" + DATE_FIELD_NAME + "]");
     }
 
     public void testBadAnalyzer() throws IOException {

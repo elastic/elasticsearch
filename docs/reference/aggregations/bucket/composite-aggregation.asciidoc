@@ -348,6 +348,34 @@ GET /_search
 \... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
 and in ascending order when comparing values from the `terms` source.
 
+====== Missing bucket
+
+By default documents without a value for a given source are ignored.
+It is possible to include them in the response by setting `missing_bucket` to
+`true` (defaults to `false`):
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "product_name": { "terms" : { "field": "product", "missing_bucket": true } } }
+                ]
+            }
+        }
+     }
+}
+--------------------------------------------------
+// CONSOLE
+
+In the example above the source `product_name` will emit an explicit `null` value
+for documents without a value for the field `product`.
+The `order` specified in the source dictates whether the `null` values should rank
+first (ascending order, `asc`) or last (descending order, `desc`).
+
 ==== Size
 
 The `size` parameter can be set to define how many composite buckets should be returned.

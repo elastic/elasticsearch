@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -148,14 +149,14 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PipelineConfiguration that = (PipelineConfiguration) o;
 
         if (!id.equals(that.id)) return false;
-        return config.equals(that.config);
+        return getConfigAsMap().equals(that.getConfigAsMap());
 
     }
 
     @Override
     public int hashCode() {
         int result = id.hashCode();
-        result = 31 * result + config.hashCode();
+        result = 31 * result + getConfigAsMap().hashCode();
         return result;
     }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -446,9 +447,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        clusterApplierService.onNewClusterState("test", () -> newState, new ClusterStateTaskListener() {
+        clusterApplierService.onNewClusterState("test", () -> newState, new ClusterApplyListener() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void onSuccess(String source) {
                 latch.countDown();
             }
 

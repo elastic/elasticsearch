@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -51,7 +52,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,7 +66,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public static final String INDEX_NAME = ".security";
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
-    private Map<Action<?, ?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
+    private Map<Action<?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
 
     @Before
     public void setUpManager() {
@@ -74,21 +75,22 @@ public class SecurityIndexManagerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(mockClient.threadPool()).thenReturn(threadPool);
         when(mockClient.settings()).thenReturn(Settings.EMPTY);
+        final ClusterService clusterService = mock(ClusterService.class);
 
         actions = new LinkedHashMap<>();
         final Client client = new FilterClient(mockClient) {
             @Override
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-            void doExecute(Action<Request, Response, RequestBuilder> action, Request request,
+                    RequestBuilder extends ActionRequestBuilder<Request, Response>>
+            void doExecute(Action<Request, Response> action, Request request,
                            ActionListener<Response> listener) {
                 final Map<ActionRequest, ActionListener<?>> map = actions.getOrDefault(action, new HashMap<>());
                 map.put(request, listener);
                 actions.put(action, map);
             }
         };
-        manager = new SecurityIndexManager(Settings.EMPTY, client, INDEX_NAME);
+        manager = new SecurityIndexManager(Settings.EMPTY, client, INDEX_NAME, clusterService);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {

@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -70,7 +71,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     private List<SortBuilder<?>> sorts = null;
     private HighlightBuilder highlightBuilder;
     private StoredFieldsContext storedFieldsContext;
-    private List<String> fieldDataFields;
+    private List<FieldAndFormat> docValueFields;
     private Set<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
@@ -91,7 +92,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             new HighlightBuilder(clone.highlightBuilder, clone.highlightBuilder.highlightQuery(), clone.highlightBuilder.fields());
         this.storedFieldsContext = clone.storedFieldsContext == null ? null :
             new StoredFieldsContext(clone.storedFieldsContext);
-        this.fieldDataFields = clone.fieldDataFields == null ? null : new ArrayList<>(clone.fieldDataFields);
+        this.docValueFields = clone.docValueFields == null ? null : new ArrayList<>(clone.docValueFields);
         this.scriptFields = clone.scriptFields == null ? null : new HashSet<>(clone.scriptFields);
         this.fetchSourceContext = clone.fetchSourceContext == null ? null :
             new FetchSourceContext(clone.fetchSourceContext.fetchSource(), clone.fetchSourceContext.includes(),
@@ -112,9 +113,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
-            fieldDataFields = new ArrayList<>(size);
+            docValueFields = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                fieldDataFields.add(in.readString());
+                docValueFields.add(new FieldAndFormat(in));
             }
         }
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
@@ -143,12 +144,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
-        boolean hasFieldDataFields = fieldDataFields != null;
+        boolean hasFieldDataFields = docValueFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            out.writeVInt(fieldDataFields.size());
-            for (String fieldName : fieldDataFields) {
-                out.writeString(fieldName);
+            out.writeVInt(docValueFields.size());
+            for (FieldAndFormat ff : docValueFields) {
+                ff.writeTo(out);
             }
         }
         out.writeOptionalWriteable(storedFieldsContext);
@@ -404,40 +405,33 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Adds a field to load from the field data cache and return as part of
+     * Adds a field to load from doc values and return as part of
      * the search request.
      */
-    public TopHitsAggregationBuilder fieldDataField(String fieldDataField) {
-        if (fieldDataField == null) {
-            throw new IllegalArgumentException("[fieldDataField] must not be null: [" + name + "]");
+    public TopHitsAggregationBuilder docValueField(String docValueField, String format) {
+        if (docValueField == null) {
+            throw new IllegalArgumentException("[docValueField] must not be null: [" + name + "]");
         }
-        if (fieldDataFields == null) {
-            fieldDataFields = new ArrayList<>();
+        if (docValueFields == null) {
+            docValueFields = new ArrayList<>();
         }
-        fieldDataFields.add(fieldDataField);
+        docValueFields.add(new FieldAndFormat(docValueField, format));
         return this;
     }
 
     /**
-     * Adds fields to load from the field data cache and return as part of
+     * Adds a field to load from doc values and return as part of
      * the search request.
      */
-    public TopHitsAggregationBuilder fieldDataFields(List<String> fieldDataFields) {
-        if (fieldDataFields == null) {
-            throw new IllegalArgumentException("[fieldDataFields] must not be null: [" + name + "]");
-        }
-        if (this.fieldDataFields == null) {
-            this.fieldDataFields = new ArrayList<>();
-        }
-        this.fieldDataFields.addAll(fieldDataFields);
-        return this;
+    public TopHitsAggregationBuilder docValueField(String docValueField) {
+        return docValueField(docValueField, null);
     }
 
     /**
      * Gets the field-data fields.
      */
-    public List<String> fieldDataFields() {
-        return fieldDataFields;
+    public List<FieldAndFormat> fieldDataFields() {
+        return docValueFields;
     }
 
     /**
@@ -587,7 +581,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             optionalSort = SortBuilder.buildSort(sorts, context.getQueryShardContext());
         }
         return new TopHitsAggregatorFactory(name, from, size, explain, version, trackScores, optionalSort, highlightBuilder,
-                storedFieldsContext, fieldDataFields, fields, fetchSourceContext, context, parent, subfactoriesBuilder, metaData);
+                storedFieldsContext, docValueFields, fields, fetchSourceContext, context, parent, subfactoriesBuilder, metaData);
     }
 
     @Override
@@ -603,10 +597,15 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (storedFieldsContext != null) {
             storedFieldsContext.toXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), builder);
         }
-        if (fieldDataFields != null) {
+        if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : fieldDataFields) {
-                builder.value(fieldDataField);
+            for (FieldAndFormat dvField : docValueFields) {
+                builder.startObject()
+                    .field("field", dvField.field);
+                if (dvField.format != null) {
+                    builder.field("format", dvField.format);
+                }
+                builder.endObject();
             }
             builder.endArray();
         }
@@ -725,14 +724,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 } else if (SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            fieldDataFields.add(parser.text());
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING
-                                    + "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
-                        }
+                        FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
+                        factory.docValueField(ff.field, ff.format);
                     }
-                    factory.fieldDataFields(fieldDataFields);
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);
@@ -752,7 +746,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(explain, fetchSourceContext, fieldDataFields, storedFieldsContext, from, highlightBuilder,
+        return Objects.hash(explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
             scriptFields, size, sorts, trackScores, version);
     }
 
@@ -761,7 +755,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         TopHitsAggregationBuilder other = (TopHitsAggregationBuilder) obj;
         return Objects.equals(explain, other.explain)
                 && Objects.equals(fetchSourceContext, other.fetchSourceContext)
-                && Objects.equals(fieldDataFields, other.fieldDataFields)
+                && Objects.equals(docValueFields, other.docValueFields)
                 && Objects.equals(storedFieldsContext, other.storedFieldsContext)
                 && Objects.equals(from, other.from)
                 && Objects.equals(highlightBuilder, other.highlightBuilder)

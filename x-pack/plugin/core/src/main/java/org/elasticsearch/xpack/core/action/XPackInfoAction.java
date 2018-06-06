@@ -6,21 +6,15 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.license.XPackInfoResponse;
 
-public class XPackInfoAction extends Action<XPackInfoRequest, XPackInfoResponse, XPackInfoRequestBuilder> {
+public class XPackInfoAction extends Action<XPackInfoRequest, XPackInfoResponse> {
 
     public static final String NAME = "cluster:monitor/xpack/info";
     public static final XPackInfoAction INSTANCE = new XPackInfoAction();
 
     public XPackInfoAction() {
         super(NAME);
-    }
-
-    @Override
-    public XPackInfoRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new XPackInfoRequestBuilder(client);
     }
 
     @Override

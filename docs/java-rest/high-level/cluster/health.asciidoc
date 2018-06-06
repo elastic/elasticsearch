@@ -86,8 +86,9 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wai
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-active]
 --------------------------------------------------
-<1> Wait for `N` shards to be active in the cluster
-<2> Wait for all shards to be active in the cluster
+
+<1> Wait for all shards to be active in the cluster
+<2> Wait for `N` shards to be active in the cluster
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

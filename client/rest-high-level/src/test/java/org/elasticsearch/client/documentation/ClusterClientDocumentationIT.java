@@ -224,7 +224,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::health-request-wait-status
 
         // tag::health-request-level
-        request.level(ClusterHealthRequest.Level.CLUSTER); // <1>
+        request.level(ClusterHealthRequest.Level.SHARDS); // <1>
         // end::health-request-level
 
         // tag::health-request-wait-relocation
@@ -242,8 +242,8 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::health-request-wait-nodes
 
         // tag::health-request-wait-active
-        request.waitForActiveShards(5); // <1>
-        request.waitForActiveShards(ActiveShardCount.ALL); // <2>
+        request.waitForActiveShards(ActiveShardCount.ALL); // <1>
+        request.waitForActiveShards(5); // <2>
         // end::health-request-wait-active
 
         // tag::health-request-local

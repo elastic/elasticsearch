@@ -30,7 +30,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
         HttpURLConnection httpURLConnection = null;
         try {
             // TODO this sucks having to hardcode number of nodes, but node.config.numNodes isn't necessarily accurate for rolling
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=2&wait_for_status=yellow").openConnection();
+            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=3&wait_for_status=yellow").openConnection();
             httpURLConnection.setRequestProperty("Authorization", "Basic " +
                     Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
             httpURLConnection.setRequestMethod("GET");
@@ -128,9 +128,9 @@ subprojects {
       String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       bwcVersion = version
-      numBwcNodes = 2
-      numNodes = 2
-      minimumMasterNodes = { 2 }
+      numBwcNodes = 3
+      numNodes = 3
+      minimumMasterNodes = { 3 }
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
       setting 'xpack.monitoring.exporters._http.type', 'http'
@@ -167,78 +167,84 @@ subprojects {
       systemProperty 'tests.rest.suite', 'old_cluster'
     }
 
-    Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
-
-    configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
-      dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-      setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-      clusterName = 'rolling-upgrade'
-      unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-      minimumMasterNodes = { 2 }
-      dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
-      waitCondition = waitWithAuth
-      setting 'xpack.monitoring.exporters._http.type', 'http'
-      setting 'xpack.monitoring.exporters._http.enabled', 'false'
-      setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
-      setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
-      setting 'xpack.license.self_generated.type', 'trial'
-      setting 'xpack.security.enabled', 'true'
-      setting 'xpack.security.transport.ssl.enabled', 'true'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
-      setting 'node.attr.upgraded', 'first'
-      setting 'xpack.security.authc.token.enabled', 'true'
-      setting 'xpack.security.audit.enabled', 'true'
-      setting 'xpack.security.audit.outputs', 'index'
-      setting 'node.name', 'mixed-node-0'
-      dependsOn copyTestNodeKeystore
-      extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-      if (withSystemKey) {
-        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-        keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
+    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
+      configure(extensions.findByName("${baseName}#${name}")) {
+        dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
+        setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+        clusterName = 'rolling-upgrade'
+        unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
+        minimumMasterNodes = { 3 }
+        /* Override the data directory so the new node always gets the node we
+        * just stopped's data directory. */
+        dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
+        waitCondition = waitWithAuth
+        setting 'xpack.monitoring.exporters._http.type', 'http'
+        setting 'xpack.monitoring.exporters._http.enabled', 'false'
+        setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
+        setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
+        setting 'xpack.license.self_generated.type', 'trial'
+        setting 'xpack.security.enabled', 'true'
+        setting 'xpack.security.transport.ssl.enabled', 'true'
+        setting 'xpack.ssl.keystore.path', 'testnode.jks'
+        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+        setting 'node.attr.upgraded', 'true'
+        setting 'xpack.security.authc.token.enabled', 'true'
+        setting 'xpack.security.audit.enabled', 'true'
+        setting 'xpack.security.audit.outputs', 'index'
+        setting 'node.name', "upgraded-node-${stopNode}"
+        dependsOn copyTestNodeKeystore
+        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+        if (withSystemKey) {
+          setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+          keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
+        }
       }
     }
 
-    Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
-    mixedClusterTestRunner.configure {
+    Task oneThirdUpgradedTest = tasks.create(name: "${baseName}#oneThirdUpgradedTest", type: RestIntegTestTask)
+
+    configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner,
+      0, { oldClusterTest.nodes.get(1).transportUri() })
+
+    Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
+    oneThirdUpgradedTestRunner.configure {
       systemProperty 'tests.rest.suite', 'mixed_cluster'
-      finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+      systemProperty 'tests.first_round', 'true'
+      // We only need to run these tests once so we may as well do it when we're two thirds upgraded
+      systemProperty 'tests.rest.blacklist', [
+          'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
+          'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
+          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
+        ].join(',')
+      finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
+    }
+
+    Task twoThirdsUpgradedTest = tasks.create(name: "${baseName}#twoThirdsUpgradedTest", type: RestIntegTestTask)
+
+    configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner,
+      1, { oneThirdUpgradedTest.nodes.get(0).transportUri() })
+
+    Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
+    twoThirdsUpgradedTestRunner.configure {
+      systemProperty 'tests.rest.suite', 'mixed_cluster'
+      systemProperty 'tests.first_round', 'false'
+      finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
-    configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
-      dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-      setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-      clusterName = 'rolling-upgrade'
-      unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-      minimumMasterNodes = { 2 }
-      dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir }
-      waitCondition = waitWithAuth
-      setting 'xpack.monitoring.exporters._http.type', 'http'
-      setting 'xpack.monitoring.exporters._http.enabled', 'false'
-      setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
-      setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
-      setting 'xpack.license.self_generated.type', 'trial'
-      setting 'xpack.security.enabled', 'true'
-      setting 'xpack.security.transport.ssl.enabled', 'true'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
-      setting 'xpack.security.authc.token.enabled', 'true'
-      setting 'xpack.security.audit.enabled', 'true'
-      setting 'xpack.security.audit.outputs', 'index'
-      setting 'node.name', 'upgraded-node-0'
-      dependsOn copyTestNodeKeystore
-      extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-      if (withSystemKey) {
-        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-        keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
-      }
-    }
+    configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner,
+        2, { twoThirdsUpgradedTest.nodes.get(0).transportUri() })
 
     Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
     upgradedClusterTestRunner.configure {
       systemProperty 'tests.rest.suite', 'upgraded_cluster'
+      /*
+        * Force stopping all the upgraded nodes after the test runner
+        * so they are alive during the test.
+        */
+      finalizedBy "${baseName}#oneThirdUpgradedTestCluster#stop"
+      finalizedBy "${baseName}#twoThirdsUpgradedTestCluster#stop"
 
       // migration tests should only run when the original/old cluster nodes where versions < 5.2.0.
       // this stinks but we do the check here since our rest tests do not support conditionals
@@ -251,8 +257,6 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
-      // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-      finalizedBy "${baseName}#mixedClusterTestCluster#stop"
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

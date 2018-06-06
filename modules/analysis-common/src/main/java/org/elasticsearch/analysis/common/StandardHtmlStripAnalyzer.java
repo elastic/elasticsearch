@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
@@ -39,7 +39,7 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
         super(StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
 
-    public StandardHtmlStripAnalyzer(CharArraySet stopwords) {
+    StandardHtmlStripAnalyzer(CharArraySet stopwords) {
         super(stopwords);
     }
 

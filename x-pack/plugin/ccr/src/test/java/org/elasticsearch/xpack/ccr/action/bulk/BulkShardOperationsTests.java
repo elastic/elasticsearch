@@ -37,7 +37,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         final IndexShard followerPrimary = newStartedShard(true, settings, new FollowingEngineFactory());
 
         // we use this primary on the operations yet we expect the applied operations to have the primary term of the follower
-        final long primaryTerm = randomLongBetween(1, followerPrimary.getPrimaryTerm());
+        final long primaryTerm = randomLongBetween(1, Integer.MAX_VALUE);
 
         final Translog.Operation[] operations = new Translog.Operation[randomIntBetween(0, 127)];
         for (int i = 0; i < operations.length; i++) {

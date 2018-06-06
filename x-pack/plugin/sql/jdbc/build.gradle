@@ -11,10 +11,12 @@ buildscript {
 }
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'maven-publish'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
+archivesBaseName = "x-pack-sql-jdbc"
 
 forbiddenApisMain {
     // does not depend on core, so only jdk and http signatures should be checked
@@ -71,8 +73,12 @@ artifacts  {
 
 publishing {
     publications {
-        maven(MavenPublication) {
+        nebula(MavenPublication) {
             artifact shadowJar
+            pom.withXml {
+                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
+                asNode().remove(asNode().dependencies)
+            }
         }
     }
 }

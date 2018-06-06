@@ -151,7 +151,7 @@ public final class EngineConfig {
         if (maxBufferSize != null) {
             indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
         } else {
-            indexingBufferSize = indexSettings.getValue(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING);
+            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(indexSettings.getNodeSettings());
         }
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;

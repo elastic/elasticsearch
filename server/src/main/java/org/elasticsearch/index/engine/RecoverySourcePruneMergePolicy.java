@@ -35,6 +35,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConjunctionDISI;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,9 +43,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSetIterator;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
@@ -76,15 +78,15 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         if (scorer != null) {
             return new SourcePruningFilterCodecReader(recoverySourceField, reader, BitSet.of(scorer.iterator(), reader.maxDoc()));
         } else {
-            return new SourcePruningFilterCodecReader(recoverySourceField, reader, new BitSet.MatchNoBits(reader.maxDoc()));
+            return new SourcePruningFilterCodecReader(recoverySourceField, reader, null);
         }
     }
 
     private static class SourcePruningFilterCodecReader extends FilterCodecReader {
-        private final Bits recoverySourceToKeep;
+        private final BitSet recoverySourceToKeep;
         private final String recoverySourceField;
 
-        SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, Bits recoverySourceToKeep) {
+        SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, BitSet recoverySourceToKeep) {
             super(reader);
             this.recoverySourceField = recoverySourceField;
             this.recoverySourceToKeep = recoverySourceToKeep;
@@ -99,14 +101,18 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                     NumericDocValues numeric = super.getNumeric(field);
                     if (recoverySourceField.equals(field.name)) {
                         assert numeric != null : recoverySourceField + " must have numeric DV but was null";
+                        final DocIdSetIterator intersection;
+                        if (recoverySourceToKeep == null) {
+                            // we can't return null here lucenes DocIdMerger expects an instance
+                            intersection = DocIdSetIterator.empty();
+                        } else {
+                            intersection = ConjunctionDISI.intersectIterators(Arrays.asList(numeric,
+                                new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length())));
+                        }
                         return new FilterNumericDocValues(numeric) {
                             @Override
                             public int nextDoc() throws IOException {
-                                int doc;
-                                do {
-                                    doc = super.nextDoc();
-                                } while (doc != NO_MORE_DOCS && recoverySourceToKeep.get(doc) == false);
-                                return doc;
+                                return intersection.nextDoc();
                             }
 
                             @Override
@@ -119,6 +125,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                                 throw new UnsupportedOperationException();
                             }
                         };
+
                     }
                     return numeric;
                 }
@@ -131,7 +138,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             return new FilterStoredFieldsReader(fieldsReader) {
                 @Override
                 public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                    if (recoverySourceToKeep.get(docID)) {
+                    if (recoverySourceToKeep != null && recoverySourceToKeep.get(docID)) {
                         super.visitDocument(docID, visitor);
                     } else {
                         super.visitDocument(docID, new FilterStoredFieldVisitor(visitor) {

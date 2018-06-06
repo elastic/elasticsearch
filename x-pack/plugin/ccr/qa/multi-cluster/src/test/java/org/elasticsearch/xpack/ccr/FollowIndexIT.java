@@ -43,7 +43,7 @@ public class FollowIndexIT extends ESRestTestCase {
             String mapping = "";
             if (randomBoolean() || true) { // randomly do source filtering on indexing
                 mapping =
-                    "\"doc\": {" +
+                    "\"_doc\": {" +
                     "  \"_source\": {" +
                     "    \"includes\": [\"field\"]," +
                     "    \"excludes\": [\"filtered_field\"]" +

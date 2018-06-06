@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import joptsimple.OptionSet;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
@@ -571,30 +570,32 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         }
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(RealmSettings.PREFIX + "my_saml.signing.keystore.secure_password", "ks-password");
-        secureSettings.setString(RealmSettings.PREFIX + "my_saml.signing.keystore.secure_key_password", "key-password");
-        secureSettings.setString(RealmSettings.PREFIX + "my_saml.encryption.keystore.secure_password", "ks-password");
-        secureSettings.setString(RealmSettings.PREFIX + "my_saml.encryption.keystore.secure_key_password", "key-password");
+        secureSettings.setString(RealmSettings.PREFIX + "saml.my_saml.signing.keystore.secure_password", "ks-password");
+        secureSettings.setString(RealmSettings.PREFIX + "saml.my_saml.signing.keystore.secure_key_password", "key-password");
+        secureSettings.setString(RealmSettings.PREFIX + "saml.my_saml.encryption.keystore.secure_password", "ks-password");
+        secureSettings.setString(RealmSettings.PREFIX + "saml.my_saml.encryption.keystore.secure_key_password", "key-password");
 
         final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[0]);
 
         final boolean useSigningCredentials = randomBoolean();
         final boolean useEncryptionCredentials = randomBoolean();
-        final Settings.Builder settingsBuilder = Settings.builder().put("path.home", dir).put(RealmSettings.PREFIX + "my_saml.type", "saml")
-                .put(RealmSettings.PREFIX + "my_saml.order", 1).put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
-                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
-                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
-                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout")
-                .put(RealmSettings.PREFIX + "my_saml.attributes.principal", "urn:oid:0.9.2342.19200300.100.1.1");
+        final Settings.Builder settingsBuilder = Settings.builder().put("path.home", dir)
+            .put(RealmSettings.PREFIX + "saml.my_saml.type", "saml")
+            .put(RealmSettings.PREFIX + "saml.my_saml.order", 1)
+            .put(RealmSettings.PREFIX + "saml.my_saml.idp.entity_id", "https://okta.my.corp/")
+            .put(RealmSettings.PREFIX + "saml.my_saml.sp.entity_id", "https://kibana.my.corp/")
+            .put(RealmSettings.PREFIX + "saml.my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+            .put(RealmSettings.PREFIX + "saml.my_saml.sp.logout", "https://kibana.my.corp/saml/logout")
+            .put(RealmSettings.PREFIX + "saml.my_saml.attributes.principal", "urn:oid:0.9.2342.19200300.100.1.1");
         settingsBuilder.setSecureSettings(secureSettings);
         if (useSigningCredentials) {
-            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.keystore.path", ksSigningFile.toString());
-            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.keystore.type", "PKCS12");
+            settingsBuilder.put(RealmSettings.PREFIX + "saml.my_saml.signing.keystore.path", ksSigningFile.toString());
+            settingsBuilder.put(RealmSettings.PREFIX + "saml.my_saml.signing.keystore.type", "PKCS12");
         }
         if (useEncryptionCredentials) {
-            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.encryption.keystore.path", ksEncryptionFile.toString());
-            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.encryption.keystore.type", "PKCS12");
+            settingsBuilder.put(RealmSettings.PREFIX + "saml.my_saml.encryption.keystore.path", ksEncryptionFile.toString());
+            settingsBuilder.put(RealmSettings.PREFIX + "saml.my_saml.encryption.keystore.type", "PKCS12");
         }
         final Settings settings = settingsBuilder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);

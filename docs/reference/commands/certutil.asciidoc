@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[certutil]]
 == elasticsearch-certutil
 

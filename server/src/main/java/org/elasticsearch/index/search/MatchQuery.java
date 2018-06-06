@@ -358,6 +358,7 @@ public class MatchQuery {
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
+                checkForPositions(field);
                 Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
                 if (query instanceof PhraseQuery) {
                     // synonyms that expand to multiple terms can return a phrase query.
@@ -382,6 +383,7 @@ public class MatchQuery {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
+                checkForPositions(field);
                 return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
             }
             catch (IllegalStateException e) {

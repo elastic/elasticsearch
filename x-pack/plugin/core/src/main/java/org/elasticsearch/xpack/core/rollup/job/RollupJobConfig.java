@@ -63,7 +63,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     static {
         PARSER.declareString(RollupJobConfig.Builder::setId, RollupField.ID);
         PARSER.declareObject(RollupJobConfig.Builder::setGroupConfig, (p, c) -> GroupConfig.PARSER.apply(p,c).build(), GROUPS);
-        PARSER.declareObjectArray(RollupJobConfig.Builder::setMetricsConfig, MetricConfig.PARSER, METRICS);
+        PARSER.declareObjectArray(RollupJobConfig.Builder::setMetricsConfig, (p, c) -> MetricConfig.PARSER.apply(p, c).build(), METRICS);
         PARSER.declareString((params, val) ->
                 params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareString(RollupJobConfig.Builder::setIndexPattern, INDEX_PATTERN);

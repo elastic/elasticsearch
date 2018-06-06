@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -76,12 +75,11 @@ public class MetricConfig implements Writeable, ToXContentFragment {
         MAPPER_TYPES = types;
     }
 
-    public static final ConstructingObjectParser<MetricConfig, Void> PARSER = new ConstructingObjectParser<>(
-            NAME, a -> new MetricConfig((String)a[0], (List<String>) a[1]));
+    public static final ObjectParser<MetricConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, MetricConfig.Builder::new);
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), METRICS);
+        PARSER.declareString(MetricConfig.Builder::setField, FIELD);
+        PARSER.declareStringArray(MetricConfig.Builder::setMetrics, METRICS);
     }
 
     MetricConfig(String name, List<String> metrics) {

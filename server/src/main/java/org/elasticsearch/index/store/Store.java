@@ -864,7 +864,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                numDocs = Lucene.getExactNumDocs(commit != null ? commit : findIndexCommit(directory, segmentCommitInfos));
+                numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
@@ -945,16 +945,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final int readBytes = Streams.readFully(in, fileHash.bytes(), 0, len);
             assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
             assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
-        }
-
-        private static IndexCommit findIndexCommit(Directory directory, SegmentInfos sis) throws IOException {
-            List<IndexCommit> commits = DirectoryReader.listCommits(directory);
-            for (IndexCommit commit : commits) {
-                if (commit.getSegmentsFileName().equals(sis.getSegmentsFileName())) {
-                    return commit;
-                }
-            }
-            throw new IOException("Index commit [" + sis.getSegmentsFileName() + "] is not found");
         }
 
         @Override
@@ -1604,6 +1594,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         throws IOException {
         assert openMode == IndexWriterConfig.OpenMode.APPEND || commit == null : "can't specify create flag with a commit";
         IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
             .setCommitOnClose(false)
             .setIndexCommit(commit)
             // we don't want merges to happen here - we call maybe merge on the engine

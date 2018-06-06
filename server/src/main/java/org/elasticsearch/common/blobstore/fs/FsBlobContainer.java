@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.BufferedInputStream;
@@ -56,8 +57,9 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class FsBlobContainer extends AbstractBlobContainer {
 
-    protected final FsBlobStore blobStore;
+    private static final String TEMP_FILE_PREFIX = "pending-";
 
+    protected final FsBlobStore blobStore;
     protected final Path path;
 
     public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
@@ -129,6 +131,48 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
         IOUtils.fsync(file, false);
         IOUtils.fsync(path, true);
+    }
+
+    @Override
+    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
+        final String tempBlob = tempBlobName(blobName);
+        final Path tempBlobPath = path.resolve(tempBlob);
+        try {
+            try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+                Streams.copy(inputStream, outputStream);
+            }
+            IOUtils.fsync(tempBlobPath, false);
+
+            final Path blobPath = path.resolve(blobName);
+            // If the target file exists then Files.move() behaviour is implementation specific
+            // the existing file might be replaced or this method fails by throwing an IOException.
+            if (Files.exists(blobPath)) {
+                throw new FileAlreadyExistsException("blob [" + blobPath + "] already exists, cannot overwrite");
+            }
+            Files.move(tempBlobPath, blobPath, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException ex) {
+            try {
+                deleteBlobIgnoringIfNotExists(tempBlob);
+            } catch (IOException e) {
+                ex.addSuppressed(e);
+            }
+            throw ex;
+        } finally {
+            IOUtils.fsync(path, true);
+        }
+    }
+
+    public static String tempBlobName(final String blobName) {
+        return "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
+    }
+
+    /**
+     * Returns true if the blob is a leftover temporary blob.
+     *
+     * The temporary blobs might be left after failed atomic write operation.
+     */
+    public static boolean isTempBlobName(final String blobName) {
+        return blobName.startsWith(TEMP_FILE_PREFIX);
     }
 
     @Override

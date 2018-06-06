@@ -1,0 +1,29 @@
+[role="xpack"]
+[[xpack-api]]
+= {xpack} APIs
+
+[partintro]
+--
+{xpack} exposes REST APIs that are used by the UI components and can be called
+directly to configure and access {xpack} features.
+
+* <<info-api,Info API>>
+* <<graph-explore-api,Graph Explore API>>
+* <<licensing-apis,Licensing APIs>>
+* <<ml-apis,Machine Learning APIs>>
+* <<security-api,Security APIs>>
+* <<watcher-api,Watcher APIs>>
+* <<rollup-apis,Rollup APIs>>
+* <<migration-api,Migration APIs>>
+--
+
+
+include::{xes-repo-dir}/rest-api/info.asciidoc[]
+include::{xes-repo-dir}/rest-api/graph/explore.asciidoc[]
+include::{xes-repo-dir}/rest-api/licensing.asciidoc[]
+include::{xes-repo-dir}/rest-api/migration.asciidoc[]
+include::{xes-repo-dir}/rest-api/ml-api.asciidoc[]
+include::{xes-repo-dir}/rest-api/rollup-api.asciidoc[]
+include::{xes-repo-dir}/rest-api/security.asciidoc[]
+include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
+include::{xes-repo-dir}/rest-api/defs.asciidoc[]

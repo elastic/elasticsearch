@@ -30,10 +30,6 @@ public class EventHandler {
     protected final Consumer<Exception> exceptionHandler;
     private final Supplier<NioSelector> selectorSupplier;
 
-    public EventHandler(Consumer<Exception> exceptionHandler) {
-        this(exceptionHandler, null);
-    }
-
     public EventHandler(Consumer<Exception> exceptionHandler, Supplier<NioSelector> selectorSupplier) {
         this.exceptionHandler = exceptionHandler;
         this.selectorSupplier = selectorSupplier;

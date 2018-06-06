@@ -44,7 +44,6 @@ import org.joda.time.DateTime;
 import org.junit.Before;
 
 import javax.mail.internet.AddressException;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -219,10 +218,9 @@ public class WebhookActionTests extends ESTestCase {
 
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry,
-                new SSLService(environment.settings(), environment));
 
-        try (MockWebServer proxyServer = new MockWebServer()) {
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry,
+            new SSLService(environment.settings(), environment)); MockWebServer proxyServer = new MockWebServer()) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 

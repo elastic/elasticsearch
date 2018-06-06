@@ -25,9 +25,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action for explaining shard allocation for a shard in the cluster
  */
-public class ClusterAllocationExplainAction extends Action<ClusterAllocationExplainRequest,
-                                                               ClusterAllocationExplainResponse,
-                                                               ClusterAllocationExplainRequestBuilder> {
+public class ClusterAllocationExplainAction extends Action<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
 
     public static final ClusterAllocationExplainAction INSTANCE = new ClusterAllocationExplainAction();
     public static final String NAME = "cluster:monitor/allocation/explain";
@@ -39,10 +37,5 @@ public class ClusterAllocationExplainAction extends Action<ClusterAllocationExpl
     @Override
     public ClusterAllocationExplainResponse newResponse() {
         return new ClusterAllocationExplainResponse();
-    }
-
-    @Override
-    public ClusterAllocationExplainRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ClusterAllocationExplainRequestBuilder(client, this);
     }
 }

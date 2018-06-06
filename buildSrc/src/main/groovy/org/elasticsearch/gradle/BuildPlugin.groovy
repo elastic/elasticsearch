@@ -497,10 +497,15 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
-                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
-                options.fork = true
-                options.forkOptions.javaHome = new File(project.compilerJavaHome)
-                options.forkOptions.memoryMaximumSize = "512m"
+                final compilerJavaHomeFile = new File(project.compilerJavaHome)
+                // we only fork if the Gradle JDK is not the same as the compiler JDK
+                if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
+                    options.fork = false
+                } else {
+                    options.fork = true
+                    options.forkOptions.javaHome = compilerJavaHomeFile
+                    options.forkOptions.memoryMaximumSize = "512m"
+                }
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
@@ -530,10 +535,15 @@ class BuildPlugin implements Plugin<Project> {
             }
             // also apply release flag to groovy, which is used in build-tools
             project.tasks.withType(GroovyCompile) {
-                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
-                options.fork = true
-                options.forkOptions.javaHome = new File(project.compilerJavaHome)
-                options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+                final compilerJavaHomeFile = new File(project.compilerJavaHome)
+                // we only fork if the Gradle JDK is not the same as the compiler JDK
+                if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
+                    options.fork = false
+                } else {
+                    options.fork = true
+                    options.forkOptions.javaHome = compilerJavaHomeFile
+                    options.compilerArgs << '--release' << JavaVersion.toVersion(it.targetCompatibility).majorVersion
+                }
             }
         }
     }
@@ -550,22 +560,10 @@ class BuildPlugin implements Plugin<Project> {
                 return classes.contains(f) == false
             }
             /*
-             * Force html5 on projects that support it to silence the warning
-             * that `javadoc` will change its defaults in the future.
-             *
-             * But not all of our javadoc is actually valid html5. So we
-             * have to become valid incrementally. We only set html5 on the
-             * projects we have converted so that we still get the annoying
-             * warning on the unconverted ones. That will give us an
-             * incentive to convert them....
+             * Generate docs using html5 to suppress a warning from `javadoc`
+             * that the default will change to html5 in the future.
              */
-            List html4Projects = [
-                ':server',
-                ':x-pack:plugin:core',
-            ]
-            if (false == html4Projects.contains(project.path)) {
-                javadoc.options.addBooleanOption('html5', true)
-            }
+            javadoc.options.addBooleanOption('html5', true)
         }
         configureJavadocJar(project)
     }
@@ -746,6 +744,7 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.testClassesDir = test.testClassesDir
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
+            additionalTest.dependsOn(project.tasks.testClasses)
             test.dependsOn(additionalTest)
         });
         return test

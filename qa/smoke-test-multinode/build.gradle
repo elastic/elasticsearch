@@ -27,3 +27,13 @@ integTest {
 integTestCluster {
   numNodes = 2
 }
+
+integTestRunner {
+  if ('zip'.equals(integTestCluster.distribution)) {
+    systemProperty 'tests.rest.blacklist', [
+        'cat.templates/10_basic/No templates',
+        'cat.templates/10_basic/Sort templates',
+        'cat.templates/10_basic/Multiple template',
+      ].join(',')
+  }
+}

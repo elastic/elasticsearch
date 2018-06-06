@@ -499,7 +499,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
     }
 
     public void testUserListNoConfig() throws Exception {
@@ -511,7 +511,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("list", pathHomeParameter, fileOrderParameter);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
     }
 
     public void testUserDelNoConfig() throws Exception {
@@ -523,7 +523,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("userdel", pathHomeParameter, fileOrderParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
     }
 
     public void testListUserRolesNoConfig() throws Exception {
@@ -535,6 +535,6 @@ public class UsersToolTests extends CommandTestCase {
             execute("roles", pathHomeParameter, fileOrderParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users_roles] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users_roles] is missing"));
     }
 }

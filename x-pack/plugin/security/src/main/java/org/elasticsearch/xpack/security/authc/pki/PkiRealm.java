@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
@@ -223,7 +223,8 @@ public class PkiRealm extends Realm implements CachingRealm {
                     realmConfig.getConcreteSetting(PkiRealmSettings.TRUST_STORE_TYPE), realmConfig.globalSettings(),
                     truststorePath);
             try {
-                return CertUtils.trustManager(truststorePath, trustStoreType, password.getChars(), trustStoreAlgorithm, realmConfig.env());
+                return CertParsingUtils.trustManager(truststorePath, trustStoreType, password.getChars(), trustStoreAlgorithm, realmConfig
+                    .env());
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to load specified truststore", e);
             }
@@ -233,8 +234,8 @@ public class PkiRealm extends Realm implements CachingRealm {
     private static X509TrustManager trustManagersFromCAs(List<String> certificateAuthorities, Environment env) {
         assert certificateAuthorities != null;
         try {
-            Certificate[] certificates = CertUtils.readCertificates(certificateAuthorities, env);
-            return CertUtils.trustManager(certificates);
+            Certificate[] certificates = CertParsingUtils.readCertificates(certificateAuthorities, env);
+            return CertParsingUtils.trustManager(certificates);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load certificate authorities for PKI realm", e);
         }

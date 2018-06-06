@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -50,7 +49,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 
 public class DatafeedManager extends AbstractComponent {
 
@@ -80,10 +79,7 @@ public class DatafeedManager extends AbstractComponent {
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> taskHandler) {
         String datafeedId = task.getDatafeedId();
         ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = state.metaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
 
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
@@ -395,8 +391,8 @@ public class DatafeedManager extends AbstractComponent {
                 return;
             }
 
-            task.waitForPersistentTaskStatus(Objects::isNull, TimeValue.timeValueSeconds(20),
-                            new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
+            task.waitForPersistentTask(Objects::isNull, TimeValue.timeValueSeconds(20),
+                            new WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
                 public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(getJobId());

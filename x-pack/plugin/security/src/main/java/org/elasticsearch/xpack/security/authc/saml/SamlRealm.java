@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -303,7 +303,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private static List<X509Credential> buildCredential(RealmConfig config, String prefix, Setting.AffixSetting<String> aliasSetting,
                                                         boolean allowMultiple) {
         final X509KeyPairSettings keyPairSettings = X509KeyPairSettings.withPrefix(prefix, false);
-        final X509KeyManager keyManager = CertUtils.getKeyManager(keyPairSettings, config.globalSettings(), null, config.env());
+        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.globalSettings(), null, config.env());
         if (keyManager == null) {
             return null;
         }

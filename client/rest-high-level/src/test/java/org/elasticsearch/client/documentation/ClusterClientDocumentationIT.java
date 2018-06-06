@@ -23,18 +23,27 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -68,19 +77,19 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request
 
         // tag::put-settings-create-settings
-        String transientSettingKey = 
+        String transientSettingKey =
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int transientSettingValue = 10;
-        Settings transientSettings = 
+        Settings transientSettings =
                 Settings.builder()
                 .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES)
                 .build(); // <1>
 
-        String persistentSettingKey = 
+        String persistentSettingKey =
                 EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
-        String persistentSettingValue = 
+        String persistentSettingValue =
                 EnableAllocationDecider.Allocation.NONE.name();
-        Settings persistentSettings = 
+        Settings persistentSettings =
                 Settings.builder()
                 .put(persistentSettingKey, persistentSettingValue)
                 .build(); // <2>
@@ -93,9 +102,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-settings-settings-builder
-            Settings.Builder transientSettingsBuilder = 
+            Settings.Builder transientSettingsBuilder =
                     Settings.builder()
-                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES); 
+                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES);
             request.transientSettings(transientSettingsBuilder); // <1>
             // end::put-settings-settings-builder
         }
@@ -152,7 +161,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
             // tag::put-settings-execute-listener
-            ActionListener<ClusterUpdateSettingsResponse> listener = 
+            ActionListener<ClusterUpdateSettingsResponse> listener =
                     new ActionListener<ClusterUpdateSettingsResponse>() {
                 @Override
                 public void onResponse(ClusterUpdateSettingsResponse response) {

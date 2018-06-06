@@ -16,7 +16,13 @@
             },
             "input": {
               "simple": {
-                "foo" : "something from input"
+                "foo" : "something from input",
+                "hits" : {
+                  "hits" : [
+                    { "_source" : { "name" : "first",  "value" : "2018-04-26T11:45:12.518Z" } },
+                    { "_source" : { "name" : "second", "value" : "anything" } }
+                  ]
+                }
               }
             },
             "actions": {
@@ -49,7 +55,20 @@
                           }
                         ]
                       }
-                    ]
+                    ],
+                    "dynamic_attachments" : {
+                      "list_path" : "ctx.payload.hits.hits",
+                      "attachment_template" : {
+                        "title": "Title",
+                        "fields" : [
+                          {
+                            "title" : "Field title {{_source.name}}",
+                            "value" : "{{_source.value}}",
+                            "short" : true
+                          }
+                        ]
+                      }
+                    }
                   }
                 }
               }

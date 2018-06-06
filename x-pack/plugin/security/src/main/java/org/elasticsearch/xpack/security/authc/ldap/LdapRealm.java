@@ -67,7 +67,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     // pkg private for testing
     LdapRealm(RealmConfig config, SessionFactory sessionFactory,
               UserRoleMapper roleMapper, ThreadPool threadPool) {
-        super(config);
+        super(config, threadPool);
         this.sessionFactory = sessionFactory;
         this.roleMapper = roleMapper;
         this.threadPool = threadPool;

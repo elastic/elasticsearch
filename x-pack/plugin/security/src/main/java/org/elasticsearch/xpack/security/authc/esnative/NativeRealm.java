@@ -6,13 +6,16 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * User/password realm that is backed by an Elasticsearch index
@@ -21,8 +24,8 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
 
     private final NativeUsersStore userStore;
 
-    public NativeRealm(RealmConfig config, NativeUsersStore usersStore) {
-        super(config);
+    public NativeRealm(RealmConfig config, NativeUsersStore usersStore, ThreadPool threadPool) {
+        super(config, threadPool);
         this.userStore = usersStore;
     }
 
@@ -36,12 +39,8 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
         userStore.verifyPassword(token.principal(), token.credentials(), listener);
     }
 
-    public void onSecurityIndexHealthChange(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
-        final boolean movedFromRedToNonRed = (previousHealth == null || previousHealth.getStatus() == ClusterHealthStatus.RED)
-                && currentHealth != null && currentHealth.getStatus() != ClusterHealthStatus.RED;
-        final boolean indexDeleted = previousHealth != null && currentHealth == null;
-
-        if (movedFromRedToNonRed || indexDeleted) {
+    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
             clearCache();
         }
     }

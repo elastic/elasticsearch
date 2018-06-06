@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder>
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse>
         implements WriteRequestBuilder<BulkRequestBuilder> {
 
     public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
@@ -132,7 +132,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
@@ -140,7 +140,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);

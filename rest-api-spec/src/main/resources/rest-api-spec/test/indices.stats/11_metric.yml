@@ -123,9 +123,6 @@ setup:
 
 ---
 "Metric - _all include_segment_file_sizes":
-  - skip:
-        version: " - 5.1.1"
-        reason: including segment file sizes triggered an unrecognized parameter in <= 5.1.1
   - do:
       indices.stats: { metric: _all, include_segment_file_sizes: true }
 
@@ -148,9 +145,6 @@ setup:
 
 ---
 "Metric - segments include_segment_file_sizes":
-  - skip:
-      version: " - 5.1.1"
-      reason: including segment file sizes triggered an unrecognized parameter in <= 5.1.1
   - do:
       indices.stats: { metric: segments, include_segment_file_sizes: true }
 

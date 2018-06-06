@@ -38,9 +38,12 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -51,14 +54,19 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -71,11 +79,20 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractRawValues;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -189,6 +206,108 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetSettings() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+
+        updateIndexSettings(indexName, Settings.builder().put("refresh_interval", "30s"));
+
+        GetSettingsResponse updatedResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+        assertEquals("30s", updatedResponse.getSetting(indexName, "index.refresh_interval"));
+    }
+
+    public void testGetSettingsNonExistentIndex() throws IOException {
+        String nonExistentIndex = "index_that_doesnt_exist";
+        assertFalse(indexExists(nonExistentIndex));
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(nonExistentIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> execute(getSettingsRequest, highLevelClient().indices()::getSettings, highLevelClient().indices()::getSettingsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testGetSettingsFromMultipleIndices() throws IOException {
+        String indexName1 = "get_multiple_settings_one";
+        createIndex(indexName1, Settings.builder().put("number_of_shards", 2).build());
+
+        String indexName2 = "get_multiple_settings_two";
+        createIndex(indexName2, Settings.builder().put("number_of_shards", 3).build());
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("get_multiple_settings*");
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertEquals("2", getSettingsResponse.getSetting(indexName1, "index.number_of_shards"));
+        assertEquals("3", getSettingsResponse.getSetting(indexName2, "index.number_of_shards"));
+    }
+
+    public void testGetSettingsFiltered() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName).names("index.number_of_shards");
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_replicas"));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+        assertEquals(1, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
+    }
+
+    public void testGetSettingsWithDefaults() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").getAsTime("index.refresh_interval", null));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+    }
+
+    public void testGetSettingsWithDefaultsFiltered() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
+            .indices(indexName)
+            .names("index.refresh_interval")
+            .includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_replicas"));
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+        assertEquals(0, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
+        assertEquals(1, getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").size());
+    }
     public void testPutMapping() throws IOException {
         {
             // Add mappings to index
@@ -210,6 +329,42 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> getIndexResponse = getAsMap(indexName);
             assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.type_name.properties.field.type", getIndexResponse));
         }
+    }
+
+    public void testGetMapping() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        putMappingRequest.type("_doc");
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        PutMappingResponse putMappingResponse =
+            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        Map<String, Object> getIndexResponse = getAsMap(indexName);
+        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings._doc.properties.field.type", getIndexResponse));
+
+        GetMappingsRequest request = new GetMappingsRequest()
+            .indices(indexName)
+            .types("_doc");
+
+        GetMappingsResponse getMappingsResponse =
+            execute(request, highLevelClient().indices()::getMappings, highLevelClient().indices()::getMappingsAsync);
+
+        Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
+        Map<String, String> type = new HashMap<>();
+        type.put("type", "text");
+        Map<String, Object> field = new HashMap<>();
+        field.put("field", type);
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("properties", field);
+        assertThat(mappings, equalTo(expected));
     }
 
     public void testDeleteIndex() throws IOException {
@@ -448,6 +603,39 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSyncedFlush() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                    .put("number_of_shards", 1)
+                    .put("number_of_replicas", 0)
+                    .build();
+            createIndex(index, settings);
+            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
+            SyncedFlushResponse flushResponse =
+                    execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync);
+            assertThat(flushResponse.totalShards(), equalTo(1));
+            assertThat(flushResponse.successfulShards(), equalTo(1));
+            assertThat(flushResponse.failedShards(), equalTo(0));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () ->
+                    execute(
+                        syncedFlushRequest,
+                        highLevelClient().indices()::flushSynced,
+                        highLevelClient().indices()::flushSyncedAsync
+                    )
+            );
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
+
     public void testClearCache() throws IOException {
         {
             String index = "index";
@@ -527,7 +715,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SHRINK);
-        Settings targetSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
+        Settings targetSettings =
+                Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+                        .putNull("index.routing.allocation.require._name")
+                        .build();
         resizeRequest.setTargetIndex(new CreateIndexRequest("target").settings(targetSettings).alias(new Alias("alias")));
         ResizeResponse resizeResponse = highLevelClient().indices().shrink(resizeRequest);
         assertTrue(resizeResponse.isAcknowledged());
@@ -708,4 +901,59 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 + "or check the breaking changes documentation for removed settings]"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPutTemplate() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
+            .name("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("doc", "host_name", "type=keyword", "description", "type=text")
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        PutIndexTemplateResponse putTemplateResponse = execute(putTemplateRequest,
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
+
+        Map<String, Object> templates = getAsMap("/_template/my-template");
+        assertThat(templates.keySet(), hasSize(1));
+        assertThat(extractValue("my-template.order", templates), equalTo(10));
+        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
+        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
+        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
+        assertThat(extractValue("my-template.mappings.doc.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.doc.properties.description.type", templates), equalTo("text"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+    }
+
+    public void testPutTemplateBadRequests() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // Failed to validate because index patterns are missing
+        PutIndexTemplateRequest withoutPattern = new PutIndexTemplateRequest("t1");
+        ValidationException withoutPatternError = expectThrows(ValidationException.class,
+            () -> execute(withoutPattern, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(withoutPatternError.validationErrors(), contains("index patterns are missing"));
+
+        // Create-only specified but an template exists already
+        PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2").patterns(Arrays.asList("qa-*", "prod-*"));
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+        goodTemplate.create(true);
+        ElasticsearchException alreadyExistsError = expectThrows(ElasticsearchException.class,
+            () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(alreadyExistsError.getDetailedMessage(),
+            containsString("[type=illegal_argument_exception, reason=index_template [t2] already exists]"));
+        goodTemplate.create(false);
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+
+        // Rejected due to unknown settings
+        PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3")
+            .patterns(Collections.singletonList("any"))
+            .settings(Settings.builder().put("this-setting-does-not-exist", 100));
+        ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
+    }
 }

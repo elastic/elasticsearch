@@ -654,18 +654,18 @@ public class RestClient implements Closeable {
 
         if (false == livingNodes.isEmpty()) {
             /*
-             * Normal state: there is at least one living node. Rotate the
-             * list so subsequent requests will prefer the nodes in a
-             * different order then run them through the NodeSelector so it
-             * can have its say in which nodes are ok and their ordering. If
-             * the selector is ok with any over the living nodes then use
-             * them for the request.
+             * Normal state: there is at least one living node. If the
+             * selector is ok with any over the living nodes then use them
+             * for the request.
              */
-            // TODO this is going to send more requests to nodes right *after* a node that the selector removes
             List<Node> selectedLivingNodes = new ArrayList<>(livingNodes);
-            Collections.rotate(selectedLivingNodes, lastNodeIndex.getAndIncrement());
             nodeSelector.select(selectedLivingNodes);
             if (false == selectedLivingNodes.isEmpty()) {
+                /*
+                 * Rotate the list so subsequent requests will prefer the
+                 * nodes in a different order.
+                 */
+                Collections.rotate(selectedLivingNodes, lastNodeIndex.getAndIncrement());
                 return selectedLivingNodes;
             }
         }
@@ -682,19 +682,52 @@ public class RestClient implements Closeable {
          * node.
          */
         if (false == deadNodes.isEmpty()) {
-            Collections.sort(deadNodes);
-
-            List<Node> selectedDeadNodes = new ArrayList<>(deadNodes.size());
-            for (DeadNodeAndRevival n : deadNodes) {
-                selectedDeadNodes.add(n.node);
-            }
-            nodeSelector.select(selectedDeadNodes);
+            final List<DeadNodeAndRevival> selectedDeadNodes = new ArrayList<>(deadNodes);
+            /*
+             * We'd like NodeSelectors to remove items directly from deadNodes
+             * so we can find the minimum after it is filtered without having
+             * to compare many things. This saves us a sort on the unfiltered
+             * list.
+             */
+            nodeSelector.select(new Iterable<Node>() {
+                @Override
+                public Iterator<Node> iterator() {
+                    return new Adapter(selectedDeadNodes.iterator());
+                }
+            });
             if (false == selectedDeadNodes.isEmpty()) {
-                return singletonList(selectedDeadNodes.get(0));
+                return singletonList(Collections.min(selectedDeadNodes).node);
             }
         }
         throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, "
                 + "living " + livingNodes + " and dead " + deadNodes);
+    }
+
+    /**
+     * Adapts an <code>Iterator<DeadNodeAndRevival></code> into an
+     * <code>Iterator<Node></code>.
+     */
+    private static class Adapter implements Iterator<Node> {
+        private final Iterator<DeadNodeAndRevival> itr;
+
+        private Adapter(Iterator<DeadNodeAndRevival> itr) {
+            this.itr = itr;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return itr.hasNext();
+        }
+
+        @Override
+        public Node next() {
+            return itr.next().node;
+        }
+
+        @Override
+        public void remove() {
+            itr.remove();
+        }
     }
 
     /**

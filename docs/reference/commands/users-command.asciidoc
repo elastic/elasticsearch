@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[users-command]]
 == Users Command
 ++++

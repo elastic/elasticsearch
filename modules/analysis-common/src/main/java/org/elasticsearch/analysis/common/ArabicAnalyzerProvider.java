@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.fr.FrenchAnalyzer;
+import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<FrenchAnalyzer> {
+public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<ArabicAnalyzer> {
 
-    private final FrenchAnalyzer analyzer;
+    private final ArabicAnalyzer arabicAnalyzer;
 
-    public FrenchAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    ArabicAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new FrenchAnalyzer(
-            Analysis.parseStopWords(env, settings, FrenchAnalyzer.getDefaultStopSet()),
+        arabicAnalyzer = new ArabicAnalyzer(
+            Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
+        arabicAnalyzer.setVersion(version);
     }
 
     @Override
-    public FrenchAnalyzer get() {
-        return this.analyzer;
+    public ArabicAnalyzer get() {
+        return this.arabicAnalyzer;
     }
 }

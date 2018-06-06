@@ -17,30 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-/**
- * Only for old indexes
- */
-public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
+public class BrazilianAnalyzerProvider extends AbstractIndexAnalyzerProvider<BrazilianAnalyzer> {
 
-    private final StandardAnalyzer analyzer;
+    private final BrazilianAnalyzer analyzer;
 
-    public ChineseAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    BrazilianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        // old index: best effort
-        analyzer = new StandardAnalyzer();
+        analyzer = new BrazilianAnalyzer(
+            Analysis.parseStopWords(env, settings, BrazilianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
-        
     }
 
     @Override
-    public StandardAnalyzer get() {
+    public BrazilianAnalyzer get() {
         return this.analyzer;
     }
 }

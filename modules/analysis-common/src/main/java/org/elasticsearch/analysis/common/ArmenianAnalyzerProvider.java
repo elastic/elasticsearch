@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ca.CatalanAnalyzer;
+import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class CatalanAnalyzerProvider extends AbstractIndexAnalyzerProvider<CatalanAnalyzer> {
+public class ArmenianAnalyzerProvider extends AbstractIndexAnalyzerProvider<ArmenianAnalyzer> {
 
-    private final CatalanAnalyzer analyzer;
+    private final ArmenianAnalyzer analyzer;
 
-    public CatalanAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    ArmenianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new CatalanAnalyzer(
-            Analysis.parseStopWords(env, settings, CatalanAnalyzer.getDefaultStopSet()),
+        analyzer = new ArmenianAnalyzer(
+            Analysis.parseStopWords(env, settings, ArmenianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public CatalanAnalyzer get() {
+    public ArmenianAnalyzer get() {
         return this.analyzer;
     }
 }

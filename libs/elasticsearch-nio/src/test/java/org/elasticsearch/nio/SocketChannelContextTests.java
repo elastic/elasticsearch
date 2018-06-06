@@ -51,7 +51,7 @@ public class SocketChannelContextTests extends ESTestCase {
     private Consumer<Exception> exceptionHandler;
     private NioSocketChannel channel;
     private BiConsumer<Void, Exception> listener;
-    private SocketSelector selector;
+    private NioSelector selector;
     private ReadWriteHandler readWriteHandler;
 
     @SuppressWarnings("unchecked")
@@ -64,7 +64,7 @@ public class SocketChannelContextTests extends ESTestCase {
         listener = mock(BiConsumer.class);
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
-        selector = mock(SocketSelector.class);
+        selector = mock(NioSelector.class);
         readWriteHandler = mock(ReadWriteHandler.class);
         InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
         context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
@@ -275,7 +275,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
     private static class TestSocketChannelContext extends SocketChannelContext {
 
-        private TestSocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+        private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                          ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
             super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
         }

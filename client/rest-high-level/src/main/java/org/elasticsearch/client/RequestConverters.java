@@ -710,7 +710,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getSettings(GetSettingsRequest getSettingsRequest) throws IOException {
+    static Request getSettings(GetSettingsRequest getSettingsRequest) {
         String[] indices = getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
         String[] names = getSettingsRequest.names() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.names();
 

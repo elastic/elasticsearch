@@ -40,7 +40,7 @@ public final class TasksClient {
     }
 
     /**
-     * Get current tasks using the Task Management API
+     * Get current tasks using the Task Management API.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * @param request the request
@@ -54,7 +54,7 @@ public final class TasksClient {
     }
 
     /**
-     * Asynchronously get current tasks using the Task Management API
+     * Asynchronously get current tasks using the Task Management API.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
      * @param request the request

@@ -41,7 +41,7 @@ public final class ClusterClient {
     }
 
     /**
-     * Updates cluster wide specific settings using the Cluster Update Settings API
+     * Updates cluster wide specific settings using the Cluster Update Settings API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
      * @param clusterUpdateSettingsRequest the request
@@ -56,7 +56,7 @@ public final class ClusterClient {
     }
 
     /**
-     * Updates cluster wide specific settings using the Cluster Update Settings API
+     * Updates cluster wide specific settings using the Cluster Update Settings API.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
@@ -70,7 +70,7 @@ public final class ClusterClient {
     }
 
     /**
-     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API
+     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
      * @param clusterUpdateSettingsRequest the request
@@ -83,7 +83,7 @@ public final class ClusterClient {
                 options, ClusterUpdateSettingsResponse::fromXContent, listener, emptySet());
     }
     /**
-     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API
+     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>

@@ -44,7 +44,7 @@ public final class IngestClient {
     }
 
     /**
-     * Add a pipeline or update an existing pipeline
+     * Add a pipeline or update an existing pipeline.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      * @param request the request
@@ -58,7 +58,7 @@ public final class IngestClient {
     }
 
     /**
-     * Asynchronously add a pipeline or update an existing pipeline
+     * Asynchronously add a pipeline or update an existing pipeline.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
      * @param request the request
@@ -71,7 +71,7 @@ public final class IngestClient {
     }
 
     /**
-     * Get an existing pipeline
+     * Get an existing pipeline.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
      * @param request the request
@@ -85,7 +85,7 @@ public final class IngestClient {
     }
 
     /**
-     * Asynchronously get an existing pipeline
+     * Asynchronously get an existing pipeline.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
      * @param request the request
@@ -98,7 +98,7 @@ public final class IngestClient {
     }
 
     /**
-     * Delete an existing pipeline
+     * Delete an existing pipeline.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
      *     Delete Pipeline API on elastic.co</a>
@@ -113,7 +113,7 @@ public final class IngestClient {
     }
 
     /**
-     * Asynchronously delete an existing pipeline
+     * Asynchronously delete an existing pipeline.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-pipeline-api.html">
      *     Delete Pipeline API on elastic.co</a>

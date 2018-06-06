@@ -136,7 +136,7 @@ public class PutWatchRequest extends ActionRequest {
             validationException = ValidateActions.addValidationError("watch source is missing", validationException);
         }
         if (xContentType == null) {
-            validationException = ValidateActions.addValidationError("Content-Type is missing", validationException);
+            validationException = ValidateActions.addValidationError("request body is missing", validationException);
         }
         return validationException;
     }

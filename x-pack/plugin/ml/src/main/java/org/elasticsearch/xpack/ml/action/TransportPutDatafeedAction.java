@@ -92,6 +92,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     .indices(request.getDatafeed().getIndices().toArray(new String[0]))
                     .privileges(SearchAction.NAME)
                     .build());
+            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {

@@ -66,8 +66,6 @@ public class NioGroup implements AutoCloseable {
     public NioGroup(ThreadFactory threadFactory, int selectorCount, Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction)
         throws IOException {
         this(null, 0, threadFactory, selectorCount, eventHandlerFunction);
-
-
     }
 
     /**

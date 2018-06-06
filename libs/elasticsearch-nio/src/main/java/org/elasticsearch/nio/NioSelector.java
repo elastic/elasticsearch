@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -58,7 +59,7 @@ public class NioSelector implements Closeable {
     private final CountDownLatch exitedLoop = new CountDownLatch(1);
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CompletableFuture<Void> isRunningFuture = new CompletableFuture<>();
-    private volatile Thread thread;
+    private final AtomicReference<Thread> thread = new AtomicReference<>(null);
 
     public NioSelector(EventHandler eventHandler) throws IOException {
         this(eventHandler, Selector.open());
@@ -86,16 +87,17 @@ public class NioSelector implements Closeable {
     }
 
     void setThread() {
-        thread = Thread.currentThread();
+        boolean wasSet = thread.compareAndSet(null, Thread.currentThread());
+        assert wasSet : "Failed to set thread as it was already set. Should only set once.";
     }
 
     public boolean isOnCurrentThread() {
-        return Thread.currentThread() == thread;
+        return Thread.currentThread() == thread.get();
     }
 
     public void assertOnSelectorThread() {
-        assert isOnCurrentThread() : "Must be on selector thread to perform this operation. Currently on thread ["
-            + Thread.currentThread().getName() + "].";
+        assert isOnCurrentThread() : "Must be on selector thread [" + thread.get().getName() + "} to perform this operation. " +
+            "Currently on thread [" + Thread.currentThread().getName() + "].";
     }
 
     /**

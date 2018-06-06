@@ -46,11 +46,7 @@ public class EventHandler {
      * @param context that can accept a connection
      */
     protected void acceptChannel(ServerChannelContext context) throws IOException {
-        if (selectorSupplier != null) {
-            context.acceptChannels(selectorSupplier);
-        } else {
-            context.acceptChannels(context::getSelector);
-        }
+        context.acceptChannels(selectorSupplier);
     }
 
     /**

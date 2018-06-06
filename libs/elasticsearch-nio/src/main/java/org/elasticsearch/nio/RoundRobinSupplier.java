@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class RoundRobinSupplier<S> implements Supplier<S> {
+final class RoundRobinSupplier<S> implements Supplier<S> {
 
     private final List<S> selectors;
     private final int count;

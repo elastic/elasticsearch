@@ -178,7 +178,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final LongConsumer processedGlobalCheckpointUpdater;
     
         private final AtomicInteger activeWorkers;
-        private final AtomicLong lastPolledGlobalCheckpoint;
+        private final AtomicLong lastProcessedGlobalCheckpoint;
         private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
 
         ChunksCoordinator(Client followerClient,
@@ -207,7 +207,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             this.stateSupplier = runningSuppler;
             this.processedGlobalCheckpointUpdater = processedGlobalCheckpointUpdater;
             this.activeWorkers = new AtomicInteger();
-            this.lastPolledGlobalCheckpoint = new AtomicLong();
+            this.lastProcessedGlobalCheckpoint = new AtomicLong();
         }
 
         void createChucks(long from, long to) {
@@ -218,34 +218,34 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
         }
 
-        void updateChunksQueue() {
+        void updateChunksQueue(long previousGlobalcheckpoint) {
             schedule(CHECK_LEADER_GLOBAL_CHECKPOINT_INTERVAL, () -> {
                 if (stateSupplier.get() == false) {
+                    chunks.clear();
                     return;
                 }
                 
-                fetchGlobalCheckpoint(leaderClient, leaderShard, leaderGlobalCheckPoint -> {
-                    long followerGlobalCheckpoint = lastPolledGlobalCheckpoint.get();
-                    if (leaderGlobalCheckPoint != followerGlobalCheckpoint) {
-                        assert followerGlobalCheckpoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followerGlobalCheckpoint +
-                            "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
-                        createChucks(lastPolledGlobalCheckpoint.get(), leaderGlobalCheckPoint);
+                fetchGlobalCheckpoint(leaderClient, leaderShard, currentGlobalCheckPoint -> {
+                    if (currentGlobalCheckPoint != previousGlobalcheckpoint) {
+                        assert previousGlobalcheckpoint < currentGlobalCheckPoint : "followGlobalCheckPoint [" + previousGlobalcheckpoint +
+                            "] is not below leaderGlobalCheckPoint [" + currentGlobalCheckPoint + "]";
+                        createChucks(previousGlobalcheckpoint, currentGlobalCheckPoint);
                         initiateChunkWorkers();
+                        updateChunksQueue(currentGlobalCheckPoint);
                     } else {
                         LOGGER.debug("{} no write operations to fetch", followerShard);
+                        updateChunksQueue(previousGlobalcheckpoint);
                     }
-                    updateChunksQueue();
                 }, failureHandler);
             });
         }
         
         void start(long followerGlobalCheckpoint, long leaderGlobalCheckPoint) {
             createChucks(followerGlobalCheckpoint, leaderGlobalCheckPoint);
-            lastPolledGlobalCheckpoint.set(leaderGlobalCheckPoint);
             LOGGER.debug("{} Start coordination of [{}] chunks with [{}] concurrent processors",
                     leaderShard, chunks.size(), maxConcurrentWorker);
             initiateChunkWorkers();
-            updateChunksQueue();
+            updateChunksQueue(leaderGlobalCheckPoint);
         }
         
         void initiateChunkWorkers() {
@@ -275,10 +275,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }
 
         void processNextChunk() {
-            if (stateSupplier.get() == false) {
-                return;
-            }
-            
             long[] chunk = chunks.poll();
             if (chunk == null) {
                 int activeWorkers = this.activeWorkers.decrementAndGet();
@@ -289,7 +285,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             Consumer<Exception> processorHandler = e -> {
                 if (e == null) {
                     LOGGER.debug("{} Successfully processed chunk [{}/{}]", leaderShard, chunk[0], chunk[1]);
-                    if (lastPolledGlobalCheckpoint.updateAndGet(x -> x < chunk[1] ? chunk[1] : x) == chunk[1]) {
+                    if (lastProcessedGlobalCheckpoint.updateAndGet(x -> x < chunk[1] ? chunk[1] : x) == chunk[1]) {
                         processedGlobalCheckpointUpdater.accept(chunk[1]);
                     }
                     processNextChunk();

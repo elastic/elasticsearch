@@ -120,9 +120,6 @@ public class X509KeyPairSettings {
         });
     }
 
-    /***
-     * TODO: this is horrible
-     */
     public static Collection<Setting.AffixSetting<?>> affix(String prefix, String suffixPart, boolean acceptNonSecurePasswords) {
         final X509KeyPairSettings settings = new X509KeyPairSettings(acceptNonSecurePasswords, new SettingFactory() {
             @Override

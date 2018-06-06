@@ -19,23 +19,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * TODO REALM-SETTINGS[TIM] This java doc is completely wrong now
- * <p>
- * Configures the {@link Setting#groupSetting(String, Consumer, Setting.Property...) group setting} for security
- * {@link Realm realms}, with validation according to the realm type.
- * <p>
- * The allowable settings for a given realm are dependent on the {@link Realm#type() realm type}, so it is not possible
- * to simply provide a list of {@link Setting} objects and rely on the global setting vacomlidation (e.g. A custom realm-type might
- * define a setting with the same logical key as an internal realm-type, but a different data type).
- * </p> <p>
- * Instead, realm configuration relies on the <code>validator</code> parameter to
- * {@link Setting#groupSetting(String, Consumer, Setting.Property...)} in order to validate each realm in a way that respects the
- * declared <code>type</code>.
- * Internally, this validation delegates to {@link AbstractScopedSettings#validate(Settings, boolean)} so that validation is reasonably
- * aligned
- * with the way we validate settings globally.
- * </p>
- * <p>
+ * Provides a number of utility methods for interacting with {@link Settings} and {@link Setting} inside a {@link Realm}.
+ * Settings for realms use an {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSetting[]) affix} style,
+ * where the <em>type</em> of the realm is part of the prefix, and name of the realm is the variable portion
+ * (That is to set the order in a file realm named "file1", then full setting key would be
+ * {@code xpack.security.authc.realms.file.file1.order}.
+ * This class provides some convenience methods for defining and retrieving such settings.
  */
 public class RealmSettings {
 
@@ -51,13 +40,27 @@ public class RealmSettings {
     }
 
     public static String realmSettingPrefix(RealmConfig.RealmIdentifier identifier) {
-        return realmSettingPrefix(identifier.type) + identifier.name + ".";
+        return realmSettingPrefix(identifier.getType()) + identifier.getName() + ".";
     }
 
+    /**
+     * Create a {@link Setting#simpleString(String, Setting.Property...) simple string} {@link Setting} object for a realm of
+     * with the provided type and setting suffix.
+     * @param realmType The type of the realm, used within the setting prefix
+     * @param suffix The suffix of the setting (everything following the realm name in the affix setting)
+     * @param properties And properties to apply to the setting
+     */
     public static Setting.AffixSetting<String> simpleString(String realmType, String suffix, Setting.Property... properties) {
         return Setting.affixKeySetting(realmSettingPrefix(realmType), suffix, key -> Setting.simpleString(key, properties));
     }
 
+    /**
+     * Create a {@link Function} that acts as a factory an {@link org.elasticsearch.common.settings.Setting.AffixSetting}.
+     * The {@code Function} takes the <em>realm-type</em> as an argument.
+     * @param suffix The suffix of the setting (everything following the realm name in the affix setting)
+     * @param delegateFactory A factory to produce the concrete setting.
+     *                       See {@link Setting#affixKeySetting(Setting.AffixKey, Function, Setting.AffixSetting[])}
+     */
     public static <T> Function<String, Setting.AffixSetting<T>> affixSetting(String suffix, Function<String, Setting<T>> delegateFactory) {
         return realmType -> Setting.affixKeySetting(realmSettingPrefix(realmType), suffix, delegateFactory);
     }
@@ -97,18 +100,17 @@ public class RealmSettings {
     }
 
     public static <T> String getFullSettingKey(RealmConfig.RealmIdentifier realmId, Function<String, Setting.AffixSetting<T>> setting) {
-        return getFullSettingKey(realmId.name, setting.apply(realmId.type));
+        return getFullSettingKey(realmId.getName(), setting.apply(realmId.getType()));
     }
 
     public static <T> String getFullSettingKey(RealmConfig realm, Function<String, Setting.AffixSetting<T>> setting) {
         return getFullSettingKey(realm.identifier, setting);
     }
 
-    private RealmSettings() {
-    }
-
     public static List<Setting.AffixSetting<?>> getStandardSettings(String realmType) {
         return Arrays.asList(ENABLED_SETTING.apply(realmType), ORDER_SETTING.apply(realmType));
+    }
 
+    private RealmSettings() {
     }
 }

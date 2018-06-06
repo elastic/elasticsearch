@@ -38,7 +38,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
@@ -111,24 +113,15 @@ public final class InternalRealms {
     private InternalRealms() {
     }
 
-    /**
-     * TODO REALM-SETTINGS[TIM] This can be redone a lot now the realm settings are keyed by type
-     */
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
-        final List<BootstrapCheck> checks = new ArrayList<>();
-        final Map<RealmConfig.RealmIdentifier, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
-        settingsByRealm.forEach((identifier, settings) -> {
-            final RealmConfig realmConfig = new RealmConfig(identifier, settings, globalSettings, env, null);
-            switch (realmConfig.type()) {
-                case LdapRealmSettings.AD_TYPE:
-                case LdapRealmSettings.LDAP_TYPE:
-                case PkiRealmSettings.TYPE:
-                    final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(realmConfig);
-                    if (check != null) {
-                        checks.add(check);
-                    }
-            }
-        });
+        final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
+        final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
+            .keySet().stream()
+            .filter(id -> realmTypes.contains(id.getType()))
+            .map(id -> new RealmConfig(id, globalSettings, env, null))
+            .map(RoleMappingFileBootstrapCheck::create)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
         return checks;
     }
 }

@@ -545,7 +545,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return settingsList;
         }
 
-
         // The following just apply in node mode
 
         // IP Filter settings

@@ -120,8 +120,8 @@ public class RealmConfig {
     }
 
     public static class RealmIdentifier {
-        final String type;
-        final String name;
+        private final String type;
+        private final String name;
 
         public RealmIdentifier(String type, String name) {
             this.type = Objects.requireNonNull(type, "Realm type cannot be null");
@@ -159,7 +159,7 @@ public class RealmConfig {
 
         @Override
         public String toString() {
-            return type + '.' + name;
+            return type + '/' + name;
         }
     }
 }

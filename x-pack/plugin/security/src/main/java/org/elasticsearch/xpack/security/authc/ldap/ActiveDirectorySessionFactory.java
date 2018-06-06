@@ -454,8 +454,6 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                             IOUtils.closeWhileHandlingException(searchConnection);
                             listener.onFailure(e);
                         }
-
-                        ;
                     });
                 }
             } catch (LDAPException e) {

@@ -37,6 +37,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -638,7 +639,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefixes").endObject()
-                .field("index_options", "positions")
+                .field("index_options", "freqs")
                 .endObject().endObject().endObject().endObject());
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -655,6 +656,27 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefixes").endObject()
+                .field("index_options", "positions")
+                .endObject().endObject().endObject().endObject());
+
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
+            assertFalse(ft.storeTermVectors());
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefixes").endObject()
                 .field("term_vector", "with_positions_offsets")
                 .endObject().endObject().endObject().endObject());
 
@@ -662,7 +684,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
             assertTrue(ft.storeTermVectorOffsets());
         }
 
@@ -679,7 +705,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
             assertFalse(ft.storeTermVectorOffsets());
         }
     }

@@ -25,9 +25,11 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
@@ -61,6 +63,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -153,7 +156,7 @@ public class SearchActionTests extends ESTestCase {
             "compatible. Options include: [UTC]"));
     }
 
-    public void testTerms() {
+    public void testTermQuery() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
         group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
@@ -164,6 +167,23 @@ public class SearchActionTests extends ESTestCase {
         QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new TermQueryBuilder("foo", "bar"), caps);
         assertThat(rewritten, instanceOf(TermQueryBuilder.class));
         assertThat(((TermQueryBuilder)rewritten).fieldName(), equalTo("foo.terms.value"));
+    }
+
+    public void testTermsQuery() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
+        group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
+        job.setGroupConfig(group.build());
+        RollupJobCaps cap = new RollupJobCaps(job.build());
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
+        QueryBuilder original = new TermsQueryBuilder("foo", Arrays.asList("bar", "baz"));
+        QueryBuilder rewritten =
+            TransportRollupSearchAction.rewriteQuery(original, caps);
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
+        assertNotSame(rewritten, original);
+        assertThat(((TermsQueryBuilder)rewritten).fieldName(), equalTo("foo.terms.value"));
+        assertThat(((TermsQueryBuilder)rewritten).values(),  equalTo(Arrays.asList("bar", "baz")));
     }
 
     public void testCompounds() {

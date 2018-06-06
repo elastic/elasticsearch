@@ -41,6 +41,8 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -64,6 +66,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -80,6 +84,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -532,17 +538,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::put-mapping-execute-listener
             ActionListener<PutMappingResponse> listener =
-                    new ActionListener<PutMappingResponse>() {
-                @Override
-                public void onResponse(PutMappingResponse putMappingResponse) {
-                    // <1>
-                }
+                new ActionListener<PutMappingResponse>() {
+                    @Override
+                    public void onResponse(PutMappingResponse putMappingResponse) {
+                        // <1>
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
             // end::put-mapping-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -552,6 +558,133 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-mapping-execute-async
             client.indices().putMappingAsync(request, listener); // <1>
             // end::put-mapping-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetMapping() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            PutMappingRequest request = new PutMappingRequest("twitter");
+            request.type("tweet");
+            request.source(
+                "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                XContentType.JSON);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            assertTrue(putMappingResponse.isAcknowledged());
+        }
+
+        {
+            // tag::get-mapping-request
+            GetMappingsRequest request = new GetMappingsRequest(); // <1>
+            request.indices("twitter"); // <2>
+            request.types("tweet"); // <3>
+            // end::get-mapping-request
+
+            // tag::get-mapping-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::get-mapping-request-masterTimeout
+
+            // tag::get-mapping-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::get-mapping-request-indicesOptions
+
+            // tag::get-mapping-execute
+            GetMappingsResponse getMappingResponse = client.indices().getMappings(request);
+            // end::get-mapping-execute
+
+            // tag::get-mapping-response
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = getMappingResponse.mappings(); // <1>
+            MappingMetaData typeMapping = allMappings.get("twitter").get("tweet"); // <2>
+            Map<String, Object> tweetMapping = typeMapping.sourceAsMap(); // <3>
+            // end::get-mapping-response
+
+            Map<String, String> type = new HashMap<>();
+            type.put("type", "text");
+            Map<String, Object> field = new HashMap<>();
+            field.put("message", type);
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("properties", field);
+            assertThat(tweetMapping, equalTo(expected));
+        }
+    }
+
+    public void testGetMappingAsync() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            PutMappingRequest request = new PutMappingRequest("twitter");
+            request.type("tweet");
+            request.source(
+                "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                XContentType.JSON);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            assertTrue(putMappingResponse.isAcknowledged());
+        }
+
+        {
+            GetMappingsRequest request = new GetMappingsRequest();
+            request.indices("twitter");
+            request.types("tweet");
+
+            // tag::get-mapping-execute-listener
+            ActionListener<GetMappingsResponse> listener =
+                new ActionListener<GetMappingsResponse>() {
+                    @Override
+                    public void onResponse(GetMappingsResponse putMappingResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-mapping-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<GetMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
+            listener = ActionListener.wrap(r -> {
+                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = r.mappings();
+                MappingMetaData typeMapping = allMappings.get("twitter").get("tweet");
+                Map<String, Object> tweetMapping = typeMapping.sourceAsMap();
+
+                Map<String, String> type = new HashMap<>();
+                type.put("type", "text");
+                Map<String, Object> field = new HashMap<>();
+                field.put("message", type);
+                Map<String, Object> expected = new HashMap<>();
+                expected.put("properties", field);
+                assertThat(tweetMapping, equalTo(expected));
+                latchListener.onResponse(r);
+            }, e -> {
+                latchListener.onFailure(e);
+                fail("should not fail");
+            });
+
+            // tag::get-mapping-execute-async
+            client.indices().getMappingsAsync(request, listener); // <1>
+            // end::get-mapping-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

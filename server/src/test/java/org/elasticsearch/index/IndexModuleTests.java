@@ -121,7 +121,7 @@ public class IndexModuleTests extends ESTestCase {
         index = indexSettings.getIndex();
         environment = TestEnvironment.newEnvironment(settings);
         emptyAnalysisRegistry = new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), emptyMap());
+                emptyMap(), emptyMap(), emptyMap(), emptyMap());
         threadPool = new TestThreadPool("test");
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);

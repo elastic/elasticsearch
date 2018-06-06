@@ -71,6 +71,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();

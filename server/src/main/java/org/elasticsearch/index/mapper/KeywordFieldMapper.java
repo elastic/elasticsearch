@@ -198,7 +198,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected KeywordFieldType(KeywordFieldType ref) {
             super(ref);
             this.normalizer = ref.normalizer;
-            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
+            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
         public KeywordFieldType clone() {
@@ -221,6 +221,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             KeywordFieldType other = (KeywordFieldType) otherFT;
             if (Objects.equals(normalizer, other.normalizer) == false) {
                 conflicts.add("mapper [" + name() + "] has different [normalizer]");
+            }
+            if (strict) {
+                if (splitQueriesOnWhitespace != other.splitQueriesOnWhitespace) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types" +
+                        " to true to update [split_queries_on_whitespace] across all types.");
+                }
             }
         }
 

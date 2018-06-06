@@ -352,38 +352,41 @@ public class MatchQuery {
 
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            IllegalStateException e = checkForPositions(field);
-            if (e != null) {
+            try {
+                checkForPositions(field);
+                Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
+                if (query instanceof PhraseQuery) {
+                    // synonyms that expand to multiple terms can return a phrase query.
+                    return blendPhraseQuery((PhraseQuery) query, mapper);
+                }
+                return query;
+            }
+            catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
                 throw e;
             }
-            Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
-            if (query instanceof PhraseQuery) {
-                // synonyms that expand to multiple terms can return a phrase query.
-                return blendPhraseQuery((PhraseQuery) query, mapper);
-            }
-            return query;
         }
 
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
-            IllegalStateException e = checkForPositions(field);
-            if (e != null) {
+            try {
+                checkForPositions(field);
+                return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+            }
+            catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
                 throw e;
             }
-            return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
         }
 
-        private IllegalStateException checkForPositions(String field) {
+        private void checkForPositions(String field) {
             if (hasPositions(mapper) == false) {
-                return new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
-            return null;
         }
 
         /**

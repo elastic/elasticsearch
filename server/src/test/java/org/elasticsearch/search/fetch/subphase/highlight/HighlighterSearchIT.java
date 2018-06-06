@@ -19,7 +19,9 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -32,6 +34,8 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -41,6 +45,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -63,6 +69,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -106,7 +113,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class, MockWhitespacePlugin.class);
     }
 
     public void testHighlightingWithStoredKeyword() throws IOException {
@@ -1599,8 +1606,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder()
                         .put(indexSettings())
-                        .put("analysis.analyzer.my_analyzer.type", "pattern")
-                        .put("analysis.analyzer.my_analyzer.pattern", "\\s+")
+                        .put("analysis.analyzer.my_analyzer.type", "mock_whitespace")
                         .build())
                 .addMapping("type", "text", "type=text,analyzer=my_analyzer"));
         ensureGreen();
@@ -1611,7 +1617,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("text", "test"))
             .highlighter(new HighlightBuilder().field("text")).execute().actionGet();
-        // PatternAnalyzer will throw an exception if it is resetted twice
+        // Mock tokenizer will throw an exception if it is resetted twice
         assertHitCount(response, 1L);
     }
 
@@ -2974,6 +2980,24 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
             assertThat(field.getFragments().length, equalTo(1));
             assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+        }
+    }
+
+    public static class MockWhitespacePlugin extends Plugin implements AnalysisPlugin {
+
+        @Override
+        public Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+            return singletonMap("mock_whitespace", (indexSettings, environment, name, settings) -> {
+                return new AbstractIndexAnalyzerProvider<Analyzer>(indexSettings, name, settings) {
+
+                    MockAnalyzer instance = new MockAnalyzer(random(), MockTokenizer.WHITESPACE, false);
+
+                    @Override
+                    public Analyzer get() {
+                        return instance;
+                    }
+                };
+            });
         }
     }
 }

@@ -63,7 +63,7 @@ include::{xes-repo-dir}/monitoring/index.asciidoc[]
 
 include::{xes-repo-dir}/rollup/index.asciidoc[]
 
-include::{xes-repo-dir}/rest-api/index.asciidoc[]
+include::rest-api/index.asciidoc[]
 
 include::{xes-repo-dir}/commands/index.asciidoc[]
 

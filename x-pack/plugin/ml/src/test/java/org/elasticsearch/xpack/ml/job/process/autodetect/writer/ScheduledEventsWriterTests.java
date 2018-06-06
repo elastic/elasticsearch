@@ -45,12 +45,12 @@ public class ScheduledEventsWriterTests extends ESTestCase {
 
         String expectedString = "scheduledevent.0.description = Black Friday\n" +
                 "scheduledevent.0.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"]," +
-                "\"conditions\":[{\"applies_to\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":1.5113952E9}}," +
-                "{\"applies_to\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":1.5153696E9}}]}]\n" +
+                "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5113952E9}," +
+                "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5153696E9}]}]\n" +
                 "scheduledevent.1.description = Blue Monday\n" +
                 "scheduledevent.1.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"]," +
-                "\"conditions\":[{\"applies_to\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":1.5196032E9}}," +
-                "{\"applies_to\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":1.5198624E9}}]}]" +
+                "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5196032E9}," +
+                "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5198624E9}]}]" +
                 "\n";
         assertThat(buffer.toString(), equalTo(expectedString));
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Condition;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -51,7 +50,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
     public void testCondition() throws Exception {
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
-                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, new Condition(Operator.LT, 100.0))
+                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 100.0)
         )).build();
 
         Detector.Builder detector = new Detector.Builder("mean", "value");
@@ -101,7 +100,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         {
             // Update rules so that the anomalies suppression is inverted
             DetectionRule newRule = new DetectionRule.Builder(Arrays.asList(
-                    new RuleCondition(RuleCondition.AppliesTo.ACTUAL, new Condition(Operator.GT, 700.0))
+                    new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 700.0)
             )).build();
             JobUpdate.Builder update = new JobUpdate.Builder(job.getId());
             update.setDetectorUpdates(Arrays.asList(new JobUpdate.DetectorUpdate(0, null, Arrays.asList(newRule))));
@@ -235,7 +234,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         // Ignore if ip in safe list AND actual < 10.
         DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips"))
-                .setConditions(Arrays.asList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, new Condition(Operator.LT, 10.0))))
+                .setConditions(Arrays.asList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 10.0)))
                 .build();
 
         Detector.Builder detector = new Detector.Builder("count", null);

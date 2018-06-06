@@ -18,8 +18,8 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
 
     public static RuleCondition createRandom() {
         RuleCondition.AppliesTo appliesTo = randomFrom(RuleCondition.AppliesTo.values());
-        Condition condition = new Condition(randomFrom(Operator.LT, Operator.LTE, Operator.GT, Operator.GTE), randomDouble());
-        return new RuleCondition(appliesTo, condition);
+        Operator operator = randomFrom(Operator.LT, Operator.LTE, Operator.GT, Operator.GTE);
+        return new RuleCondition(appliesTo, operator, randomDouble());
     }
 
     @Override
@@ -43,24 +43,24 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
 
     public void testVerify_GivenValidActual() {
         // no validation error:
-        new RuleCondition(RuleCondition.AppliesTo.ACTUAL, new Condition(Operator.GT, 5.0));
+        new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5.0);
     }
 
     public void testVerify_GivenValidTypical() {
         // no validation error:
-        new RuleCondition(RuleCondition.AppliesTo.TYPICAL, new Condition(Operator.GTE, 5.0));
+        new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.GTE, 5.0);
     }
 
     public void testVerify_GivenValidDiffFromTypical() {
         // no validation error:
-        new RuleCondition(RuleCondition.AppliesTo.DIFF_FROM_TYPICAL, new Condition(Operator.LT, 5.0));
+        new RuleCondition(RuleCondition.AppliesTo.DIFF_FROM_TYPICAL, Operator.LT, 5.0);
     }
 
     public void testCreateTimeBased() {
         RuleCondition timeBased = RuleCondition.createTime(Operator.GTE, 100L);
         assertEquals(RuleCondition.AppliesTo.TIME, timeBased.getAppliesTo());
-        assertEquals(Operator.GTE, timeBased.getCondition().getOperator());
-        assertEquals(100.0, timeBased.getCondition().getValue(), 0.000001);
+        assertEquals(Operator.GTE, timeBased.getOperator());
+        assertEquals(100.0, timeBased.getValue(), 0.000001);
     }
 
     public void testAppliesToFromString() {

@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Condition;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -574,7 +573,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     public void testCheckJobWithRulesRequiresMinVersionOnAllNodes_GivenNodeDoesNotMeetRequiredVersion() {
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
-                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, new Condition(Operator.LT, 100.0))
+                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
         )).build();
 
         Detector.Builder detector = new Detector.Builder("count", null);
@@ -607,7 +606,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     public void testCheckJobWithRulesRequiresMinVersionOnAllNodes_GivenAllNodesMeetRequiredVersion() {
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
-                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, new Condition(Operator.LT, 100.0))
+                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
         )).build();
 
         Detector.Builder detector = new Detector.Builder("count", null);

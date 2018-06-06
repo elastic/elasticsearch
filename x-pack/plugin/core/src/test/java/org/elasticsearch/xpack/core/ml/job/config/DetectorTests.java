@@ -69,7 +69,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testExtractAnalysisFields() {
         DetectionRule rule = new DetectionRule.Builder(
-                Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, new Condition(Operator.GT, 5))))
+                Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5)))
                 .setActions(RuleAction.SKIP_RESULT)
                 .build();
         Detector.Builder builder = createDetector();
@@ -167,7 +167,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             List<DetectionRule> rules = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 // no need for random DetectionRule (it is already tested)
-                Condition condition = new Condition(Operator.GT, 5);
                 rules.add(new DetectionRule.Builder(Collections.singletonList(RuleConditionTests.createRandom())).build());
             }
             detector.setRules(rules);

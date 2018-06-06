@@ -309,7 +309,8 @@
                     "conditions": [
                       {
                         "applies_to": "actual",
-                        "condition": {"operator": "gt", "value": 10 }
+                        "operator": "gt",
+                        "value": 10
                       }
                     ]
                   }
@@ -1248,11 +1249,13 @@
                       "conditions": [
                         {
                           "applies_to":"actual",
-                          "condition": {"operator":"lt","value": 33.3}
+                          "operator":"lt",
+                          "value": 33.3
                         },
                         {
                           "applies_to":"typical",
-                          "condition": {"operator":"lte","value": 42.0}
+                          "operator":"lte",
+                          "value": 42.0
                         }
                       ]
                     }
@@ -1277,11 +1280,13 @@
           "conditions": [
             {
               "applies_to":"actual",
-              "condition": {"operator":"lt","value": 33.3}
+              "operator":"lt",
+              "value": 33.3
             },
             {
               "applies_to":"typical",
-              "condition": {"operator":"lte","value": 42.0}
+              "operator":"lte",
+              "value": 42.0
             }
           ]
         }

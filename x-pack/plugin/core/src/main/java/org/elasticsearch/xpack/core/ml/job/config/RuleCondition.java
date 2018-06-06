@@ -23,16 +23,19 @@ import java.util.Map;
 import java.util.Objects;
 
 public class RuleCondition implements ToXContentObject, Writeable {
-    public static final ParseField APPLIES_TO_FIELD = new ParseField("applies_to");
+
     public static final ParseField RULE_CONDITION_FIELD = new ParseField("rule_condition");
+
+    public static final ParseField APPLIES_TO_FIELD = new ParseField("applies_to");
+    public static final ParseField VALUE_FIELD = new ParseField("value");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<RuleCondition, Void> METADATA_PARSER =
             new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), true,
-                    a -> new RuleCondition((AppliesTo) a[0], (Condition) a[1]));
+                    a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
     public static final ConstructingObjectParser<RuleCondition, Void> CONFIG_PARSER =
             new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), false,
-                    a -> new RuleCondition((AppliesTo) a[0], (Condition) a[1]));
+                    a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
     public static final Map<MlParserType, ConstructingObjectParser<RuleCondition, Void>> PARSERS =
             new EnumMap<>(MlParserType.class);
 
@@ -48,41 +51,45 @@ public class RuleCondition implements ToXContentObject, Writeable {
                 }
                 throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
             }, APPLIES_TO_FIELD, ValueType.STRING);
-            parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), Condition.PARSER, Condition.CONDITION_FIELD);
+            parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return Operator.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, Operator.OPERATOR_FIELD, ValueType.STRING);
+            parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
         }
     }
 
     private final AppliesTo appliesTo;
-    private final Condition condition;
+    private final Operator operator;
+    private final double value;
 
     public RuleCondition(StreamInput in) throws IOException {
         appliesTo = AppliesTo.readFromStream(in);
-        condition = in.readOptionalWriteable(Condition::new);
+        operator = Operator.readFromStream(in);
+        value = in.readDouble();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         appliesTo.writeTo(out);
-        out.writeOptionalWriteable(condition);
+        operator.writeTo(out);
+        out.writeDouble(value);
     }
 
-    public RuleCondition(AppliesTo appliesTo, Condition condition) {
+    public RuleCondition(AppliesTo appliesTo, Operator operator, double value) {
         this.appliesTo = appliesTo;
-        this.condition = condition;
-    }
-
-    public RuleCondition(RuleCondition ruleCondition) {
-        this.appliesTo = ruleCondition.appliesTo;
-        this.condition = ruleCondition.condition;
+        this.operator = operator;
+        this.value = value;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(APPLIES_TO_FIELD.getPreferredName(), appliesTo);
-        if (condition != null) {
-            builder.field(Condition.CONDITION_FIELD.getPreferredName(), condition);
-        }
+        builder.field(Operator.OPERATOR_FIELD.getPreferredName(), operator);
+        builder.field(VALUE_FIELD.getPreferredName(), value);
         builder.endObject();
         return builder;
     }
@@ -91,8 +98,12 @@ public class RuleCondition implements ToXContentObject, Writeable {
         return appliesTo;
     }
 
-    public Condition getCondition() {
-        return condition;
+    public Operator getOperator() {
+        return operator;
+    }
+
+    public double getValue() {
+        return value;
     }
 
     @Override
@@ -106,16 +117,16 @@ public class RuleCondition implements ToXContentObject, Writeable {
         }
 
         RuleCondition other = (RuleCondition) obj;
-        return Objects.equals(appliesTo, other.appliesTo) && Objects.equals(condition, other.condition);
+        return appliesTo == other.appliesTo && operator == other.operator && value == other.value;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(appliesTo, condition);
+        return Objects.hash(appliesTo, operator, value);
     }
 
     public static RuleCondition createTime(Operator operator, long epochSeconds) {
-        return new RuleCondition(AppliesTo.TIME, new Condition(operator, epochSeconds));
+        return new RuleCondition(AppliesTo.TIME, operator, epochSeconds);
     }
 
     public enum AppliesTo implements Writeable {

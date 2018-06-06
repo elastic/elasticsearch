@@ -122,7 +122,6 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
     }
 
     private static List<RuleCondition> createCondition(double value) {
-        Condition condition = new Condition(Operator.GT, value);
-        return Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, condition));
+        return Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, value));
     }
 }

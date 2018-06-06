@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Condition;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -192,7 +191,7 @@ public class FieldConfigWriterTests extends ESTestCase {
         Detector.Builder detector = new Detector.Builder("mean", "metricValue");
         detector.setByFieldName("metricName");
         detector.setPartitionFieldName("instance");
-        RuleCondition ruleCondition = new RuleCondition(RuleCondition.AppliesTo.ACTUAL, new Condition(Operator.LT, 5));
+        RuleCondition ruleCondition = new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 5);
         DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(ruleCondition)).build();
         detector.setRules(Collections.singletonList(rule));
 
@@ -254,12 +253,11 @@ public class FieldConfigWriterTests extends ESTestCase {
         verify(writer).write("detector.0.clause = count\n" +
                 "scheduledevent.0.description = The Ashes\n" +
                 "scheduledevent.0.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],\"conditions\":[{\"applies_to\":\"time\"," +
-                "\"condition\":{\"operator\":\"gte\",\"value\":1.5113952E9}},{\"applies_to\":\"time\",\"condition\":" +
-                "{\"operator\":\"lt\",\"value\":1.5153696E9}}]}]\n" +
+                "\"operator\":\"gte\",\"value\":1.5113952E9},{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5153696E9}]}]\n" +
                 "scheduledevent.1.description = elasticon\n" +
                 "scheduledevent.1.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"]," +
-                "\"conditions\":[{\"applies_to\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":1.5196032E9}}," +
-                "{\"applies_to\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":1.5198624E9}}]}]\n");
+                "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5196032E9}," +
+                "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5198624E9}]}]\n");
 
         verifyNoMoreInteractions(writer);
     }

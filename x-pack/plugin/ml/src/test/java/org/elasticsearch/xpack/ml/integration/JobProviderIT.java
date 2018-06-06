@@ -510,16 +510,15 @@ public class JobProviderIT extends MlSingleNodeTestCase {
     private AnalysisConfig.Builder createAnalysisConfig(List<String> filterIds) {
         Detector.Builder detector = new Detector.Builder("mean", "field");
         detector.setByFieldName("by_field");
+        List<DetectionRule> rules = new ArrayList<>();
 
-        if (!filterIds.isEmpty()) {
+        for (String filterId : filterIds) {
             RuleScope.Builder ruleScope = RuleScope.builder();
-            for (String filterId : filterIds) {
-                ruleScope.exclude("by_field", filterId);
-            }
+            ruleScope.include("by_field", filterId);
 
-            DetectionRule.Builder rule = new DetectionRule.Builder(ruleScope).setActions(RuleAction.SKIP_RESULT);
-            detector.setRules(Collections.singletonList(rule.build()));
+            rules.add(new DetectionRule.Builder(ruleScope).setActions(RuleAction.SKIP_RESULT).build());
         }
+        detector.setRules(rules);
 
         return new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
     }

@@ -60,16 +60,16 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
         assertEquals(2, conditions.size());
         assertEquals(RuleCondition.AppliesTo.TIME, conditions.get(0).getAppliesTo());
         assertEquals(RuleCondition.AppliesTo.TIME, conditions.get(1).getAppliesTo());
-        assertEquals(Operator.GTE, conditions.get(0).getCondition().getOperator());
-        assertEquals(Operator.LT, conditions.get(1).getCondition().getOperator());
+        assertEquals(Operator.GTE, conditions.get(0).getOperator());
+        assertEquals(Operator.LT, conditions.get(1).getOperator());
 
         // Check times are aligned with the bucket
-        long conditionStartTime = (long) conditions.get(0).getCondition().getValue();
+        long conditionStartTime = (long) conditions.get(0).getValue();
         assertEquals(0, conditionStartTime % bucketSpanSecs);
         long bucketCount = conditionStartTime / bucketSpanSecs;
         assertEquals(bucketSpanSecs * bucketCount, conditionStartTime);
 
-        long conditionEndTime = (long) conditions.get(1).getCondition().getValue();
+        long conditionEndTime = (long) conditions.get(1).getValue();
         assertEquals(0, conditionEndTime % bucketSpanSecs);
 
         long eventTime = event.getEndTime().toEpochSecond() - conditionStartTime;

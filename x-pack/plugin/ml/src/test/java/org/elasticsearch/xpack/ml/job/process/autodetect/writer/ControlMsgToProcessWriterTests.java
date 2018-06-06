@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.Condition;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
@@ -199,9 +198,9 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("u[detectorRules]\ndetectorIndex=2\n" +
                 "rulesJson=[{\"actions\":[\"skip_result\"],\"conditions\":" +
-                "[{\"applies_to\":\"actual\",\"condition\":{\"operator\":\"gt\",\"value\":5.0}}]}," +
+                "[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}," +
                 "{\"actions\":[\"skip_result\"],\"conditions\":[" +
-                "{\"applies_to\":\"actual\",\"condition\":{\"operator\":\"gt\",\"value\":5.0}}]}]");
+                "{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}]");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -245,12 +244,12 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         assertThat(capturedMessage.getValue(), equalTo("u[scheduledEvents]\n"
                 + "scheduledevent.0.description = new year\n"
                 + "scheduledevent.0.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
-                +     "\"conditions\":[{\"applies_to\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":1.5147648E9}},"
-                +     "{\"applies_to\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":1.5148512E9}}]}]\n"
+                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5147648E9},"
+                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5148512E9}]}]\n"
                 + "scheduledevent.1.description = Jan maintenance day\n"
                 + "scheduledevent.1.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
-                +     "\"conditions\":[{\"applies_to\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":1.5151968E9}},"
-                +     "{\"applies_to\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":1.5152832E9}}]}]\n"));
+                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5151968E9},"
+                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5152832E9}]}]\n"));
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -286,7 +285,6 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     private static List<RuleCondition> createRule(double value) {
-        Condition condition = new Condition(Operator.GT, value);
-        return Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, condition));
+        return Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, value));
     }
 }

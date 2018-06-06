@@ -36,6 +36,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -133,19 +134,20 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
 
             for (int i = 0; i < 10; i++) {
-                restHighLevelClient.index(new IndexRequest("index", "doc", String.valueOf(i)).source("field", "value"));
+                restHighLevelClient.index(
+                        new IndexRequest("index", "doc", String.valueOf(i)).source("field", "value"), RequestOptions.DEFAULT);
             }
             Response refreshResponse = client().performRequest(new Request("POST", "/index/_refresh"));
             assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index"));
+                SearchResponse response = restHighLevelClient.search(new SearchRequest("index"), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, response.getClusters());
                 assertEquals(10, response.getHits().totalHits);
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"));
+                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
@@ -153,7 +155,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"));
+                SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
@@ -161,14 +163,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             }
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index").scroll("1m"));
+                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index").scroll("1m"),
+                        RequestOptions.DEFAULT);
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
                 assertEquals(10, response.getHits().totalHits);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
-                SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId));
+                SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().totalHits);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
@@ -179,7 +182,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", true));
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"));
+                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
@@ -187,7 +190,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"));
+                SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(0, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
@@ -195,14 +198,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             }
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index").scroll("1m"));
+                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index").scroll("1m"),
+                        RequestOptions.DEFAULT);
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
                 assertEquals(10, response.getHits().totalHits);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
-                SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId));
+                SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().totalHits);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
@@ -266,19 +270,19 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     private static void assertSearchConnectFailure() {
         {
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> restHighLevelClient.search(new SearchRequest("index", "remote1:index")));
+                    () -> restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT));
             ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> restHighLevelClient.search(new SearchRequest("remote1:index")));
+                    () -> restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT));
             ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> restHighLevelClient.search(new SearchRequest("remote1:index").scroll("1m")));
+                    () -> restHighLevelClient.search(new SearchRequest("remote1:index").scroll("1m"), RequestOptions.DEFAULT));
             ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }

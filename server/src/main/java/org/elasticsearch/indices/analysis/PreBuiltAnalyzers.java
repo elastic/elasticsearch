@@ -61,10 +61,7 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.analysis.PatternAnalyzer;
 import org.elasticsearch.index.analysis.SnowballAnalyzer;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
@@ -136,22 +133,6 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             Analyzer analyzer = new SnowballAnalyzer("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-            analyzer.setVersion(version.luceneVersion);
-            return analyzer;
-        }
-    },
-
-    PATTERN(CachingStrategy.ELASTICSEARCH) {
-        @Override
-        protected Analyzer create(Version version) {
-            return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
-        }
-    },
-
-    STANDARD_HTML_STRIP(CachingStrategy.ELASTICSEARCH) {
-        @Override
-        protected Analyzer create(Version version) {
-            final Analyzer analyzer = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
             analyzer.setVersion(version.luceneVersion);
             return analyzer;
         }
@@ -484,7 +465,7 @@ public enum PreBuiltAnalyzers {
         cache = PreBuiltCacheFactory.getCache(cachingStrategy);
     }
 
-    PreBuiltCacheFactory.PreBuiltCache<Analyzer> getCache() {
+    public PreBuiltCacheFactory.PreBuiltCache<Analyzer> getCache() {
         return cache;
     }
 

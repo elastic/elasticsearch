@@ -41,7 +41,7 @@ public class FollowIndexIT extends ESRestTestCase {
         if (runningAgainstLeaderCluster) {
             logger.info("Running against leader cluster");
             String mapping = "";
-            if (randomBoolean() || true) { // randomly do source filtering on indexing
+            if (randomBoolean()) { // randomly do source filtering on indexing
                 mapping =
                     "\"_doc\": {" +
                     "  \"_source\": {" +

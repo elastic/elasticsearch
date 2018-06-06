@@ -153,7 +153,7 @@ If the request contains `wait_for_completion=false` then Elasticsearch will
 perform some preflight checks, launch the request, and then return a `task`
 which can be used with <<docs-delete-by-query-task-api,Tasks APIs>>
 to cancel or get the status of the task. Elasticsearch will also create a
-record of this task as a document at `.tasks/task/${taskId}`. This is yours
+record of this task as a document at `.tasks/task/${nodeId:taskId}`. This is yours
 to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
@@ -357,7 +357,7 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/nodeId:taskId
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:missing]
@@ -369,6 +369,12 @@ and `wait_for_completion=false` was set on it then it'll come back with
 `wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
 you to delete that document.
 
+A task with `wait_for_completion=true` is only "in-memory", meaning after completion, the task is gone. Checking the status or deleting the task document from system index `.task` will fail. A task with `wait_for_completion=false` is stored in `.task`. After completion, you can delete the task document to save space:
+[source,js]
+--------------------------------------------------
+DELETE .tasks/task/nodeId:taskId
+--------------------------------------------------
+// CONSOLE
 
 [float]
 [[docs-delete-by-query-cancel-task-api]]

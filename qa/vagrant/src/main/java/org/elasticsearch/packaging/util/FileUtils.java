@@ -160,4 +160,12 @@ public class FileUtils {
         assertThat(fromEnv, not(isEmptyOrNullString()));
         return Paths.get(fromEnv);
     }
+
+    public static Path getDistributionFile(Distribution distribution) {
+        return getDistributionFile(distribution, getCurrentVersion());
+    }
+
+    public static Path getDistributionFile(Distribution distribution, String version) {
+        return getPackagingArchivesDir().resolve(distribution.filename(version));
+    }
 }

@@ -46,6 +46,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
 import javax.net.ssl.SSLHandshakeException;
 
@@ -637,19 +638,18 @@ public class RestClient implements Closeable {
          * Sort the nodes into living and dead lists.
          */
         List<Node> livingNodes = new ArrayList<>(nodeTuple.nodes.size() - blacklist.size());
-        List<DeadNodeAndRevival> deadNodes = new ArrayList<>(blacklist.size());
+        List<DeadNodeAndDeadness> deadNodes = new ArrayList<>(blacklist.size());
         for (Node node : nodeTuple.nodes) {
             DeadHostState deadness = blacklist.get(node.getHost());
             if (deadness == null) {
                 livingNodes.add(node);
                 continue;
             }
-            long nanosUntilRevival = deadness.nanosUntilRevival(now);
-            if (nanosUntilRevival > 0) {
+            if (deadness.shallBeRetried()) {
                 livingNodes.add(node);
                 continue;
             }
-            deadNodes.add(new DeadNodeAndRevival(node, nanosUntilRevival));
+            deadNodes.add(new DeadNodeAndDeadness(node, deadness));
         }
 
         if (false == livingNodes.isEmpty()) {
@@ -682,7 +682,7 @@ public class RestClient implements Closeable {
          * node.
          */
         if (false == deadNodes.isEmpty()) {
-            final List<DeadNodeAndRevival> selectedDeadNodes = new ArrayList<>(deadNodes);
+            final List<DeadNodeAndDeadness> selectedDeadNodes = new ArrayList<>(deadNodes);
             /*
              * We'd like NodeSelectors to remove items directly from deadNodes
              * so we can find the minimum after it is filtered without having
@@ -708,9 +708,9 @@ public class RestClient implements Closeable {
      * <code>Iterator<Node></code>.
      */
     private static class Adapter implements Iterator<Node> {
-        private final Iterator<DeadNodeAndRevival> itr;
+        private final Iterator<DeadNodeAndDeadness> itr;
 
-        private Adapter(Iterator<DeadNodeAndRevival> itr) {
+        private Adapter(Iterator<DeadNodeAndDeadness> itr) {
             this.itr = itr;
         }
 
@@ -748,7 +748,7 @@ public class RestClient implements Closeable {
     private void onFailure(Node node) {
         while(true) {
             DeadHostState previousDeadHostState =
-                blacklist.putIfAbsent(node.getHost(), new DeadHostState(System.nanoTime()));
+                blacklist.putIfAbsent(node.getHost(), new DeadHostState(TimeSupplier.DEFAULT));
             if (previousDeadHostState == null) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("added [" + node + "] to blacklist");
@@ -756,7 +756,7 @@ public class RestClient implements Closeable {
                 break;
             }
             if (blacklist.replace(node.getHost(), previousDeadHostState,
-                    new DeadHostState(previousDeadHostState, System.nanoTime()))) {
+                    new DeadHostState(previousDeadHostState))) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("updated [" + node + "] already in blacklist");
                 }
@@ -1025,13 +1025,13 @@ public class RestClient implements Closeable {
      * Contains a reference to a blacklisted node and the time until it is
      * revived. We use this so we can do a single pass over the blacklist.
      */
-    private static class DeadNodeAndRevival implements Comparable<DeadNodeAndRevival> {
+    private static class DeadNodeAndDeadness implements Comparable<DeadNodeAndDeadness> {
         final Node node;
-        final long nanosUntilRevival;
+        final DeadHostState deadness;
 
-        DeadNodeAndRevival(Node node, long nanosUntilRevival) {
+        DeadNodeAndDeadness(Node node, DeadHostState deadness) {
             this.node = node;
-            this.nanosUntilRevival = nanosUntilRevival;
+            this.deadness = deadness;
         }
 
         @Override
@@ -1040,8 +1040,8 @@ public class RestClient implements Closeable {
         }
 
         @Override
-        public int compareTo(DeadNodeAndRevival rhs) {
-            return Long.compare(rhs.nanosUntilRevival, nanosUntilRevival);
+        public int compareTo(DeadNodeAndDeadness rhs) {
+            return deadness.compareTo(rhs.deadness);
         }
     }
 

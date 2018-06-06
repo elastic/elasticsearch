@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -33,7 +32,7 @@ import static java.util.Collections.emptySet;
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
  */
-public class TasksClient {
+public final class TasksClient {
     private final RestHighLevelClient restHighLevelClient;
 
     TasksClient(RestHighLevelClient restHighLevelClient) {
@@ -41,24 +40,29 @@ public class TasksClient {
     }
 
     /**
-     * Get current tasks using the Task Management API
-     * <p>
+     * Get current tasks using the Task Management API.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ListTasksResponse list(ListTasksRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                emptySet(), headers);
+    public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, options,
+                ListTasksResponse::fromXContent, emptySet());
     }
 
     /**
-     * Asynchronously get current tasks using the Task Management API
-     * <p>
+     * Asynchronously get current tasks using the Task Management API.
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public void listAsync(ListTasksRequest request, ActionListener<ListTasksResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, ListTasksResponse::fromXContent,
-                listener, emptySet(), headers);
+    public void listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, options,
+                ListTasksResponse::fromXContent, listener, emptySet());
     }
 }

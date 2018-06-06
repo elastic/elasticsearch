@@ -1253,6 +1253,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean isNoopEngine() {
+        return false;
+    }
+
+    @Override
     public NoOpResult noOp(final NoOp noOp) {
         NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {

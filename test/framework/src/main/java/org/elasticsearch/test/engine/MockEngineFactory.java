@@ -22,6 +22,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.NoopEngine;
 
 public final class MockEngineFactory implements EngineFactory {
 
@@ -34,5 +35,10 @@ public final class MockEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
         return new MockInternalEngine(config, wrapper);
+    }
+
+    @Override
+    public Engine newNoopEngine(EngineConfig config) {
+        return new NoopEngine(config);
     }
 }

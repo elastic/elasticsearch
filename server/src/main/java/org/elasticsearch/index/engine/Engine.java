@@ -838,7 +838,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments(boolean verbose);
 
-    public final boolean refreshNeeded() {
+    public boolean refreshNeeded() {
         if (store.tryIncRef()) {
             /*
               we need to inc the store here since we acquire a searcher and that might keep a file open on the
@@ -1631,4 +1631,9 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    /**
+     * Returns true if the engine is a noop engine
+     */
+    public abstract boolean isNoopEngine();
 }

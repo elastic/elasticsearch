@@ -460,6 +460,11 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         }
                     }, null, null, config);
         }
+
+        @Override
+        public Engine newNoopEngine(EngineConfig config) {
+            throw new UnsupportedOperationException("not used");
+        }
     }
 
     private static void assertNoOpTranslogOperationForDocumentFailure(

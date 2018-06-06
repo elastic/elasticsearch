@@ -25,4 +25,5 @@ public interface EngineFactory {
 
     Engine newReadWriteEngine(EngineConfig config);
 
+    Engine newNoopEngine(EngineConfig config);
 }

@@ -122,6 +122,37 @@ public class ConfigTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("An index pattern is mandatory."));
     }
 
+    public void testMatchAllIndexPattern() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        job.setIndexPattern("*");
+        Exception e = expectThrows(IllegalArgumentException.class, job::build);
+        assertThat(e.getMessage(), equalTo("Index pattern must not match all indices (as it would match it's own rollup index"));
+    }
+
+    public void testMatchOwnRollupPatternPrefix() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        job.setIndexPattern("foo-*");
+        job.setRollupIndex("foo-rollup");
+        Exception e = expectThrows(IllegalArgumentException.class, job::build);
+        assertThat(e.getMessage(), equalTo("Index pattern would match rollup index name which is not allowed."));
+    }
+
+    public void testMatchOwnRollupPatternSuffix() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        job.setIndexPattern("*-rollup");
+        job.setRollupIndex("foo-rollup");
+        Exception e = expectThrows(IllegalArgumentException.class, job::build);
+        assertThat(e.getMessage(), equalTo("Index pattern would match rollup index name which is not allowed."));
+    }
+
+    public void testIndexPatternIdenticalToRollup() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        job.setIndexPattern("foo");
+        job.setRollupIndex("foo");
+        Exception e = expectThrows(IllegalArgumentException.class, job::build);
+        assertThat(e.getMessage(), equalTo("Rollup index may not be the same as the index pattern."));
+    }
+
     public void testEmptyRollupIndex() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         job.setRollupIndex("");

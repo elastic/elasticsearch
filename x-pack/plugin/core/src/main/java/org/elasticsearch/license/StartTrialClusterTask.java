@@ -82,7 +82,7 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
                     .issueDate(issueDate)
                     .type(request.getType())
                     .expiryDate(expiryDate);
-            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
+            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
             LicensesMetaData newLicensesMetaData = new LicensesMetaData(selfGeneratedLicense, Version.CURRENT);
             mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
             return ClusterState.builder(currentState).metaData(mdBuilder).build();

@@ -94,7 +94,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             }
             Thread.sleep(100);
         }
-        fail("Timeout!!!");
+        fail("Timeout waiting for node [" + node + "] to be blocked");
     }
 
     public SnapshotInfo waitForCompletion(String repository, String snapshotName, TimeValue timeout) throws InterruptedException {

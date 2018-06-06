@@ -58,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -84,21 +85,16 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpTest() throws Exception {
         threadPool = new TestThreadPool("TemplateUpgradeServiceTests");
         clusterService = createClusterService(threadPool);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
+    public void tearDownTest() throws Exception {
+        threadPool.shutdownNow();
         clusterService.close();
-        super.tearDown();
     }
 
     public void testCalculateChangesAddChangeAndDelete() {
@@ -324,8 +320,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 )) {
 
             @Override
-            void tryFinishUpgrade() {
-                super.tryFinishUpgrade();
+            void tryFinishUpgrade(AtomicBoolean anyUpgradeFailed) {
+                super.tryFinishUpgrade(anyUpgradeFailed);
                 finishInvocation.release();
             }
 

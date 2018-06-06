@@ -196,22 +196,26 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
     void tryFinishUpgrade(AtomicBoolean anyUpgradeFailed) {
         assert upgradesInProgress.get() > 0;
         if (upgradesInProgress.decrementAndGet() == 1) {
-            // this is the last upgrade, the templates should now be in the desired state
-            if (anyUpgradeFailed.get()) {
-                logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
-            } else {
-                logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
+            try {
+                // this is the last upgrade, the templates should now be in the desired state
+                if (anyUpgradeFailed.get()) {
+                    logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
+                } else {
+                    logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
+                }
+                // Check upgraders are satisfied after the update completed. If they still
+                // report that changes are required, this might indicate a bug or that something
+                // else tinkering with the templates during the upgrade.
+                final ImmutableOpenMap<String, IndexTemplateMetaData> upgradedTemplates =
+                        clusterService.state().getMetaData().getTemplates();
+                final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
+                if (changesRequired) {
+                    logger.warn("Templates are still reported as out of date after the upgrade. The template upgrade will be retried.");
+                }
+            } finally {
+                final int noMoreUpgrades = upgradesInProgress.decrementAndGet();
+                assert noMoreUpgrades == 0;
             }
-            // Check upgraders are satisfied after the update completed. If they still
-            // report that changes are required, this might indicate a bug or that something
-            // else tinkering with the templates during the upgrade.
-            final ImmutableOpenMap<String, IndexTemplateMetaData> upgradedTemplates = clusterService.state().getMetaData().getTemplates();
-            final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
-            if (changesRequired) {
-                logger.warn("Templates are still reported as out of date after the upgrade. The template upgrade will be retried.");
-            }
-            final int noMoreUpgrades = upgradesInProgress.decrementAndGet();
-            assert noMoreUpgrades == 0;
         }
     }
 

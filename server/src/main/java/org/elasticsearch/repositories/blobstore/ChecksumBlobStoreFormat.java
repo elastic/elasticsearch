@@ -23,6 +23,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -51,8 +52,6 @@ import java.util.Locale;
  * Snapshot metadata file format used in v2.0 and above
  */
 public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreFormat<T> {
-
-    private static final String TEMP_FILE_PREFIX = "pending-";
 
     private static final XContentType DEFAULT_X_CONTENT_TYPE = XContentType.SMILE;
 
@@ -120,7 +119,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
     }
 
     /**
-     * Writes blob in atomic manner with resolving the blob name using {@link #blobName} and {@link #tempBlobName} methods.
+     * Writes blob in atomic manner with resolving the blob name using {@link #blobName} method.
      * <p>
      * The blob will be compressed and checksum will be written if required.
      *
@@ -131,20 +130,12 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param name          blob name
      */
     public void writeAtomic(T obj, BlobContainer blobContainer, String name) throws IOException {
-        String blobName = blobName(name);
-        String tempBlobName = tempBlobName(name);
-        writeBlob(obj, blobContainer, tempBlobName);
-        try {
-            blobContainer.move(tempBlobName, blobName);
-        } catch (IOException ex) {
-            // Move failed - try cleaning up
-            try {
-                blobContainer.deleteBlob(tempBlobName);
-            } catch (Exception e) {
-                ex.addSuppressed(e);
+        final String blobName = blobName(name);
+        writeTo(obj, blobName, bytesArray -> {
+            try (InputStream stream = bytesArray.streamInput()) {
+                blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length());
             }
-            throw ex;
-        }
+        });
     }
 
     /**
@@ -157,49 +148,33 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param name          blob name
      */
     public void write(T obj, BlobContainer blobContainer, String name) throws IOException {
-        String blobName = blobName(name);
-        writeBlob(obj, blobContainer, blobName);
+        final String blobName = blobName(name);
+        writeTo(obj, blobName, bytesArray -> {
+            try (InputStream stream = bytesArray.streamInput()) {
+                blobContainer.writeBlob(blobName, stream, bytesArray.length());
+            }
+        });
     }
 
-    /**
-     * Writes blob in atomic manner without resolving the blobName using using {@link #blobName} method.
-     * <p>
-     * The blob will be compressed and checksum will be written if required.
-     *
-     * @param obj           object to be serialized
-     * @param blobContainer blob container
-     * @param blobName          blob name
-     */
-    protected void writeBlob(T obj, BlobContainer blobContainer, String blobName) throws IOException {
-        BytesReference bytes = write(obj);
-        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+    private void writeTo(final T obj, final String blobName, final CheckedConsumer<BytesArray, IOException> consumer) throws IOException {
+        final BytesReference bytes = write(obj);
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             final String resourceDesc = "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")";
-            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, blobName, byteArrayOutputStream, BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, blobName, outputStream, BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
                     public void close() throws IOException {
                         // this is important since some of the XContentBuilders write bytes on close.
                         // in order to write the footer we need to prevent closing the actual index input.
-                    } }) {
+                    }
+                }) {
                     bytes.writeTo(indexOutputOutputStream);
                 }
                 CodecUtil.writeFooter(indexOutput);
             }
-            BytesArray bytesArray = new BytesArray(byteArrayOutputStream.toByteArray());
-            try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlob(blobName, stream, bytesArray.length());
-            }
+            consumer.accept(new BytesArray(outputStream.toByteArray()));
         }
-    }
-
-    /**
-     * Returns true if the blob is a leftover temporary blob.
-     *
-     * The temporary blobs might be left after failed atomic write operation.
-     */
-    public boolean isTempBlobName(String blobName) {
-        return blobName.startsWith(ChecksumBlobStoreFormat.TEMP_FILE_PREFIX);
     }
 
     protected BytesReference write(T obj) throws IOException {
@@ -222,10 +197,4 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
             builder.endObject();
         }
     }
-
-
-    protected String tempBlobName(String name) {
-        return TEMP_FILE_PREFIX + String.format(Locale.ROOT, blobNameFormat, name);
-    }
-
 }

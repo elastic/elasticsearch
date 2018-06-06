@@ -1,4 +1,3 @@
-[role="xpack"]
 [[docker]]
 === Install {es} with Docker
 

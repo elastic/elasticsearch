@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -134,7 +135,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request-masterTimeout
 
         // tag::put-settings-execute
-        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request);
+        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, RequestOptions.DEFAULT);
         // end::put-settings-execute
 
         // tag::put-settings-response
@@ -150,7 +151,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.transientSettings(Settings.builder().putNull(transientSettingKey).build()); // <1>
         // tag::put-settings-request-reset-transient
         request.persistentSettings(Settings.builder().putNull(persistentSettingKey));
-        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request);
+        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, RequestOptions.DEFAULT);
 
         assertTrue(resetResponse.isAcknowledged());
     }
@@ -180,7 +181,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-settings-execute-async
-            client.cluster().putSettingsAsync(request, listener); // <1>
+            client.cluster().putSettingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-settings-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -251,7 +252,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::health-request-local
 
         // tag::health-execute
-        ClusterHealthResponse response = client.cluster().health(request);
+        ClusterHealthResponse response = client.cluster().health(request, RequestOptions.DEFAULT);
         // end::health-execute
 
         assertThat(response.isTimedOut(), equalTo(false));
@@ -347,7 +348,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::health-execute-async
-            client.cluster().healthAsync(request, listener); // <1>
+            client.cluster().healthAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::health-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

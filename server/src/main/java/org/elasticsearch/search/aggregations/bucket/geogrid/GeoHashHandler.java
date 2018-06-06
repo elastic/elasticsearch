@@ -23,6 +23,9 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 
+/**
+ * A simple wrapper for GeoUtils handling of the geohash hashing algorithm
+ */
 public class GeoHashHandler implements GeoHashTypeProvider {
     @Override
     public int getDefaultPrecision() {
@@ -50,7 +53,7 @@ public class GeoHashHandler implements GeoHashTypeProvider {
     }
 
     @Override
-    public GeoPoint hashAsObject(long hash) {
+    public GeoPoint hashAsGeoPoint(long hash) {
         return GeoPoint.fromGeohash(hash);
     }
 }

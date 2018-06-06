@@ -557,7 +557,8 @@ public class GeoUtils {
         try {
             // we want to treat simple integer strings as precision levels, not distances
             return checkPrecisionRange(Integer.parseInt(precision));
-            // Do not catch IllegalArgumentException here
+            // checkPrecisionRange could also throw IllegalArgumentException, but let it through
+            // to keep errors somewhat consistent with how they were shown before this change
         } catch (NumberFormatException e) {
             // try to parse as a distance value
             final int parsedPrecision = GeoUtils.geoHashLevelsForPrecision(precision);

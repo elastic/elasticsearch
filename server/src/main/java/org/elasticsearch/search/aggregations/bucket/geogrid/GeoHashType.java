@@ -68,7 +68,7 @@ public enum GeoHashType implements Writeable {
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeEnum(this);
         } else if (this != DEFAULT) {
-            throw new UnsupportedOperationException("Geo aggregation type [" + this +
+            throw new UnsupportedOperationException("Geo aggregation type [" + toString() +
                 "] is not supported by the node version " + out.getVersion().toString());
         }
     }

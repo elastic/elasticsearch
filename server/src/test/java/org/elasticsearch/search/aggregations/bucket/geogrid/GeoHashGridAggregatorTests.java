@@ -116,8 +116,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        GeoGridAggregationBuilder aggregationBuilder = new GeoGridAggregationBuilder("_name").field(field);
-        aggregationBuilder.type(type.name());
+        GeoGridAggregationBuilder aggregationBuilder = new GeoGridAggregationBuilder("_name", type).field(field);
         aggregationBuilder.precision(precision);
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);

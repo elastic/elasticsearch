@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -86,8 +85,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         public GeoPoint getKey() {
-            // TODO/FIXME:  is it ok to change from GeoPoint to Object, and return different types?
-            return type.getHandler().hashAsObject(geohashAsLong);
+            return type.getHandler().hashAsGeoPoint(geohashAsLong);
         }
 
         @Override

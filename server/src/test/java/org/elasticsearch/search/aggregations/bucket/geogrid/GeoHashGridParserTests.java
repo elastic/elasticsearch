@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -81,9 +80,15 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
-        assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
-        assertThat(ex.getCause(), instanceOf(NumberFormatException.class));
-        assertEquals("For input string: \"10kg\"", ex.getCause().getMessage());
+        assertThat(ex.getMessage(), containsString("failed to build [geohash_grid] after last required field arrived"));
+
+        Throwable cause = ex.getCause();
+        assertThat(cause, instanceOf(XContentParseException.class));
+        assertThat(cause.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
+
+        cause = cause.getCause();
+        assertThat(cause, instanceOf(NumberFormatException.class));
+        assertThat(cause.getMessage(), containsString("For input string: \"10kg\""));
     }
 
     public void testParseDistanceUnitPrecisionTooSmall() throws Exception {
@@ -93,9 +98,15 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
-        assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
-        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-        assertEquals("precision too high [1cm]", ex.getCause().getMessage());
+        assertThat(ex.getMessage(), containsString("failed to build [geohash_grid] after last required field arrived"));
+
+        Throwable cause = ex.getCause();
+        assertThat(cause, instanceOf(XContentParseException.class));
+        assertThat(cause.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
+
+        cause = cause.getCause();
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        assertEquals("precision too high [1cm]", cause.getMessage());
     }
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
@@ -104,10 +115,14 @@ public class GeoHashGridParserTests extends ESTestCase {
             "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":false}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
-        XContentParseException e = expectThrows(XContentParseException.class,
+        XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
+        assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
+
+        Throwable cause = ex.getCause();
+        assertThat(cause, instanceOf(XContentParseException.class));
+        assertThat(cause.getMessage(), containsString("[geohash_grid] failed to parse field [precision]" +
+            " in [geohash_grid]. It must be either an integer or a string"));
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {

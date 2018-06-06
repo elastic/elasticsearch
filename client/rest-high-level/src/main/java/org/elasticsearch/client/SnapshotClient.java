@@ -48,9 +48,12 @@ public final class SnapshotClient {
     /**
      * Gets a list of snapshot repositories. If the list of repositories is empty or it contains a single element "_all", all
      * registered repositories are returned.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param getRepositoriesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetRepositoriesResponse getRepositories(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options)
         throws IOException {
@@ -61,9 +64,11 @@ public final class SnapshotClient {
     /**
      * Asynchronously gets a list of snapshot repositories. If the list of repositories is empty or it contains a single element "_all", all
      * registered repositories are returned.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param getRepositoriesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void getRepositoriesAsync(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options,
                                      ActionListener<GetRepositoriesResponse> listener) {
@@ -73,9 +78,12 @@ public final class SnapshotClient {
 
     /**
      * Creates a snapshot repository.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param putRepositoryRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutRepositoryResponse createRepository(PutRepositoryRequest putRepositoryRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putRepositoryRequest, RequestConverters::createRepository, options,
@@ -84,9 +92,11 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously creates a snapshot repository.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param putRepositoryRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void createRepositoryAsync(PutRepositoryRequest putRepositoryRequest, RequestOptions options,
                                       ActionListener<PutRepositoryResponse> listener) {
@@ -96,9 +106,12 @@ public final class SnapshotClient {
 
     /**
      * Deletes a snapshot repository.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param deleteRepositoryRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeleteRepositoryResponse deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options)
         throws IOException {
@@ -108,9 +121,11 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously deletes a snapshot repository.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param deleteRepositoryRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void deleteRepositoryAsync(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options,
                                       ActionListener<DeleteRepositoryResponse> listener) {
@@ -120,9 +135,12 @@ public final class SnapshotClient {
 
     /**
      * Verifies a snapshot repository.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param verifyRepositoryRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public VerifyRepositoryResponse verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options)
         throws IOException {
@@ -132,9 +150,11 @@ public final class SnapshotClient {
 
     /**
      * Asynchronously verifies a snapshot repository.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
+     * @param verifyRepositoryRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options,
                                       ActionListener<VerifyRepositoryResponse> listener) {

@@ -42,9 +42,12 @@ public final class ClusterClient {
 
     /**
      * Updates cluster wide specific settings using the Cluster Update Settings API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
+     * @param clusterUpdateSettingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options)
             throws IOException {
@@ -68,9 +71,11 @@ public final class ClusterClient {
 
     /**
      * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
+     * @param clusterUpdateSettingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options,
                                  ActionListener<ClusterUpdateSettingsResponse> listener) {

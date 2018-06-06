@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -47,10 +46,10 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -77,9 +76,12 @@ public final class IndicesClient {
 
     /**
      * Deletes an index using the Delete Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>
+     * @param deleteIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeleteIndexResponse delete(DeleteIndexRequest deleteIndexRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(deleteIndexRequest, RequestConverters::deleteIndex, options,
@@ -101,9 +103,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously deletes an index using the Delete Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>
+     * @param deleteIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void deleteAsync(DeleteIndexRequest deleteIndexRequest, RequestOptions options, ActionListener<DeleteIndexResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest, RequestConverters::deleteIndex, options,
@@ -125,9 +129,12 @@ public final class IndicesClient {
 
     /**
      * Creates an index using the Create Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
      * Create Index API on elastic.co</a>
+     * @param createIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public CreateIndexResponse create(CreateIndexRequest createIndexRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createIndexRequest, RequestConverters::createIndex, options,
@@ -149,9 +156,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously creates an index using the Create Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
      * Create Index API on elastic.co</a>
+     * @param createIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void createAsync(CreateIndexRequest createIndexRequest, RequestOptions options, ActionListener<CreateIndexResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, RequestConverters::createIndex, options,
@@ -173,9 +182,12 @@ public final class IndicesClient {
 
     /**
      * Updates the mappings on an index using the Put Mapping API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
      * Put Mapping API on elastic.co</a>
+     * @param putMappingRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutMappingResponse putMapping(PutMappingRequest putMappingRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putMappingRequest, RequestConverters::putMapping, options,
@@ -197,9 +209,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously updates the mappings on an index using the Put Mapping API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
      * Put Mapping API on elastic.co</a>
+     * @param putMappingRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void putMappingAsync(PutMappingRequest putMappingRequest, RequestOptions options,  ActionListener<PutMappingResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, RequestConverters::putMapping, options,
@@ -222,33 +236,40 @@ public final class IndicesClient {
 
     /**
      * Retrieves the mappings on an index or indices using the Get Mapping API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
      * Get Mapping API on elastic.co</a>
+     * @param getMappingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetMappingsResponse getMappings(GetMappingsRequest getMappingsRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getMappingsRequest, RequestConverters::getMappings,
-            GetMappingsResponse::fromXContent, emptySet(), headers);
+    public GetMappingsResponse getMappings(GetMappingsRequest getMappingsRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getMappingsRequest, RequestConverters::getMappings, options,
+            GetMappingsResponse::fromXContent, emptySet());
     }
 
     /**
      * Asynchronously retrieves the mappings on an index on indices using the Get Mapping API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-mapping.html">
      * Get Mapping API on elastic.co</a>
+     * @param getMappingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public void getMappingsAsync(GetMappingsRequest getMappingsRequest, ActionListener<GetMappingsResponse> listener,
-                                 Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest, RequestConverters::getMappings,
-            GetMappingsResponse::fromXContent, listener, emptySet(), headers);
+    public void getMappingsAsync(GetMappingsRequest getMappingsRequest, RequestOptions options,
+                                 ActionListener<GetMappingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest, RequestConverters::getMappings, options,
+            GetMappingsResponse::fromXContent, listener, emptySet());
     }
 
     /**
      * Updates aliases using the Index Aliases API
-     * <p>
-     * See <a href=
-     * "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
      * Index Aliases API on elastic.co</a>
+     * @param indicesAliasesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public IndicesAliasesResponse updateAliases(IndicesAliasesRequest indicesAliasesRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(indicesAliasesRequest, RequestConverters::updateAliases, options,
@@ -271,10 +292,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously updates aliases using the Index Aliases API
-     * <p>
-     * See <a href=
-     * "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
      * Index Aliases API on elastic.co</a>
+     * @param indicesAliasesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequest, RequestOptions options,
                                    ActionListener<IndicesAliasesResponse> listener) {
@@ -299,9 +321,12 @@ public final class IndicesClient {
 
     /**
      * Opens an index using the Open Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
      * Open Index API on elastic.co</a>
+     * @param openIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public OpenIndexResponse open(OpenIndexRequest openIndexRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(openIndexRequest, RequestConverters::openIndex, options,
@@ -323,9 +348,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously opens an index using the Open Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
      * Open Index API on elastic.co</a>
+     * @param openIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void openAsync(OpenIndexRequest openIndexRequest, RequestOptions options, ActionListener<OpenIndexResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(openIndexRequest, RequestConverters::openIndex, options,
@@ -347,9 +374,12 @@ public final class IndicesClient {
 
     /**
      * Closes an index using the Close Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
      * Close Index API on elastic.co</a>
+     * @param closeIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public CloseIndexResponse close(CloseIndexRequest closeIndexRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(closeIndexRequest, RequestConverters::closeIndex, options,
@@ -371,9 +401,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously closes an index using the Close Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
      * Close Index API on elastic.co</a>
+     * @param closeIndexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void closeAsync(CloseIndexRequest closeIndexRequest, RequestOptions options, ActionListener<CloseIndexResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(closeIndexRequest, RequestConverters::closeIndex, options,
@@ -396,9 +428,12 @@ public final class IndicesClient {
 
     /**
      * Checks if one or more aliases exist using the Aliases Exist API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
      * Indices Aliases API on elastic.co</a>
+     * @param getAliasesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request
      */
     public boolean existsAlias(GetAliasesRequest getAliasesRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequest(getAliasesRequest, RequestConverters::existsAlias, options,
@@ -420,9 +455,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously checks if one or more aliases exist using the Aliases Exist API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
      * Indices Aliases API on elastic.co</a>
+     * @param getAliasesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void existsAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<Boolean> listener) {
         restHighLevelClient.performRequestAsync(getAliasesRequest, RequestConverters::existsAlias, options,
@@ -444,8 +481,11 @@ public final class IndicesClient {
 
     /**
      * Refresh one or more indices using the Refresh API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-refresh.html"> Refresh API on elastic.co</a>
+     * @param refreshRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public RefreshResponse refresh(RefreshRequest refreshRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(refreshRequest, RequestConverters::refresh, options,
@@ -466,8 +506,10 @@ public final class IndicesClient {
 
     /**
      * Asynchronously refresh one or more indices using the Refresh API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-refresh.html"> Refresh API on elastic.co</a>
+     * @param refreshRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void refreshAsync(RefreshRequest refreshRequest, RequestOptions options, ActionListener<RefreshResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(refreshRequest, RequestConverters::refresh, options,
@@ -488,8 +530,11 @@ public final class IndicesClient {
 
     /**
      * Flush one or more indices using the Flush API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-flush.html"> Flush API on elastic.co</a>
+     * @param flushRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public FlushResponse flush(FlushRequest flushRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(flushRequest, RequestConverters::flush, options,
@@ -510,8 +555,10 @@ public final class IndicesClient {
 
     /**
      * Asynchronously flush one or more indices using the Flush API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-flush.html"> Flush API on elastic.co</a>
+     * @param flushRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void flushAsync(FlushRequest flushRequest, RequestOptions options, ActionListener<FlushResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(flushRequest, RequestConverters::flush, options,
@@ -530,11 +577,15 @@ public final class IndicesClient {
                 listener, emptySet(), headers);
     }
 
-    /** Initiate a synced flush manually using the synced flush API
-      * <p>
-      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
-      *     Synced flush API on elastic.co</a>
-      */
+    /**
+     * Initiate a synced flush manually using the synced flush API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
+     *     Synced flush API on elastic.co</a>
+     * @param syncedFlushRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
     public SyncedFlushResponse flushSynced(SyncedFlushRequest syncedFlushRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(syncedFlushRequest, RequestConverters::flushSynced, options,
                 SyncedFlushResponse::fromXContent, emptySet());
@@ -542,9 +593,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously initiate a synced flush manually using the synced flush API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
      *     Synced flush API on elastic.co</a>
+     * @param syncedFlushRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void flushSyncedAsync(SyncedFlushRequest syncedFlushRequest, RequestOptions options,
                                  ActionListener<SyncedFlushResponse> listener) {
@@ -554,9 +607,12 @@ public final class IndicesClient {
 
     /**
      * Retrieve the settings of one or more indices
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html">
      * Indices Get Settings API on elastic.co</a>
+     * @param getSettingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetSettingsResponse getSettings(GetSettingsRequest getSettingsRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getSettingsRequest, RequestConverters::getSettings, options,
@@ -565,9 +621,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously retrieve the settings of one or more indices
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html">
      * Indices Get Settings API on elastic.co</a>
+     * @param getSettingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void getSettingsAsync(GetSettingsRequest getSettingsRequest, RequestOptions options,
                                  ActionListener<GetSettingsResponse> listener) {
@@ -577,9 +635,12 @@ public final class IndicesClient {
 
     /**
      * Force merge one or more indices using the Force Merge API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
      * Force Merge API on elastic.co</a>
+     * @param forceMergeRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ForceMergeResponse forceMerge(ForceMergeRequest forceMergeRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(forceMergeRequest, RequestConverters::forceMerge, options,
@@ -601,9 +662,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously force merge one or more indices using the Force Merge API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
      * Force Merge API on elastic.co</a>
+     * @param forceMergeRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void forceMergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options, ActionListener<ForceMergeResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(forceMergeRequest, RequestConverters::forceMerge, options,
@@ -625,9 +688,12 @@ public final class IndicesClient {
 
     /**
      * Clears the cache of one or more indices using the Clear Cache API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
      * Clear Cache API on elastic.co</a>
+     * @param clearIndicesCacheRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ClearIndicesCacheResponse clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest,
                                                 RequestOptions options) throws IOException {
@@ -650,9 +716,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously clears the cache of one or more indices using the Clear Cache API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
      * Clear Cache API on elastic.co</a>
+     * @param clearIndicesCacheRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void clearCacheAsync(ClearIndicesCacheRequest clearIndicesCacheRequest, RequestOptions options,
                                 ActionListener<ClearIndicesCacheResponse> listener) {
@@ -676,9 +744,12 @@ public final class IndicesClient {
 
     /**
      * Checks if the index (indices) exists or not.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request
      */
     public boolean exists(GetIndexRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequest(
@@ -710,9 +781,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously checks if the index (indices) exists or not.
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void existsAsync(GetIndexRequest request, RequestOptions options, ActionListener<Boolean> listener) {
         restHighLevelClient.performRequestAsync(
@@ -746,9 +819,12 @@ public final class IndicesClient {
 
     /**
      * Shrinks an index using the Shrink Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
      * Shrink Index API on elastic.co</a>
+     * @param resizeRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ResizeResponse shrink(ResizeRequest resizeRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(resizeRequest, RequestConverters::shrink, options,
@@ -770,9 +846,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously shrinks an index using the Shrink index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
      * Shrink Index API on elastic.co</a>
+     * @param resizeRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void shrinkAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, RequestConverters::shrink, options,
@@ -794,9 +872,12 @@ public final class IndicesClient {
 
     /**
      * Splits an index using the Split Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
      * Split Index API on elastic.co</a>
+     * @param resizeRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ResizeResponse split(ResizeRequest resizeRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(resizeRequest, RequestConverters::split, options,
@@ -818,9 +899,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously splits an index using the Split Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
      * Split Index API on elastic.co</a>
+     * @param resizeRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void splitAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, RequestConverters::split, options,
@@ -842,9 +925,12 @@ public final class IndicesClient {
 
     /**
      * Rolls over an index using the Rollover Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
      * Rollover Index API on elastic.co</a>
+     * @param rolloverRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public RolloverResponse rollover(RolloverRequest rolloverRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(rolloverRequest, RequestConverters::rollover, options,
@@ -866,9 +952,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously rolls over an index using the Rollover Index API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
      * Rollover Index API on elastic.co</a>
+     * @param rolloverRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void rolloverAsync(RolloverRequest rolloverRequest, RequestOptions options, ActionListener<RolloverResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, RequestConverters::rollover, options,
@@ -890,9 +978,12 @@ public final class IndicesClient {
 
     /**
      * Updates specific index level settings using the Update Indices Settings API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
      * API on elastic.co</a>
+     * @param updateSettingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public UpdateSettingsResponse putSettings(UpdateSettingsRequest updateSettingsRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(updateSettingsRequest, RequestConverters::indexPutSettings, options,
@@ -914,9 +1005,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously updates specific index level settings using the Update Indices Settings API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
      * API on elastic.co</a>
+     * @param updateSettingsRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, RequestOptions options,
                                  ActionListener<UpdateSettingsResponse> listener) {
@@ -940,9 +1033,12 @@ public final class IndicesClient {
 
     /**
      * Puts an index template using the Index Templates API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
      * on elastic.co</a>
+     * @param putIndexTemplateRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest putIndexTemplateRequest,
                                                 RequestOptions options) throws IOException {
@@ -952,9 +1048,11 @@ public final class IndicesClient {
 
     /**
      * Asynchronously puts an index template using the Index Templates API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
      * on elastic.co</a>
+     * @param putIndexTemplateRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void putTemplateAsync(PutIndexTemplateRequest putIndexTemplateRequest, RequestOptions options,
                                  ActionListener<PutIndexTemplateResponse> listener) {

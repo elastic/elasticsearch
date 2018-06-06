@@ -286,8 +286,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a bulk request using the Bulk API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @param bulkRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
@@ -306,8 +309,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a bulk request using the Bulk API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @param bulkRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
         performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener, emptySet());
@@ -326,6 +331,9 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Pings the remote Elasticsearch cluster and returns true if the ping succeeded, false otherwise
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return <code>true</code> if the ping succeeded, false otherwise
+     * @throws IOException in case there is a problem sending the request
      */
     public final boolean ping(RequestOptions options) throws IOException {
         return performRequest(new MainRequest(), (request) -> RequestConverters.ping(), options, RestHighLevelClient::convertExistsResponse,
@@ -343,7 +351,10 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Get the cluster info otherwise provided when sending an HTTP request to port 9200
+     * Get the cluster info otherwise provided when sending an HTTP request to '/'
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MainResponse info(RequestOptions options) throws IOException {
         return performRequestAndParseEntity(new MainRequest(), (request) -> RequestConverters.info(), options,
@@ -362,8 +373,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Retrieves a document by id using the Get API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, singleton(404));
@@ -382,8 +396,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously retrieves a document by id using the Get API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
         performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
@@ -404,8 +420,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Retrieves multiple documents by id using the Multi Get API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MultiGetResponse multiGet(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent,
@@ -426,8 +445,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously retrieves multiple documents by id using the Multi Get API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void multiGetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
         performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent, listener,
@@ -448,8 +469,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Checks for the existence of a document. Returns true if it exists, false otherwise
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return <code>true</code> if the document exists, <code>false</code> otherwise
+     * @throws IOException in case there is a problem sending the request
      */
     public final boolean exists(GetRequest getRequest, RequestOptions options) throws IOException {
         return performRequest(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, emptySet());
@@ -468,8 +492,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously checks for the existence of a document. Returns true if it exists, false otherwise
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void existsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
         performRequestAsync(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, listener,
@@ -490,8 +516,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Index a document using the Index API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
+     * @param indexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
@@ -510,8 +539,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously index a document using the Index API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
+     * @param indexRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
         performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
@@ -532,8 +563,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Updates a document using the Update API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     * @param updateRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final UpdateResponse update(UpdateRequest updateRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, emptySet());
@@ -552,8 +586,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously updates a document using the Update API
-     * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     * @param updateRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void updateAsync(UpdateRequest updateRequest, RequestOptions options, ActionListener<UpdateResponse> listener) {
         performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, listener,
@@ -574,8 +610,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Deletes a document by id using the Delete API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     * @param deleteRequest the reuqest
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
@@ -596,8 +635,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously deletes a document by id using the Delete API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     * @param deleteRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
         performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent, listener,
@@ -617,9 +658,12 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a search using the Search API
-     *
+     * Executes a search request using the Search API
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, emptySet());
@@ -638,8 +682,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a search using the Search API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
         performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, listener,
@@ -660,9 +706,12 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a multi search using the msearch API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
      * elastic.co</a>
+     * @param multiSearchRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MultiSearchResponse multiSearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
@@ -684,9 +733,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a multi search using the msearch API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
      * elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void multiSearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
                                        ActionListener<MultiSearchResponse> listener) {
@@ -709,9 +760,12 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a search using the Search Scroll API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
@@ -733,9 +787,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a search using the Search Scroll API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void searchScrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
                                         ActionListener<SearchResponse> listener) {
@@ -759,9 +815,12 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Clears one or more scroll ids using the Clear Scroll API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
+     * @param clearScrollRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
@@ -783,9 +842,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously clears one or more scroll ids using the Clear Scroll API
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
+     * @param clearScrollRequest the reuqest
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void clearScrollAsync(ClearScrollRequest clearScrollRequest, RequestOptions options,
                                        ActionListener<ClearScrollResponse> listener) {
@@ -809,9 +870,12 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a request using the Search Template API.
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
      * on elastic.co</a>.
+     * @param searchTemplateRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
                                                        RequestOptions options) throws IOException {
@@ -831,12 +895,14 @@ public class RestHighLevelClient implements Closeable {
             SearchTemplateResponse::fromXContent, listener, emptySet());
     }
 
-
     /**
      * Executes a request using the Ranking Evaluation API.
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
      * on elastic.co</a>
+     * @param rankEvalRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
@@ -858,9 +924,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a request using the Ranking Evaluation API.
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
      * on elastic.co</a>
+     * @param rankEvalRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,  ActionListener<RankEvalResponse> listener) {
         performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,  RankEvalResponse::fromXContent, listener,
@@ -882,9 +950,12 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a request using the Field Capabilities API.
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
      * on elastic.co</a>.
+     * @param fieldCapabilitiesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
                                                      RequestOptions options) throws IOException {
@@ -894,9 +965,11 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a request using the Field Capabilities API.
-     *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
      * on elastic.co</a>.
+     * @param fieldCapabilitiesRequest the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
                                      ActionListener<FieldCapabilitiesResponse> listener) {

@@ -41,9 +41,12 @@ public final class TasksClient {
 
     /**
      * Get current tasks using the Task Management API
-     * <p>
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, options,
@@ -52,9 +55,11 @@ public final class TasksClient {
 
     /**
      * Asynchronously get current tasks using the Task Management API
-     * <p>
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), or {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, options,

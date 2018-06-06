@@ -67,7 +67,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -435,6 +434,62 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertNull(result.getExecutorNode());
     }
 
+    public void testSelectLeastLoadedMlNode_jobWithRulesButNoNodeMeetsRequiredVersion() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.V_6_2_0))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.V_6_3_0))
+                .build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_with_rules", "_node_id1", null, tasksBuilder);
+        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, jobWithRulesCreator(), "job_with_rules");
+        cs.nodes(nodes);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", cs.build(),
+                2, 10, 30, logger);
+        assertThat(result.getExplanation(), containsString(
+                "because jobs using custom_rules require a node of version [6.4.0] or higher"));
+        assertNull(result.getExecutorNode());
+    }
+
+    public void testSelectLeastLoadedMlNode_jobWithRulesAndNodeMeetsRequiredVersion() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.V_6_2_0))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.V_6_4_0))
+                .build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_with_rules", "_node_id1", null, tasksBuilder);
+        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, jobWithRulesCreator(), "job_with_rules");
+        cs.nodes(nodes);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", cs.build(),
+                2, 10, 30, logger);
+        assertNotNull(result.getExecutorNode());
+    }
+
     public void testVerifyIndicesPrimaryShardsAreActive() {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -571,68 +626,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertEquals("{_node_name1}{ml.machine_memory=5}{node.ml=true}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
     }
 
-    public void testCheckJobWithRulesRequiresMinVersionOnAllNodes_GivenNodeDoesNotMeetRequiredVersion() {
-        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
-                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
-        )).build();
-
-        Detector.Builder detector = new Detector.Builder("count", null);
-        detector.setRules(Arrays.asList(rule));
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        Job.Builder job = new Job.Builder("foo");
-        job.setAnalysisConfig(analysisConfig);
-        job.setDataDescription(dataDescription);
-
-        MetaData metaData = MetaData.builder()
-                .putCustom(MLMetadataField.TYPE, new MlMetadata.Builder().putJob(job.build(new Date()), false).build())
-                .build();
-
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_old_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.V_6_3_0))
-                        .add(new DiscoveryNode("_new_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9201), Version.CURRENT))
-                        .localNodeId("_new_node")
-                        .masterNodeId("_new_node"))
-                .metaData(metaData)
-                .build();
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> TransportOpenJobAction.checkJobWithRulesRequiresMinVersionOnAllNodes("foo", cs));
-
-        assertThat(e.getMessage(), equalTo("Cannot open job [foo] because jobs using custom_rules " +
-                "require all nodes to be on version [6.4.0] or higher"));
-    }
-
-    public void testCheckJobWithRulesRequiresMinVersionOnAllNodes_GivenAllNodesMeetRequiredVersion() {
-        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
-                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
-        )).build();
-
-        Detector.Builder detector = new Detector.Builder("count", null);
-        detector.setRules(Arrays.asList(rule));
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        Job.Builder job = new Job.Builder("foo");
-        job.setAnalysisConfig(analysisConfig);
-        job.setDataDescription(dataDescription);
-
-        MetaData metaData = MetaData.builder()
-                .putCustom(MLMetadataField.TYPE, new MlMetadata.Builder().putJob(job.build(new Date()), false).build())
-                .build();
-
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_old_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.V_6_4_0))
-                        .add(new DiscoveryNode("_new_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9201), Version.CURRENT))
-                        .localNodeId("_new_node")
-                        .masterNodeId("_new_node"))
-                .metaData(metaData)
-                .build();
-
-        TransportOpenJobAction.checkJobWithRulesRequiresMinVersionOnAllNodes("foo", cs);
-    }
-
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
         builder.addTask(MlMetadata.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
                 new Assignment(nodeId, "test assignment"));
@@ -713,6 +706,23 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.metaData(metaData);
         return csBuilder.build();
+    }
+
+    private static Function<String, Job> jobWithRulesCreator() {
+        return jobId -> {
+            DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
+                    new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
+            )).build();
+
+            Detector.Builder detector = new Detector.Builder("count", null);
+            detector.setRules(Arrays.asList(rule));
+            AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+            DataDescription.Builder dataDescription = new DataDescription.Builder();
+            Job.Builder job = new Job.Builder(jobId);
+            job.setAnalysisConfig(analysisConfig);
+            job.setDataDescription(dataDescription);
+            return job.build(new Date());
+        };
     }
 
 }

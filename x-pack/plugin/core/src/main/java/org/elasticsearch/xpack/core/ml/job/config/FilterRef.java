@@ -116,4 +116,8 @@ public class FilterRef implements ToXContentObject, Writeable {
     public String getFilterId() {
         return filterId;
     }
+
+    public FilterType getFilterType() {
+        return filterType;
+    }
 }

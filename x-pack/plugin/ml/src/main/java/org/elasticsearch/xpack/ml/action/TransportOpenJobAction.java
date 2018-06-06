@@ -191,6 +191,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
+            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
+                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
+
             long numberOfAssignedJobs = 0;
             int numberOfAllocatingJobs = 0;
             long assignedJobMemory = 0;
@@ -372,6 +380,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             return true;
         }
         return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
+    }
+
+    private static boolean jobHasRules(Job job) {
+        return job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false);
     }
 
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion,
@@ -649,7 +661,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         public void validate(OpenJobAction.JobParams params, ClusterState clusterState) {
 
             TransportOpenJobAction.validate(params.getJobId(), MlMetadata.getMlMetadata(clusterState));
-            checkJobWithRulesRequiresMinVersionOnAllNodes(params.getJobId(), clusterState);
 
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
@@ -701,18 +712,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(),
                     this.maxMachineMemoryPercent, maxMachineMemoryPercent);
             this.maxMachineMemoryPercent = maxMachineMemoryPercent;
-        }
-    }
-
-    // Visible for testing
-    static void checkJobWithRulesRequiresMinVersionOnAllNodes(String jobId, ClusterState clusterState) {
-        // Jobs with rules should not be allowed to open unless the whole cluster has the min required version
-        Job job = MlMetadata.getMlMetadata(clusterState).getJobs().get(jobId);
-        if (job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false)
-                && clusterState.nodes().getMinNodeVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-            String msg = "Cannot open job [" + job.getId() + "] because jobs using custom_rules require all nodes to be " +
-                    "on version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
-            throw ExceptionsHelper.badRequestException(msg);
         }
     }
 

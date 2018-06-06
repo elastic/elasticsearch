@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
@@ -139,10 +140,19 @@ public final class EngineConfig {
         this.codecService = codecService;
         this.eventListener = eventListener;
         codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
-        // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
-        // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
-        // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
-        indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
+        // We add an escape hatch to allow users to configure larger indexing
+        // buffers if necessary. The default 256MB proved to be too little for
+        // users with lots of fields.
+        final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";
+        String maxBufferSize = System.getProperty(escapeHatchProperty);
+        if (maxBufferSize != null) {
+            indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
+        } else {
+            // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
+            // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
+            // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
+            indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
+        }
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;

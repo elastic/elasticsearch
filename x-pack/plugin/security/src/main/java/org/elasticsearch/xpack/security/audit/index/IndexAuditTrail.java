@@ -992,24 +992,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     public static Settings customAuditIndexSettings(Settings nodeSettings, Logger logger) {
-        Settings newSettings = Settings.builder()
+        final Settings newSettings = Settings.builder()
                 .put(INDEX_SETTINGS.get(nodeSettings), false)
+                .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
                 .build();
         if (newSettings.names().isEmpty()) {
             return Settings.EMPTY;
         }
 
-        // Filter out forbidden settings:
-        Settings.Builder builder = Settings.builder();
-        builder.put(newSettings.filter(k -> {
-            String name = "index." + k;
+        // Filter out forbidden setting
+        return Settings.builder().put(newSettings.filter(name -> {
             if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                 logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 return false;
             }
             return true;
-        }));
-        return builder.build();
+        })).build();
     }
 
     private void putTemplate(Settings customSettings, Consumer<Exception> consumer) {

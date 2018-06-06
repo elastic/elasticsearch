@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -82,17 +81,24 @@ public class NioGroup implements AutoCloseable {
      */
     public NioGroup(ThreadFactory acceptorThreadFactory, int dedicatedAcceptorCount, ThreadFactory selectorThreadFactory, int selectorCount,
                     Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
-        dedicatedAcceptors = new CopyOnWriteArrayList<>();
-        selectors = new CopyOnWriteArrayList<>();
+        dedicatedAcceptors = new ArrayList<>(dedicatedAcceptorCount);
+        selectors = new ArrayList<>(selectorCount);
 
         try {
+            List<RoundRobinSupplier<NioSelector>> suppliersToSet = new ArrayList<>(selectorCount);
             for (int i = 0; i < selectorCount; ++i) {
-                NioSelector selector = new NioSelector(eventHandlerFunction.apply(new RoundRobinSupplier<>(selectors, selectorCount)));
+                RoundRobinSupplier<NioSelector> supplier = new RoundRobinSupplier<>();
+                suppliersToSet.add(supplier);
+                NioSelector selector = new NioSelector(eventHandlerFunction.apply(supplier));
                 selectors.add(selector);
+            }
+            for (RoundRobinSupplier<NioSelector> supplierToSet : suppliersToSet) {
+                supplierToSet.setSelectors(selectors.toArray(new NioSelector[0]));
+                assert supplierToSet.count() == selectors.size() : "Supplier should have same count as selector list.";
             }
 
             for (int i = 0; i < dedicatedAcceptorCount; ++i) {
-                NioSelector acceptor = new NioSelector(eventHandlerFunction.apply(new RoundRobinSupplier<>(selectors, selectorCount)));
+                NioSelector acceptor = new NioSelector(eventHandlerFunction.apply(new RoundRobinSupplier<>(selectors.toArray(new NioSelector[0]))));
                 dedicatedAcceptors.add(acceptor);
             }
 
@@ -100,11 +106,11 @@ public class NioGroup implements AutoCloseable {
             startSelectors(dedicatedAcceptors, acceptorThreadFactory);
 
             if (dedicatedAcceptorCount != 0) {
-                acceptorSupplier = new RoundRobinSupplier<>(dedicatedAcceptors, dedicatedAcceptorCount);
+                acceptorSupplier = new RoundRobinSupplier<>(dedicatedAcceptors.toArray(new NioSelector[0]));
             } else {
-                acceptorSupplier = new RoundRobinSupplier<>(selectors, selectorCount);
+                acceptorSupplier = new RoundRobinSupplier<>(selectors.toArray(new NioSelector[0]));
             }
-            selectorSupplier = new RoundRobinSupplier<>(selectors, selectorCount);
+            selectorSupplier = new RoundRobinSupplier<>(selectors.toArray(new NioSelector[0]));
             assert selectorCount == selectors.size() : "We need to have created all the selectors at this point.";
             assert dedicatedAcceptorCount == dedicatedAcceptors.size() : "We need to have created all the acceptors at this point.";
         } catch (Exception e) {

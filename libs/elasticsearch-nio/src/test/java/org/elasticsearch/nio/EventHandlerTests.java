@@ -59,7 +59,7 @@ public class EventHandlerTests extends ESTestCase {
         NioSelector selector = mock(NioSelector.class);
         ArrayList<NioSelector> selectors = new ArrayList<>();
         selectors.add(selector);
-        selectorSupplier = new RoundRobinSupplier<>(selectors, selectors.size());
+        selectorSupplier = new RoundRobinSupplier<>(selectors.toArray(new NioSelector[0]));
         handler = new EventHandler(genericExceptionHandler, selectorSupplier);
 
         SocketChannel rawChannel = mock(SocketChannel.class);

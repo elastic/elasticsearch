@@ -58,14 +58,13 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 return wrapReader(recoverySourceField, wrapped, retainSourceQuerySupplier);
             }
         });
-
     }
 
     // pkg private for testing
     static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier<Query> retainSourceQuerySupplier)
         throws IOException {
-        NumericDocValues recovery_source = reader.getNumericDocValues(recoverySourceField);
-        if (recovery_source == null || recovery_source.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+        NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
+        if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
         }
         BooleanQuery.Builder builder = new BooleanQuery.Builder();

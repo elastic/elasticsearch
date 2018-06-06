@@ -45,7 +45,7 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
             ObjectParser.ValueType.BOOLEAN);
     }
 
-    private boolean acknowledged;
+    protected boolean acknowledged;
 
     protected AcknowledgedResponse() {
 
@@ -63,17 +63,15 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
         return acknowledged;
     }
 
-    /**
-     * Reads the acknowledged value
-     */
-    protected void readAcknowledged(StreamInput in) throws IOException {
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         acknowledged = in.readBoolean();
     }
 
-    /**
-     * Writes the acknowledged value
-     */
-    protected void writeAcknowledged(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(acknowledged);
     }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -48,6 +49,8 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class AnalysisRegistryTests extends ESTestCase {
     private AnalysisRegistry emptyRegistry;
@@ -58,7 +61,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
     private static AnalysisRegistry emptyAnalysisRegistry(Settings settings) {
         return new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), emptyMap());
+                emptyMap(), emptyMap(), emptyMap(), emptyMap());
     }
 
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
@@ -223,5 +226,17 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexAnalyzers indexAnalyzers = emptyRegistry.build(indexSettingsOfCurrentVersion(Settings.builder()));
         indexAnalyzers.close();
         indexAnalyzers.close();
+    }
+
+    public void testEnsureCloseInvocationProperlyDelegated() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        PreBuiltAnalyzerProviderFactory mock = mock(PreBuiltAnalyzerProviderFactory.class);
+        AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(),
+            emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), Collections.singletonMap("key", mock));
+
+        registry.close();
+        verify(mock).close();
     }
 }

@@ -219,8 +219,8 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::health-request-master-timeout
 
         // tag::health-request-wait-status
-        request.waitForStatus(ClusterHealthStatus.GREEN); // <1>
-        request.waitForGreenStatus(); // <2>
+        request.waitForStatus(ClusterHealthStatus.YELLOW); // <1>
+        request.waitForYellowStatus(); // <2>
         // end::health-request-wait-status
 
         // tag::health-request-level
@@ -243,7 +243,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::health-request-wait-active
         request.waitForActiveShards(ActiveShardCount.ALL); // <1>
-        request.waitForActiveShards(5); // <2>
+        request.waitForActiveShards(1); // <2>
         // end::health-request-wait-active
 
         // tag::health-request-local
@@ -256,7 +256,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         assertThat(response, notNullValue());
         // tag::health-response-general
         String clusterName = response.getClusterName(); // <1>

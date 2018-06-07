@@ -1428,7 +1428,6 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(indexForDoc(doc));
                 liveDocs.add(doc.id());
             }
-            engine.flush();
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, randomBoolean()
                     || omitSourceAllTheTime);
@@ -1440,14 +1439,24 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
                 }
+                if (randomBoolean()) {
+                    engine.flush(randomBoolean(), true);
+                }
             }
+            engine.flush();
+
             long localCheckpoint = engine.getLocalCheckpointTracker().getCheckpoint();
             globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
-            engine.getTranslog().sync();
-            long keptIndex = globalCheckpoint.get() + 1 - retainedExtraOps;
+            engine.syncTranslog();
+            final long minSeqNoToRetain;
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                long safeCommitLocalCheckpoint = Long.parseLong(
+                    safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
+            }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
-                if (luceneOp.seqNo() >= keptIndex) {
+                if (luceneOp.seqNo() >= minSeqNoToRetain) {
                     assertNotNull(luceneOp.getSource());
                     assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
                 }
@@ -1456,7 +1465,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
                 String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < keptIndex) {
+                if (seqno < minSeqNoToRetain) {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
@@ -1472,8 +1481,9 @@ public class InternalEngineTests extends EngineTestCase {
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            engine.onSettingsChanged();
             globalCheckpoint.set(localCheckpoint);
-            engine.getTranslog().sync();
+            engine.syncTranslog();
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
                 assertEquals(translogOp.getSource().source, B_1);

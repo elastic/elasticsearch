@@ -34,9 +34,6 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         declareAcknowledgedField(PARSER);
     }
 
-    IndicesAliasesResponse() {
-    }
-
     IndicesAliasesResponse(boolean acknowledged) {
         super(acknowledged);
     }

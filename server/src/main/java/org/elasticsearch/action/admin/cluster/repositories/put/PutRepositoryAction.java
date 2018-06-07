@@ -35,7 +35,7 @@ public class PutRepositoryAction extends Action<PutRepositoryRequest, PutReposit
 
     @Override
     public PutRepositoryResponse newResponse() {
-        return new PutRepositoryResponse();
+        return new PutRepositoryResponse(false);
     }
 }
 

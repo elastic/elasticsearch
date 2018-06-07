@@ -26,9 +26,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
  */
 public class UpgradeSettingsResponse extends AcknowledgedResponse {
 
-    UpgradeSettingsResponse() {
-    }
-
     UpgradeSettingsResponse(boolean acknowledged) {
         super(acknowledged);
     }

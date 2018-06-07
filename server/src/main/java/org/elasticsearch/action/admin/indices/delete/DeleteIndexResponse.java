@@ -35,9 +35,6 @@ public class DeleteIndexResponse extends AcknowledgedResponse {
         declareAcknowledgedField(PARSER);
     }
 
-    DeleteIndexResponse() {
-    }
-
     DeleteIndexResponse(boolean acknowledged) {
         super(acknowledged);
     }

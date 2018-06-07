@@ -19,6 +19,6 @@ public class WatcherServiceAction extends Action<WatcherServiceRequest, WatcherS
 
     @Override
     public WatcherServiceResponse newResponse() {
-        return new WatcherServiceResponse();
+        return new WatcherServiceResponse(false);
     }
 }

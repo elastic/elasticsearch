@@ -48,7 +48,7 @@ public class TransportDeleteRollupJobAction
 
     @Override
     protected DeleteRollupJobAction.Response newResponse() {
-        return new DeleteRollupJobAction.Response();
+        return new DeleteRollupJobAction.Response(false);
     }
 
     @Override

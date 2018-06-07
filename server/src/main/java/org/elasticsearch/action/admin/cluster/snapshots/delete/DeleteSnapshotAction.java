@@ -35,7 +35,7 @@ public class DeleteSnapshotAction extends Action<DeleteSnapshotRequest, DeleteSn
 
     @Override
     public DeleteSnapshotResponse newResponse() {
-        return new DeleteSnapshotResponse();
+        return new DeleteSnapshotResponse(false);
     }
 }
 

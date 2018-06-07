@@ -60,7 +60,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
 
     @Override
     protected PutIndexTemplateResponse newResponse() {
-        return new PutIndexTemplateResponse();
+        return new PutIndexTemplateResponse(false);
     }
 
     @Override

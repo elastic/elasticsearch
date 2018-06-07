@@ -9,9 +9,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 public class WatcherServiceResponse extends AcknowledgedResponse {
 
-    public WatcherServiceResponse() {
-    }
-
     public WatcherServiceResponse(boolean acknowledged) {
         super(acknowledged);
     }

@@ -430,7 +430,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     @Override
     protected OpenJobAction.Response newResponse() {
-        return new OpenJobAction.Response();
+        return new OpenJobAction.Response(false);
     }
 
     @Override

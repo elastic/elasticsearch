@@ -54,7 +54,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
 
     @Override
     protected DeleteSnapshotResponse newResponse() {
-        return new DeleteSnapshotResponse();
+        return new DeleteSnapshotResponse(false);
     }
 
     @Override

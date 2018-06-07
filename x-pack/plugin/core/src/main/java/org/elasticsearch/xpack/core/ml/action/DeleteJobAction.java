@@ -35,7 +35,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -123,8 +123,6 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        public Response() {}
     }
 
 }

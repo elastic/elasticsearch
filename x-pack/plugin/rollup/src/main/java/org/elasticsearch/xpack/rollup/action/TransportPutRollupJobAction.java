@@ -80,7 +80,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
     @Override
     protected PutRollupJobAction.Response newResponse() {
-        return new PutRollupJobAction.Response();
+        return new PutRollupJobAction.Response(false);
     }
 
     @Override

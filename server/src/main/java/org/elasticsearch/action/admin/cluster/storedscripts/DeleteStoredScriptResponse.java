@@ -23,9 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 public class DeleteStoredScriptResponse extends AcknowledgedResponse {
 
-    DeleteStoredScriptResponse() {
-    }
-
     public DeleteStoredScriptResponse(boolean acknowledged) {
         super(acknowledged);
     }

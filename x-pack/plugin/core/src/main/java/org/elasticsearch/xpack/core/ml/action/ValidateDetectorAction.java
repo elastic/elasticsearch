@@ -32,7 +32,7 @@ public class ValidateDetectorAction extends Action<ValidateDetectorAction.Reques
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -107,11 +107,6 @@ public class ValidateDetectorAction extends Action<ValidateDetectorAction.Reques
     }
 
     public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
         public Response(boolean acknowledged) {
             super(acknowledged);
         }

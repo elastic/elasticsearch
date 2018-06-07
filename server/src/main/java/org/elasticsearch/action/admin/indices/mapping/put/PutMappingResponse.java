@@ -35,10 +35,6 @@ public class PutMappingResponse extends AcknowledgedResponse {
         declareAcknowledgedField(PARSER);
     }
 
-    protected PutMappingResponse() {
-
-    }
-
     protected PutMappingResponse(boolean acknowledged) {
         super(acknowledged);
     }

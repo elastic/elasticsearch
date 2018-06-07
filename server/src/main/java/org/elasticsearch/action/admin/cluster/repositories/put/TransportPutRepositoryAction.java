@@ -56,7 +56,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
 
     @Override
     protected PutRepositoryResponse newResponse() {
-        return new PutRepositoryResponse();
+        return new PutRepositoryResponse(false);
     }
 
     @Override

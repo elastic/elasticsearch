@@ -56,7 +56,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
 
     @Override
     protected DeleteIndexTemplateResponse newResponse() {
-        return new DeleteIndexTemplateResponse();
+        return new DeleteIndexTemplateResponse(false);
     }
 
     @Override

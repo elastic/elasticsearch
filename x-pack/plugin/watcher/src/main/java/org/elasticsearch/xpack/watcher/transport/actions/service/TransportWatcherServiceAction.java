@@ -58,7 +58,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
 
     @Override
     protected WatcherServiceResponse newResponse() {
-        return new WatcherServiceResponse();
+        return new WatcherServiceResponse(false);
     }
 
     @Override

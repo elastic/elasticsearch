@@ -30,7 +30,7 @@ public class DeleteRepositoryResponseTests extends AbstractStreamableXContentTes
 
     @Override
     protected DeleteRepositoryResponse createBlankInstance() {
-        return new DeleteRepositoryResponse();
+        return new DeleteRepositoryResponse(false);
     }
 
     @Override

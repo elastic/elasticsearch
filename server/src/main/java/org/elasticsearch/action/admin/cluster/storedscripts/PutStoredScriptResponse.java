@@ -23,9 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 public class PutStoredScriptResponse extends AcknowledgedResponse {
 
-    PutStoredScriptResponse() {
-    }
-
     public PutStoredScriptResponse(boolean acknowledged) {
         super(acknowledged);
     }

@@ -35,9 +35,6 @@ public class DeleteRepositoryResponse extends AcknowledgedResponse {
         declareAcknowledgedField(PARSER);
     }
 
-    DeleteRepositoryResponse() {
-    }
-
     DeleteRepositoryResponse(boolean acknowledged) {
         super(acknowledged);
     }

@@ -38,18 +38,18 @@ public class WritePipelineResponseTests extends AbstractStreamableXContentTestCa
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        WritePipelineResponse otherResponse = new WritePipelineResponse();
+        WritePipelineResponse otherResponse = new WritePipelineResponse(false);
         otherResponse.readFrom(streamInput);
 
         assertThat(otherResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
     }
 
     public void testSerializationWithError() throws IOException {
-        WritePipelineResponse response = new WritePipelineResponse();
+        WritePipelineResponse response = new WritePipelineResponse(false);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        WritePipelineResponse otherResponse = new WritePipelineResponse();
+        WritePipelineResponse otherResponse = new WritePipelineResponse(false);
         otherResponse.readFrom(streamInput);
 
         assertThat(otherResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
@@ -73,7 +73,7 @@ public class WritePipelineResponseTests extends AbstractStreamableXContentTestCa
 
     @Override
     protected WritePipelineResponse createBlankInstance() {
-        return new WritePipelineResponse();
+        return new WritePipelineResponse(false);
     }
 
     @Override

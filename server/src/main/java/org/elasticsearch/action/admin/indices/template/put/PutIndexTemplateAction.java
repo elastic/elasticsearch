@@ -32,6 +32,6 @@ public class PutIndexTemplateAction extends Action<PutIndexTemplateRequest, PutI
 
     @Override
     public PutIndexTemplateResponse newResponse() {
-        return new PutIndexTemplateResponse();
+        return new PutIndexTemplateResponse(false);
     }
 }

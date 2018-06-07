@@ -35,9 +35,6 @@ public class PutRepositoryResponse extends AcknowledgedResponse {
         declareAcknowledgedField(PARSER);
     }
 
-    PutRepositoryResponse() {
-    }
-
     PutRepositoryResponse(boolean acknowledged) {
         super(acknowledged);
     }

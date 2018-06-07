@@ -32,6 +32,6 @@ public class PutMappingAction extends Action<PutMappingRequest, PutMappingRespon
 
     @Override
     public PutMappingResponse newResponse() {
-        return new PutMappingResponse();
+        return new PutMappingResponse(false);
     }
 }

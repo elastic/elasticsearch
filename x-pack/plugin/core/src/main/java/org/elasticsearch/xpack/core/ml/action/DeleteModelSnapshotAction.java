@@ -30,7 +30,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
 
     @Override
     public DeleteModelSnapshotAction.Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class Request extends ActionRequest {
@@ -79,8 +79,6 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        public Response() {}
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {

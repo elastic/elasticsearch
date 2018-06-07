@@ -32,6 +32,6 @@ public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesA
 
     @Override
     public IndicesAliasesResponse newResponse() {
-        return new IndicesAliasesResponse();
+        return new IndicesAliasesResponse(false);
     }
 }

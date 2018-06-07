@@ -18,6 +18,6 @@ public class DeleteLicenseAction extends Action<DeleteLicenseRequest, DeleteLice
 
     @Override
     public DeleteLicenseResponse newResponse() {
-        return new DeleteLicenseResponse();
+        return new DeleteLicenseResponse(false);
     }
 }

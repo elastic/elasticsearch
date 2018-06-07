@@ -32,6 +32,6 @@ public class DeleteIndexTemplateAction extends Action<DeleteIndexTemplateRequest
 
     @Override
     public DeleteIndexTemplateResponse newResponse() {
-        return new DeleteIndexTemplateResponse();
+        return new DeleteIndexTemplateResponse(false);
     }
 }

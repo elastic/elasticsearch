@@ -56,7 +56,7 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
 
     @Override
     protected DeleteRepositoryResponse newResponse() {
-        return new DeleteRepositoryResponse();
+        return new DeleteRepositoryResponse(false);
     }
 
     @Override

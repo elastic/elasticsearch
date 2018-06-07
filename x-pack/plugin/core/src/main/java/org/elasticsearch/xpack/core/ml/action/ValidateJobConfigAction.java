@@ -33,7 +33,7 @@ public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Requ
 
     @Override
     public Response newResponse() {
-        return new Response();
+        return new Response(false);
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -113,11 +113,6 @@ public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Requ
     }
 
     public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
         public Response(boolean acknowledged) {
             super(acknowledged);
         }

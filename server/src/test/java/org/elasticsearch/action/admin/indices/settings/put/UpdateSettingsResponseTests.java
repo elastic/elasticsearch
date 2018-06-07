@@ -36,7 +36,7 @@ public class UpdateSettingsResponseTests extends AbstractStreamableXContentTestC
 
     @Override
     protected UpdateSettingsResponse createBlankInstance() {
-        return new UpdateSettingsResponse();
+        return new UpdateSettingsResponse(false);
     }
 
     @Override

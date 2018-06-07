@@ -59,7 +59,7 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
 
     @Override
     protected UpgradeSettingsResponse newResponse() {
-        return new UpgradeSettingsResponse();
+        return new UpgradeSettingsResponse(false);
     }
 
     @Override

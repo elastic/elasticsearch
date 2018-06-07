@@ -20,9 +20,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
@@ -46,7 +46,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
 
     @Override
     protected FinalizeJobExecutionAction.Response newResponse() {
-        return new FinalizeJobExecutionAction.Response();
+        return new FinalizeJobExecutionAction.Response(false);
     }
 
     @Override

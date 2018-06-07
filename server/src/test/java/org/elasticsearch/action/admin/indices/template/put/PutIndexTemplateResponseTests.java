@@ -35,7 +35,7 @@ public class PutIndexTemplateResponseTests extends AbstractStreamableXContentTes
 
     @Override
     protected PutIndexTemplateResponse createBlankInstance() {
-        return new PutIndexTemplateResponse();
+        return new PutIndexTemplateResponse(false);
     }
 
     @Override

@@ -35,7 +35,7 @@ public class DeleteRepositoryAction extends Action<DeleteRepositoryRequest, Dele
 
     @Override
     public DeleteRepositoryResponse newResponse() {
-        return new DeleteRepositoryResponse();
+        return new DeleteRepositoryResponse(false);
     }
 }
 

@@ -25,9 +25,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
  */
 public class DeleteIndexTemplateResponse extends AcknowledgedResponse {
 
-    DeleteIndexTemplateResponse() {
-    }
-
     protected DeleteIndexTemplateResponse(boolean acknowledged) {
         super(acknowledged);
     }

@@ -32,6 +32,6 @@ public class PutPipelineAction extends Action<PutPipelineRequest, WritePipelineR
 
     @Override
     public WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+        return new WritePipelineResponse(false);
     }
 }

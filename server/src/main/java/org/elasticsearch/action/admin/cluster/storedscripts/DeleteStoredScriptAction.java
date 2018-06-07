@@ -32,6 +32,6 @@ public class DeleteStoredScriptAction extends Action<DeleteStoredScriptRequest, 
 
     @Override
     public DeleteStoredScriptResponse newResponse() {
-        return new DeleteStoredScriptResponse();
+        return new DeleteStoredScriptResponse(false);
     }
 }

@@ -1068,9 +1068,9 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
      * on elastic.co</a>
      */
-    public ValidateQueryResponse validateQuery(ValidateQueryRequest validateQueryRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(validateQueryRequest, RequestConverters::validateQuery,
-            ValidateQueryResponse::fromXContent, emptySet(), headers);
+    public ValidateQueryResponse validateQuery(ValidateQueryRequest validateQueryRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(validateQueryRequest, RequestConverters::validateQuery, options,
+            ValidateQueryResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1079,9 +1079,9 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
      * on elastic.co</a>
      */
-    public void validateQueryAsync(ValidateQueryRequest validateQueryRequest,
-                                   ActionListener<ValidateQueryResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest, RequestConverters::validateQuery,
-            ValidateQueryResponse::fromXContent, listener, emptySet(), headers);
+    public void validateQueryAsync(ValidateQueryRequest validateQueryRequest, RequestOptions options,
+                                   ActionListener<ValidateQueryResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest, RequestConverters::validateQuery, options,
+            ValidateQueryResponse::fromXContent, listener, emptySet());
     }
 }

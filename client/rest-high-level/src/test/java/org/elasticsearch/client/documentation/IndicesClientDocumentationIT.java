@@ -2019,7 +2019,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::validate-query-request-rewrite
 
         // tag::validate-query-execute
-        ValidateQueryResponse response = client.indices().validateQuery(request); // <1>
+        ValidateQueryResponse response = client.indices().validateQuery(request, RequestOptions.DEFAULT); // <1>
         // end::validate-query-execute
 
         // tag::validate-query-response
@@ -2061,7 +2061,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::validate-query-execute-async
-        client.indices().validateQueryAsync(request, listener); // <1>
+        client.indices().validateQueryAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::validate-query-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

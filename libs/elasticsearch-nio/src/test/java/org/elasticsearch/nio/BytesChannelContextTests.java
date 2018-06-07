@@ -44,7 +44,7 @@ public class BytesChannelContextTests extends ESTestCase {
     private SocketChannel rawChannel;
     private BytesChannelContext context;
     private InboundChannelBuffer channelBuffer;
-    private SocketSelector selector;
+    private NioSelector selector;
     private BiConsumer<Void, Exception> listener;
     private int messageLength;
 
@@ -54,7 +54,7 @@ public class BytesChannelContextTests extends ESTestCase {
         readConsumer = mock(CheckedFunction.class);
 
         messageLength = randomInt(96) + 20;
-        selector = mock(SocketSelector.class);
+        selector = mock(NioSelector.class);
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
         rawChannel = mock(SocketChannel.class);

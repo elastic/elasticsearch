@@ -37,3 +37,35 @@
             analyzer: bengali
     - length: { tokens: 1 }
     - match:  { tokens.0.token: বার }
+
+---
+"fingerprint":
+    - do:
+        indices.analyze:
+          body:
+            text:     A1 B2 A1 D4 C3
+            analyzer: fingerprint
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: a1 b2 c3 d4 }
+
+---
+"standard_html_strip":
+    - do:
+        indices.analyze:
+          body:
+            text:     <bold/> <italic/>
+            analyzer: standard_html_strip
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: bold }
+    - match:  { tokens.1.token: italic }
+
+---
+"pattern":
+    - do:
+        indices.analyze:
+          body:
+            text:     foo bar
+            analyzer: pattern
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }

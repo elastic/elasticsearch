@@ -47,14 +47,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final ReadWriteHandler readWriteHandler;
-    private final SocketSelector selector;
+    private final NioSelector selector;
     private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
     private boolean ioException;
     private boolean peerClosed;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                    ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
@@ -64,7 +64,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     @Override
-    public SocketSelector getSelector() {
+    public NioSelector getSelector() {
         return selector;
     }
 
@@ -129,7 +129,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         WriteOperation writeOperation = readWriteHandler.createWriteOperation(this, message, listener);
 
-        SocketSelector selector = getSelector();
+        NioSelector selector = getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);
             return;

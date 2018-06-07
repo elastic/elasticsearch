@@ -24,7 +24,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -96,10 +95,6 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("Blob [" + blobName + "] already exists, cannot overwrite");
-        }
-
         SocketAccess.doPrivilegedIOException(() -> {
             if (blobSize <= blobStore.bufferSizeInBytes()) {
                 executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
@@ -154,28 +149,6 @@ class S3BlobContainer extends AbstractBlobContainer {
             });
             return blobsBuilder.immutableMap();
         });
-    }
-
-    @Override
-    public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        try {
-            CopyObjectRequest request = new CopyObjectRequest(blobStore.bucket(), buildKey(sourceBlobName),
-                blobStore.bucket(), buildKey(targetBlobName));
-
-            if (blobStore.serverSideEncryption()) {
-                ObjectMetadata objectMetadata = new ObjectMetadata();
-                objectMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
-                request.setNewObjectMetadata(objectMetadata);
-            }
-
-            SocketAccess.doPrivilegedVoid(() -> {
-                blobStore.client().copyObject(request);
-                blobStore.client().deleteObject(blobStore.bucket(), buildKey(sourceBlobName));
-            });
-
-        } catch (AmazonS3Exception e) {
-            throw new IOException(e);
-        }
     }
 
     @Override

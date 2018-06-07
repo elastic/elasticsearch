@@ -311,7 +311,6 @@ public class NoopEngine extends Engine {
 
     @Override
     public void restoreLocalCheckpointFromTranslog() {
-
     }
 
     @Override

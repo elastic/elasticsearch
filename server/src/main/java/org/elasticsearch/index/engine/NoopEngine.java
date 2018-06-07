@@ -57,7 +57,7 @@ public class NoopEngine extends Engine {
     private final IndexCommit lastCommit;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final String historyUUID;
-    private SegmentInfos lastCommittedSegmentInfos;
+    private final SegmentInfos lastCommittedSegmentInfos;
 
     public NoopEngine(EngineConfig engineConfig) {
         super(engineConfig);

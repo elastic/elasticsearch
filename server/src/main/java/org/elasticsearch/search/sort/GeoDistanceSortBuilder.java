@@ -175,8 +175,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
         validation = GeoValidationMethod.readFromStream(in);
-        // TODO: Change to 6_4_0 after backport
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             ignoreUnmapped = in.readBoolean();
         }
     }
@@ -195,8 +194,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             out.writeOptionalWriteable(nestedSort);
         }
         validation.writeTo(out);
-        // TODO: Change to 6_4_0 after backport
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeBoolean(ignoreUnmapped);
         }
     }

@@ -122,7 +122,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
 
         private void setEndTime(long endTime) {
-            this.startTime = endTime;
+            this.endTime = endTime;
         }
 
         private void setShardStatsBuilder(ShardStatsBuilder shardStatsBuilder) {
@@ -482,28 +482,20 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     @Override
-    public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final SnapshotInfo that = (SnapshotInfo) o;
-        return startTime == that.startTime && snapshotId.equals(that.snapshotId);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = snapshotId.hashCode();
-        result = 31 * result + Long.hashCode(startTime);
-        return result;
-    }
-
-    @Override
     public String toString() {
-        return "SnapshotInfo[snapshotId=" + snapshotId + ", state=" + state + ", indices=" + indices + "]";
+        return "SnapshotInfo{" +
+            "snapshotId=" + snapshotId +
+            ", state=" + state +
+            ", reason='" + reason + '\'' +
+            ", indices=" + indices +
+            ", startTime=" + startTime +
+            ", endTime=" + endTime +
+            ", totalShards=" + totalShards +
+            ", successfulShards=" + successfulShards +
+            ", includeGlobalState=" + includeGlobalState +
+            ", version=" + version +
+            ", shardFailures=" + shardFailures +
+            '}';
     }
 
     /**
@@ -614,7 +606,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
         parser.nextToken();
-        return SNAPSHOT_INFO_PARSER.apply(parser, null).build();
+        SnapshotInfo snapshotInfo = SNAPSHOT_INFO_PARSER.apply(parser, null).build();
+        parser.nextToken();
+
+        return snapshotInfo;
     }
 
     /**
@@ -776,4 +771,28 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SnapshotInfo that = (SnapshotInfo) o;
+        return startTime == that.startTime &&
+            endTime == that.endTime &&
+            totalShards == that.totalShards &&
+            successfulShards == that.successfulShards &&
+            Objects.equals(snapshotId, that.snapshotId) &&
+            state == that.state &&
+            Objects.equals(reason, that.reason) &&
+            Objects.equals(indices, that.indices) &&
+            Objects.equals(includeGlobalState, that.includeGlobalState) &&
+            Objects.equals(version, that.version) &&
+            Objects.equals(shardFailures, that.shardFailures);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(snapshotId, state, reason, indices, startTime, endTime,
+                totalShards, successfulShards, includeGlobalState, version, shardFailures);
+    }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Stores information about failures that occurred during shard snapshotting process
@@ -151,7 +152,12 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
 
     @Override
     public String toString() {
-        return shardId + " failed, reason [" + reason + "]";
+        return "SnapshotShardFailure{" +
+            "shardId=" + shardId +
+            ", reason='" + reason + '\'' +
+            ", nodeId='" + nodeId + '\'' +
+            ", status=" + status +
+            '}';
     }
 
     /**
@@ -237,5 +243,22 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
         }
         builder.field("status", status.name());
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SnapshotShardFailure that = (SnapshotShardFailure) o;
+        return Objects.equals(shardId, that.shardId) &&
+            Objects.equals(reason, that.reason) &&
+            Objects.equals(nodeId, that.nodeId) &&
+            status == that.status;
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(shardId, reason, nodeId, status);
     }
 }

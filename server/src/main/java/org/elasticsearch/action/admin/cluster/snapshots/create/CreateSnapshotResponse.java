@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Create snapshot response
@@ -100,6 +101,34 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     }
 
     public static CreateSnapshotResponse fromXContent(XContentParser parser) throws IOException {
-        return new CreateSnapshotResponse(SnapshotInfo.fromXContent(parser));
+        CreateSnapshotResponse createSnapshotResponse = new CreateSnapshotResponse();
+
+        parser.nextToken();
+        parser.nextToken();
+        createSnapshotResponse.snapshotInfo = SnapshotInfo.fromXContent(parser);
+        parser.nextToken();
+
+        return createSnapshotResponse;
+    }
+
+    @Override
+    public String toString() {
+        return "CreateSnapshotResponse{" +
+            "snapshotInfo=" + snapshotInfo +
+            '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CreateSnapshotResponse that = (CreateSnapshotResponse) o;
+        return Objects.equals(snapshotInfo, that.snapshotInfo);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(snapshotInfo);
     }
 }

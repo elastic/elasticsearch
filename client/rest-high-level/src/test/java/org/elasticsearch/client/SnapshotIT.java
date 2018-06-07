@@ -30,9 +30,13 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -110,5 +114,20 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
             highLevelClient().snapshot()::verifyRepositoryAsync);
         assertThat(response.getNodes().size(), equalTo(1));
+    }
+
+    private CreateSnapshotResponse createTestSnapshot(String repository, String snapshot, String settings) throws IOException {
+        // assumes the repository already exists
+        CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshot);
+        request.settings(settings, XContentType.JSON);
+        return execute(request, highLevelClient().snapshot()::createSnapshot,
+            highLevelClient().snapshot()::createSnapshotAsync);
+    }
+
+    public void testCreateSnapshot() throws IOException {
+        assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
+
+        CreateSnapshotResponse response = createTestSnapshot("test", "snapshot-test", "{}");
+        assertEquals(response.status(), RestStatus.ACCEPTED);
     }
 }

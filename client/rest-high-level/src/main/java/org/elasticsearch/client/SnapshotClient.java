@@ -29,6 +29,8 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 
 import java.io.IOException;
 
@@ -141,5 +143,29 @@ public final class SnapshotClient {
                                       ActionListener<VerifyRepositoryResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository,
             VerifyRepositoryResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Creates a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public CreateSnapshotResponse createSnapshot(CreateSnapshotRequest createSnapshotRequest, Header... headers)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(createSnapshotRequest, RequestConverters::createSnapshot,
+            CreateSnapshotResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously creates a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public void createSnapshotAsync(CreateSnapshotRequest createSnapshotRequest,
+                                      ActionListener<CreateSnapshotResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(createSnapshotRequest, RequestConverters::createSnapshot,
+            CreateSnapshotResponse::fromXContent, listener, emptySet(), headers);
     }
 }

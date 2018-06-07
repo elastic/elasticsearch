@@ -103,10 +103,14 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     public static CreateSnapshotResponse fromXContent(XContentParser parser) throws IOException {
         CreateSnapshotResponse createSnapshotResponse = new CreateSnapshotResponse();
 
-        parser.nextToken();
-        parser.nextToken();
-        createSnapshotResponse.snapshotInfo = SnapshotInfo.fromXContent(parser);
-        parser.nextToken();
+        parser.nextToken(); // '{'
+        parser.nextToken(); // 'snapshot' || 'accepted'
+
+        if ("snapshot".equals(parser.currentName())) {
+            createSnapshotResponse.snapshotInfo = SnapshotInfo.fromXContent(parser);
+        }
+
+        parser.nextToken(); // '}'
 
         return createSnapshotResponse;
     }

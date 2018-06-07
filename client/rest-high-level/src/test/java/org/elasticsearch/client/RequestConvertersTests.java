@@ -35,6 +35,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -1718,6 +1719,21 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = RequestConverters.verifyRepository(verifyRepositoryRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
+    public void testCreateSnapshot() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot = "snapshot-" + generateRandomStringArray(1, randomInt(10), false, false)[0];
+        String endpoint = "/_snapshot/" + repository + "/" + snapshot;
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        setRandomMasterTimeout(createSnapshotRequest, expectedParams);
+
+        Request request = RequestConverters.createSnapshot(createSnapshotRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
     }
 

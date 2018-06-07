@@ -29,6 +29,8 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -36,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -364,5 +367,41 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         request.type(FsRepository.TYPE);
         request.settings("{\"location\": \".\"}", XContentType.JSON);
         assertTrue(highLevelClient().snapshot().createRepository(request).isAcknowledged());
+    }
+
+    private static final String snapshotName = "test_snapshot";
+
+    public void testSnapshotCreateSnapshot() throws IOException {
+        createTestRepositories();
+
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::create-snapshot-request
+        CreateSnapshotRequest request = new CreateSnapshotRequest();
+        // end::create-snapshot-request
+
+        // tag::create-snapshot-request-repositoryName
+        request.repository(repositoryName); // <1>
+        // end::create-snapshot-request-repositoryName
+        // tag::create-snapshot-request-snapshotName
+        request.snapshot(snapshotName); // <1>
+        // end::create-snapshot-request-snapshotName
+
+        // tag::create-snapshot-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::create-snapshot-request-masterTimeout
+        // tag::create-snapshot-request-waitForCompletion
+        request.waitForCompletion(false); // <1>
+        // end::create-snapshot-request-WaitForCompletion
+
+        // tag::create-snapshot-execute
+        CreateSnapshotResponse response = client.snapshot().createSnapshot(request);
+        // end::create-snapshot-execute
+
+        // tag::create-repository-response
+        RestStatus status = response.status();
+        // end::create-repository-response
+        assertEquals(RestStatus.ACCEPTED, status);
     }
 }

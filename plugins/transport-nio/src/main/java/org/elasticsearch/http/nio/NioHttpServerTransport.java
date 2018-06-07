@@ -137,15 +137,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         ByteSizeValue maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         ByteSizeValue maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         int pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
-        this.httpHandlingSettings = new HttpHandlingSettings(Math.toIntExact(maxContentLength.getBytes()),
-            Math.toIntExact(maxChunkSize.getBytes()),
-            Math.toIntExact(maxHeaderSize.getBytes()),
-            Math.toIntExact(maxInitialLineLength.getBytes()),
-            SETTING_HTTP_RESET_COOKIES.get(settings),
-            SETTING_HTTP_COMPRESSION.get(settings),
-            SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
-            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
-            pipeliningMaxEvents);
+        this.httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);;
         this.corsConfig = buildCorsConfig(settings);
 
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);

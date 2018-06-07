@@ -250,6 +250,10 @@ public abstract class RestRequest implements ToXContent.Params {
         return params;
     }
 
+    public List<String> strictCookies() {
+        return Collections.emptyList();
+    }
+
     /**
      * Returns a list of parameters that have been consumed. This method returns a copy, callers
      * are free to modify the returned list.

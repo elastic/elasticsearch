@@ -59,11 +59,11 @@ import java.util.function.BiConsumer;
 public class NioHttpChannel extends AbstractRestChannel {
 
     private final BigArrays bigArrays;
-    private final int sequence;
     private final NioCorsConfig corsConfig;
     private final ThreadContext threadContext;
     private final FullHttpRequest nettyRequest;
     private final NioSocketChannel nioChannel;
+    private final int sequence;
     private final boolean resetCookies;
 
     NioHttpChannel(NioSocketChannel nioChannel, BigArrays bigArrays, NioHttpRequest request, int sequence,

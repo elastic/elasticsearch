@@ -48,7 +48,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 
-public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements org.elasticsearch.http.HttpServerTransport {
+public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
     protected final NetworkService networkService;
     protected final ThreadPool threadPool;

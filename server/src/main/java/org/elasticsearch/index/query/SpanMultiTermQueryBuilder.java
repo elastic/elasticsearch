@@ -19,6 +19,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -26,11 +29,15 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.ScoringRewrite;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +49,8 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -49,12 +58,10 @@ import java.util.Objects;
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
 public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder>
-        implements SpanQueryBuilder {
+    implements SpanQueryBuilder {
 
     public static final String NAME = "span_multi";
-
     private static final ParseField MATCH_FIELD = new ParseField("match");
-
     private final MultiTermQueryBuilder multiTermQueryBuilder;
 
     public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
@@ -83,7 +90,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params)
-            throws IOException {
+        throws IOException {
         builder.startObject(NAME);
         builder.field(MATCH_FIELD.getPreferredName());
         multiTermQueryBuilder.toXContent(builder, params);
@@ -105,7 +112,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof MultiTermQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
+                            "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
                     }
                     subQuery = (MultiTermQueryBuilder) query;
                 } else {
@@ -124,10 +131,53 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
         if (subQuery == null) {
             throw new ParsingException(parser.getTokenLocation(),
-                    "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
+                "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
         }
 
         return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
+    }
+
+    public static class TopTermSpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrapper.SpanRewriteMethod {
+
+        private MultiTermQuery multiTermQuery;
+        private final long maxExpansions;
+
+        TopTermSpanBooleanQueryRewriteWithMaxClause(long max) {
+            maxExpansions = max;
+        }
+
+        @Override
+        public SpanQuery rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
+            multiTermQuery = query;
+            return (SpanQuery) this.delegate.rewrite(reader, multiTermQuery);
+        }
+
+        final ScoringRewrite<List<SpanQuery>> delegate = new ScoringRewrite<List<SpanQuery>>() {
+
+            @Override
+            protected List<SpanQuery> getTopLevelBuilder() {
+                return new ArrayList();
+            }
+
+            @Override
+            protected Query build(List<SpanQuery> builder) {
+                return new SpanOrQuery((SpanQuery[]) builder.toArray(new SpanQuery[builder.size()]));
+            }
+
+            @Override
+            protected void checkMaxClauseCount(int count) {
+                if (count > maxExpansions) {
+                    throw new ElasticsearchException("[" + multiTermQuery.toString() + " ] " +
+                        "exceeds maxClauseCount [ Boolean maxClauseCount is set to " + BooleanQuery.getMaxClauseCount() + "]");
+                }
+            }
+
+            @Override
+            protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermContext states) {
+                SpanTermQuery q = new SpanTermQuery(term, states);
+                topLevel.add(q);
+            }
+        };
     }
 
     @Override
@@ -190,10 +240,15 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName());
             }
             spanQuery = new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
+            if (((MultiTermQuery) subQuery).getRewriteMethod() instanceof TopTermsRewrite == false) {
+                ((SpanMultiTermQueryWrapper<MultiTermQuery>) spanQuery).setRewriteMethod(new
+                    TopTermSpanBooleanQueryRewriteWithMaxClause(BooleanQuery.getMaxClauseCount()));
+            }
         }
         if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
             return new SpanBoostQuery(spanQuery, boost);
         }
+
         return spanQuery;
     }
 

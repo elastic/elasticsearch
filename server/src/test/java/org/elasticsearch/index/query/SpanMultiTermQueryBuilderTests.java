@@ -34,7 +34,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -237,5 +236,39 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
         assertEquals(json, "ki", ((PrefixQueryBuilder) parsed.innerQuery()).value());
         assertEquals(json, 1.08, parsed.innerQuery().boost(), 0.0001);
+    }
+
+    public void testDefaultMaxRewriteBuilder() throws Exception {
+        Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("foo", "b")).
+            toQuery(createShardContext());
+
+        if (query instanceof SpanBoostQuery) {
+            query = ((SpanBoostQuery)query).getQuery();
+        }
+
+        assertTrue(query instanceof SpanMultiTermQueryWrapper);
+        if (query instanceof SpanMultiTermQueryWrapper) {
+            MultiTermQuery.RewriteMethod rewriteMethod = ((SpanMultiTermQueryWrapper)query).getRewriteMethod();
+            assertTrue(rewriteMethod instanceof SpanMultiTermQueryBuilder.TopTermSpanBooleanQueryRewriteWithMaxClause);
+        }
+
+    }
+
+    public void testTopNMultiTermsRewriteInsideSpan() throws Exception {
+
+        Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("foo", "b").rewrite
+            ("top_terms_boost_2000")).
+            toQuery(createShardContext());
+
+        if (query instanceof SpanBoostQuery) {
+            query = ((SpanBoostQuery)query).getQuery();
+        }
+
+        assertTrue(query instanceof SpanMultiTermQueryWrapper);
+        if (query instanceof SpanMultiTermQueryWrapper) {
+            MultiTermQuery.RewriteMethod rewriteMethod = ((SpanMultiTermQueryWrapper)query).getRewriteMethod();
+            assertFalse(rewriteMethod instanceof SpanMultiTermQueryBuilder.TopTermSpanBooleanQueryRewriteWithMaxClause);
+        }
+
     }
 }

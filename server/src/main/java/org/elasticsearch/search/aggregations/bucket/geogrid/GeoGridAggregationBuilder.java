@@ -65,9 +65,12 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     static {
         PARSER = new ConstructingObjectParser<>(GeoGridAggregationBuilder.NAME, false,
-            (a, name) -> new GeoGridAggregationBuilder(name, (String) a[0]));
+            (a, name) -> new GeoGridAggregationBuilder(name, (GeoHashType) a[0]));
 
-        PARSER.declareString(optionalConstructorArg(), GeoHashGridParams.FIELD_TYPE);
+        PARSER.declareField(optionalConstructorArg(),
+            GeoGridAggregationBuilder::parseType,
+            GeoHashGridParams.FIELD_TYPE,
+            ObjectParser.ValueType.STRING);
         PARSER.declareField(
             GeoGridAggregationBuilder::precisionRaw,
             GeoGridAggregationBuilder::parsePrecision,
@@ -105,13 +108,9 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     private int requiredSize = DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;
 
-    public GeoGridAggregationBuilder(String name, String type) {
-        this(name, parseType(type, name));
-    }
-
     public GeoGridAggregationBuilder(String name, GeoHashType type) {
         super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-        this.type = type;
+        this.type = type == null ? GeoHashType.DEFAULT : type;
         this.precision = type.getHandler().getDefaultPrecision();
     }
 
@@ -133,6 +132,10 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
      */
     public GeoGridAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+
+        // type will not be deserialized for the older stream versions
+        // We do not do backward compatibility here because it is needed
+        // in multiple places, and could get out of sync
         type = GeoHashType.readFromStream(in);
         precision = in.readVInt();
         requiredSize = in.readVInt();
@@ -141,15 +144,19 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
+        // type will not be serialized for the older stream versions
+        // We do not do backward compatibility here because it is needed
+        // in multiple places, and could get out of sync
         type.writeTo(out);
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
     }
 
-    private static GeoHashType parseType(String type, String name) {
+    private static GeoHashType parseType(XContentParser parser, String name) throws IOException {
+        String type = parser.text();
         try {
-            return type == null ? GeoHashType.DEFAULT : GeoHashType.forString(type);
+            return GeoHashType.forString(type);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                 "[type] is not valid. Allowed values: " +

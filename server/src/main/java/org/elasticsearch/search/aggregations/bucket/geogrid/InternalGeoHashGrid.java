@@ -64,6 +64,9 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
          * Read from a stream.
          */
         private Bucket(StreamInput in) throws IOException {
+            // type will not be deserialized for the older stream versions
+            // We do not do backward compatibility here because it is needed
+            // in multiple places, and could get out of sync
             type = GeoHashType.readFromStream(in);
             geohashAsLong = in.readLong();
             docCount = in.readVLong();
@@ -72,6 +75,9 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            // type will not be serialized for the older stream versions
+            // We do not do backward compatibility here because it is needed
+            // in multiple places, and could get out of sync
             type.writeTo(out);
             out.writeLong(geohashAsLong);
             out.writeVLong(docCount);

@@ -20,8 +20,6 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -39,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -81,7 +78,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             assertThat(listener.afterCounts.get(), equalTo(1));
             assertThat(listener.bulkFailures.size(), equalTo(0));
             assertResponseItems(listener.bulkItems, numDocs);
-            assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest), numDocs);
+            assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest, RequestOptions.DEFAULT), numDocs);
         }
     }
 
@@ -107,7 +104,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             assertThat(listener.afterCounts.get(), equalTo(1));
             assertThat(listener.bulkFailures.size(), equalTo(0));
             assertResponseItems(listener.bulkItems, numDocs);
-            assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest), numDocs);
+            assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest, RequestOptions.DEFAULT), numDocs);
         }
     }
 
@@ -159,7 +156,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             assertThat(ids.add(bulkItemResponse.getId()), equalTo(true));
         }
 
-        assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest), numDocs);
+        assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest, RequestOptions.DEFAULT), numDocs);
     }
 
     public void testBulkProcessorWaitOnClose() throws Exception {
@@ -190,7 +187,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         }
         assertThat(listener.bulkFailures.size(), equalTo(0));
         assertResponseItems(listener.bulkItems, numDocs);
-        assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest), numDocs);
+        assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest, RequestOptions.DEFAULT), numDocs);
     }
 
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
@@ -267,7 +264,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest), testDocs);
+        assertMultiGetResponse(highLevelClient().multiGet(multiGetRequest, RequestOptions.DEFAULT), testDocs);
     }
 
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) throws Exception {

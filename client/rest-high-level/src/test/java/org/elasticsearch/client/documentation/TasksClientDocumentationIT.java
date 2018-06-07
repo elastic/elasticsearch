@@ -23,10 +23,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -90,7 +93,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         ListTasksRequest request = new ListTasksRequest();
 
         // tag::list-tasks-execute
-        ListTasksResponse response = client.tasks().list(request);
+        ListTasksResponse response = client.tasks().list(request, RequestOptions.DEFAULT);
         // end::list-tasks-execute
 
         assertThat(response, notNullValue());
@@ -139,8 +142,78 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::list-tasks-execute-async
-            client.tasks().listAsync(request, listener); // <1>
+            client.tasks().listAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::list-tasks-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testCancelTasks() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::cancel-tasks-request
+            CancelTasksRequest request = new CancelTasksRequest();
+            // end::cancel-tasks-request
+
+            // tag::cancel-tasks-request-filter
+            request.setTaskId(new TaskId("nodeId1", 42)); //<1>
+            request.setActions("cluster:*"); // <2>
+            request.setNodes("nodeId1", "nodeId2"); // <3>
+            // end::cancel-tasks-request-filter
+
+        }
+
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTaskId(TaskId.EMPTY_TASK_ID);
+
+        // tag::cancel-tasks-execute
+        CancelTasksResponse response = client.tasks().cancel(request, RequestOptions.DEFAULT);
+        // end::cancel-tasks-execute
+
+        assertThat(response, notNullValue());
+
+        // tag::cancel-tasks-response-tasks
+        List<TaskInfo> tasks = response.getTasks(); // <1>
+        // end::cancel-tasks-response-tasks
+
+
+        // tag::cancel-tasks-response-failures
+        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
+        List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
+        // end::-tasks-response-failures
+
+        assertThat(response.getNodeFailures(), equalTo(emptyList()));
+        assertThat(response.getTaskFailures(), equalTo(emptyList()));
+    }
+
+    public void testAsyncCancelTasks() throws InterruptedException {
+
+        RestHighLevelClient client = highLevelClient();
+        {
+            CancelTasksRequest request = new CancelTasksRequest();
+
+            // tag::cancel-tasks-execute-listener
+            ActionListener<CancelTasksResponse> listener =
+                new ActionListener<CancelTasksResponse>() {
+                    @Override
+                    public void onResponse(CancelTasksResponse response) {
+                        // <1>
+                    }
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::cancel-tasks-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::cancel-tasks-execute-async
+            client.tasks().cancelAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::cancel-tasks-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

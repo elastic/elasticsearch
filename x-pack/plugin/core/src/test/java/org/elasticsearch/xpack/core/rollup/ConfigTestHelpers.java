@@ -27,8 +27,9 @@ public class ConfigTestHelpers {
         builder.setId(jobId);
         builder.setCron(getCronString());
         builder.setTimeout(new TimeValue(ESTestCase.randomIntBetween(1,100)));
-        builder.setIndexPattern(ESTestCase.randomAlphaOfLengthBetween(1,10));
-        builder.setRollupIndex(ESTestCase.randomAlphaOfLengthBetween(1,10));
+        String indexPattern = ESTestCase.randomAlphaOfLengthBetween(1,10);
+        builder.setIndexPattern(indexPattern);
+        builder.setRollupIndex("rollup_" + indexPattern); // to ensure the index pattern != rollup index
         builder.setGroupConfig(ConfigTestHelpers.getGroupConfig().build());
         builder.setPageSize(ESTestCase.randomIntBetween(1,10));
         if (ESTestCase.randomBoolean()) {

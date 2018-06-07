@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -28,10 +27,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -77,9 +73,6 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
-import org.mockito.internal.matchers.ArrayEquals;
-import org.mockito.internal.matchers.VarargMatcher;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
@@ -124,25 +117,22 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testPingSuccessful() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.OK));
         when(restClient.performRequest(any(Request.class))).thenReturn(response);
-        assertTrue(restHighLevelClient.ping(headers));
+        assertTrue(restHighLevelClient.ping(RequestOptions.DEFAULT));
     }
 
     public void testPing404NotFound() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.NOT_FOUND));
         when(restClient.performRequest(any(Request.class))).thenReturn(response);
-        assertFalse(restHighLevelClient.ping(headers));
+        assertFalse(restHighLevelClient.ping(RequestOptions.DEFAULT));
     }
 
     public void testPingSocketTimeout() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         when(restClient.performRequest(any(Request.class))).thenThrow(new SocketTimeoutException());
-        expectThrows(SocketTimeoutException.class, () -> restHighLevelClient.ping(headers));
+        expectThrows(SocketTimeoutException.class, () -> restHighLevelClient.ping(RequestOptions.DEFAULT));
     }
 
     public void testInfo() throws IOException {
@@ -150,18 +140,17 @@ public class RestHighLevelClientTests extends ESTestCase {
         MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
                 Build.CURRENT);
         mockResponse(testInfo);
-        MainResponse receivedInfo = restHighLevelClient.info(headers);
+        MainResponse receivedInfo = restHighLevelClient.info(RequestOptions.DEFAULT);
         assertEquals(testInfo, receivedInfo);
     }
 
     public void testSearchScroll() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
                 null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         mockResponse(mockSearchResponse);
-        SearchResponse searchResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)),
-                headers);
+        SearchResponse searchResponse = restHighLevelClient.searchScroll(
+                new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)), RequestOptions.DEFAULT);
         assertEquals(mockSearchResponse.getScrollId(), searchResponse.getScrollId());
         assertEquals(0, searchResponse.getHits().totalHits);
         assertEquals(5, searchResponse.getTotalShards());
@@ -170,12 +159,11 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testClearScroll() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         ClearScrollResponse mockClearScrollResponse = new ClearScrollResponse(randomBoolean(), randomIntBetween(0, Integer.MAX_VALUE));
         mockResponse(mockClearScrollResponse);
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
-        ClearScrollResponse clearScrollResponse = restHighLevelClient.clearScroll(clearScrollRequest, headers);
+        ClearScrollResponse clearScrollResponse = restHighLevelClient.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
         assertEquals(mockClearScrollResponse.isSucceeded(), clearScrollResponse.isSucceeded());
         assertEquals(mockClearScrollResponse.getNumFreed(), clearScrollResponse.getNumFreed());
     }

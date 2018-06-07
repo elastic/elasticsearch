@@ -42,6 +42,8 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<feature>>::       Record numeric features to boost hits at query time.
 
+<<feature-vector>>:: Record numeric feature vectors to boost hits at query time.
+
 [float]
 === Multi-fields
 
@@ -90,4 +92,4 @@ include::types/parent-join.asciidoc[]
 
 include::types/feature.asciidoc[]
 
-
+include::types/feature-vector.asciidoc[]

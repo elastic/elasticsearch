@@ -44,7 +44,6 @@ public class NoopEngineTests extends EngineTestCase {
         expectThrows(UnsupportedOperationException.class, engine::deactivateThrottling);
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
-        assertThat(engine.isNoopEngine(), equalTo(true));
         engine.close();
     }
 

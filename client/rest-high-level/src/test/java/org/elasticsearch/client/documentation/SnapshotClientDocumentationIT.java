@@ -394,6 +394,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // tag::create-snapshot-request-indices-options
         request.indicesOptions(IndicesOptions.fromOptions(false, false, true, true)); // <1>
         // end::create-snapshot-request-indices-options
+        // tag::create-snapshot-request-partial
+        request.partial(false); // <1>
+        // end::create-snapshot-request-partial
+        // tag::create-snapshot-request-include-global-state
+        request.includeGlobalState(true); // <1>
+        // end::create-snapshot-request-include-global-state
 
         // tag::create-snapshot-request-masterTimeout
         request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
@@ -404,13 +410,46 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-request-WaitForCompletion
 
         // tag::create-snapshot-execute
-        CreateSnapshotResponse response = client.snapshot().createSnapshot(request);
+        CreateSnapshotResponse response = client.snapshot().createSnapshot(request, RequestOptions.DEFAULT);
         // end::create-snapshot-execute
 
-        // tag::create-repository-response
+        // tag::create-snapshot-response
         RestStatus status = response.status();
-        // end::create-repository-response
+        // end::create-snapshot-response
 
         assertEquals(RestStatus.ACCEPTED, status);
+    }
+
+
+    public void testCreateSnapshotRepositoryAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            CreateSnapshotRequest request = new CreateSnapshotRequest(repositoryName, snapshotName);
+
+            // tag::create-snapshot-execute-listener
+            ActionListener<CreateSnapshotResponse> listener =
+                new ActionListener<CreateSnapshotResponse>() {
+                    @Override
+                    public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <2>
+                    }
+                };
+            // end::create-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::create-snapshot-execute-async
+            client.snapshot().createSnapshotAsync(request, listener, RequestOptions.DEFAULT); // <1>
+            // end::create-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

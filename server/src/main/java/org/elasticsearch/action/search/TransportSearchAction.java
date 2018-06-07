@@ -340,19 +340,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             return searchTransportService.getConnection(clusterName, discoveryNode);
         };
-        if (searchRequest.isMaxConcurrentShardRequestsSet() == false && shardIterators.size() > 0) {
+        if (searchRequest.isMaxConcurrentShardRequestsSet() == false) {
             /*
              * We try to set a default of max concurrent shard requests based on the node count but upper-bound it by 256 by default to keep
              * it sane. A single search request that fans out to lots of shards should not hit a cluster too hard while 256 is already a
              * lot.
-             * Yet we are still trying to guarantee some concurrency ie. if you have an index size of N shards and you are searching a
-             * single index on a single node we still search it concurrently.
              */
-            final int numShards = shardIterators.size();
-            final int numIndices = remoteClusterIndices.size() + concreteIndices.length;
-            assert numShards >= numIndices : "found schroedingers index numShards: " + numShards + " vs. numIndices: " + numIndices;
-            assert numIndices > 0;
-            searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount * (numShards / numIndices)));
+            // we use nodeCount * 5 as we used to default this to the default number of shard which used to be 5.
+            searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount * 5));
         }
         boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),

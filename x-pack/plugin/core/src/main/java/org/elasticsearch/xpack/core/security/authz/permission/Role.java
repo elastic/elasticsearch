@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
@@ -29,12 +31,14 @@ public final class Role {
     private final String[] names;
     private final ClusterPermission cluster;
     private final IndicesPermission indices;
+    private final ApplicationPermission application;
     private final RunAsPermission runAs;
 
-    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, RunAsPermission runAs) {
+    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
+        this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
     }
 
@@ -48,6 +52,10 @@ public final class Role {
 
     public IndicesPermission indices() {
         return indices;
+    }
+
+    public ApplicationPermission application() {
+        return application;
     }
 
     public RunAsPermission runAs() {
@@ -74,7 +82,7 @@ public final class Role {
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
                                           FieldPermissionsCache fieldPermissionsCache) {
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
-                action, requestedIndicesOrAliases, metaData, fieldPermissionsCache
+            action, requestedIndicesOrAliases, metaData, fieldPermissionsCache
         );
 
         // At least one role / indices permission set need to match with all the requested indices/aliases:
@@ -95,6 +103,7 @@ public final class Role {
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private FieldPermissionsCache fieldPermissionsCache = null;
+        private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
 
         private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
             this.names = names;
@@ -102,7 +111,7 @@ public final class Role {
         }
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache) {
-            this.names = new String[] { rd.getName() };
+            this.names = new String[]{rd.getName()};
             this.fieldPermissionsCache = fieldPermissionsCache;
             if (rd.getClusterPrivileges().length == 0) {
                 cluster = ClusterPermission.NONE;
@@ -110,6 +119,12 @@ public final class Role {
                 this.cluster(ClusterPrivilege.get(Sets.newHashSet(rd.getClusterPrivileges())));
             }
             groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));
+
+            final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = rd.getApplicationPrivileges();
+            for (int i = 0; i < applicationPrivileges.length; i++) {
+                applicationPrivs.add(convertApplicationPrivilege(rd.getName(), i, applicationPrivileges[i]));
+            }
+
             String[] rdRunAs = rd.getRunAs();
             if (rdRunAs != null && rdRunAs.length > 0) {
                 this.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
@@ -136,10 +151,17 @@ public final class Role {
             return this;
         }
 
+        public Builder addApplicationPrivilege(ApplicationPrivilege privilege, Set<String> resources) {
+            applicationPrivs.add(new Tuple<>(privilege, resources));
+            return this;
+        }
+
         public Role build() {
             IndicesPermission indices = groups.isEmpty() ? IndicesPermission.NONE :
-                    new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
-            return new Role(names, cluster, indices, runAs);
+                new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
+            final ApplicationPermission applicationPermission
+                = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
+            return new Role(names, cluster, indices, applicationPermission, runAs);
         }
 
         static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
@@ -151,16 +173,24 @@ public final class Role {
                     fieldPermissions = fieldPermissionsCache.getFieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields());
                 } else {
                     fieldPermissions = new FieldPermissions(
-                            new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields()));
+                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields()));
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
                 list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                        fieldPermissions,
-                        query,
-                        privilege.getIndices()));
+                    fieldPermissions,
+                    query,
+                    privilege.getIndices()));
 
             }
             return list;
+        }
+
+        static Tuple<ApplicationPrivilege, Set<String>> convertApplicationPrivilege(String role, int index,
+                                                                                    RoleDescriptor.ApplicationResourcePrivileges arp) {
+            return new Tuple<>(new ApplicationPrivilege(arp.getApplication(),
+                "role." + role.replaceAll("[^a-zA-Z0-9]", "") + "." + index,
+                arp.getPrivileges()
+            ), Sets.newHashSet(arp.getResources()));
         }
     }
 }

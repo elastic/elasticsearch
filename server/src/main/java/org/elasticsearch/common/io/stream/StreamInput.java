@@ -59,6 +59,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
@@ -70,6 +71,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
@@ -932,8 +934,23 @@ public abstract class StreamInput extends InputStream {
      * Reads a list of objects
      */
     public <T> List<T> readList(Writeable.Reader<T> reader) throws IOException {
+        return readCollection(reader, ArrayList::new);
+    }
+
+    /**
+     * Reads a set of objects
+     */
+    public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
+        return readCollection(reader, HashSet::new);
+    }
+
+    /**
+     * Reads a collection of objects
+     */
+    private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader,
+                                                                  IntFunction<C> constructor) throws IOException {
         int count = readArraySize();
-        List<T> builder = new ArrayList<>(count);
+        C builder = constructor.apply(count);
         for (int i=0; i<count; i++) {
             builder.add(reader.read(this));
         }

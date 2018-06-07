@@ -56,7 +56,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     /**
      * Check whether the given request is allowed within the current license state and setup,
      * and return the name of any unlicensed feature.
-     * By default this returns an exception is security is not available by the current license or
+     * By default this returns an exception if security is not available by the current license or
      * security is not enabled.
      * Sub-classes can override this method if they have additional requirements.
      *

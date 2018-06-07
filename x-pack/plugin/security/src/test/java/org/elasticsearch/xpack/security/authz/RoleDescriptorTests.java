@@ -22,6 +22,11 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class RoleDescriptorTests extends ESTestCase {
@@ -45,9 +50,18 @@ public class RoleDescriptorTests extends ESTestCase {
                         .query("{\"query\": {\"match_all\": {}}}")
                         .build()
         };
-        RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, new String[] { "sudo" });
+        final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application("my_app")
+                .privileges("read", "write")
+                .resources("*")
+                .build()
+        };
+        RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
+            new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none], indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], " +
                 "privileges=[read], field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
+                ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
                 ", runAs=[sudo], metadata=[{}]]"));
     }
 
@@ -60,8 +74,16 @@ public class RoleDescriptorTests extends ESTestCase {
                         .query("{\"query\": {\"match_all\": {}}}")
                         .build()
         };
+        final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application("my_app")
+                .privileges("read", "write")
+                .resources("*")
+                .build()
+        };
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
-        RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, new String[] { "sudo" }, metadata);
+        RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
+            new String[]{ "sudo" }, metadata, Collections.emptyMap());
         XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
         assertEquals(parsed, descriptor);
@@ -113,6 +135,43 @@ public class RoleDescriptorTests extends ESTestCase {
         assertNotNull(rd.getMetadata());
         assertThat(rd.getMetadata().size(), is(1));
         assertThat(rd.getMetadata().get("foo"), is("bar"));
+
+        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"]," +
+                " \"index\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"]}]," +
+                " \"applications\": [" +
+                "     {\"resources\": [\"object-123\",\"object-456\"], \"privileges\":[\"read\", \"delete\"], \"application\":\"app1\"}," +
+                "     {\"resources\": [\"*\"], \"privileges\":[\"admin\"], \"application\":\"app2\" }" +
+                "] }";
+        rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
+        assertThat(rd.getName(), equalTo("test"));
+        assertThat(rd.getClusterPrivileges(), arrayContaining("a", "b"));
+        assertThat(rd.getIndicesPrivileges().length, equalTo(1));
+        assertThat(rd.getIndicesPrivileges()[0].getIndices(), arrayContaining("idx1", "idx2"));
+        assertThat(rd.getRunAs(), arrayContaining("m", "n"));
+        assertThat(rd.getIndicesPrivileges()[0].getQuery(), nullValue());
+        assertThat(rd.getApplicationPrivileges().length, equalTo(2));
+        assertThat(rd.getApplicationPrivileges()[0].getResources(), arrayContaining("object-123", "object-456"));
+        assertThat(rd.getApplicationPrivileges()[0].getPrivileges(), arrayContaining("read", "delete"));
+        assertThat(rd.getApplicationPrivileges()[0].getApplication(), equalTo("app1"));
+        assertThat(rd.getApplicationPrivileges()[1].getResources(), arrayContaining("*"));
+        assertThat(rd.getApplicationPrivileges()[1].getPrivileges(), arrayContaining("admin"));
+        assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
+
+        q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
+        rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
+        assertThat(rd.getName(), equalTo("test"));
+        assertThat(rd.getClusterPrivileges(), emptyArray());
+        assertThat(rd.getIndicesPrivileges(), emptyArray());
+        assertThat(rd.getApplicationPrivileges().length, equalTo(1));
+        assertThat(rd.getApplicationPrivileges()[0].getResources(), arrayContaining("*"));
+        assertThat(rd.getApplicationPrivileges()[0].getPrivileges(), arrayContaining("login"));
+        assertThat(rd.getApplicationPrivileges()[0].getApplication(), equalTo("myapp"));
+
+        final String badJson
+                = "{\"applications\":[{\"not_supported\": true, \"resources\": [\"*\"], \"privileges\": [\"my-app:login\" ]}] }";
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> RoleDescriptor.parse("test", new BytesArray(badJson), false, XContentType.JSON));
+        assertThat(ex.getMessage(), containsString("not_supported"));
     }
 
     public void testSerialization() throws Exception {

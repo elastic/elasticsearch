@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -32,10 +33,11 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+    private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
-    
+
     public PutRoleRequest() {
     }
 
@@ -72,6 +74,17 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 .grantedFields(grantedFields)
                 .deniedFields(deniedFields)
                 .query(query)
+                .build());
+    }
+
+    void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
+        this.applicationPrivileges.addAll(Arrays.asList(privileges));
+    }
+
+    public void addApplicationPrivilege(String[] privileges, String[] resources) {
+        this.applicationPrivileges.add(RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .resources(resources)
+                .privileges(privileges)
                 .build());
     }
 
@@ -151,7 +164,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return new RoleDescriptor(name,
                 clusterPrivileges,
                 indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
+                applicationPrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[applicationPrivileges.size()]),
                 runAs,
-                metadata);
+                metadata,
+                Collections.emptyMap());
     }
 }

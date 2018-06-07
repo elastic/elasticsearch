@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.MaintenanceMode;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 
 import java.util.Collections;
 
@@ -22,29 +22,29 @@ public class MaintenanceModeUpdateTaskTests extends ESTestCase {
 
     public void testExecute() {
         // assert can change out of OUT
-        MaintenanceMode currentMode = MaintenanceMode.OUT;
-        MaintenanceMode requestedMode = randomValueOtherThan(currentMode, () -> randomFrom(MaintenanceMode.values()));
-        MaintenanceMode newMode = executeUpdate(currentMode, requestedMode, false);
+        OperationMode currentMode = OperationMode.NORMAL;
+        OperationMode requestedMode = randomValueOtherThan(currentMode, () -> randomFrom(OperationMode.values()));
+        OperationMode newMode = executeUpdate(currentMode, requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
 
-        currentMode = MaintenanceMode.REQUESTED;
-        requestedMode = randomValueOtherThan(currentMode, () -> randomFrom(MaintenanceMode.values()));
+        currentMode = OperationMode.MAINTENANCE_REQUESTED;
+        requestedMode = randomValueOtherThan(currentMode, () -> randomFrom(OperationMode.values()));
         newMode = executeUpdate(currentMode, requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
 
         // assert no change when changing to the same mode
-        currentMode = randomFrom(MaintenanceMode.values());
+        currentMode = randomFrom(OperationMode.values());
         requestedMode = currentMode;
         newMode = executeUpdate(currentMode, currentMode, true);
         assertThat(newMode, equalTo(requestedMode));
 
 
         // assert no change when requesting to be put in maintenance-mode, but already in it
-        newMode = executeUpdate(MaintenanceMode.IN, MaintenanceMode.REQUESTED, true);
-        assertThat(newMode, equalTo(MaintenanceMode.IN));
+        newMode = executeUpdate(OperationMode.MAINTENANCE, OperationMode.MAINTENANCE_REQUESTED, true);
+        assertThat(newMode, equalTo(OperationMode.MAINTENANCE));
     }
 
-    private MaintenanceMode executeUpdate(MaintenanceMode currentMode, MaintenanceMode requestMode, boolean assertSameClusterState) {
+    private OperationMode executeUpdate(OperationMode currentMode, OperationMode requestMode, boolean assertSameClusterState) {
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
         ImmutableOpenMap.Builder<String, MetaData.Custom> customsMapBuilder = ImmutableOpenMap.builder();
         MetaData metaData = MetaData.builder()

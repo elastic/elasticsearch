@@ -5,6 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-public enum MaintenanceMode {
-    REQUESTED, IN, OUT
+public enum OperationMode {
+    MAINTENANCE_REQUESTED, MAINTENANCE, NORMAL
 }

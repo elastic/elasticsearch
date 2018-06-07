@@ -11,13 +11,13 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.MaintenanceMode;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 
 public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = ESLoggerFactory.getLogger(MaintenanceModeUpdateTask.class);
-    private final MaintenanceMode mode;
+    private final OperationMode mode;
 
-    public MaintenanceModeUpdateTask(MaintenanceMode mode) {
+    public MaintenanceModeUpdateTask(OperationMode mode) {
         this.mode = mode;
     }
 
@@ -26,8 +26,8 @@ public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
 
         boolean maintenanceModeToChange = currentMetadata.getMaintenanceMode().equals(mode) == false;
-        boolean maintenanceModeRequested = MaintenanceMode.REQUESTED.equals(mode);
-        boolean inMaintenanceMode = MaintenanceMode.IN.equals(currentMetadata.getMaintenanceMode());
+        boolean maintenanceModeRequested = OperationMode.MAINTENANCE_REQUESTED.equals(mode);
+        boolean inMaintenanceMode = OperationMode.IN.equals(currentMetadata.getMaintenanceMode());
         if ((inMaintenanceMode && maintenanceModeRequested) || maintenanceModeToChange == false) {
             return currentState;
         }

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
-import org.elasticsearch.xpack.core.indexlifecycle.MaintenanceMode;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.mockito.Mockito;
@@ -109,7 +109,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 new LifecyclePolicyMetadata(newPolicy, headers));
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, MaintenanceMode.OUT))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.OUT))
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
@@ -152,7 +152,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .metaData(
                 MetaData.builder(metaData)
                     .putCustom(IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(Collections.emptyMap(), MaintenanceMode.OUT))).build();
+                        new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.OUT))).build();
         registry.update(currentState, client, () -> 0L);
         assertTrue(registry.getLifecyclePolicyMap().isEmpty());
         assertTrue(registry.getFirstStepMap().isEmpty());
@@ -173,7 +173,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 new LifecyclePolicyMetadata(newPolicy, headers));
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, MaintenanceMode.OUT))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.OUT))
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
@@ -194,7 +194,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 MetaData.builder(metaData)
                     .putCustom(IndexLifecycleMetadata.TYPE,
                                         new IndexLifecycleMetadata(Collections.singletonMap(policyName,
-                                                new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())), MaintenanceMode.OUT)))
+                                                new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())), OperationMode.OUT)))
                 .build();
         registry.update(currentState, client, () -> 0L);
         // TODO(talevy): assert changes... right now we do not support updates to policies. will require internal cleanup

@@ -25,7 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.MaintenanceMode;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -39,8 +39,7 @@ import java.util.function.LongSupplier;
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
-public class IndexLifecycleService extends AbstractComponent implements ClusterStateListener,
-    SchedulerEngine.Listener, Closeable, MaintenanceModeUpdateTask.Listener {
+public class IndexLifecycleService extends AbstractComponent implements ClusterStateListener, SchedulerEngine.Listener, Closeable {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkAction.NAME);
 
@@ -110,7 +109,7 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
             }
 
             if (lifecycleMetadata == null) { // no lifecycle metadata, install initial empty metadata state
-                lifecycleMetadata = new IndexLifecycleMetadata(Collections.emptySortedMap(), MaintenanceMode.OUT);
+                lifecycleMetadata = new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.NORMAL);
                 installMetadata(lifecycleMetadata);
             } else if (scheduler.get() == null) { // metadata installed and scheduler should be kicked off. start your engines.
                 scheduler.set(new SchedulerEngine(clock));
@@ -122,7 +121,7 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
                 scheduleJob(pollInterval);
             }
 
-            triggerPolicies(event.state(), true, this);
+            triggerPolicies(event.state(), true);
         } else {
             cancelJob();
         }
@@ -144,7 +143,7 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(IndexLifecycle.NAME)) {
             logger.debug("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
-            triggerPolicies(clusterService.state(), false, this);
+            triggerPolicies(clusterService.state(), false);
         }
     }
 
@@ -167,12 +166,20 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
             }));
     }
 
-    public void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange,
-                                   MaintenanceModeUpdateTask.Listener listener) {
+    /**
+     * executes the policy execution on the appropriate indices by running cluster-state tasks per index.
+     *
+     * If maintenance-mode was requested, and it is safe to move into maintenance-mode, this will also be done here
+     * when possible after no policies are executed.
+     *
+     * @param clusterState the current cluster state
+     * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
+     */
+    public void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        MaintenanceMode currentMode = currentMetadata == null ? MaintenanceMode.OUT : currentMetadata.getMaintenanceMode();
+        OperationMode currentMode = currentMetadata == null ? OperationMode.NORMAL : currentMetadata.getMaintenanceMode();
 
-        if (MaintenanceMode.IN.equals(currentMode)) {
+        if (OperationMode.MAINTENANCE.equals(currentMode)) {
             return;
         }
 
@@ -186,7 +193,7 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(idxMeta.getSettings());
-                if (MaintenanceMode.REQUESTED.equals(currentMode)
+                if (OperationMode.MAINTENANCE_REQUESTED.equals(currentMode)
                         && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
                     continue;
                 }
@@ -194,8 +201,8 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
                 safeToEnterMaintenanceMode = false; // proven false!
             }
         }
-        if (safeToEnterMaintenanceMode && MaintenanceMode.REQUESTED.equals(currentMode)) {
-            listener.onSafeToEnterMaintenanceMode();
+        if (safeToEnterMaintenanceMode && OperationMode.MAINTENANCE_REQUESTED.equals(currentMode)) {
+            submitMaintenanceModeUpdate(OperationMode.MAINTENANCE);
         }
     }
 
@@ -207,13 +214,8 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
         }
     }
 
-    public void submitMaintenanceModeUpdate(MaintenanceMode mode) {
+    public void submitMaintenanceModeUpdate(OperationMode mode) {
         clusterService.submitStateUpdateTask("ilm_maintenance_update",
             new MaintenanceModeUpdateTask(mode));
-    }
-
-    @Override
-    public void onSafeToEnterMaintenanceMode() {
-        submitMaintenanceModeUpdate(MaintenanceMode.IN);
     }
 }

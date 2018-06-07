@@ -39,7 +39,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     public static final ConstructingObjectParser<IndexLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(
             TYPE, a -> new IndexLifecycleMetadata(
                     ObjectParserUtils.convertListToMapValues(LifecyclePolicyMetadata::getName, (List<LifecyclePolicyMetadata>) a[0]),
-                        MaintenanceMode.valueOf((String) a[1])));
+                        OperationMode.valueOf((String) a[1])));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicyMetadata.parse(p, n),
                 v -> {
@@ -49,9 +49,9 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     }
 
     private final Map<String, LifecyclePolicyMetadata> policyMetadatas;
-    private final MaintenanceMode maintenanceMode;
+    private final OperationMode maintenanceMode;
 
-    public IndexLifecycleMetadata(Map<String, LifecyclePolicyMetadata> policies, MaintenanceMode maintenanceMode) {
+    public IndexLifecycleMetadata(Map<String, LifecyclePolicyMetadata> policies, OperationMode maintenanceMode) {
         this.policyMetadatas = Collections.unmodifiableMap(policies);
         this.maintenanceMode = maintenanceMode;
     }
@@ -63,7 +63,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
             policies.put(in.readString(), new LifecyclePolicyMetadata(in));
         }
         this.policyMetadatas = policies;
-        this.maintenanceMode = in.readEnum(MaintenanceMode.class);
+        this.maintenanceMode = in.readEnum(OperationMode.class);
     }
 
     @Override
@@ -80,7 +80,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         return policyMetadatas;
     }
 
-    public MaintenanceMode getMaintenanceMode() {
+    public OperationMode getMaintenanceMode() {
         return maintenanceMode;
     }
 
@@ -142,7 +142,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     public static class IndexLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, LifecyclePolicyMetadata>> policies;
-        final MaintenanceMode maintenanceMode;
+        final OperationMode maintenanceMode;
 
         IndexLifecycleMetadataDiff(IndexLifecycleMetadata before, IndexLifecycleMetadata after) {
             this.policies = DiffableUtils.diff(before.policyMetadatas, after.policyMetadatas, DiffableUtils.getStringKeySerializer());
@@ -152,14 +152,14 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         public IndexLifecycleMetadataDiff(StreamInput in) throws IOException {
             this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), LifecyclePolicyMetadata::new,
                     IndexLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
-            this.maintenanceMode = in.readEnum(MaintenanceMode.class);
+            this.maintenanceMode = in.readEnum(OperationMode.class);
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(
                     policies.apply(((IndexLifecycleMetadata) part).policyMetadatas));
-            return new IndexLifecycleMetadata(newPolicies, ((IndexLifecycleMetadata) part).maintenanceMode);
+            return new IndexLifecycleMetadata(newPolicies, this.maintenanceMode);
         }
 
         @Override

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -38,7 +36,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
+public class FeatureVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -54,18 +52,9 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(MapperExtrasPlugin.class);
     }
 
-    static int getFrequency(TokenStream tk) throws IOException {
-        TermFrequencyAttribute freqAttribute = tk.addAttribute(TermFrequencyAttribute.class);
-        tk.reset();
-        assertTrue(tk.incrementToken());
-        int freq = freqAttribute.getTermFrequency();
-        assertFalse(tk.incrementToken());
-        return freq;
-    }
-
     public void testDefaults() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "feature_vector").endObject().endObject()
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -75,69 +64,30 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
-                        .field("field", 10)
+                            .startObject("field")
+                                .field("foo", 10)
+                                .field("bar", 20)
+                             .endObject()
                         .endObject()),
                 XContentType.JSON));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("_feature");
-        assertEquals(1, fields.length);
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
         assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = (FeatureField) fields[0];
+        assertThat(featureField1.stringValue(), Matchers.equalTo("foo"));
+        FeatureField featureField2 = (FeatureField) fields[1];
+        assertThat(featureField2.stringValue(), Matchers.equalTo("bar"));
 
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 12)
-                        .endObject()),
-                XContentType.JSON));
-
-        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
-
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        int freq1 = FeatureFieldMapperTests.getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = FeatureFieldMapperTests.getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 < freq2);
-    }
-
-    public void testNegativeScoreImpact() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature")
-                .field("positive_score_impact", false).endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 10)
-                        .endObject()),
-                XContentType.JSON));
-
-        IndexableField[] fields = doc1.rootDoc().getFields("_feature");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
-        FeatureField featureField1 = (FeatureField) fields[0];
-
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 12)
-                        .endObject()),
-                XContentType.JSON));
-
-        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
-
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 > freq2);
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "feature").endObject().startObject("foo")
-                .startObject("properties").startObject("field").field("type", "feature").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "feature_vector").endObject().startObject("foo")
+                .startObject("properties").startObject("field").field("type", "feature_vector").endObject().endObject()
                 .endObject().endObject().endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -148,11 +98,13 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                         .bytes(XContentFactory.jsonBuilder()
                                 .startObject()
-                                .field("field", Arrays.asList(10, 20))
-                                .endObject()),
+                                .startObject("field")
+                                    .field("foo", Arrays.asList(10, 20))
+                                 .endObject()
+                            .endObject()),
                         XContentType.JSON)));
-        assertEquals("[feature] fields do not support indexing multiple values for the same field [field] in the same document",
-                e.getCause().getMessage());
+        assertEquals("[feature_vector] fields take hashes that map a feature to a strictly positive float, but got unexpected token " +
+                "START_ARRAY", e.getCause().getMessage());
 
         e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
@@ -160,15 +112,19 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
                                 .startObject()
                                     .startArray("foo")
                                         .startObject()
-                                            .field("field", 10)
+                                            .startObject("field")
+                                                .field("bar", 10)
+                                            .endObject()
                                         .endObject()
                                         .startObject()
-                                            .field("field", 20)
+                                            .startObject("field")
+                                                .field("bar", 20)
+                                            .endObject()
                                         .endObject()
                                     .endArray()
                                 .endObject()),
                         XContentType.JSON)));
-        assertEquals("[feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
-                e.getCause().getMessage());
+        assertEquals("[feature_vector] fields do not support indexing multiple values for the same feature [foo.field.bar] in the same " +
+                "document", e.getCause().getMessage());
     }
 }

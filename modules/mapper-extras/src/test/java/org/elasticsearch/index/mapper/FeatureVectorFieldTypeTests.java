@@ -17,24 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.repositories.put;
+package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
+public class FeatureVectorFieldTypeTests extends FieldTypeTestCase {
 
-/**
- * Register repository response
- */
-public class PutRepositoryResponse extends AcknowledgedResponse {
-
-    PutRepositoryResponse() {
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new FeatureVectorFieldMapper.FeatureVectorFieldType();
     }
 
-    PutRepositoryResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    public static PutRepositoryResponse fromXContent(XContentParser parser) {
-        return new PutRepositoryResponse(parseAcknowledged(parser));
-    }
 }

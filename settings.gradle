@@ -84,7 +84,7 @@ if (isEclipse) {
   // for server-src and server-tests
   projects << 'server-tests'
   projects << 'libs:core-tests'
-  projects << 'libs:elasticsearch-nio-tests'
+  projects << 'libs:nio-tests'
   projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
   projects << 'libs:grok-tests'
@@ -103,10 +103,10 @@ if (isEclipse) {
   project(":libs:core").buildFileName = 'eclipse-build.gradle'
   project(":libs:core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
   project(":libs:core-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:elasticsearch-nio").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/main')
-  project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
-  project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/test')
-  project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:nio").projectDir = new File(rootProject.projectDir, 'libs/nio/src/main')
+  project(":libs:nio").buildFileName = 'eclipse-build.gradle'
+  project(":libs:nio-tests").projectDir = new File(rootProject.projectDir, 'libs/nio/src/test')
+  project(":libs:nio-tests").buildFileName = 'eclipse-build.gradle'
   project(":libs:x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
   project(":libs:x-content").buildFileName = 'eclipse-build.gradle'
   project(":libs:x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')

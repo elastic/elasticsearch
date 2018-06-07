@@ -21,8 +21,12 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
+import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -90,10 +94,6 @@ public class Netty4HttpRequest extends RestRequest {
         } else {
             this.content = BytesArray.EMPTY;
         }
-    }
-
-    public FullHttpRequest request() {
-        return this.request;
     }
 
     @Override
@@ -169,6 +169,33 @@ public class Netty4HttpRequest extends RestRequest {
     @Override
     public SocketAddress getLocalAddress() {
         return channel.localAddress();
+    }
+
+    @Override
+    public List<String> strictCookies() {
+        String cookieString = request.headers().get(HttpHeaderNames.COOKIE);
+        if (cookieString != null) {
+            Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
+            if (!cookies.isEmpty()) {
+                return ServerCookieEncoder.STRICT.encode(cookies);
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public HttpVersion protocolVersion() {
+        if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
+            return HttpVersion.HTTP_1_0;
+        } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
+            return HttpVersion.HTTP_1_1;
+        } else {
+            throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
+        }
+    }
+
+    public FullHttpRequest request() {
+        return this.request;
     }
 
     public Channel getChannel() {

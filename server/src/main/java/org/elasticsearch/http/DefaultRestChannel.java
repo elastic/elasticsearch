@@ -36,7 +36,6 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
@@ -66,16 +65,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse response) {
-//        ByteBuf buffer = ByteBufUtils.toByteBuf(response.content());
-//        final FullHttpResponse resp;
-//        if (HttpMethod.HEAD.equals(nettyRequest.method())) {
-//            resp = newResponse(Unpooled.EMPTY_BUFFER);
-//        } else {
-//            resp = newResponse(buffer);
-//        }
-//        resp.setStatus(getStatus(response.status()));
-
-//        NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
+        // TODO: Ideally we should move the setting of Cors headers into :server
+        // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 
         String opaque = request.header("X-Opaque-Id");
         if (opaque != null) {
@@ -159,8 +150,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     // Determine if the request protocol version is HTTP 1.0
     private boolean isHttp10() {
-        return false;
-//        return request.protocolVersion().equals(HttpVersion.HTTP_1_0);
+        return request.protocolVersion() == RestRequest.HttpVersion.HTTP_1_0;
     }
 
     private static class LLHttpChannel implements Closeable {

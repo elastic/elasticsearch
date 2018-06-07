@@ -53,6 +53,11 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public abstract class RestRequest implements ToXContent.Params {
 
+    public enum HttpVersion {
+        HTTP_1_0,
+        HTTP_1_1
+    }
+
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -252,6 +257,10 @@ public abstract class RestRequest implements ToXContent.Params {
 
     public List<String> strictCookies() {
         return Collections.emptyList();
+    }
+
+    public HttpVersion protocolVersion() {
+        return HttpVersion.HTTP_1_1;
     }
 
     /**

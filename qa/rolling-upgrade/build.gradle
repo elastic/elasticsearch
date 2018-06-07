@@ -83,6 +83,7 @@ for (Version version : bwcVersions.wireCompatible) {
       * just stopped's data directory. */
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+      setting 'node.name', "upgraded-node-${stopNode}"
     }
   }
 

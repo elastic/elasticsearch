@@ -38,6 +38,7 @@ final class RoundRobinSupplier<S> implements Supplier<S> {
         this.selectorsSet.set(true);
     }
 
+    @Override
     public S get() {
         S[] selectors = this.selectors;
         return selectors[counter.getAndIncrement() % selectors.length];

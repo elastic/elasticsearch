@@ -63,6 +63,7 @@ for (Version version : bwcVersions.wireCompatible) {
             setting 'xpack.ml.enabled', 'false'
             setting 'xpack.watcher.enabled', 'false'
             setting 'xpack.license.self_generated.type', 'basic'
+            setting 'node.name', "upgraded-node-${stopNode}"
         }
     }
 

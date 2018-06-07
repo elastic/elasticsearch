@@ -65,23 +65,23 @@ public class ChunksCoordinatorTests extends ESTestCase {
                 Long.MAX_VALUE,
             leaderShardId, followShardId, e -> {}, () -> true, value -> {});
         coordinator.createChucks(0, 1023);
-        List<long[]> result = new ArrayList<>(coordinator.getChunks());
+        List<long[]> result = new ArrayList<>(coordinator.getChunkWorkerQueue());
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0)[0], equalTo(0L));
         assertThat(result.get(0)[1], equalTo(1023L));
 
-        coordinator.getChunks().clear();
+        coordinator.getChunkWorkerQueue().clear();
         coordinator.createChucks(0, 2047);
-        result = new ArrayList<>(coordinator.getChunks());
+        result = new ArrayList<>(coordinator.getChunkWorkerQueue());
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0)[0], equalTo(0L));
         assertThat(result.get(0)[1], equalTo(1023L));
         assertThat(result.get(1)[0], equalTo(1024L));
         assertThat(result.get(1)[1], equalTo(2047L));
 
-        coordinator.getChunks().clear();
+        coordinator.getChunkWorkerQueue().clear();
         coordinator.createChucks(0, 4095);
-        result = new ArrayList<>(coordinator.getChunks());
+        result = new ArrayList<>(coordinator.getChunkWorkerQueue());
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0)[0], equalTo(0L));
         assertThat(result.get(0)[1], equalTo(1023L));
@@ -92,9 +92,9 @@ public class ChunksCoordinatorTests extends ESTestCase {
         assertThat(result.get(3)[0], equalTo(3072L));
         assertThat(result.get(3)[1], equalTo(4095L));
 
-        coordinator.getChunks().clear();
+        coordinator.getChunkWorkerQueue().clear();
         coordinator.createChucks(4096, 8196);
-        result = new ArrayList<>(coordinator.getChunks());
+        result = new ArrayList<>(coordinator.getChunkWorkerQueue());
         assertThat(result.size(), equalTo(5));
         assertThat(result.get(0)[0], equalTo(4096L));
         assertThat(result.get(0)[1], equalTo(5119L));
@@ -133,7 +133,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
             expectedNumberOfChunks++;
         }
         coordinator.start(from, to);
-        assertThat(coordinator.getChunks().size(), equalTo(0));
+        assertThat(coordinator.getChunkWorkerQueue().size(), equalTo(0));
         verify(client, times(expectedNumberOfChunks)).execute(same(ShardChangesAction.INSTANCE),
                 any(ShardChangesAction.Request.class), any());
         verify(client, times(expectedNumberOfChunks)).execute(same(BulkShardOperationsAction.INSTANCE),
@@ -169,7 +169,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
             leaderShardId, followShardId, handler, () -> true, value -> {});
         coordinator.start(0, 19);
         
-        assertThat(coordinator.getChunks().size(), equalTo(1));
+        assertThat(coordinator.getChunkWorkerQueue().size(), equalTo(1));
         verify(client, times(1)).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class),
                 any());
         verify(client, times(shardChangesActionApiCallFailed ? 0 : 1)).execute(same(BulkShardOperationsAction.INSTANCE),
@@ -197,7 +197,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
         IndexMetadataVersionChecker checker = new IndexMetadataVersionChecker(leaderShardId.getIndex(),
             followShardId.getIndex(), client, client);
         LongConsumer processedGlobalCheckpointHandler = value -> {
-            if (value == 1000000) {
+            if (value == 999999) {
                 latch.countDown();
             }
         };
@@ -205,7 +205,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
             leaderShardId, followShardId, handler, () -> true, processedGlobalCheckpointHandler);
         coordinator.start(0, 999999);
         latch.await();
-        assertThat(coordinator.getChunks().size(), equalTo(0));
+        assertThat(coordinator.getChunkWorkerQueue().size(), equalTo(0));
         verify(client, times(1000)).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any());
         verify(client, times(1000)).execute(same(BulkShardOperationsAction.INSTANCE), any(BulkShardOperationsRequest.class), any());
         assertThat(calledOnceChecker.get(), is(false));

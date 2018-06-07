@@ -179,7 +179,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     
         private final AtomicInteger activeWorkers;
         private final AtomicLong lastProcessedGlobalCheckpoint;
-        private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
+        private final Queue<long[]> chunkWorkerQueue = new ConcurrentLinkedQueue<>();
 
         ChunksCoordinator(Client followerClient,
                           Client leaderClient,
@@ -220,14 +220,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             LOGGER.debug("{} Creating chunks for operation range [{}] to [{}]", leaderShard, from, to);
             for (long i = from; i < to; i += batchSize) {
                 long v2 = i + batchSize <= to ? i + batchSize - 1 : to;
-                chunks.add(new long[]{i, v2});
+                chunkWorkerQueue.add(new long[]{i, v2});
             }
         }
 
         void updateChunksQueue(long previousGlobalcheckpoint) {
             schedule(CHECK_LEADER_GLOBAL_CHECKPOINT_INTERVAL, () -> {
                 if (stateSupplier.get() == false) {
-                    chunks.clear();
+                    chunkWorkerQueue.clear();
                     return;
                 }
                 
@@ -249,7 +249,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         void start(long followerGlobalCheckpoint, long leaderGlobalCheckPoint) {
             createChucks(followerGlobalCheckpoint, leaderGlobalCheckPoint);
             LOGGER.debug("{} Start coordination of [{}] chunks with [{}] concurrent processors",
-                    leaderShard, chunks.size(), maxConcurrentWorker);
+                    leaderShard, chunkWorkerQueue.size(), maxConcurrentWorker);
             initiateChunkWorkers();
             updateChunksQueue(leaderGlobalCheckPoint);
         }
@@ -281,7 +281,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }
 
         void processNextChunk() {
-            long[] chunk = chunks.poll();
+            long[] chunk = chunkWorkerQueue.poll();
             if (chunk == null) {
                 int activeWorkers = this.activeWorkers.decrementAndGet();
                 LOGGER.debug("{} No more chunks to process, active workers [{}]", leaderShard, activeWorkers);
@@ -301,7 +301,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     failureHandler.accept(e);
                 }
             };
-            ChunkWorker worker = new ChunkWorker(leaderClient, followerClient, chunks, ccrExecutor, imdVersionChecker,
+            ChunkWorker worker = new ChunkWorker(leaderClient, followerClient, chunkWorkerQueue, ccrExecutor, imdVersionChecker,
                     leaderShard, followerShard, processorHandler);
             worker.start(chunk[0], chunk[1], processorMaxTranslogBytes);
         }
@@ -320,8 +320,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             });
         }
 
-        Queue<long[]> getChunks() {
-            return chunks;
+        Queue<long[]> getChunkWorkerQueue() {
+            return chunkWorkerQueue;
         }
 
     }

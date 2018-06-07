@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -43,6 +44,10 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     }
 
     CreateSnapshotResponse() {
+    }
+
+    void setSnapshotInfo(SnapshotInfo snapshotInfo) {
+        this.snapshotInfo = snapshotInfo;
     }
 
     /**
@@ -92,5 +97,9 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
         }
         builder.endObject();
         return builder;
+    }
+
+    public static CreateSnapshotResponse fromXContent(XContentParser parser) throws IOException {
+        return new CreateSnapshotResponse(SnapshotInfo.fromXContent(parser));
     }
 }

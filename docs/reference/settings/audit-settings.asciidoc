@@ -87,7 +87,7 @@ Controls how often to roll over to a new index: `hourly`, `daily`, `weekly`, or
 `xpack.security.audit.index.events.include`::
 Specifies the audit events to be indexed. The default value is
 `anonymous_access_denied, authentication_failed, realm_authentication_failed, access_granted, access_denied, tampered_request, connection_granted, connection_denied, run_as_granted, run_as_denied`.
-See {xpack-ref}/auditing.html#audit-event-types[Audit Entry Types] for the
+See {xpack-ref}/audit-event-types.html[Audit Entry Types] for the
 complete list.
 
 `xpack.security.audit.index.events.exclude`::

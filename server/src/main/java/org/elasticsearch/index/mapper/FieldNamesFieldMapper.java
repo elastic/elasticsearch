@@ -205,12 +205,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
     }
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_6_1_0)) {
+        if (context.indexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             super.parse(context);
         }
     }

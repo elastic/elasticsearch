@@ -58,47 +58,47 @@ public class ChunksCoordinatorTests extends ESTestCase {
                 followShardId.getIndex(), client, client);
         ChunksCoordinator coordinator = new ChunksCoordinator(client, client, ccrExecutor, checker, 1024, 1,
                 Long.MAX_VALUE, leaderShardId, followShardId, e -> {});
-        coordinator.createChucks(0, 1024);
+        coordinator.createChucks(0, 1023);
         List<long[]> result = new ArrayList<>(coordinator.getChunks());
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0)[0], equalTo(0L));
-        assertThat(result.get(0)[1], equalTo(1024L));
+        assertThat(result.get(0)[1], equalTo(1023L));
 
         coordinator.getChunks().clear();
-        coordinator.createChucks(0, 2048);
+        coordinator.createChucks(0, 2047);
         result = new ArrayList<>(coordinator.getChunks());
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0)[0], equalTo(0L));
-        assertThat(result.get(0)[1], equalTo(1024L));
-        assertThat(result.get(1)[0], equalTo(1025L));
-        assertThat(result.get(1)[1], equalTo(2048L));
+        assertThat(result.get(0)[1], equalTo(1023L));
+        assertThat(result.get(1)[0], equalTo(1024L));
+        assertThat(result.get(1)[1], equalTo(2047L));
 
         coordinator.getChunks().clear();
-        coordinator.createChucks(0, 4096);
+        coordinator.createChucks(0, 4095);
         result = new ArrayList<>(coordinator.getChunks());
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0)[0], equalTo(0L));
-        assertThat(result.get(0)[1], equalTo(1024L));
-        assertThat(result.get(1)[0], equalTo(1025L));
-        assertThat(result.get(1)[1], equalTo(2048L));
-        assertThat(result.get(2)[0], equalTo(2049L));
-        assertThat(result.get(2)[1], equalTo(3072L));
-        assertThat(result.get(3)[0], equalTo(3073L));
-        assertThat(result.get(3)[1], equalTo(4096L));
+        assertThat(result.get(0)[1], equalTo(1023L));
+        assertThat(result.get(1)[0], equalTo(1024L));
+        assertThat(result.get(1)[1], equalTo(2047L));
+        assertThat(result.get(2)[0], equalTo(2048L));
+        assertThat(result.get(2)[1], equalTo(3071L));
+        assertThat(result.get(3)[0], equalTo(3072L));
+        assertThat(result.get(3)[1], equalTo(4095L));
 
         coordinator.getChunks().clear();
         coordinator.createChucks(4096, 8196);
         result = new ArrayList<>(coordinator.getChunks());
         assertThat(result.size(), equalTo(5));
         assertThat(result.get(0)[0], equalTo(4096L));
-        assertThat(result.get(0)[1], equalTo(5120L));
-        assertThat(result.get(1)[0], equalTo(5121L));
-        assertThat(result.get(1)[1], equalTo(6144L));
-        assertThat(result.get(2)[0], equalTo(6145L));
-        assertThat(result.get(2)[1], equalTo(7168L));
-        assertThat(result.get(3)[0], equalTo(7169L));
-        assertThat(result.get(3)[1], equalTo(8192L));
-        assertThat(result.get(4)[0], equalTo(8193L));
+        assertThat(result.get(0)[1], equalTo(5119L));
+        assertThat(result.get(1)[0], equalTo(5120L));
+        assertThat(result.get(1)[1], equalTo(6143L));
+        assertThat(result.get(2)[0], equalTo(6144L));
+        assertThat(result.get(2)[1], equalTo(7167L));
+        assertThat(result.get(3)[0], equalTo(7168L));
+        assertThat(result.get(3)[1], equalTo(8191L));
+        assertThat(result.get(4)[0], equalTo(8192L));
         assertThat(result.get(4)[1], equalTo(8196L));
     }
 
@@ -121,7 +121,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
 
         int numberOfOps = randomIntBetween(batchSize, batchSize * 20);
         long from = randomInt(1000);
-        long to = from + numberOfOps;
+        long to = from + numberOfOps - 1;
         coordinator.createChucks(from, to);
         int expectedNumberOfChunks = numberOfOps / batchSize;
         if (numberOfOps % batchSize > 0) {
@@ -163,7 +163,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
                 followShardId.getIndex(), client, client);
         ChunksCoordinator coordinator = new ChunksCoordinator(client, client, ccrExecutor, checker, 10, 1, Long.MAX_VALUE,
                 leaderShardId, followShardId, handler);
-        coordinator.createChucks(0, 20);
+        coordinator.createChucks(0, 19);
         assertThat(coordinator.getChunks().size(), equalTo(2));
 
         coordinator.start();
@@ -196,7 +196,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
                 followShardId.getIndex(), client, client);
         ChunksCoordinator coordinator = new ChunksCoordinator(client, client, ccrExecutor, checker, 1000, 4, Long.MAX_VALUE,
                 leaderShardId, followShardId, handler);
-        coordinator.createChucks(0, 1000000);
+        coordinator.createChucks(0, 999999);
         assertThat(coordinator.getChunks().size(), equalTo(1000));
 
         coordinator.start();

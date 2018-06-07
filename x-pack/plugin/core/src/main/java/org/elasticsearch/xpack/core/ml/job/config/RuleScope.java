@@ -5,11 +5,19 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -23,6 +31,27 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class RuleScope implements ToXContentObject, Writeable {
+
+    public static ContextParser<Void, RuleScope> parser(MlParserType parserType) {
+        return (p, c) -> {
+            Map<String, Object> unparsedScope = p.map();
+            if (unparsedScope.isEmpty()) {
+                return new RuleScope();
+            }
+            ConstructingObjectParser<FilterRef, Void> filterRefParser = FilterRef.PARSERS.get(parserType);
+            Map<String, FilterRef> scope = new HashMap<>();
+            for (Map.Entry<String, Object> entry : unparsedScope.entrySet()) {
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    builder.map((Map<String, ?>) entry.getValue());
+                    try (XContentParser scopeParser = XContentFactory.xContent(builder.contentType()).createParser(
+                            NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))) {
+                        scope.put(entry.getKey(), filterRefParser.parse(scopeParser, null));
+                    }
+                }
+            }
+            return new RuleScope(scope);
+        };
+    }
 
     private final Map<String, FilterRef> scope;
 

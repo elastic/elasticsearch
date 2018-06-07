@@ -43,6 +43,7 @@ For more information about those properties, see
   "by_field_name" : "product"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `min` function in a detector in your job, it detects where the
 smallest transaction is lower than previously observed. You can use this
@@ -77,6 +78,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `max` function in a detector in your job, it detects where the
 longest `responsetime` is longer than previously observed. You can use this
@@ -99,6 +101,7 @@ to previous applications.
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The analysis in the previous example can be performed alongside `high_mean`
 functions by application. By combining detectors and using the same influencer
@@ -137,6 +140,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `median` function in a detector in your job, it models the
 median `responsetime` for each application over time. It detects when the median
@@ -174,6 +178,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `mean` function in a detector in your job, it models the mean
 `responsetime` for each application over time. It detects when the mean
@@ -188,6 +193,7 @@ If you use this `mean` function in a detector in your job, it models the mean
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_mean` function in a detector in your job, it models the
 mean `responsetime` for each application over time. It detects when the mean
@@ -202,6 +208,7 @@ mean `responsetime` for each application over time. It detects when the mean
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `low_mean` function in a detector in your job, it models the
 mean `responsetime` for each application over time. It detects when the mean
@@ -238,6 +245,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `metric` function in a detector in your job, it models the
 mean, min, and max `responsetime` for each application over time. It detects
@@ -274,6 +282,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `varp` function in a detector in your job, it models the
 variance in values of `responsetime` for each application over time. It detects
@@ -289,6 +298,7 @@ behavior.
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_varp` function in a detector in your job, it models the
 variance in values of `responsetime` for each application over time. It detects
@@ -304,6 +314,7 @@ behavior.
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `low_varp` function in a detector in your job, it models the
 variance in values of `responsetime` for each application over time. It detects

@@ -47,6 +47,7 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
 --------------------------------------------------
 { "function" : "count" }
 --------------------------------------------------
+// NOTCONSOLE
 
 This example is probably the simplest possible analysis. It identifies
 time buckets during which the overall count of events is higher or lower than
@@ -64,6 +65,7 @@ and detects when the event rate is unusual compared to its past behavior.
   "over_field_name": "user"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_count` function in a detector in your job, it
 models the event rate for each error code. It detects users that generate an
@@ -78,6 +80,7 @@ unusually high count of error codes compared to other users.
   "by_field_name" : "status_code"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 In this example, the function detects when the count of events for a
 status code is lower than usual.
@@ -96,11 +99,12 @@ compared to its past behavior.
    ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you are analyzing an aggregated `events_per_min` field, do not use a sum
 function (for example, `sum(events_per_min)`). Instead, use the count function
-and the `summary_count_field_name` property.
-//TO-DO: For more information, see <<aggreggations.asciidoc>>.
+and the `summary_count_field_name` property. For more information, see 
+<<ml-configuring-aggregation>>.
 
 [float]
 [[ml-nonzero-count]]
@@ -150,6 +154,7 @@ The `non_zero_count` function models only the following data:
   "by_field_name" : "signaturename"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_non_zero_count` function in a detector in your job, it
 models the count of events for the `signaturename` field. It ignores any buckets
@@ -193,6 +198,7 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
   "field_name" : "user"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 This `distinct_count` function detects when a system has an unusual number
 of logged in users. When you use this function in a detector in your job, it
@@ -208,6 +214,7 @@ users is unusual compared to the past.
   "over_field_name": "src_ip"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 This example detects instances of port scanning. When you use this function in a
 detector in your job, it models the distinct count of ports. It also detects the

@@ -35,6 +35,7 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
   "by_field_name" : "creditCardNumber"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `lat_long` function in a detector in your job, it
 detects anomalies where the geographic location of a credit card transaction is
@@ -55,6 +56,7 @@ For example, JSON data might contain the following transaction coordinates:
   "creditCardNumber": "1234123412341234"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 In {es}, location data is likely to be stored in `geo_point` fields. For more
 information, see {ref}/geo-point.html[Geo-point datatype]. This data type is not
@@ -76,5 +78,6 @@ format. For example, the following Painless script transforms
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 For more information, see <<ml-configuring-transform>>.

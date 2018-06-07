@@ -47,6 +47,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -675,6 +676,13 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query getRegexpQuery(String field, String termStr) throws ParseException {
+        final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (termStr.length() > maxAllowedRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["  + termStr.length() +  "] used in the [query_string] has exceeded " +
+                    "the allowed maximum of [" + maxAllowedRegexLength + "]. This maximum can be set by changing the [" +
+                    IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey() + "] index level setting.");
+        }
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(termStr);

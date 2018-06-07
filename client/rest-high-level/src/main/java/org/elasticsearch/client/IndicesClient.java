@@ -1021,7 +1021,6 @@ public final class IndicesClient {
 
     /**
      * Updates specific index level settings using the Update Indices Settings API.
->>>>>>> master
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
      * API on elastic.co</a>

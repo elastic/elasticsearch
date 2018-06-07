@@ -34,6 +34,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
@@ -177,14 +178,14 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testWatcherRestart() throws Exception {
-        assumeFalse("Seems to be broken in mixed clusters. Skipping while I debug.", CLUSTER_TYPE == ClusterType.MIXED);
         executeUpgradeIfNeeded();
 
         executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_stop")));
         ensureWatcherStopped();
 
         executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_start")));
-        ensureWatcherStarted();
+        // Watcher should be started on at least the nodes with the new version.
+        ensureWatcherStartedOnModernNodes();
     }
 
     public void testWatchCrudApis() throws Exception {
@@ -311,6 +312,30 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
+        }));
+    }
+
+    private void ensureWatcherStartedOnModernNodes() throws Exception {
+        if (nodes.getMaster().getVersion().before(Version.V_6_0_0)) {
+            /*
+             * Versions before 6.0 ran watcher on the master node and the
+             * logic in ensureWatcherStarted is fine.
+             */
+            ensureWatcherStarted();
+            return;
+        }
+        executeAgainstMasterNode(client -> assertBusy(() -> {
+            Map<?, ?> responseBody = entityAsMap(client.performRequest("GET", "_xpack/watcher/stats"));
+            logger.info("ensureWatcherStartedOnModernNodes(), stats response [{}]", responseBody);
+            Map<?, ?> stats = ((List<?>) responseBody.get("stats")).stream()
+                .map(o -> (Map<?, ?>) o)
+                .collect(Collectors.toMap(m -> m.get("node_id"), Function.identity()));
+            assertNotNull("no stats yet", stats);
+            for (Node node : nodes.getNewNodes()) {
+                Map<?, ?> nodeStats = (Map<?, ?>) stats.get(node.getId());
+                assertEquals("modern node [" + node.getId() + "] is not started",
+                        nodeStats.get("watcher_state"), "started");
+            }
         }));
     }
 

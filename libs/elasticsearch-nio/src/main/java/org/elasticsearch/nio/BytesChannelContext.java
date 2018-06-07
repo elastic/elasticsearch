@@ -24,7 +24,7 @@ import java.util.function.Consumer;
 
 public class BytesChannelContext extends SocketChannelContext {
 
-    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+    public BytesChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                ReadWriteHandler handler, InboundChannelBuffer channelBuffer) {
         super(channel, selector, exceptionHandler, handler, channelBuffer);
     }

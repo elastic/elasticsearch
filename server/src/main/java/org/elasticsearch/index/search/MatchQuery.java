@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -262,7 +263,8 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType.tokenized() == false && noForcedAnalyzer) {
+        if (fieldType.tokenized() == false && noForcedAnalyzer &&
+                fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
@@ -350,21 +352,41 @@ public class MatchQuery {
 
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            if (hasPositions(mapper) == false) {
-                IllegalStateException exc =
-                    new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
-                if (lenient) {
-                    return newLenientFieldQuery(field, exc);
-                } else {
-                    throw exc;
+            try {
+                checkForPositions(field);
+                Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
+                if (query instanceof PhraseQuery) {
+                    // synonyms that expand to multiple terms can return a phrase query.
+                    return blendPhraseQuery((PhraseQuery) query, mapper);
                 }
+                return query;
             }
-            Query query = super.analyzePhrase(field, stream, slop);
-            if (query instanceof PhraseQuery) {
-                // synonyms that expand to multiple terms can return a phrase query.
-                return blendPhraseQuery((PhraseQuery) query, mapper);
+            catch (IllegalArgumentException | IllegalStateException e) {
+                if (lenient) {
+                    return newLenientFieldQuery(field, e);
+                }
+                throw e;
             }
-            return query;
+        }
+
+        @Override
+        protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
+            try {
+                checkForPositions(field);
+                return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+            }
+            catch (IllegalArgumentException | IllegalStateException e) {
+                if (lenient) {
+                    return newLenientFieldQuery(field, e);
+                }
+                throw e;
+            }
+        }
+
+        private void checkForPositions(String field) {
+            if (hasPositions(mapper) == false) {
+                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+            }
         }
 
         /**

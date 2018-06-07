@@ -45,6 +45,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -60,6 +61,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -191,6 +193,19 @@ final class RequestConverters {
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getMappings(GetMappingsRequest getMappingsRequest) throws IOException {
+        String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
+        String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(indices, "_mapping", types));
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
+        parameters.withLocal(getMappingsRequest.local());
         return request;
     }
 
@@ -648,6 +663,20 @@ final class RequestConverters {
         return request;
     }
 
+    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addPathPart(deletePipelineRequest.getId())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withTimeout(deletePipelineRequest.timeout());
+        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
+
+        return request;
+    }
+
     static Request listTasks(ListTasksRequest listTaskRequest) {
         if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
             throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
@@ -681,7 +710,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getSettings(GetSettingsRequest getSettingsRequest) throws IOException {
+    static Request getSettings(GetSettingsRequest getSettingsRequest) {
         String[] indices = getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
         String[] names = getSettingsRequest.names() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.names();
 

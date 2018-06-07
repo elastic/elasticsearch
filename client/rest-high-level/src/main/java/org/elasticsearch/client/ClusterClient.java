@@ -23,10 +23,6 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineResponse;
 
 import java.io.IOException;
 
@@ -45,11 +41,28 @@ public final class ClusterClient {
     }
 
     /**
-     * Updates cluster wide specific settings using the Cluster Update Settings API
+     * Updates cluster wide specific settings using the Cluster Update Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
+     * API on elastic.co</a>
+     * @param clusterUpdateSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
+                options, ClusterUpdateSettingsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Updates cluster wide specific settings using the Cluster Update Settings API.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
+     * @deprecated Prefer {@link #putSettings(ClusterUpdateSettingsRequest, RequestOptions)}
      */
+    @Deprecated
     public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
             throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
@@ -57,58 +70,29 @@ public final class ClusterClient {
     }
 
     /**
-     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API
+     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
+     * API on elastic.co</a>
+     * @param clusterUpdateSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options,
+                                 ActionListener<ClusterUpdateSettingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
+                options, ClusterUpdateSettingsResponse::fromXContent, listener, emptySet());
+    }
+    /**
+     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
+     * @deprecated Prefer {@link #putSettingsAsync(ClusterUpdateSettingsRequest, RequestOptions, ActionListener)}
      */
+    @Deprecated
     public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
-    }
-
-    /**
-     * Add a pipeline or update an existing pipeline in the cluster
-     * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
-     */
-    public PutPipelineResponse putPipeline(PutPipelineRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline,
-            PutPipelineResponse::fromXContent, emptySet(), headers);
-    }
-
-    /**
-     * Asynchronously add a pipeline or update an existing pipeline in the cluster
-     * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html"> Put Pipeline API on elastic.co</a>
-     */
-    public void putPipelineAsync(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline,
-            PutPipelineResponse::fromXContent, listener, emptySet(), headers);
-    }
-
-    /**
-     * Get an existing pipeline
-     * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
-     */
-    public GetPipelineResponse getPipeline(GetPipelineRequest request, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline,
-            GetPipelineResponse::fromXContent, emptySet(), headers);
-    }
-
-    /**
-     * Asynchronously get an existing pipeline
-     * <p>
-     * See
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/get-pipeline-api.html"> Get Pipeline API on elastic.co</a>
-     */
-    public void getPipelineAsync(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline,
-            GetPipelineResponse::fromXContent, listener, emptySet(), headers);
     }
 }

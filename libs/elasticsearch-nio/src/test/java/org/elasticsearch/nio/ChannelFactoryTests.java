@@ -43,18 +43,18 @@ public class ChannelFactoryTests extends ESTestCase {
     private ChannelFactory.RawChannelFactory rawChannelFactory;
     private SocketChannel rawChannel;
     private ServerSocketChannel rawServerChannel;
-    private SocketSelector socketSelector;
-    private Supplier<SocketSelector> socketSelectorSupplier;
-    private Supplier<AcceptingSelector> acceptingSelectorSupplier;
-    private AcceptingSelector acceptingSelector;
+    private NioSelector socketSelector;
+    private Supplier<NioSelector> socketSelectorSupplier;
+    private Supplier<NioSelector> acceptingSelectorSupplier;
+    private NioSelector acceptingSelector;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setupFactory() throws IOException {
         rawChannelFactory = mock(ChannelFactory.RawChannelFactory.class);
         channelFactory = new TestChannelFactory(rawChannelFactory);
-        socketSelector = mock(SocketSelector.class);
-        acceptingSelector = mock(AcceptingSelector.class);
+        socketSelector = mock(NioSelector.class);
+        acceptingSelector = mock(NioSelector.class);
         socketSelectorSupplier = mock(Supplier.class);
         acceptingSelectorSupplier = mock(Supplier.class);
         rawChannel = SocketChannel.open();
@@ -139,14 +139,14 @@ public class ChannelFactoryTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
+        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel);
             nioSocketChannel.setContext(mock(SocketChannelContext.class));
             return nioSocketChannel;
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
             return new NioServerSocketChannel(channel);
         }
     }

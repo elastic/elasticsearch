@@ -15,6 +15,9 @@
 *   The boundary specified using geohashes in the `geo_bounding_box` query
     now include entire geohash cell, instead of just geohash center.
 
+*   Attempts to generate multi-term phrase queries against non-text fields
+    with a custom analyzer will now throw an exception
+
 ==== Adaptive replica selection enabled by default
 
 Adaptive replica selection has been enabled by default. If you wish to return to

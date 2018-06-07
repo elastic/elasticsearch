@@ -146,11 +146,6 @@ public class NoopEngine extends Engine {
     }
 
     @Override
-    public boolean isNoopEngine() {
-        return true;
-    }
-
-    @Override
     public long getIndexThrottleTimeInMillis() {
         return 0;
     }

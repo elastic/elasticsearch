@@ -1632,8 +1632,4 @@ public abstract class Engine implements Closeable {
      */
     public abstract void maybePruneDeletes();
 
-    /**
-     * Returns true if the engine is a noop engine
-     */
-    public abstract boolean isNoopEngine();
 }

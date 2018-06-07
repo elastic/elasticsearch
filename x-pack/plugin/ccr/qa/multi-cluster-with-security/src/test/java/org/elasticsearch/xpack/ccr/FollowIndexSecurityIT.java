@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
@@ -23,12 +21,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,10 +76,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertOK(client().performRequest("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow"));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                Map<String, Object> clusterState = toMap(adminClient().performRequest("GET", "/_cluster/state"));
+                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
                 List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));
@@ -92,10 +87,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     
             followIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertOK(client().performRequest("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow"));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                Map<String, Object> clusterState = toMap(adminClient().performRequest("GET", "/_cluster/state"));
+                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
                 List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));
@@ -115,8 +110,9 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     }
 
     private int countCcrNodeTasks() throws IOException {
-        Map<String, Object> rsp1 = toMap(adminClient().performRequest("GET", "/_tasks",
-            Collections.singletonMap("detailed", "true")));
+        final Request request = new Request("GET", "/_tasks");
+        request.addParameter("detailed", "true");
+        Map<String, Object> rsp1 = toMap(adminClient().performRequest(request));
         Map<?, ?> nodes = (Map<?, ?>) rsp1.get("nodes");
         assertThat(nodes.size(), equalTo(1));
         Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
@@ -138,30 +134,33 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        assertOK(adminClient().performRequest("POST", "/" + index + "/doc/" + id, emptyMap(),
-                new StringEntity(Strings.toString(document), ContentType.APPLICATION_JSON)));
+        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        request.setJsonEntity(Strings.toString(document));
+        assertOK(adminClient().performRequest(request));
     }
 
     private static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest("POST", "/" + index + "/_refresh"));
+        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
-        Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
-        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_follow", params));
+        final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_follow");
+        request.addParameter("leader_index", leaderIndex);
+        assertOK(client().performRequest(request));
     }
 
     private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
-        Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
-        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow", params));
+        final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow");
+        request.addParameter("leader_index", leaderIndex);
+        assertOK(client().performRequest(request));
     }
 
     void verifyDocuments(RestClient client, String index, int expectedNumDocs) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("size", Integer.toString(expectedNumDocs));
-        params.put("sort", "field:asc");
-        params.put("pretty", "true");
-        Map<String, ?> response = toMap(client.performRequest("GET", "/" + index + "/_search", params));
+        final Request request = new Request("GET", "/" + index + "/_search");
+        request.addParameter("pretty", "true");
+        request.addParameter("size", Integer.toString(expectedNumDocs));
+        request.addParameter("sort", "field:asc");
+        Map<String, ?> response = toMap(client.performRequest(request));
 
         int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(numDocs, equalTo(expectedNumDocs));
@@ -187,9 +186,9 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        assertOK(adminClient().performRequest(HttpPut.METHOD_NAME, name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings)
-                + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
+        final Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }");
+        assertOK(adminClient().performRequest(request));
     }
 
 }

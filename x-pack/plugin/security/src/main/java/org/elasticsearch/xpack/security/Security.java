@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -17,7 +16,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -112,7 +110,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -934,7 +931,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled) {
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
-                .andThen(new ValidateUpgradedSecurityIndex());
+                .andThen(new ValidateUpgradedSecurityIndex())
+                .andThen(new ValidateLicenseCanBeDeserialized());
         }
         return null;
     }
@@ -967,6 +965,17 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_INDEX_FORMAT + "] - " +
                         "The Upgrade API must be run for 7.x nodes to join the cluster");
                 }
+            }
+        }
+    }
+
+    static final class ValidateLicenseCanBeDeserialized implements BiConsumer<DiscoveryNode, ClusterState> {
+        @Override
+        public void accept(DiscoveryNode node, ClusterState state) {
+            License license = LicenseService.getLicense(state.metaData());
+            if (license != null && license.version() >= License.VERSION_CRYPTO_ALGORITHMS && node.getVersion().before(Version.V_6_4_0)) {
+                throw new IllegalStateException("node " + node + " is on version [" + node.getVersion() +
+                    "] that cannot deserialize the license format [" + license.version() + "], upgrade node to at least 6.4.0");
             }
         }
     }

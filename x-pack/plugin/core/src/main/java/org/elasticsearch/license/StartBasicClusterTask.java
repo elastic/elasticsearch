@@ -73,7 +73,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
                     .issueDate(issueDate)
                     .type("basic")
                     .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
-            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
+            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
             if (request.isAcknowledged() == false && currentLicense != null) {
                 Map<String, String[]> ackMessages = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessages.isEmpty() == false) {

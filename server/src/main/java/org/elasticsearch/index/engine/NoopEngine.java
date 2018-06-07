@@ -66,10 +66,10 @@ public class NoopEngine extends Engine {
         boolean success = false;
         Translog translog = null;
 
-        // The deletion policy for the translog should not keep any translogs around, so the min age/size is set to -1
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1);
-
         try {
+            // The deletion policy for the translog should not keep any translogs around, so the min age/size is set to -1
+            final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1);
+
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
             assert translog.getGeneration() != null;

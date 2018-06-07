@@ -108,7 +108,7 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
         builder.source(new BytesArray("{ \"foo\":{"
             + "\"read\":{ \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] },"
             + "\"write\":{ \"actions\":[ \"data:/write/*\", \"admin:/*\" ] },"
-            + "\"all\":{ \"actions\":[ \"/*\" ] }"
+            + "\"all\":{ \"actions\":[ \"*\" ] }"
             + "} }"), XContentType.JSON);
         assertThat(builder.request().getPrivileges(), iterableWithSize(3));
         for (ApplicationPrivilege p : builder.request().getPrivileges()) {

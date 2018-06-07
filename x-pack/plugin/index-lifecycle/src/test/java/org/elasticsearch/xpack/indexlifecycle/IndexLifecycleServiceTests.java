@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.MaintenanceMode;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
 import org.junit.Before;
@@ -109,7 +110,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
-                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap()))
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap(), MaintenanceMode.OUT))
             .build();
 
         // First check that when the node has never been master the scheduler
@@ -124,7 +125,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         verify(clusterService, only()).addListener(any());
         assertNull(indexLifecycleService.getScheduler());
         assertNull(indexLifecycleService.getScheduledJob());
-        
+
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
@@ -139,7 +140,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(1, indexLifecycleService.getScheduler().jobCount());
         assertNotNull(indexLifecycleService.getScheduledJob());
-        
+
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
@@ -153,7 +154,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(0, indexLifecycleService.getScheduler().jobCount());
         assertNull(indexLifecycleService.getScheduledJob());
-        
+
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
@@ -204,7 +205,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testSchedulerInitializationAndUpdate() {
         TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
         MetaData metaData = MetaData.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap()))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap(), MaintenanceMode.OUT))
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         MetaData updatedPollMetaData = MetaData.builder(metaData).persistentSettings(settings(Version.CURRENT)

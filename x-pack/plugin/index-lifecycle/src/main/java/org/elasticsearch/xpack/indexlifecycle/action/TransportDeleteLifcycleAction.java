@@ -79,7 +79,7 @@ public class TransportDeleteLifcycleAction extends TransportMasterNodeAction<Req
                         }
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
                         newPolicies.remove(request.getPolicyName());
-                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies);
+                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getMaintenanceMode());
                         newState.metaData(MetaData.builder(currentState.getMetaData())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                         return newState.build();

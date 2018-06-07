@@ -43,6 +43,9 @@ public enum Operator implements Writeable {
             return Double.compare(lhs, rhs) <= 0;
         }
     };
+    // EQ was considered but given the oddity of such a
+    // condition and the fact that it would be a numerically
+    // unstable condition, it was rejected.
 
     public static final ParseField OPERATOR_FIELD = new ParseField("operator");
 

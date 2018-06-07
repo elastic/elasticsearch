@@ -1,16 +1,16 @@
-[[java-rest-high-snapshot-create-repository]]
-=== Snapshot Create RepositoryAPI
+[[java-rest-high-snapshot-create-snapshot]]
+=== Create Snapshot API
 
-The Snapshot Create RepositoryAPI allows to register a snapshot repository.
+Use the Create Snapshot API to create a new snapshot.
 
-[[java-rest-high-snapshot-create-repository-request]]
-==== Snapshot Create RepositoryRequest
+[[java-rest-high-snapshot-create-snapshot-request]]
+==== Create Snapshot Request
 
-A `PutRepositoryRequest`:
+A `CreateSnapshotRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request]
 --------------------------------------------------
 
 ==== Repository Settings

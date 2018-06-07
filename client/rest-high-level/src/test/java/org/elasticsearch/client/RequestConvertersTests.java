@@ -1722,7 +1722,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
-    public void testCreateSnapshot() {
+    public void testCreateSnapshot() throws IOException {
         Map<String, String> expectedParams = new HashMap<>();
         String repository = randomIndicesNames(1, 1)[0];
         String snapshot = "snapshot-" + generateRandomStringArray(1, randomInt(10), false, false)[0];
@@ -1735,6 +1735,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
+        assertToXContentBody(createSnapshotRequest, request.getEntity());
     }
 
     public void testPutTemplateRequest() throws Exception {

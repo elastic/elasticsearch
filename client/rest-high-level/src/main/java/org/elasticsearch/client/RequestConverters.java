@@ -804,13 +804,12 @@ final class RequestConverters {
         return request;
     }
 
-    static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) {
+    static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_snapshot")
             .addPathPart(createSnapshotRequest.repository())
             .addPathPart(createSnapshotRequest.snapshot())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-
         Params params = new Params(request);
         params.withMasterTimeout(createSnapshotRequest.masterNodeTimeout());
         params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());

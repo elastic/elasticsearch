@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -387,6 +388,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         request.snapshot(snapshotName); // <1>
         // end::create-snapshot-request-snapshotName
 
+        request.indices("test-index0, test-index1");
+
+        request.indicesOptions(new IndicesOptions())
+
         // tag::create-snapshot-request-masterTimeout
         request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
         request.masterNodeTimeout("1m"); // <2>
@@ -402,6 +407,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // tag::create-repository-response
         RestStatus status = response.status();
         // end::create-repository-response
+
         assertEquals(RestStatus.ACCEPTED, status);
     }
 }

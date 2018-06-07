@@ -42,30 +42,30 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         this.rawChannelFactory = rawChannelFactory;
     }
 
-    public Socket openNioChannel(InetSocketAddress remoteAddress, Supplier<SocketSelector> supplier) throws IOException {
+    public Socket openNioChannel(InetSocketAddress remoteAddress, Supplier<NioSelector> supplier) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
-        SocketSelector selector = supplier.get();
+        NioSelector selector = supplier.get();
         Socket channel = internalCreateChannel(selector, rawChannel);
         scheduleChannel(channel, selector);
         return channel;
     }
 
-    public Socket acceptNioChannel(ServerChannelContext serverContext, Supplier<SocketSelector> supplier) throws IOException {
+    public Socket acceptNioChannel(ServerChannelContext serverContext, Supplier<NioSelector> supplier) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverContext);
         // Null is returned if there are no pending sockets to accept
         if (rawChannel == null) {
             return null;
         } else {
-            SocketSelector selector = supplier.get();
+            NioSelector selector = supplier.get();
             Socket channel = internalCreateChannel(selector, rawChannel);
             scheduleChannel(channel, selector);
             return channel;
         }
     }
 
-    public ServerSocket openNioServerSocketChannel(InetSocketAddress address, Supplier<AcceptingSelector> supplier) throws IOException {
+    public ServerSocket openNioServerSocketChannel(InetSocketAddress address, Supplier<NioSelector> supplier) throws IOException {
         ServerSocketChannel rawChannel = rawChannelFactory.openNioServerSocketChannel(address);
-        AcceptingSelector selector = supplier.get();
+        NioSelector selector = supplier.get();
         ServerSocket serverChannel = internalCreateServerChannel(selector, rawChannel);
         scheduleServerChannel(serverChannel, selector);
         return serverChannel;
@@ -81,7 +81,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
      * @return the channel
      * @throws IOException related to the creation of the channel
      */
-    public abstract Socket createChannel(SocketSelector selector, SocketChannel channel) throws IOException;
+    public abstract Socket createChannel(NioSelector selector, SocketChannel channel) throws IOException;
 
     /**
      * This method should return a new {@link NioServerSocketChannel} implementation. When this method has
@@ -92,9 +92,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
      * @return the server channel
      * @throws IOException related to the creation of the channel
      */
-    public abstract ServerSocket createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException;
+    public abstract ServerSocket createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException;
 
-    private Socket internalCreateChannel(SocketSelector selector, SocketChannel rawChannel) throws IOException {
+    private Socket internalCreateChannel(NioSelector selector, SocketChannel rawChannel) throws IOException {
         try {
             Socket channel = createChannel(selector, rawChannel);
             assert channel.getContext() != null : "channel context should have been set on channel";
@@ -105,7 +105,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    private ServerSocket internalCreateServerChannel(AcceptingSelector selector, ServerSocketChannel rawChannel) throws IOException {
+    private ServerSocket internalCreateServerChannel(NioSelector selector, ServerSocketChannel rawChannel) throws IOException {
         try {
             return createServerChannel(selector, rawChannel);
         } catch (Exception e) {
@@ -114,7 +114,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    private void scheduleChannel(Socket channel, SocketSelector selector) {
+    private void scheduleChannel(Socket channel, NioSelector selector) {
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {
@@ -123,7 +123,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    private void scheduleServerChannel(ServerSocket channel, AcceptingSelector selector) {
+    private void scheduleServerChannel(ServerSocket channel, NioSelector selector) {
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {

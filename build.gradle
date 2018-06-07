@@ -205,6 +205,7 @@ subprojects {
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',

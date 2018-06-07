@@ -44,20 +44,13 @@ public class GetIndexTemplatesResponseTests extends AbstractXContentTestCase<Get
     @Override
     protected GetIndexTemplatesResponse createTestInstance() {
         List<IndexTemplateMetaData> templates = new ArrayList<>();
-        int numTemplates = between(1, 10);
+        int numTemplates = between(0, 10);
         for (int t = 0; t < numTemplates; t++) {
             IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder("template-" + t);
             templateBuilder.patterns(IntStream.range(0, between(1, 5)).mapToObj(i -> "pattern-" + i).collect(Collectors.toList()));
             int numAlias = between(0, 5);
             for (int i = 0; i < numAlias; i++) {
-                AliasMetaData.Builder alias = AliasMetaData.builder(randomAlphaOfLengthBetween(1, 10));
-                if (randomBoolean()) {
-                    alias.indexRouting(randomRealisticUnicodeOfLengthBetween(1, 10));
-                }
-                if (randomBoolean()) {
-                    alias.searchRouting(randomRealisticUnicodeOfLengthBetween(1, 10));
-                }
-                templateBuilder.putAlias(alias);
+                templateBuilder.putAlias(AliasMetaData.builder(randomAlphaOfLengthBetween(1, 10)));
             }
             if (randomBoolean()) {
                 templateBuilder.settings(Settings.builder().put("index.setting-1", randomLong()));

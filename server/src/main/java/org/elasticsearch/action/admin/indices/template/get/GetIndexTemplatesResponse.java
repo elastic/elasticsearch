@@ -29,14 +29,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
-    private List<IndexTemplateMetaData> indexTemplates;
+    private final List<IndexTemplateMetaData> indexTemplates;
 
     GetIndexTemplatesResponse() {
         indexTemplates = new ArrayList<>();
@@ -54,7 +53,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        indexTemplates = new ArrayList<>(size);
+        indexTemplates.clear();
         for (int i = 0 ; i < size ; i++) {
             indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
         }
@@ -88,7 +87,6 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
                 templates.add(templateMetaData);
             }
         }
-        templates.sort(Comparator.comparing(IndexTemplateMetaData::name));
         return new GetIndexTemplatesResponse(templates);
     }
 }

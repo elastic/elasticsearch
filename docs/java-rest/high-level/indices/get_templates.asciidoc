@@ -6,15 +6,15 @@ The Get Templates API allows to retrieve a list of index templates by name.
 [[java-rest-high-get-templates-request]]
 ==== Get Index Templates Request
 
-A `GetIndexTemplatesRequest` specifies one or several names of the getting index templates.
+A `GetIndexTemplatesRequest` specifies one or several names of the index templates to get.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-templates-request]
 --------------------------------------------------
 <1> A single index template name
-<2> Multiple index templates' names
-<3> An index template's name using wildcard
+<2> Multiple index template names
+<3> An index template name using wildcard
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

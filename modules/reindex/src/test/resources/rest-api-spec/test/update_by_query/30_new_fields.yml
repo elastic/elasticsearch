@@ -28,7 +28,7 @@
               fields:
                 english:
                   type:     text
-                  analyzer: english
+                  analyzer: standard
 
   - do:
       search:

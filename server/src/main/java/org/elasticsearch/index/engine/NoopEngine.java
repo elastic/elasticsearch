@@ -51,7 +51,7 @@ import java.util.stream.Stream;
  * Directory so that the last commit's user data can be read for the historyUUID
  * and last committed segment info.
  */
-public class NoopEngine extends Engine {
+final class NoopEngine extends Engine {
 
     private final Translog translog;
     private final IndexCommit lastCommit;

@@ -23,8 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -54,7 +52,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -144,18 +141,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     rolloverRequest),
                                 ActionListener.wrap(aliasClusterStateUpdateResponse -> {
                                     if (aliasClusterStateUpdateResponse.isAcknowledged()) {
-                                        client.admin().indices().updateSettings(prepareRolloverUpdateSettingsRequest(sourceIndexName),
-                                            ActionListener.wrap(updateSettingsResponse ->
-                                                activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
-                                                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                                    rolloverRequest.masterNodeTimeout(),
-                                                    isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
-                                                        sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
-                                                        isShardsAcknowledged)),
-                                                    listener::onFailure), listener::onFailure));
+                                        activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
+                                            rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                                            rolloverRequest.masterNodeTimeout(),
+                                            isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
+                                                                sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
+                                                                isShardsAcknowledged)),
+                                            listener::onFailure);
                                     } else {
                                         listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
-                                            false, true, false, false));
+                                                                                    false, true, false, false));
                                     }
                                 }, listener::onFailure));
                         }, listener::onFailure));
@@ -184,11 +179,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
         return updateRequest;
-    }
-
-    static UpdateSettingsRequest prepareRolloverUpdateSettingsRequest(String oldIndex) {
-        return new UpdateSettingsRequest(oldIndex).settings(Settings.builder()
-            .put(IndexMetaData.SETTING_ROLLOVER_CREATION_DATE, new Date().getTime()));
     }
 
 

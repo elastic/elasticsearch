@@ -77,7 +77,6 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
         return true;
     }
 
-
     @Override
     protected boolean assertToXContentEquivalence() {
         return true;

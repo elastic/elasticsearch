@@ -108,5 +108,4 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.getMessage(), equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
     }
-
 }

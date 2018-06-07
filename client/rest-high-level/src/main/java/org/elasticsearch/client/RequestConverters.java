@@ -112,8 +112,7 @@ final class RequestConverters {
     static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
         Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
         Params params = new Params(request);
-        params.withTimeout(
-            cancelTasksRequest.getTimeout())
+        params.withTimeout(cancelTasksRequest.getTimeout())
             .withTaskId(cancelTasksRequest.getTaskId())
             .withNodes(cancelTasksRequest.getNodes())
             .withParentTaskId(cancelTasksRequest.getParentTaskId())

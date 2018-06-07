@@ -68,21 +68,19 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
             highLevelClient().tasks()::list,
             highLevelClient().tasks()::listAsync
         );
-
-        // TODO[PCS] submit a task that is cancellable and assert it's cancelled
-        // this case is covered in TasksIT.testTasksCancellation
+        // in this case, probably no task will actually be cancelled.
+        // this is ok, that case is covered in TasksIT.testTasksCancellation
         TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setTaskId(new TaskId(node, firstTask.getId()));
         cancelTasksRequest.setReason("testreason");
-
-        CancelTasksResponse response = execute(cancelTasksRequest, highLevelClient().tasks()::cancel, highLevelClient().tasks()::cancelAsync
-        );
+        CancelTasksResponse response = execute(cancelTasksRequest,
+            highLevelClient().tasks()::cancel,
+            highLevelClient().tasks()::cancelAsync);
         // Since the task may or may not have been cancelled, assert that we received a response only
         // The actual testing of task cancellation is covered by TasksIT.testTasksCancellation
         assertThat(response, notNullValue());
-
     }
 }

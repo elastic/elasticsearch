@@ -69,7 +69,7 @@ public final class TasksClient {
     }
 
     /**
-     * Cancel one or more cluster tasks using the Task Management API
+     * Cancel one or more cluster tasks using the Task Management API.
      *
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
@@ -90,7 +90,7 @@ public final class TasksClient {
     }
 
     /**
-     * Asynchronously cancel one or more cluster tasks using the Task Management API
+     * Asynchronously cancel one or more cluster tasks using the Task Management API.
      *
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>

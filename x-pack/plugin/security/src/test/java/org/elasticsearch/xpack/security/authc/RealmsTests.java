@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -454,9 +455,11 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.bar.order", "1");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
 
-        Map<String, Object> usageStats = realms.usageStats();
+        PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        realms.usageStats(future);
+        Map<String, Object> usageStats = future.get();
         assertThat(usageStats.size(), is(factories.size()));
 
         // first check type_0
@@ -482,7 +485,9 @@ public class RealmsTests extends ESTestCase {
         // disable ALL using license
         when(licenseState.isAuthAllowed()).thenReturn(false);
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NONE);
-        usageStats = realms.usageStats();
+        future = new PlainActionFuture<>();
+        realms.usageStats(future);
+        usageStats = future.get();
         assertThat(usageStats.size(), is(factories.size()));
         for (Entry<String, Object> entry : usageStats.entrySet()) {
             Map<String, Object> typeMap = (Map<String, Object>) entry.getValue();
@@ -494,7 +499,9 @@ public class RealmsTests extends ESTestCase {
         // check native or internal realms enabled only
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.allowedRealmType()).thenReturn(randomFrom(AllowedRealmType.NATIVE, AllowedRealmType.DEFAULT));
-        usageStats = realms.usageStats();
+        future = new PlainActionFuture<>();
+        realms.usageStats(future);
+        usageStats = future.get();
         assertThat(usageStats.size(), is(factories.size()));
         for (Entry<String, Object> entry : usageStats.entrySet()) {
             final String type = entry.getKey();

@@ -22,10 +22,11 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.NetworkChannel;
+import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
 
 /**
- * This is a basic channel abstraction used by the {@link ESSelector}.
+ * This is a basic channel abstraction used by the {@link NioSelector}.
  * <p>
  * A channel is open once it is constructed. The channel remains open and {@link #isOpen()} will return
  * true until the channel is explicitly closed.
@@ -53,7 +54,7 @@ public abstract class NioChannel {
      *
      * @param listener to be called at close
      */
-    public void addCloseListener(BiConsumer<Void, Throwable> listener) {
+    public void addCloseListener(BiConsumer<Void, Exception> listener) {
         getContext().addCloseListener(listener);
     }
 

@@ -83,7 +83,7 @@ public class ChannelContextTests extends ESTestCase {
             if (t == null) {
                 throw new AssertionError("Close should not fail");
             } else {
-                exception.set((Exception) t);
+                exception.set(t);
             }
         });
 
@@ -115,7 +115,7 @@ public class ChannelContextTests extends ESTestCase {
         }
 
         @Override
-        public ESSelector getSelector() {
+        public NioSelector getSelector() {
             throw new UnsupportedOperationException("not implemented");
         }
 

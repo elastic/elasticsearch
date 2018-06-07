@@ -50,8 +50,8 @@ public class SocketChannelContextTests extends ESTestCase {
     private TestSocketChannelContext context;
     private Consumer<Exception> exceptionHandler;
     private NioSocketChannel channel;
-    private BiConsumer<Void, Throwable> listener;
-    private SocketSelector selector;
+    private BiConsumer<Void, Exception> listener;
+    private NioSelector selector;
     private ReadWriteHandler readWriteHandler;
 
     @SuppressWarnings("unchecked")
@@ -64,7 +64,7 @@ public class SocketChannelContextTests extends ESTestCase {
         listener = mock(BiConsumer.class);
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
-        selector = mock(SocketSelector.class);
+        selector = mock(NioSelector.class);
         readWriteHandler = mock(ReadWriteHandler.class);
         InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
         context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
@@ -125,7 +125,7 @@ public class SocketChannelContextTests extends ESTestCase {
             if (t == null) {
                 throw new AssertionError("Connection should not succeed");
             } else {
-                exception.set((Exception) t);
+                exception.set(t);
             }
         });
 
@@ -206,7 +206,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
             WriteOperation writeOperation = mock(WriteOperation.class);
-            BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
+            BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
             when(readWriteHandler.writeToBytes(writeOperation)).thenReturn(Arrays.asList(new FlushOperation(buffer, listener),
                 new FlushOperation(buffer, listener2)));
             context.queueWriteOperation(writeOperation);
@@ -232,7 +232,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-            BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
+            BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
 
             assertFalse(context.readyForFlush());
             when(channel.isOpen()).thenReturn(true);
@@ -275,7 +275,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
     private static class TestSocketChannelContext extends SocketChannelContext {
 
-        private TestSocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+        private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                          ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
             super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
         }

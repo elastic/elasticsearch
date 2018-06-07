@@ -19,21 +19,40 @@
 
 package org.elasticsearch.nio;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class RoundRobinSupplier<S> implements Supplier<S> {
+final class RoundRobinSupplier<S> implements Supplier<S> {
 
-    private final S[] selectors;
-    private final int count;
+    private final AtomicBoolean selectorsSet = new AtomicBoolean(false);
+    private volatile S[] selectors;
     private AtomicInteger counter = new AtomicInteger(0);
 
-    RoundRobinSupplier(S[] selectors) {
-        this.count = selectors.length;
-        this.selectors = selectors;
+    RoundRobinSupplier() {
+        this.selectors = null;
     }
 
+    RoundRobinSupplier(S[] selectors) {
+        this.selectors = selectors;
+        this.selectorsSet.set(true);
+    }
+
+    @Override
     public S get() {
-        return selectors[counter.getAndIncrement() % count];
+        S[] selectors = this.selectors;
+        return selectors[counter.getAndIncrement() % selectors.length];
+    }
+
+    void setSelectors(S[] selectors) {
+        if (selectorsSet.compareAndSet(false, true)) {
+            this.selectors = selectors;
+        } else {
+            throw new AssertionError("Selectors already set. Should only be set once.");
+        }
+    }
+
+    int count() {
+        return selectors.length;
     }
 }

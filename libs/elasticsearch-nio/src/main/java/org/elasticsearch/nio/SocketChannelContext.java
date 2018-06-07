@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -27,7 +28,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -47,14 +47,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final ReadWriteHandler readWriteHandler;
-    private final SocketSelector selector;
-    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
+    private final NioSelector selector;
+    private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
     private boolean ioException;
     private boolean peerClosed;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                    ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
@@ -64,7 +64,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     @Override
-    public SocketSelector getSelector() {
+    public NioSelector getSelector() {
         return selector;
     }
 
@@ -73,8 +73,8 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return channel;
     }
 
-    public void addConnectListener(BiConsumer<Void, Throwable> listener) {
-        connectContext.whenComplete(listener);
+    public void addConnectListener(BiConsumer<Void, Exception> listener) {
+        connectContext.addListener(listener);
     }
 
     public boolean isConnectComplete() {
@@ -121,7 +121,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return isConnected;
     }
 
-    public void sendMessage(Object message, BiConsumer<Void, Throwable> listener) {
+    public void sendMessage(Object message, BiConsumer<Void, Exception> listener) {
         if (isClosing.get()) {
             listener.accept(null, new ClosedChannelException());
             return;
@@ -129,7 +129,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         WriteOperation writeOperation = readWriteHandler.createWriteOperation(this, message, listener);
 
-        SocketSelector selector = getSelector();
+        NioSelector selector = getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);
             return;

@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
+import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,11 +70,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+        try {
+            if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
+                throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+            }
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
         }
-
-        store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true));
     }
 
     @Override
@@ -86,16 +89,17 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
         // be called with the proper privileges.
-        return store.execute(fileContext ->
-            new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
-        );
+        try {
+            return store.execute(fileContext ->
+                new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
+            );
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
+        }
     }
 
     @Override

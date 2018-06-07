@@ -22,7 +22,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class UpdateAction extends Action<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
+public class UpdateAction extends Action<UpdateRequest, UpdateResponse> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();
     public static final String NAME = "indices:data/write/update";
@@ -34,10 +34,5 @@ public class UpdateAction extends Action<UpdateRequest, UpdateResponse, UpdateRe
     @Override
     public UpdateResponse newResponse() {
         return new UpdateResponse();
-    }
-
-    @Override
-    public UpdateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new UpdateRequestBuilder(client, this);
     }
 }

@@ -22,6 +22,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
@@ -49,6 +53,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -660,6 +665,28 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(usage.get("size"), is(roles));
         assertThat(usage.get("fls"), is(fls));
         assertThat(usage.get("dls"), is(dls));
+    }
+
+    public void testRealmUsageStats() {
+        final int numNativeUsers = scaledRandomIntBetween(1, 32);
+        SecurityClient securityClient = new SecurityClient(client());
+        for (int i = 0; i < numNativeUsers; i++) {
+            securityClient.preparePutUser("joe" + i, "s3krit".toCharArray(), "superuser").get();
+        }
+
+        XPackUsageResponse response = new XPackUsageRequestBuilder(client()).get();
+        Optional<XPackFeatureSet.Usage> securityUsage = response.getUsages().stream()
+            .filter(usage -> usage instanceof SecurityFeatureSetUsage)
+            .findFirst();
+        assertTrue(securityUsage.isPresent());
+        SecurityFeatureSetUsage securityFeatureSetUsage = (SecurityFeatureSetUsage) securityUsage.get();
+        Map<String, Object> realmsUsage = securityFeatureSetUsage.getRealmsUsage();
+        assertNotNull(realmsUsage);
+        assertNotNull(realmsUsage.get("native"));
+        assertNotNull(((Map<String, Object>) realmsUsage.get("native")).get("size"));
+        List<Long> sizeList = (List<Long>) ((Map<String, Object>) realmsUsage.get("native")).get("size");
+        assertEquals(1, sizeList.size());
+        assertEquals(numNativeUsers, Math.toIntExact(sizeList.get(0)));
     }
 
     public void testSetEnabled() throws Exception {

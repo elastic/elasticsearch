@@ -44,8 +44,8 @@ public class BytesChannelContextTests extends ESTestCase {
     private SocketChannel rawChannel;
     private BytesChannelContext context;
     private InboundChannelBuffer channelBuffer;
-    private SocketSelector selector;
-    private BiConsumer<Void, Throwable> listener;
+    private NioSelector selector;
+    private BiConsumer<Void, Exception> listener;
     private int messageLength;
 
     @Before
@@ -54,7 +54,7 @@ public class BytesChannelContextTests extends ESTestCase {
         readConsumer = mock(CheckedFunction.class);
 
         messageLength = randomInt(96) + 20;
-        selector = mock(SocketSelector.class);
+        selector = mock(NioSelector.class);
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
         rawChannel = mock(SocketChannel.class);
@@ -191,7 +191,7 @@ public class BytesChannelContextTests extends ESTestCase {
     public void testMultipleWritesPartialFlushes() throws IOException {
         assertFalse(context.readyForFlush());
 
-        BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
+        BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
         FlushReadyWrite flushOperation1 = mock(FlushReadyWrite.class);
         FlushReadyWrite flushOperation2 = mock(FlushReadyWrite.class);
         when(flushOperation1.getBuffersToWrite()).thenReturn(new ByteBuffer[0]);

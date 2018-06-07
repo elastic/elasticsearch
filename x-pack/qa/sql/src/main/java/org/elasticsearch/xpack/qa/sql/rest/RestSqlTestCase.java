@@ -6,13 +6,11 @@
 package org.elasticsearch.xpack.qa.sql.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
@@ -321,10 +319,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
-        request.setHeaders(randomFrom(
-            new Header[] {},
-            new Header[] {new BasicHeader("Accept", "*/*")},
-            new Header[] {new BasicHeader("Accpet", "application/json")}));
+        if (randomBoolean()) {
+            // JSON is the default but randomly set it sometime for extra coverage
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Accept", randomFrom("*/*", "application/json"));
+            request.setOptions(options);
+        }
         request.setEntity(sql);
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
@@ -540,7 +540,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Request request = new Request("POST", "/_xpack/sql" + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
-        request.setHeaders(new BasicHeader("Accept", accept));
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Accept", accept);
+        request.setOptions(options);
         Response response = client().performRequest(request);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),

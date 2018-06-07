@@ -25,19 +25,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StopRollupJobAction extends Action<StopRollupJobAction.Request, StopRollupJobAction.Response,
-        StopRollupJobAction.RequestBuilder> {
+public class StopRollupJobAction extends Action<StopRollupJobAction.Request, StopRollupJobAction.Response> {
 
     public static final StopRollupJobAction INSTANCE = new StopRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/stop";
 
     private StopRollupJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override
@@ -99,7 +93,7 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Request, Sto
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         protected RequestBuilder(ElasticsearchClient client, StopRollupJobAction action) {
             super(client, action, new Request());

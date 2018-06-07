@@ -20,19 +20,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, PutDatafeedAction.Response,
-        UpdateDatafeedAction.RequestBuilder> {
+public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
     public static final UpdateDatafeedAction INSTANCE = new UpdateDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/update";
 
     private UpdateDatafeedAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override

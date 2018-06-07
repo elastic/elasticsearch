@@ -35,7 +35,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         GeoHashType type = GeoHashGridTests.randomType();
         int precision = GeoHashGridTests.randomPrecision(type);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":" + precision +
+                "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":" + precision +
                     ", \"size\": 500, \"shard_size\": 550}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
@@ -47,7 +47,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         GeoHashType type = GeoHashGridTests.randomType();
         int precision = GeoHashGridTests.randomPrecision(type);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":\"" + precision +
+                "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":\"" + precision +
                     "\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
@@ -112,7 +112,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     public void testParseErrorOnBooleanPrecision() throws Exception {
         GeoHashType type = GeoHashGridTests.randomType();
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":false}");
+            "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":false}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
@@ -129,7 +129,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         final GeoHashType type = GeoHashGridTests.randomType();
         final int precision = GeoHashGridTests.maxPrecision(type) + 1;
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":\""+ precision +"\"}");
+            "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":\""+ precision +"\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {

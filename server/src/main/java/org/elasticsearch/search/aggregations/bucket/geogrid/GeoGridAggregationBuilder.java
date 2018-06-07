@@ -111,7 +111,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     public GeoGridAggregationBuilder(String name, GeoHashType type) {
         super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         this.type = type == null ? GeoHashType.DEFAULT : type;
-        this.precision = type.getHandler().getDefaultPrecision();
+        this.precision = this.type.getHandler().getDefaultPrecision();
     }
 
     protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

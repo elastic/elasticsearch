@@ -59,7 +59,7 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
     @Override
     protected GeoGridAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
-        String type = randomBoolean() ? randomType().toString() : null;
+        GeoHashType type = randomBoolean() ? randomType() : null;
         GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(name, type);
         if (randomBoolean()) {
             factory.precision(randomPrecision(factory.type()));

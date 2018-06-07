@@ -127,7 +127,7 @@
           aggregations:
             mygrid:
               geohash_grid:
-                type: geohash
+                hash_type: geohash
                 field : location
                 precision : 1
   - match: { hits.total: 6 }

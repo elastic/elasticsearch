@@ -83,7 +83,7 @@ if (isEclipse) {
   // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
   // for server-src and server-tests
   projects << 'server-tests'
-  projects << 'libs:elasticsearch-core-tests'
+  projects << 'libs:core-tests'
   projects << 'libs:elasticsearch-nio-tests'
   projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
@@ -99,10 +99,10 @@ if (isEclipse) {
   project(":server").buildFileName = 'eclipse-build.gradle'
   project(":server-tests").projectDir = new File(rootProject.projectDir, 'server/src/test')
   project(":server-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:elasticsearch-core").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-core/src/main')
-  project(":libs:elasticsearch-core").buildFileName = 'eclipse-build.gradle'
-  project(":libs:elasticsearch-core-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-core/src/test')
-  project(":libs:elasticsearch-core-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:core").projectDir = new File(rootProject.projectDir, 'libs/core/src/main')
+  project(":libs:core").buildFileName = 'eclipse-build.gradle'
+  project(":libs:core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
+  project(":libs:core-tests").buildFileName = 'eclipse-build.gradle'
   project(":libs:elasticsearch-nio").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/main')
   project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
   project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/test')

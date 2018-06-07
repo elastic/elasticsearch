@@ -206,7 +206,7 @@ subprojects {
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
     "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
-    "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',

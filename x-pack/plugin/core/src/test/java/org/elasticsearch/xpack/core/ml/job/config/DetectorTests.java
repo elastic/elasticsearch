@@ -145,24 +145,22 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             detector = new Detector.Builder(function = randomFrom(Detector.COUNT_WITHOUT_FIELD_FUNCTIONS), null);
         } else {
             EnumSet<DetectorFunction> functions = EnumSet.copyOf(Detector.FIELD_NAME_FUNCTIONS);
-            functions.removeAll(Detector.Builder.FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT);
             detector = new Detector.Builder(function = randomFrom(functions), randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
             detector.setDetectorDescription(randomAlphaOfLengthBetween(1, 20));
         }
-        String fieldName = null;
         if (randomBoolean()) {
-            detector.setPartitionFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
+            detector.setPartitionFieldName(randomAlphaOfLengthBetween(6, 20));
         } else if (randomBoolean() && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function) == false) {
-            detector.setOverFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
+            detector.setOverFieldName(randomAlphaOfLengthBetween(6, 20));
         } else if (randomBoolean()) {
-            detector.setByFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
+            detector.setByFieldName(randomAlphaOfLengthBetween(6, 20));
         }
         if (randomBoolean()) {
             detector.setExcludeFrequent(randomFrom(Detector.ExcludeFrequent.values()));
         }
-        if (randomBoolean()) {
+        if (Detector.FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(function) == false && randomBoolean()) {
             int size = randomInt(10);
             List<DetectionRule> rules = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -445,15 +443,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         }
     }
 
-    public void testVerify_GivenValidRule() {
-        Detector.Builder detector = new Detector.Builder("mean", "metricVale");
-        detector.setByFieldName("metricName");
-        detector.setPartitionFieldName("instance");
-        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(RuleConditionTests.createRandom())).build();
-        detector.setRules(Collections.singletonList(rule));
-        detector.build();
-    }
-
     public void testVerify_GivenAllPartitioningFieldsAreScoped() {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("my_partition");
@@ -468,21 +457,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         detector.setRules(Collections.singletonList(rule));
 
         detector.build();
-    }
-
-    public void testVerify_GivenCategoricalRuleOnInvalidField() {
-        Detector.Builder detector = new Detector.Builder("mean", "my_metric");
-        detector.setPartitionFieldName("my_partition");
-        detector.setOverFieldName("my_over");
-        detector.setByFieldName("my_by");
-
-        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("my_metric", "my_filter_id")).build();
-        detector.setRules(Collections.singletonList(rule));
-
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
-
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_KEY,
-                "my_metric", "[my_by, my_over, my_partition]"), e.getMessage());
     }
 
     public void testVerify_GivenSameByAndPartition() {
@@ -558,6 +532,85 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
         assertEquals("'over' is not a permitted value for over_field_name", e.getMessage());
+    }
+
+    public void testVerify_GivenRulesAndFunctionIsLatLong() {
+        Detector.Builder detector = new Detector.Builder("lat_long", "geo");
+        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 42.0))).build()));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
+
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function lat_long does not support rules with conditions"));
+    }
+
+    public void testVerify_GivenRulesAndFunctionIsMetric() {
+        Detector.Builder detector = new Detector.Builder("metric", "some_metric");
+        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.GT, 42.0))).build()));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
+
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function metric does not support rules with conditions"));
+    }
+
+    public void testVerify_GivenRulesAndFunctionIsRare() {
+        Detector.Builder detector = new Detector.Builder("rare", null);
+        detector.setByFieldName("some_field");
+        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleCondition.AppliesTo.DIFF_FROM_TYPICAL, Operator.GT, 42.0))).build()));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
+
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function rare does not support rules with conditions"));
+    }
+
+    public void testVerify_GivenRulesAndFunctionIsFreqRare() {
+        Detector.Builder detector = new Detector.Builder("freq_rare", null);
+        detector.setByFieldName("some_field");
+        detector.setOverFieldName("some_field2");
+        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 42.0))).build()));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
+
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function freq_rare does not support rules with conditions"));
+    }
+
+    public void testVerify_GivenTimeConditionRuleAndFunctionIsLatLong() {
+        Detector.Builder detector = new Detector.Builder("lat_long", "geo");
+        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleCondition.AppliesTo.TIME, Operator.GT, 42.0))).build()));
+        detector.build();
+    }
+
+    public void testVerify_GivenScopeRuleOnInvalidField() {
+        Detector.Builder detector = new Detector.Builder("mean", "my_metric");
+        detector.setPartitionFieldName("my_partition");
+        detector.setOverFieldName("my_over");
+        detector.setByFieldName("my_by");
+
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("my_metric", "my_filter_id")).build();
+        detector.setRules(Collections.singletonList(rule));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
+
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD,
+                "my_metric", "[my_by, my_over, my_partition]"), e.getMessage());
+    }
+
+    public void testVerify_GivenValidRule() {
+        Detector.Builder detector = new Detector.Builder("mean", "metricVale");
+        detector.setByFieldName("metricName");
+        detector.setPartitionFieldName("instance");
+        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(RuleConditionTests.createRandom()))
+                .setScope(RuleScope.builder()
+                        .include("metricName", "f1")
+                        .exclude("instance", "f2")
+                        .build())
+                .build();
+        detector.setRules(Collections.singletonList(rule));
+        detector.build();
     }
 
     public void testExcludeFrequentForString() {

@@ -89,11 +89,11 @@ public final class Messages {
     public static final String JOB_CONFIG_CATEGORIZATION_ANALYZER_REQUIRES_CATEGORIZATION_FIELD_NAME =
             "categorization_analyzer requires setting categorization_field_name";
     public static final String JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION =
-            "Invalid detector rule: function {0} does not support conditions";
+            "Invalid detector rule: function {0} does not support rules with conditions";
     public static final String JOB_CONFIG_DETECTION_RULE_REQUIRES_SCOPE_OR_CONDITION =
             "Invalid detector rule: at least scope or a condition is required";
-    public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_KEY =
-            "Invalid detector rule: scope key ''{0}'' is invalid; select from {1}";
+    public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD =
+            "Invalid detector rule: scope field ''{0}'' is invalid; select from {1}";
     public static final String JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION = "field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_FIELD_VALUE_TOO_LOW = "{0} cannot be less than {1,number}. Value = {2,number}";
     public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW = "model_memory_limit must be at least 1 MiB. Value = {0,number}";

@@ -210,6 +210,19 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
+     * Functions that do not support rule conditions:
+     * <ul>
+     * <li>lat_long - because it is a multivariate feature
+     * <li>metric - because having the same conditions on min,max,mean is
+     * error-prone
+     * <li>rare - because the actual/typical value is not something a user can anticipate
+     * <li>freq_rare - because the actual/typical value is not something a user can anticipate
+     * </ul>
+     */
+    static final EnumSet<DetectorFunction> FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT = EnumSet.of(
+            DetectorFunction.LAT_LONG, DetectorFunction.METRIC, DetectorFunction.RARE, DetectorFunction.FREQ_RARE);
+
+    /**
      * field names cannot contain any of these characters
      * ", \
      */
@@ -467,19 +480,6 @@ public class Detector implements ToXContentObject, Writeable {
 
     public static class Builder {
 
-        /**
-         * Functions that do not support rule conditions:
-         * <ul>
-         * <li>lat_long - because it is a multivariate feature
-         * <li>metric - because having the same conditions on min,max,mean is
-         * error-prone
-         * <li>rare - because the actual/typical value is not something a user can anticipate
-         * <li>freq_rare - because the actual/typical value is not something a user can anticipate
-         * </ul>
-         */
-        static final EnumSet<DetectorFunction> FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT = EnumSet.of(
-                DetectorFunction.LAT_LONG, DetectorFunction.METRIC, DetectorFunction.RARE, DetectorFunction.FREQ_RARE);
-
         private String detectorDescription;
         private DetectorFunction function;
         private String fieldName;
@@ -603,12 +603,6 @@ public class Detector implements ToXContentObject, Writeable {
             for (DetectionRule rule : rules) {
                 validateRule(rule, function);
             }
-            if (rules.isEmpty() == false) {
-                if (FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(function)) {
-                    String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, function);
-                    throw ExceptionsHelper.badRequestException(msg);
-                }
-            }
 
             // partition, by and over field names cannot be duplicates
             if (!emptyPartitionField) {
@@ -713,6 +707,7 @@ public class Detector implements ToXContentObject, Writeable {
                     case DIFF_FROM_TYPICAL:
                         return true;
                     case TIME:
+                        return false;
                     default:
                         throw new IllegalStateException("Unknown applies_to value [" + condition.getAppliesTo() + "]");
                 }

@@ -55,7 +55,7 @@ public class RuleScope implements ToXContentObject, Writeable {
     public void validate(Set<String> validKeys) {
         Optional<String> invalidKey = scope.keySet().stream().filter(k -> !validKeys.contains(k)).findFirst();
         if (invalidKey.isPresent()) {
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_KEY,
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD,
                     invalidKey.get(), validKeys));
         }
     }

@@ -77,6 +77,10 @@ Automatic mapping creation can be disabled by setting
 Automatic index creation can include a pattern based white/black list,
 for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
 meaning allowed, and - meaning disallowed).
+This can be configured in the `elasticsearch.yml`
+file on *all* nodes, or it can be set (and changed) with the
+<<cluster-update-settings,cluster-update-settings>> API.
+
 
 [float]
 [[index-versioning]]

@@ -28,8 +28,11 @@ import org.elasticsearch.rest.RestUtils;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
@@ -106,13 +109,38 @@ public class AmazonS3TestServer {
         }
 
         final List<String> authorizations = headers.get("Authorization");
-        if (authorizations == null
-            || (authorizations.isEmpty() == false & authorizations.get(0).contains("s3_integration_test_access_key") == false)) {
-            return newError(requestId, RestStatus.FORBIDDEN, "AccessDenied", "Access Denied", "");
+        if (authorizations == null || authorizations.size() != 1) {
+            return newError(requestId, RestStatus.FORBIDDEN, "AccessDenied", "No authorization", "");
+        }
+        final String authorization = authorizations.get(0);
+        final String permittedBucket;
+        if (authorization.contains("s3_integration_test_permanent_access_key")) {
+            final List<String> sessionTokens = headers.get("x-amz-security-token");
+            if (sessionTokens != null) {
+                return newError(requestId, RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
+            }
+            permittedBucket = "permanent_bucket_test";
+        } else if (authorization.contains("s3_integration_test_temporary_access_key")) {
+            final List<String> sessionTokens = headers.get("x-amz-security-token");
+            if (sessionTokens == null || sessionTokens.size() != 1) {
+                return newError(requestId, RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
+            }
+            final String sessionToken = sessionTokens.get(0);
+            if (sessionToken.equals("s3_integration_test_temporary_session_token") == false) {
+                return newError(requestId, RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
+            }
+            permittedBucket = "temporary_bucket_test";
+        } else {
+            return newError(requestId, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
         }
 
         final RequestHandler handler = handlers.retrieve(method + " " + path, params);
         if (handler != null) {
+            final String bucket = params.get("bucket");
+            if (bucket != null && permittedBucket.equals(bucket) == false) {
+                // allow a null bucket to support bucket-free APIs like ListBuckets?
+                return newError(requestId, RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
+            }
             return handler.execute(params, headers, body, requestId);
         } else {
             return newInternalError(requestId, "No handler defined for request [method: " + method + ", path: " + path + "]");

@@ -53,8 +53,8 @@ import static java.util.Collections.singletonList;
 public class AmazonS3Fixture {
 
     public static void main(String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <bucket>");
+        if (args == null || args.length != 1) {
+            throw new IllegalArgumentException("AmazonS3Fixture <working directory>");
         }
 
         final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
@@ -72,7 +72,8 @@ public class AmazonS3Fixture {
             // Emulates S3
             final String storageUrl = "http://" + addressAndPort;
             final AmazonS3TestServer storageTestServer = new AmazonS3TestServer(storageUrl);
-            storageTestServer.createBucket(args[1]);
+            storageTestServer.createBucket("permanent_bucket_test");
+            storageTestServer.createBucket("temporary_bucket_test");
 
             httpServer.createContext("/", new ResponseHandler(storageTestServer));
             httpServer.start();

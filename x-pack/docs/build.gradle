@@ -493,7 +493,7 @@ setups['it_ops_logs_job'] = '''
                 "function": "count",
                 "by_field_name": "mlcategory"
               }],
-              "categorization_filters":[ "\\[statement:.*\\]"]
+              "categorization_filters":[ "\\/[statement:.*\\/]"]
             },
             "analysis_limits":{
               "categorization_examples_limit": 5

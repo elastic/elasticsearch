@@ -273,6 +273,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", minSeqNo, maxSeqNo, true)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
+                if (op.getSource() == null) {
+                    throw new IllegalStateException("source not found for operation: " + op + " minSeqNo: " + minSeqNo + " maxSeqNo: " +
+                        maxSeqNo);
+                }
                 operations.add(op);
                 seenBytes += op.estimateSize();
                 if (seenBytes > byteLimit) {

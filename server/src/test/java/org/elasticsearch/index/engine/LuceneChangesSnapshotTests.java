@@ -65,7 +65,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int refreshedSeqNo = -1;
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(i, i + 5));
-            ParsedDocument doc = createParsedDoc(id, null);
+            ParsedDocument doc = createParsedDoc(id, null, randomBoolean());
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
             } else {
@@ -195,7 +195,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int numOps = scaledRandomIntBetween(1, 1000);
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(1, 10));
-            ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5));
+            ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5), randomBoolean());
             final Engine.Operation op;
             if (onPrimary) {
                 if (randomBoolean()) {

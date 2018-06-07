@@ -241,9 +241,11 @@ number of terms that must match.
 The syntax is the same as the <<query-dsl-minimum-should-match,minimum should match>>.
 (Defaults to `"30%"`).
 
-`fail_on_unsupported_term`::
-Controls whether the query should fail if it encounters a term that is not
-`text` or `keyword' (true) or ignore the error and continue (false). Defaults to
+`fail_on_unsupported_field`::
+Controls whether the query should fail (throw an  exception) if any of the 
+specified fields are not of the supported types
+(`text` or `keyword'). Set this to `false` to ignore the error and continue
+processing. Defaults to
 `true`.
 
 `boost_terms`::

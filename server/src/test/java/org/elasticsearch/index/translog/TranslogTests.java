@@ -95,7 +95,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1578,7 +1577,6 @@ public class TranslogTests extends ESTestCase {
             if (randomBoolean()) {
                 primaryTerm.incrementAndGet();
                 translog.rollGeneration();
-                inMemoryTranslog.rollGeneration();
             }
 
             long maxTrimmedSeqNo = randomInt(allOperations.size());
@@ -1587,7 +1585,7 @@ public class TranslogTests extends ESTestCase {
             inMemoryTranslog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
             translog.sync();
 
-            List<Translog.Operation> effectiveOperations = inMemoryTranslog.operations();
+            Collection<Translog.Operation> effectiveOperations = inMemoryTranslog.operations();
 
             try (Translog.Snapshot snapshot = translog.newSnapshot()) {
                 assertThat(snapshot, containsOperationsInAnyOrder(effectiveOperations));
@@ -1601,45 +1599,26 @@ public class TranslogTests extends ESTestCase {
      * this class mimic behaviour of original {@link Translog}
      */
     static class InMemoryTranslog {
-        private final List<List<Translog.Operation>> operationsList = new ArrayList<>();
-
-        InMemoryTranslog() {
-            operationsList.add(new LinkedList<>());
-        }
+        private final Map<Long, Translog.Operation> operations = new HashMap<>();
 
         void add(Translog.Operation operation) {
-            operationsList.get(operationsList.size() - 1).add(operation);
-        }
-
-        void rollGeneration() {
-            operationsList.add(new LinkedList<>());
+            final Translog.Operation old = operations.put(operation.seqNo(), operation);
+            assert old == null || old.primaryTerm() <= operation.primaryTerm();
         }
 
         void trimOperations(long belowTerm, long aboveSeqNo) {
-            operationsList
-                .stream()
-                .forEach(operations -> {
-                    for (Iterator<Translog.Operation> it = operations.iterator(); it.hasNext(); ) {
-                        Translog.Operation op = it.next();
-                        boolean drop = op.primaryTerm() < belowTerm && op.seqNo() > aboveSeqNo;
-                        if (drop) {
-                            it.remove();
-                        }
-                    }
-                });
+            for (final Iterator<Map.Entry<Long, Translog.Operation>> it = operations.entrySet().iterator(); it.hasNext(); ) {
+                final Map.Entry<Long, Translog.Operation> next = it.next();
+                Translog.Operation op = next.getValue();
+                boolean drop = op.primaryTerm() < belowTerm && op.seqNo() > aboveSeqNo;
+                if (drop) {
+                    it.remove();
+                }
+            }
         }
 
-        List<Translog.Operation> operations() {
-            final Set<Long> seenSeqNo = new HashSet<>();
-
-            int size = operationsList.size();
-            return IntStream.range(0, size)
-                // reverse traverse of operations
-                .mapToObj(i -> operationsList.get(size - i - 1))
-                .flatMap(operations -> operations.stream())
-                // latest ops override firsts
-                .filter(operation -> seenSeqNo.add(operation.seqNo()))
-                .collect(Collectors.toList());
+        Collection<Translog.Operation> operations() {
+            return operations.values();
         }
     }
 

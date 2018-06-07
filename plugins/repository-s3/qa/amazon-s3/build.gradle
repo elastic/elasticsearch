@@ -43,8 +43,9 @@ String s3AccessKey = System.getenv("amazon_s3_access_key")
 String s3SecretKey = System.getenv("amazon_s3_secret_key")
 String s3Bucket = System.getenv("amazon_s3_bucket")
 String s3BasePath = System.getenv("amazon_s3_base_path")
+String s3SessionToken = System.getenv("amazon_s3_session_token")
 
-if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
+if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath && !s3SessionToken) {
     s3AccessKey = 's3_integration_test_access_key'
     s3SecretKey = 's3_integration_test_secret_key'
     s3Bucket = 'bucket_test'
@@ -72,6 +73,9 @@ processTestResources {
 integTestCluster {
     keystoreSetting 's3.client.integration_test.access_key', s3AccessKey
     keystoreSetting 's3.client.integration_test.secret_key', s3SecretKey
+    if (s3SessionToken) {
+        keystoreSetting 's3.client.integration_test.session_token', s3SessionToken
+    }
 
     if (useFixture) {
         dependsOn s3Fixture

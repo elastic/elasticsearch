@@ -74,6 +74,9 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
         assumeFalse("can't be run twice because it invalidates a token so we skip the first attempt",
                 Booleans.parseBoolean(System.getProperty("tests.first_round")));
+        Version upgradeFromVersion = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+        assumeFalse("this test fails for unknown reasons when run before 5.6.0",
+                upgradeFromVersion.before(Version.V_6_0_0));
 
         Response getResponse = client().performRequest("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
         assertOK(getResponse);

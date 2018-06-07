@@ -12,7 +12,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -188,7 +187,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
         executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_start")));
         // Watcher should be started on at least the nodes with the new version.
-        ensureWatcherStartedOnModernNodes();
+        ensureWatcherStartedOnExpectedNodes();
     }
 
     public void testWatchCrudApis() throws Exception {
@@ -318,7 +317,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }));
     }
 
-    private void ensureWatcherStartedOnModernNodes() throws Exception {
+    private void ensureWatcherStartedOnExpectedNodes() throws Exception {
         if (nodes.getMaster().getVersion().before(Version.V_6_0_0)) {
             /*
              * Versions before 6.0 ran watcher on the master node and the
@@ -333,11 +332,17 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             Map<?, ?> stats = ((List<?>) responseBody.get("stats")).stream()
                 .map(o -> (Map<?, ?>) o)
                 .collect(Collectors.toMap(m -> m.get("node_id"), Function.identity()));
-            assertNotNull("no stats yet", stats);
+            if (nodes.getBWCVersion().before(Version.V_6_0_0)) {
+                Map<?, ?> nodeStats = (Map<?, ?>) stats.get(nodes.getMaster().getId());
+                // If the old version is before 6.0 then only the master is allowed to start
+                assertEquals("master node [" + nodes.getMaster().getId() + "] is not started",
+                        "started", nodeStats.get("watcher_state"));
+                return;
+            }
             for (Node node : nodes.getNewNodes()) {
                 Map<?, ?> nodeStats = (Map<?, ?>) stats.get(node.getId());
                 assertEquals("modern node [" + node.getId() + "] is not started",
-                        nodeStats.get("watcher_state"), "started");
+                        "started", nodeStats.get("watcher_state"));
             }
         }));
     }

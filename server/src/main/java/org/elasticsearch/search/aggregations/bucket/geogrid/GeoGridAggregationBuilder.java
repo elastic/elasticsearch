@@ -214,8 +214,8 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(SearchContext context,
-                                                                                 ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
-        throws IOException {
+            ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+                    throws IOException {
         int shardSize = this.shardSize;
 
         int requiredSize = this.requiredSize;

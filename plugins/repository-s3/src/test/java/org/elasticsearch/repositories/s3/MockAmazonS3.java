@@ -130,7 +130,9 @@ class MockAmazonS3 extends AbstractAmazonS3 {
         String blobName = getObjectRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {
-            throw new AmazonS3Exception("[" + blobName + "] does not exist.");
+            final AmazonS3Exception e = new AmazonS3Exception("[" + blobName + "] does not exist.");
+            e.setStatusCode(404);
+            throw e;
         }
 
         // the HTTP request attribute is irrelevant for reading
@@ -183,8 +185,10 @@ class MockAmazonS3 extends AbstractAmazonS3 {
         String targetBlobName = copyObjectRequest.getDestinationKey();
 
         if (!blobs.containsKey(sourceBlobName)) {
-            throw new AmazonS3Exception("Source blob [" +
-                    sourceBlobName + "] does not exist.");
+            final AmazonS3Exception e = new AmazonS3Exception("Source blob [" +
+                sourceBlobName + "] does not exist.");
+            e.setStatusCode(404);
+            throw e;
         }
 
         if (blobs.containsKey(targetBlobName)) {
@@ -203,7 +207,9 @@ class MockAmazonS3 extends AbstractAmazonS3 {
         String blobName = deleteObjectRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {
-            throw new AmazonS3Exception("[" + blobName + "] does not exist.");
+            final AmazonS3Exception e = new AmazonS3Exception("[" + blobName + "] does not exist.");
+            e.setStatusCode(404);
+            throw e;
         }
 
         blobs.remove(blobName);

@@ -46,7 +46,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
  * These tests check basic blob store functionality.
  */
 public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31166")
+
     public void testReadNonExistingPath() throws IOException {
         try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());

@@ -478,6 +478,32 @@ setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
            { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
            ]}
 '''
+setups['it_ops_logs_job'] = '''
+  - do:
+      xpack.ml.put_job:
+        job_id: "it_ops_logs"
+        body:  >
+          {
+            "analysis_config" : {
+              "categorization_field_name": "message",
+              "bucket_span":"30m",
+              "detectors" :[
+              {
+                "detector_description": "Unusual message counts",
+                "function": "count",
+                "by_field_name": "mlcategory"
+              }],
+              "categorization_filters":[ "\\[statement:.*\\]"]
+            },
+            "analysis_limits":{
+              "categorization_examples_limit": 5
+            },
+            "data_description" : {
+              "time_field":"time",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
 setups['role_mapping'] = '''
   - do:
         xpack.security.put_role_mapping:

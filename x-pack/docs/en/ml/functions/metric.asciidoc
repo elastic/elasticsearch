@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-metric-functions]]
-=== Metric Functions
+=== Metric functions
 
 The metric functions include functions such as mean, min and max. These values
 are calculated for each bucket. Field values that cannot be converted to
@@ -106,7 +107,7 @@ response times for each bucket.
 
 [float]
 [[ml-metric-median]]
-==== Median, High_median, Low_median
+==== Median, high_median, low_median
 
 The `median` function detects anomalies in the statistical median of a value.
 The median value is calculated for each bucket.
@@ -143,7 +144,7 @@ median `responsetime` for each application over time. It detects when the median
 
 [float]
 [[ml-metric-mean]]
-==== Mean, High_mean, Low_mean
+==== Mean, high_mean, low_mean
 
 The `mean` function detects anomalies in the arithmetic mean of a value.
 The mean value is calculated for each bucket.
@@ -245,7 +246,7 @@ when the mean, min, or max `responsetime` is unusual compared to previous
 
 [float]
 [[ml-metric-varp]]
-==== Varp, High_varp, Low_varp
+==== Varp, high_varp, low_varp
 
 The `varp` function detects anomalies in the variance of a value which is a
 measure of the variability and spread in the data.

@@ -1,6 +1,6 @@
-
+[role="xpack"]
 [[ml-sum-functions]]
-=== Sum Functions
+=== Sum functions
 
 The sum functions detect anomalies when the sum of a field in a bucket is anomalous.
 
@@ -25,7 +25,7 @@ a more appropriate method to using the sum function.
 
 [float]
 [[ml-sum]]
-==== Sum, High_sum, Low_sum
+==== Sum, high_sum, low_sum
 
 The `sum` function detects anomalies where the sum of a field in a bucket is
 anomalous.
@@ -79,7 +79,7 @@ to find users that are abusing internet privileges.
 
 [float]
 [[ml-nonnull-sum]]
-==== Non_null_sum, High_non_null_sum, Low_non_null_sum
+==== Non_null_sum, high_non_null_sum, low_non_null_sum
 
 The `non_null_sum` function is useful if your data is sparse. Buckets without
 values are ignored and buckets with a zero value are analyzed.

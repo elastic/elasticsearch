@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-time-functions]]
-=== Time Functions
+=== Time functions
 
 The time functions detect events that happen at unusual times, either of the day
 or of the week. These functions can be used to find unusual patterns of behavior,

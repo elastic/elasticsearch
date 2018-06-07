@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-rare-functions]]
-=== Rare Functions
+=== Rare functions
 
 The rare functions detect values that occur rarely in time or rarely for a
 population.

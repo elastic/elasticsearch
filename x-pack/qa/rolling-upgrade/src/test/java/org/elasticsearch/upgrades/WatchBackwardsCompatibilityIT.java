@@ -315,7 +315,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
-        }, 1, TimeUnit.HOURS));
+        }));
     }
 
     private void ensureWatcherStartedOnModernNodes() throws Exception {

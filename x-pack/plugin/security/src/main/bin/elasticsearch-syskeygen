@@ -5,6 +5,6 @@
 # you may not use this file except in compliance with the Elastic License.
 
 ES_MAIN_CLASS=org.elasticsearch.xpack.security.crypto.tool.SystemKeyTool \
-ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+  ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
   "`dirname "$0"`"/elasticsearch-cli \
   "$@"

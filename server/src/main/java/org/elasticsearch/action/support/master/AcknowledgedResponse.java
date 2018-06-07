@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -86,6 +87,21 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
 
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
 
+    }
+
+    /**
+     * A generic parser that simply parses the acknowledged flag
+     */
+    private static final ConstructingObjectParser<Boolean, Void> ACKNOWLEDGED_FLAG_PARSER = new ConstructingObjectParser<>(
+            "acknowledged_flag", true, args -> (Boolean) args[0]);
+
+    static {
+        ACKNOWLEDGED_FLAG_PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
+                ObjectParser.ValueType.BOOLEAN);
+    }
+
+    protected static boolean parseAcknowledged(XContentParser parser) {
+        return ACKNOWLEDGED_FLAG_PARSER.apply(parser, null);
     }
 
     @Override

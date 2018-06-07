@@ -523,15 +523,11 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</assert:Attribute></assert:AttributeStatement>" +
                 "</assert:Assertion>" +
                 "</proto:Response>";
-        SamlToken token = token(signAssertions(xml, idpSigningCertificatePair));
-        final SamlAttributes attributes = authenticator.authenticate(token);
-        assertThat(attributes, notNullValue());
-        assertThat(attributes.attributes(), iterableWithSize(1));
-        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
-        assertThat(uid, contains("daredevil"));
-        assertThat(uid, iterableWithSize(1));
-        assertThat(attributes.name(), notNullValue());
-        assertThat(attributes.name().format, equalTo(TRANSIENT));
+        SamlToken token = token(signDoc(xml));
+        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        assertThat(exception.getMessage(), containsString("destination"));
+        assertThat(exception.getCause(), nullValue());
+        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testMissingDestinationIsNotRejectedForNotSignedResponse() throws Exception {
@@ -569,11 +565,15 @@ public class SamlAuthenticatorTests extends SamlTestCase {
             "</assert:Attribute></assert:AttributeStatement>" +
             "</assert:Assertion>" +
             "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
-        assertThat(exception.getMessage(), containsString("destination"));
-        assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
+        SamlToken token = token(signAssertions(xml, idpSigningCertificatePair));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(1));
+        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
     }
 
     public void testIncorrectRequestIdIsRejected() throws Exception {

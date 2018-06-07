@@ -44,7 +44,12 @@ time setting format). Defaults to `30s`.
 |`transport.tcp.compress` |Set to `true` to enable compression (`DEFLATE`)
 between all nodes. Defaults to `false`.
 
-|`transport.ping_schedule` | Schedule a regular ping message to ensure that connections are kept alive. Defaults to `5s` in the transport client and `-1` (disabled) elsewhere.
+|`transport.ping_schedule` | Schedule a regular application-level ping message
+to ensure that transport connections between nodes are kept alive. Defaults to
+`5s` in the transport client and `-1` (disabled) elsewhere. It is preferable to
+correctly configure TCP keep-alives using the `tcp_keep_alive` transport
+profile parameter instead of using this feature, because TCP keep-alives apply
+to all kinds of long-lived connection and not just to transport connections.
 
 |=======================================================================
 

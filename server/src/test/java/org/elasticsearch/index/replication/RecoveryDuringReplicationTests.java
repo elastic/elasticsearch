@@ -715,11 +715,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public Engine newNoopEngine(EngineConfig config) {
-            throw new UnsupportedOperationException("not used");
-        }
-
-        @Override
         public void close() throws Exception {
             releaseLatchedIndexers();
         }

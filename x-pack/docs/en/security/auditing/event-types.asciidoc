@@ -1,5 +1,4 @@
 [role="xpack"]
-[float]
 [[audit-event-types]]
 === Audit event types
 

@@ -1825,31 +1825,4 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
         assertHitCount(searchResponse, 1);
     }
-
-    public void testTermExpansionExceptionOnSpanFailure() throws ExecutionException, InterruptedException {
-        Settings.Builder builder = Settings.builder();
-        builder.put(SETTING_NUMBER_OF_SHARDS, 1).build();
-
-        createIndex("test", builder.build());
-        ArrayList<IndexRequestBuilder> reqs = new ArrayList<>();
-        int origBoolMaxClauseCount = BooleanQuery.getMaxClauseCount();
-        try {
-            BooleanQuery.setMaxClauseCount(2);
-            for (int i = 0; i < BooleanQuery.getMaxClauseCount() + 1; i++) {
-                reqs.add(client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("body", "foo" +
-                    Integer.toString(i) + " bar baz"));
-            }
-            indexRandom(true, false, reqs);
-
-            QueryBuilder queryBuilder = new SpanNearQueryBuilder(new SpanMultiTermQueryBuilder(QueryBuilders.wildcardQuery
-                ("body", "f*")), 0).addClause(new SpanTermQueryBuilder("body", "bar"));
-
-            expectThrows(ElasticsearchException.class, () ->
-                client().prepareSearch().setIndices("test").setQuery(queryBuilder).get());
-        } finally {
-            BooleanQuery.setMaxClauseCount(origBoolMaxClauseCount);
-        }
-
-    }
-
 }

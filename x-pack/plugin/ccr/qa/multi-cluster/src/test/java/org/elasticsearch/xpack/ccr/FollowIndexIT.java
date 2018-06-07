@@ -40,13 +40,23 @@ public class FollowIndexIT extends ESRestTestCase {
         final String leaderIndexName = "test_index1";
         if (runningAgainstLeaderCluster) {
             logger.info("Running against leader cluster");
+            String mapping = "";
+            if (randomBoolean()) { // randomly do source filtering on indexing
+                mapping =
+                    "\"_doc\": {" +
+                    "  \"_source\": {" +
+                    "    \"includes\": [\"field\"]," +
+                    "    \"excludes\": [\"filtered_field\"]" +
+                    "   }"+
+                    "}";
+            }
             Settings indexSettings = Settings.builder()
                     .put("index.soft_deletes.enabled", true)
                     .build();
-            createIndex(leaderIndexName, indexSettings);
+            createIndex(leaderIndexName, indexSettings, mapping);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
-                index(client(), leaderIndexName, Integer.toString(i), "field", i);
+                index(client(), leaderIndexName, Integer.toString(i), "field", i, "filtered_field", "true");
             }
             refresh(leaderIndexName);
             verifyDocuments(leaderIndexName, numDocs);
@@ -60,9 +70,9 @@ public class FollowIndexIT extends ESRestTestCase {
             followIndex("leader_cluster:" + leaderIndexName, followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
-                index(leaderClient, leaderIndexName, Integer.toString(id), "field", id);
-                index(leaderClient, leaderIndexName, Integer.toString(id + 1), "field", id + 1);
-                index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2);
+                index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
+                index(leaderClient, leaderIndexName, Integer.toString(id + 1), "field", id + 1, "filtered_field", "true");
+                index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2, "filtered_field", "true");
             }
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
         }
@@ -103,6 +113,7 @@ public class FollowIndexIT extends ESRestTestCase {
         final Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter("size", Integer.toString(expectedNumDocs));
         request.addParameter("sort", "field:asc");
+        request.addParameter("q", "filtered_field:true");
         Map<String, ?> response = toMap(client().performRequest(request));
 
         int numDocs = (int) XContentMapValues.extractValue("hits.total", response);

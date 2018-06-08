@@ -241,13 +241,6 @@ final class NoopEngine extends Engine {
 
     @Override
     public CommitId flush() throws EngineException {
-        try {
-            translog.rollGeneration();
-            translog.trimUnreferencedReaders();
-        } catch (IOException e) {
-            maybeFailEngine("flush", e);
-            throw new FlushFailedEngineException(shardId, e);
-        }
         return new CommitId(lastCommittedSegmentInfos.getId());
     }
 

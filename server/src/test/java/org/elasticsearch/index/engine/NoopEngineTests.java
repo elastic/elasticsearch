@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -54,21 +53,6 @@ public class NoopEngineTests extends EngineTestCase {
         final NoopEngine engine2 = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         engine1.close();
         engine2.close();
-    }
-
-    public void testFlushingTranslogRemovesTranslogOperations() throws IOException {
-        ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
-        Engine.Index index = indexForDoc(doc);
-        Engine.IndexResult indexResult = engine.index(index);
-        assertTrue(indexResult.isCreated());
-        engine.flush(true, true);
-        engine.close();
-
-        final NoopEngine noopEngine = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        assertThat(noopEngine.getTranslog().totalOperations(), equalTo(1));
-        noopEngine.flush();
-        assertThat(noopEngine.getTranslog().totalOperations(), equalTo(0));
-        noopEngine.close();
     }
 
 }

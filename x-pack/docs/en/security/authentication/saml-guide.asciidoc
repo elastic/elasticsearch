@@ -192,7 +192,7 @@ attribute.groups:: See <<saml-attribute-mapping>>.
 When a user connects to {kib} through your Identity Provider, the Identity
 Provider will supply a SAML Assertion about the user. The assertion will contain
 an _Authentication Statement_ indicating that the user has successfully
-authenticated to the IdP and one ore more _Attribute Statements_ that will
+authenticated to the IdP and one or more _Attribute Statements_ that will
 include _Attributes_ for the user.
 
 These attributes may include such things as:

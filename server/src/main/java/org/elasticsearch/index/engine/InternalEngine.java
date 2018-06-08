@@ -65,6 +65,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -2185,8 +2186,28 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    public final LocalCheckpointTracker getLocalCheckpointTracker() {
-        return localCheckpointTracker;
+    public long getLocalCheckpoint() {
+        return localCheckpointTracker.getCheckpoint();
+    }
+
+    public long getMaxSeqNo() {
+        return localCheckpointTracker.getMaxSeqNo();
+    }
+
+    public long generateSeqNo() {
+        return localCheckpointTracker.generateSeqNo();
+    }
+
+    public void waitForOpsToComplete(long seqNo) throws InterruptedException {
+        localCheckpointTracker.waitForOpsToComplete(seqNo);
+    }
+
+    public void resetLocalCheckpoint(long localCheckpoint) {
+        localCheckpointTracker.resetCheckpoint(localCheckpoint);
+    }
+
+    public SeqNoStats getSeqNoStats(long globalCheckpoint) {
+        return localCheckpointTracker.getStats(globalCheckpoint);
     }
 
     /**

@@ -847,7 +847,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replicaShard, primaryShard);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i <= maxSeqNo; i++) {
-            primaryShard.getEngine().getLocalCheckpointTracker().generateSeqNo();
+            primaryShard.getEngine().generateSeqNo();
         }
         final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
 

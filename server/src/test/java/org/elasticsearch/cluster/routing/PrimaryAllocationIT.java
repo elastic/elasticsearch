@@ -350,7 +350,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
         }
         final IndexShard oldPrimaryShard = internalCluster().getInstance(IndicesService.class, oldPrimary).getShardOrNull(shardId);
-        IndexShardTestCase.getEngine(oldPrimaryShard).getLocalCheckpointTracker().generateSeqNo(); // Make gap in seqno.
+        IndexShardTestCase.getEngine(oldPrimaryShard).generateSeqNo(); // Make gap in seqno.
         long moreDocs = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < moreDocs; i++) {
             IndexResponse indexResult = index("test", "doc", Long.toString(numDocs + i));

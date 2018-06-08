@@ -405,7 +405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
 
                 if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
-                    replicationTracker.activatePrimaryMode(getEngine().getLocalCheckpointTracker().getCheckpoint());
+                    replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                 }
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
@@ -479,8 +479,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
-                                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(),
-                                    getEngine().getLocalCheckpointTracker().getCheckpoint());
+                                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
                                     public void onResponse(ResyncTask resyncTask) {
@@ -506,7 +505,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
                         },
                         e -> failShard("exception during primary term transition", e));
-                    replicationTracker.activatePrimaryMode(getEngine().getLocalCheckpointTracker().getCheckpoint());
+                    replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                     primaryTerm = newPrimaryTerm;
                 }
             }
@@ -873,7 +872,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     public SeqNoStats seqNoStats() {
         Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.getLocalCheckpointTracker().getStats(replicationTracker.getGlobalCheckpoint());
+        return engine == null ? null : engine.getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
     public IndexingStats indexingStats(String... types) {
@@ -1707,7 +1706,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
-        getEngine().getLocalCheckpointTracker().waitForOpsToComplete(seqNo);
+        getEngine().waitForOpsToComplete(seqNo);
     }
 
     /**
@@ -1740,7 +1739,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the local checkpoint
      */
     public long getLocalCheckpoint() {
-        return getEngine().getLocalCheckpointTracker().getCheckpoint();
+        return getEngine().getLocalCheckpoint();
     }
 
     /**
@@ -1781,7 +1780,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         // only sync if there are not operations in flight
-        final SeqNoStats stats = getEngine().getLocalCheckpointTracker().getStats(replicationTracker.getGlobalCheckpoint());
+        final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
             final String allocationId = routingEntry().allocationId().getId();
@@ -1818,7 +1817,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
         verifyReplicationTarget();
-        final long localCheckpoint = getEngine().getLocalCheckpointTracker().getCheckpoint();
+        final long localCheckpoint = getLocalCheckpoint();
         if (globalCheckpoint > localCheckpoint) {
             /*
              * This can happen during recovery when the shard has started its engine but recovery is not finalized and is receiving global
@@ -1847,8 +1846,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyPrimary();
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
-            getEngine().getLocalCheckpointTracker().getCheckpoint() ==
-                primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
+            getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
@@ -2234,7 +2232,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     operationPrimaryTerm,
                                     getLocalCheckpoint(),
                                     localCheckpoint);
-                            getEngine().getLocalCheckpointTracker().resetCheckpoint(localCheckpoint);
+                            getEngine().resetLocalCheckpoint(localCheckpoint);
                             getEngine().rollTranslogGeneration();
                         });
                         globalCheckpointUpdated = true;

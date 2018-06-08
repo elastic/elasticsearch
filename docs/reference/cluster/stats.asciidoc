@@ -212,3 +212,13 @@ Will return, for example:
 The TESTRESPONSE above replace all the fields values by the expected ones in the test,
 because we don't really care about the field values but we want to check the fields names.
 ////
+
+This API can be restricted to a subset of the nodes using the `?nodeId`
+parameter, which accepts <<cluster-nodes,node filters>>:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/stats?nodeId=node1,node*,master:false
+--------------------------------------------------
+// CONSOLE
+

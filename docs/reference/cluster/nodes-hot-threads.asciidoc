@@ -1,7 +1,9 @@
 [[cluster-nodes-hot-threads]]
 == Nodes hot_threads
 
-The cluster nodes hot_threads API allows to get the current hot threads on each node in the cluster.
+This API yields a breakdown of the hot threads on each selected node in the
+cluster. Its endpoints are `/_nodes/hot_threads` and
+`/_nodes/{nodes}/hot_threads`:
 
 [source,js]
 --------------------------------------------------
@@ -10,12 +12,12 @@ GET /_nodes/nodeId1,nodeId2/hot_threads
 --------------------------------------------------
 // CONSOLE
 
-The first command gets the hot threads of all the nodes in the cluster.
-The second command selectively gets the hot threads of only `nodeId1` and `nodeId2`.
-All the nodes selective options are explained <<cluster-nodes,here>>.
+The first command gets the hot threads of all the nodes in the cluster. The
+second command gets the hot threads of only `nodeId1` and `nodeId2`. Nodes can
+be selected using <<cluster-nodes,node filters>>.
 
-The output is plain text with a breakdown of each node's top hot
-threads. Parameters allowed are:
+The output is plain text with a breakdown of each node's top hot threads.  The
+allowed parameters are:
 
 [horizontal]
 `threads`:: 	number of hot threads to provide, defaults to 3.

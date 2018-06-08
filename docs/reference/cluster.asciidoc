@@ -6,53 +6,68 @@
 ["float",id="cluster-nodes"]
 == Node specification
 
-Some cluster level APIs allow to specify nodes with _node filters_, these filters
-limit the results to selected nodes for corresponding APIs. (For example, you can
-find it in <<tasks,Task Management>> API and all the Nodes APIs like
-<<cluster-nodes-stats,Nodes Stats>>, <<cluster-nodes-info,Nodes Info>> etc.)
+Some cluster-level APIs may operate on a subset of the nodes which can be
+specified with _node filters_. For example, the <<tasks,Task Management>>,
+<<cluster-nodes-stats,Nodes Stats>>, and <<cluster-nodes-info,Nodes Info>> APIs
+can all report results from a filtered set of nodes rather than from all nodes.
 
-_Node filters_ can be one or a list filters which is comma-seperated, each filter can be:
+_Node filters_ are written as a comma-separated list of individual filters,
+each of which adds or removes nodes from the chosen subset. Each filter can be
+one of the following:
 
-* `_local`
-* `_master`
-* `_all`
-* a node id
-* a node name, node address or node hostname (could be a pattern matched using `*` wildcard)
-* `[master|data|ingest|coordinating_only]:[true|false]` <1> <2>
-* custom `attr:value` (need to be set in configuration file and could be a pattern matched using `*` wildcard) <3>
+* `_all`, to add all nodes to the subset.
+* `_local`, to add the local node to the subset.
+* `_master`, to add the currently-elected master node to the subset.
+* a node id, to add this node to the set.
+* a pattern, using `*` wildcards, which adds all nodes to the subset
+  whose name, address or hostname matches the pattern.
+* `master:true`, `data:true`, `ingest:true` or `coordinating_only:true`, which
+  respectively add to the subset all master-eligible nodes, all data nodes,
+  all ingest nodes, and all coordinating-only nodes.
+* `master:false`, `data:false`, `ingest:false` or `coordinating_only:false`,
+  which respectively remove from the subset all master-eligible nodes, all data
+  nodes, all ingest nodes, and all coordinating-only nodes.
+* a pattern, using `*` wildcards, of the form `attrname:attrvalue`, which adds
+  to the subset all nodes with a custom node attribute that matches the
+  pattern. Custom node attributes are configured by setting properties in the
+  configuration file of the form `node.attr.attrname: attrvalue`.
 
-[NOTE]
-===============================================
-<1> pay attention that `master` means master-eligible nodes, not the current master which is represented by `_master`.
-<2> `false` means exclude the specified type of nodes.
-<3> the custom `attr:value` should be defined in configuration file.
-===============================================
+NOTE: node filters run in the order in which they are given, which is important
+if using filters that remove nodes from the set. For example
+`_all,master:false` means all the nodes except the master-eligible ones, but
+`master:false,_all` means the same as `_all` because the `_all` filter runs
+after the `master:false` filter.
 
-IMPORTANT: node filters run in order in case of multiple, this is important when you use the exclusion case,
-for example `/_all,master:false` means all the nodes exclude master-eligible, but `/master:false,_all` means
-all the nodes as you exclude the master-eligible nodes firstly and then add all nodes in.
+NOTE: if no filters are given, the default is to select all nodes. However, if
+any filters are given then they run starting with an empty chosen subset. This
+means that filters such as `master:false` which remove nodes from the chosen
+subset are only useful if they come after some other filters. When used on its
+own, `master:false` selects no nodes.
 
-Here are some node filters examples:
+Here are some examples of the use of node filters with the
+<<cluster-nodes-info,Nodes Info>> APIs.
 
 [source,js]
 --------------------------------------------------
-# Local node
-GET /_nodes/_local
-# Master node
-GET /_nodes/_master
-# All nodes
+# If no filters are given, the default is to select all nodes
+GET /_nodes
+# Explicitly select all nodes
 GET /_nodes/_all
-# Using node name
+# Select just the local node
+GET /_nodes/_local
+# Select the elected master node
+GET /_nodes/_master
+# Select nodes by name, which can include wildcards
 GET /_nodes/node_name_goes_here
 GET /_nodes/node_name_goes_*
-# Using address
+# Select nodes by address, which can include wildcards
 GET /_nodes/10.0.0.3,10.0.0.4
 GET /_nodes/10.0.0.*
-# Using built-in `attr:value`
+# Select nodes by role
 GET /_nodes/_all,master:false
 GET /_nodes/data:true,ingest:true
 GET /_nodes/coordinating_only:true
-# Using custom `attr:value` (set something like `node.attr.rack: 2` in configuration file)
+# Select nodes by custom attribute (e.g. with something like `node.attr.rack: 2` in the configuration file)
 GET /_nodes/rack:2
 GET /_nodes/ra*:2
 GET /_nodes/ra*:2*

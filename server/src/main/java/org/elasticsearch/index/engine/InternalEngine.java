@@ -1552,7 +1552,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void trimTranslog() throws EngineException {
+    public void trimUnreferencedTranslogFiles() throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             translog.trimUnreferencedReaders();
@@ -1566,6 +1566,24 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw new EngineException(shardId, "failed to trim translog", e);
+        }
+    }
+
+    @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.trimOperations(belowTerm, aboveSeqNo);
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog operations trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to trim translog operations", e);
         }
     }
 

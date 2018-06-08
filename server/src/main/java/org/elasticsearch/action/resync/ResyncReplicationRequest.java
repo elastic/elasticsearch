@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
@@ -33,15 +34,22 @@ import java.util.Arrays;
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 
+    private long trimAboveSeqNo;
     private Translog.Operation[] operations;
 
     ResyncReplicationRequest() {
         super();
     }
 
-    public ResyncReplicationRequest(final ShardId shardId, final Translog.Operation[] operations) {
+    public ResyncReplicationRequest(final ShardId shardId, final long trimAboveSeqNo,
+                                    final Translog.Operation[] operations) {
         super(shardId);
+        this.trimAboveSeqNo = trimAboveSeqNo;
         this.operations = operations;
+    }
+
+    public long getTrimAboveSeqNo() {
+        return trimAboveSeqNo;
     }
 
     public Translog.Operation[] getOperations() {
@@ -60,12 +68,20 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
             throw new IllegalStateException("resync replication request serialization is broken in 6.0.0");
         }
         super.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            trimAboveSeqNo = in.readZLong();
+        } else {
+            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeZLong(trimAboveSeqNo);
+        }
         out.writeArray(Translog.Operation::writeOperation, operations);
     }
 
@@ -74,12 +90,13 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ResyncReplicationRequest that = (ResyncReplicationRequest) o;
-        return Arrays.equals(operations, that.operations);
+        return trimAboveSeqNo == that.trimAboveSeqNo
+            && Arrays.equals(operations, that.operations);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(operations);
+        return Long.hashCode(trimAboveSeqNo) + 31 * Arrays.hashCode(operations);
     }
 
     @Override
@@ -88,6 +105,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
             "shardId=" + shardId +
             ", timeout=" + timeout +
             ", index='" + index + '\'' +
+            ", trimAboveSeqNo=" + trimAboveSeqNo +
             ", ops=" + operations.length +
             "}";
     }

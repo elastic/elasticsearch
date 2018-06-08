@@ -992,7 +992,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void trimTranslog() {
         verifyNotClosed();
         final Engine engine = getEngine();
-        engine.trimTranslog();
+        engine.trimUnreferencedTranslogFiles();
     }
 
     /**
@@ -1192,6 +1192,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         assert currentEngineReference.get() == null;
+    }
+
+    public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
+        getEngine().trimOperationsFromTranslog(primaryTerm, aboveSeqNo);
     }
 
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {

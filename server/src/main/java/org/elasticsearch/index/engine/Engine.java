@@ -236,6 +236,12 @@ public abstract class Engine implements Closeable {
      */
     public abstract boolean isThrottled();
 
+    /**
+     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
+     * @see Translog#trimOperations(long, long)
+     */
+    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
+
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 
@@ -904,7 +910,7 @@ public abstract class Engine implements Closeable {
      * checks and removes translog files that no longer need to be retained. See
      * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
      */
-    public abstract void trimTranslog() throws EngineException;
+    public abstract void trimUnreferencedTranslogFiles() throws EngineException;
 
     /**
      * Tests whether or not the translog generation should be rolled to a new generation.

@@ -624,7 +624,7 @@ public class RestClient implements Closeable {
      */
     private NodeTuple<Iterator<Node>> nextNode(NodeSelector nodeSelector) throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        List<Node> hosts = selectHosts(nodeTuple, blacklist, lastNodeIndex, System.nanoTime(), nodeSelector);
+        List<Node> hosts = selectHosts(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
@@ -633,7 +633,7 @@ public class RestClient implements Closeable {
      */
     static List<Node> selectHosts(NodeTuple<List<Node>> nodeTuple,
             Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastNodeIndex,
-            long now, NodeSelector nodeSelector) throws IOException {
+            NodeSelector nodeSelector) throws IOException {
         /*
          * Sort the nodes into living and dead lists.
          */

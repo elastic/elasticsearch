@@ -86,6 +86,10 @@ final class DeadHostState implements Comparable<DeadHostState> {
 
     @Override
     public int compareTo(DeadHostState other) {
+        if (timeSupplier != other.timeSupplier) {
+            throw new IllegalArgumentException("can't compare DeadHostStates with different clocks ["
+                    + timeSupplier + " != " + other.timeSupplier + "]");
+        }
         return Long.compare(deadUntilNanos, other.deadUntilNanos);
     }
 

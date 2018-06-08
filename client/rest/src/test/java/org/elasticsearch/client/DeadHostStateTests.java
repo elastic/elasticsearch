@@ -121,7 +121,7 @@ public class DeadHostStateTests extends RestClientTestCase {
         }
     }
 
-    private static class ConfigurableTimeSupplier implements DeadHostState.TimeSupplier {
+    static class ConfigurableTimeSupplier implements DeadHostState.TimeSupplier {
         long nanoTime;
 
         @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.DeadHostStateTests.ConfigurableTimeSupplier;
 import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
@@ -379,8 +380,8 @@ public class RestClientTests extends RestClientTestCase {
         Map<HttpHost, DeadHostState> emptyBlacklist = Collections.emptyMap();
 
         // Normal cases where the node selector doesn't reject all living nodes
-        assertSelectLivingHosts(Arrays.asList(n1, n2, n3), nodeTuple, emptyBlacklist, 0, NodeSelector.ANY);
-        assertSelectLivingHosts(Arrays.asList(n2, n3), nodeTuple, emptyBlacklist, 0, not1);
+        assertSelectLivingHosts(Arrays.asList(n1, n2, n3), nodeTuple, emptyBlacklist, NodeSelector.ANY);
+        assertSelectLivingHosts(Arrays.asList(n2, n3), nodeTuple, emptyBlacklist, not1);
 
         /*
          * Try a NodeSelector that excludes all nodes. This should
@@ -390,24 +391,24 @@ public class RestClientTests extends RestClientTestCase {
             String message = "NodeSelector [NONE] rejected all nodes, living ["
                     + "[host=http://1, version=1], [host=http://2, version=2], "
                     + "[host=http://3, version=3]] and dead []";
-            assertEquals(message, assertSelectAllRejected(nodeTuple, emptyBlacklist, 0, noNodes));
+            assertEquals(message, assertSelectAllRejected(nodeTuple, emptyBlacklist, noNodes));
         }
 
         // Mark all the nodes dead for a few test cases
         {
-            long now = 0;
+            ConfigurableTimeSupplier timeSupplier = new ConfigurableTimeSupplier();
             Map<HttpHost, DeadHostState> blacklist = new HashMap<>();
-            blacklist.put(n1.getHost(), new DeadHostState(now));
-            blacklist.put(n2.getHost(), new DeadHostState(new DeadHostState(now), now));
-            blacklist.put(n3.getHost(), new DeadHostState(new DeadHostState(new DeadHostState(now), now), now));
+            blacklist.put(n1.getHost(), new DeadHostState(timeSupplier));
+            blacklist.put(n2.getHost(), new DeadHostState(new DeadHostState(timeSupplier)));
+            blacklist.put(n3.getHost(), new DeadHostState(new DeadHostState(new DeadHostState(timeSupplier))));
 
             /*
              * selectHosts will revive a single host if regardless of
              * blacklist time. It'll revive the node that is closest
              * to being revived that the NodeSelector is ok with.
              */
-            assertEquals(singletonList(n1), RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(), now, NodeSelector.ANY));
-            assertEquals(singletonList(n2), RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(), now, not1));
+            assertEquals(singletonList(n1), RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(), NodeSelector.ANY));
+            assertEquals(singletonList(n2), RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(), not1));
 
             /*
              * Try a NodeSelector that excludes all nodes. This should
@@ -418,43 +419,42 @@ public class RestClientTests extends RestClientTestCase {
             String message = "NodeSelector [NONE] rejected all nodes, living [] and dead ["
                     + "[host=http://1, version=1], [host=http://2, version=2], "
                     + "[host=http://3, version=3]]";
-            assertEquals(message, assertSelectAllRejected(nodeTuple, blacklist, now, noNodes));
+            assertEquals(message, assertSelectAllRejected(nodeTuple, blacklist, noNodes));
 
             /*
              * Now lets wind the clock forward, past the timeout for one of
              * the dead nodes. We should return it.
              */
-            now = new DeadHostState(now).getDeadUntilNanos();
-            assertSelectLivingHosts(Arrays.asList(n1), nodeTuple, blacklist, 0, NodeSelector.ANY);
+            timeSupplier.nanoTime = new DeadHostState(timeSupplier).getDeadUntilNanos();
+            assertSelectLivingHosts(Arrays.asList(n1), nodeTuple, blacklist, NodeSelector.ANY);
 
             /*
              * But if the NodeSelector rejects that node then we'll pick the
              * first on that the NodeSelector doesn't reject.
              */
-            assertSelectLivingHosts(Arrays.asList(n2), nodeTuple, blacklist, 0, not1);
+            assertSelectLivingHosts(Arrays.asList(n2), nodeTuple, blacklist, not1);
 
             /*
              * If we wind the clock way into the future, past any of the
              * blacklist timeouts then we function as though the nodes aren't
              * in the blacklist at all.
              */
-            now += DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS;
-            assertSelectLivingHosts(Arrays.asList(n1, n2, n3), nodeTuple, blacklist, now, NodeSelector.ANY);
-            assertSelectLivingHosts(Arrays.asList(n2, n3), nodeTuple, blacklist, now, not1);
+            timeSupplier.nanoTime += DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS;
+            assertSelectLivingHosts(Arrays.asList(n1, n2, n3), nodeTuple, blacklist, NodeSelector.ANY);
+            assertSelectLivingHosts(Arrays.asList(n2, n3), nodeTuple, blacklist, not1);
         }
     }
 
     private void assertSelectLivingHosts(List<Node> expectedNodes, NodeTuple<List<Node>> nodeTuple,
-            Map<HttpHost, DeadHostState> blacklist, long now, NodeSelector nodeSelector) throws IOException {
+            Map<HttpHost, DeadHostState> blacklist, NodeSelector nodeSelector) throws IOException {
         int iterations = 1000;
         AtomicInteger lastNodeIndex = new AtomicInteger(0);
-        assertEquals(expectedNodes, RestClient.selectHosts(nodeTuple, blacklist,
-                lastNodeIndex, now, nodeSelector));
+        assertEquals(expectedNodes, RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
         // Calling it again rotates the set of results
         for (int i = 1; i < iterations; i++) {
             Collections.rotate(expectedNodes, 1);
-            assertEquals("iteration " + i, expectedNodes, RestClient.selectHosts(nodeTuple, blacklist,
-                    lastNodeIndex, now, nodeSelector));
+            assertEquals("iteration " + i, expectedNodes,
+                    RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
         }
     }
 
@@ -463,9 +463,9 @@ public class RestClientTests extends RestClientTestCase {
      * @return the message in the exception thrown by the failure
      */
     private String assertSelectAllRejected( NodeTuple<List<Node>> nodeTuple,
-            Map<HttpHost, DeadHostState> blacklist, long now, NodeSelector nodeSelector) {
+            Map<HttpHost, DeadHostState> blacklist, NodeSelector nodeSelector) {
         try {
-            RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(0), now, nodeSelector);
+            RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(0), nodeSelector);
             throw new AssertionError("expected selectHosts to fail");
         } catch (IOException e) {
             return e.getMessage();

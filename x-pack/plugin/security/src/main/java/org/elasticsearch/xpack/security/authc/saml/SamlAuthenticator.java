@@ -158,9 +158,11 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private void checkResponseDestination(Response response) {
         final String asc = getSpConfiguration().getAscUrl();
-        if (response.isSigned() && asc.equals(response.getDestination()) == false) {
-            throw samlException("SAML response " + response.getID() + " is for destination " + response.getDestination()
+        if (asc.equals(response.getDestination()) == false) {
+            if (response.isSigned() || Strings.hasText(response.getDestination())) {
+                throw samlException("SAML response " + response.getID() + " is for destination " + response.getDestination()
                     + " but this realm uses " + asc);
+            }
         }
     }
 

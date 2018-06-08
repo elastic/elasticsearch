@@ -523,7 +523,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</assert:Attribute></assert:AttributeStatement>" +
                 "</assert:Assertion>" +
                 "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        SamlToken token = randomBoolean() ? token(signDoc(xml)) : token(signAssertions(xml, idpSigningCertificatePair));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("destination"));
         assertThat(exception.getCause(), nullValue());

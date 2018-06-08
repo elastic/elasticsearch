@@ -30,14 +30,12 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -193,39 +191,45 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private static final class PendingExecutions {
-        private final Semaphore semaphore;
-        private Queue<Runnable> queue;
+        private final int permits;
+        private int permitsTaken = 0;
+        private ArrayDeque<Runnable> queue = new ArrayDeque<>();
+
         PendingExecutions(int permits) {
-            this.semaphore = new Semaphore(permits);
+            assert permits > 0 : "not enough permits: " + permits;
+            this.permits = permits;
         }
+
         void finishAndRunNext() {
-            semaphore.release();
-            tryRun();
-        }
-
-        synchronized void add(Runnable runnable) {
-            if (queue == null) { // create this lazily
-                queue = new LinkedList<>();
+            synchronized (this) {
+                permitsTaken--;
+                assert permitsTaken >= 0 : "illegal taken permits: " + permitsTaken;
             }
-            queue.add(runnable);
+            tryRun(null);
         }
 
-        void tryRun() {
-            if (semaphore.tryAcquire()) {
-                final Runnable poll;
-                synchronized (this) {
-                    poll = queue != null ? queue.poll() : null;
-                }
-                if (poll != null) {
-                    poll.run();
-                } else {
-                    semaphore.release();
-                }
+        void tryRun(Runnable runnable) {
+            Runnable r = tryQueue(runnable);
+            if (r != null) {
+                r.run();
             }
         }
 
-        boolean tryAcquire() {
-            return semaphore.tryAcquire();
+        private synchronized Runnable tryQueue(Runnable runnable) {
+            Runnable toExecute = null;
+            if (permitsTaken < permits) {
+                permitsTaken++;
+                toExecute = runnable;
+                if (toExecute == null) { // only poll if we don't have anything to execute
+                    toExecute = queue.poll();
+                }
+                if (toExecute == null) {
+                    permitsTaken--;
+                }
+            } else if (runnable != null) {
+                queue.add(runnable);
+            }
+            return toExecute;
         }
     }
 
@@ -247,16 +251,16 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
          * could stack overflow. To prevent this, we fork if we are called back on the same thread that execution started on and otherwise
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
-        final Thread thread = Thread.currentThread();
         if (shard == null) {
             fork(() -> onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
         } else {
-            final PendingExecutions pendingExecutions = throttleConcurrentRequests ? pendingExecutionsPerNode.computeIfAbsent(shard.currentNodeId(),
-                n -> new PendingExecutions(maxConcurrentRequestsPerNode)) : null;
+            final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
+                pendingExecutionsPerNode.computeIfAbsent(shard.currentNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
+                : null;
             Runnable r = () -> {
+                final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(new SearchShardTarget(shard
-                        .currentNodeId(),
+                    executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(new SearchShardTarget(shard.currentNodeId(),
                         shardIt.shardId(), shardIt.getClusterAlias(), shardIt.getOriginalIndices()), shardIndex) {
                         @Override
                         public void innerOnResponse(FirstResult result) {
@@ -270,7 +274,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                         @Override
                         public void onFailure(Exception t) {
                             try {
-                                maybeFork(thread, () -> onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t));
+                                onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
                             } finally {
                                 executeNext(pendingExecutions, thread);
                             }
@@ -281,8 +285,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                 } catch (final Exception e) {
                     try {
                         /*
-                         * It is possible to run into connection exceptions here because we are getting the connection early and might run in to
-                         * nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
+                         * It is possible to run into connection exceptions here because we are getting the connection early and might
+                         * run in tonodes that are not connected. In this case, on shard failure will move us to the next shard copy.
                          */
                         fork(() -> onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, e));
                     } finally {
@@ -290,13 +294,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     }
                 }
             };
-            if (pendingExecutions == null || pendingExecutions.tryAcquire()) {
+            if (pendingExecutions == null) {
                 r.run();
             } else {
                 assert throttleConcurrentRequests;
-                pendingExecutions.add(r);
-                // now try to run it again in case we had a race while the other request was giving the permit back while we added it.
-                pendingExecutions.tryRun();
+                pendingExecutions.tryRun(r);
             }
         }
     }
@@ -443,5 +445,4 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         assert iterator.skip();
         successfulShardExecution(iterator);
     }
-
 }

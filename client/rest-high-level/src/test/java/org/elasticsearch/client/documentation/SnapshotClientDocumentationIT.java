@@ -407,14 +407,14 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-request-masterTimeout
         // tag::create-snapshot-request-waitForCompletion
         request.waitForCompletion(false); // <1>
-        // end::create-snapshot-request-WaitForCompletion
+        // end::create-snapshot-request-waitForCompletion
 
         // tag::create-snapshot-execute
         CreateSnapshotResponse response = client.snapshot().createSnapshot(request, RequestOptions.DEFAULT);
         // end::create-snapshot-execute
 
         // tag::create-snapshot-response
-        RestStatus status = response.status();
+        RestStatus status = response.status(); // <1>
         // end::create-snapshot-response
 
         assertEquals(RestStatus.ACCEPTED, status);

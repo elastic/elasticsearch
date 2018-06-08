@@ -18,13 +18,13 @@ The following arguments are mandatory:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-repository-name]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-repositoryName]
 --------------------------------------------------
 <1> The name of the repository.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-snapshot-name]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-snapshotName]
 --------------------------------------------------
 <1> The name of the snapshot.
 
@@ -70,12 +70,12 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-r
 --------------------------------------------------
 <1> Waits for the snapshot to be completed before a response is returned.
 
-[[java-rest-high-snapshot-create-repository-sync]]
+[[java-rest-high-snapshot-create-snapshot-sync]]
 ==== Synchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-execute]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute]
 --------------------------------------------------
 
 [[java-rest-high-snapshot-create-snapshot-async]]
@@ -108,10 +108,10 @@ provided as an argument.
 <2> Called in case of a failure. The raised exception is provided as an
 argument.
 
-[[java-rest-high-snapshot-create-repository-response]]
-==== Snapshot Create RepositoryResponse
+[[java-rest-high-snapshot-create-snapshot-response]]
+==== Snapshot Create Response
 
-Use the `PutRepositoryResponse` to retrieve information about the evaluated
+Use the `CreateSnapshotResponse` to retrieve information about the evaluated
 request:
 
 ["source","java",subs="attributes,callouts,macros"]

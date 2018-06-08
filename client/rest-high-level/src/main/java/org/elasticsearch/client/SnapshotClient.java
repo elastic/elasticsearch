@@ -182,8 +182,8 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public void createSnapshotAsync(CreateSnapshotRequest createSnapshotRequest,
-                                      ActionListener<CreateSnapshotResponse> listener, RequestOptions options) {
+    public void createSnapshotAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
+                                    ActionListener<CreateSnapshotResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(createSnapshotRequest, RequestConverters::createSnapshot, options,
             CreateSnapshotResponse::fromXContent, listener, emptySet());
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
@@ -374,9 +375,14 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     private static final String snapshotName = "test_snapshot";
 
     public void testSnapshotCreateSnapshot() throws IOException {
-        createTestRepositories();
-
         RestHighLevelClient client = highLevelClient();
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("test-index0");
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndexRequest = new CreateIndexRequest("test-index1");
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
+        createTestRepositories();
 
         // tag::create-snapshot-request
         CreateSnapshotRequest request = new CreateSnapshotRequest();
@@ -389,7 +395,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         request.snapshot(snapshotName); // <1>
         // end::create-snapshot-request-snapshotName
         // tag::create-snapshot-request-indices
-        request.indices("test-index0, test-index1"); // <1>
+        request.indices("test-index0", "test-index1"); // <1>
         // end::create-snapshot-request-indices
         // tag::create-snapshot-request-indicesOptions
         request.indicesOptions(IndicesOptions.fromOptions(false, false, true, true)); // <1>
@@ -406,7 +412,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         request.masterNodeTimeout("1m"); // <2>
         // end::create-snapshot-request-masterTimeout
         // tag::create-snapshot-request-waitForCompletion
-        request.waitForCompletion(false); // <1>
+        request.waitForCompletion(true); // <1>
         // end::create-snapshot-request-waitForCompletion
 
         // tag::create-snapshot-execute
@@ -417,7 +423,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         RestStatus status = response.status(); // <1>
         // end::create-snapshot-response
 
-        assertEquals(RestStatus.ACCEPTED, status);
+        assertEquals(RestStatus.OK, status);
     }
 
 
@@ -446,7 +452,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::create-snapshot-execute-async
-            client.snapshot().createSnapshotAsync(request, listener, RequestOptions.DEFAULT); // <1>
+            client.snapshot().createSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::create-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

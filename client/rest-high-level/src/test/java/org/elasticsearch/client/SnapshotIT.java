@@ -116,10 +116,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getNodes().size(), equalTo(1));
     }
 
-    private CreateSnapshotResponse createTestSnapshot(String repository, String snapshot, String settings) throws IOException {
+    private CreateSnapshotResponse createTestSnapshot(String repository, String snapshot) throws IOException {
         // assumes the repository already exists
         CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshot);
-        request.settings(settings, XContentType.JSON);
         return execute(request, highLevelClient().snapshot()::createSnapshot,
             highLevelClient().snapshot()::createSnapshotAsync);
     }
@@ -127,7 +126,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     public void testCreateSnapshot() throws IOException {
         assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
-        CreateSnapshotResponse response = createTestSnapshot("test", "snapshot-test", "{}");
+        CreateSnapshotResponse response = createTestSnapshot("test", "snapshot-test");
         assertEquals(response.status(), RestStatus.ACCEPTED);
     }
 }

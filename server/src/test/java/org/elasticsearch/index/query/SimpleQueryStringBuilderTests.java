@@ -630,7 +630,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new SimpleQueryStringBuilder("the quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
@@ -643,7 +643,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new SimpleQueryStringBuilder("the* quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), BooleanClause.Occur.SHOULD)

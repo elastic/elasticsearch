@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.da.DanishAnalyzer;
+import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class DanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<DanishAnalyzer> {
+public class CatalanAnalyzerProvider extends AbstractIndexAnalyzerProvider<CatalanAnalyzer> {
 
-    private final DanishAnalyzer analyzer;
+    private final CatalanAnalyzer analyzer;
 
-    public DanishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    CatalanAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new DanishAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, DanishAnalyzer.getDefaultStopSet()),
+        analyzer = new CatalanAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, CatalanAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public DanishAnalyzer get() {
+    public CatalanAnalyzer get() {
         return this.analyzer;
     }
 }

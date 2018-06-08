@@ -1,4 +1,4 @@
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -30,14 +30,14 @@ public class SnowballAnalyzerTests extends ESTokenStreamTestCase {
     assertAnalyzesTo(a, "he abhorred accents",
         new String[]{"he", "abhor", "accent"});
   }
-  
+
   public void testStopwords() throws Exception {
     Analyzer a = new SnowballAnalyzer("English",
         StandardAnalyzer.STOP_WORDS_SET);
     assertAnalyzesTo(a, "the quick brown fox jumped",
         new String[]{"quick", "brown", "fox", "jump"});
   }
-  
+
   /**
    * Test turkish lowercasing
    */
@@ -48,7 +48,7 @@ public class SnowballAnalyzerTests extends ESTokenStreamTestCase {
     assertAnalyzesTo(a, "AĞACI", new String[] { "ağaç" });
   }
 
-  
+
   public void testReusableTokenStream() throws Exception {
     Analyzer a = new SnowballAnalyzer("English");
     assertAnalyzesTo(a, "he abhorred accents",

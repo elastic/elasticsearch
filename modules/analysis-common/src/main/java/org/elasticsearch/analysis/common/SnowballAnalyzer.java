@@ -1,4 +1,4 @@
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -48,12 +48,12 @@ public final class SnowballAnalyzer extends Analyzer {
   private CharArraySet stopSet;
 
   /** Builds the named analyzer with no stop words. */
-  public SnowballAnalyzer(String name) {
+  SnowballAnalyzer(String name) {
     this.name = name;
   }
 
   /** Builds the named analyzer with the given stop words. */
-  public SnowballAnalyzer(String name, CharArraySet stopWords) {
+  SnowballAnalyzer(String name, CharArraySet stopWords) {
     this(name);
     stopSet = CharArraySet.unmodifiableSet(CharArraySet.copy(stopWords));
   }

@@ -213,7 +213,7 @@ customise the URIs and their associated value.
 logged in, and they can be used for role mapping (below).
 
 In order for these attributes to be useful, {es} and the IdP need to have a
-common via for the names of the attributes. This is done manually, by
+common value for the names of the attributes. This is done manually, by
 configuring the IdP and the {security} SAML realm to use the same URI name for
 each logical user attribute.
 

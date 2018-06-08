@@ -1,7 +1,7 @@
 [[breaking_70_restclient_changes]]
-=== Low-level REST client changes
+=== High-level REST client changes
 
-==== `isShardsAcked` deprecated in `6.2` has been removed
+==== API methods accepting `Header` argument have been removed
 
 All API methods accepting headers as a `Header` varargs argument, deprecated
 since 6.4, have been removed in favour of the newly introduced methods that

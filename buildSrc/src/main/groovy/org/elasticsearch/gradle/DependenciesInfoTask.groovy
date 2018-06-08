@@ -19,14 +19,19 @@
 
 package org.elasticsearch.gradle
 
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.gradle.api.DefaultTask
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
+import org.gradle.api.artifacts.DependencyResolutionListener
 import org.gradle.api.artifacts.DependencySet
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 /**
  * A task to gather information about the dependencies and export them into a csv file.
@@ -44,7 +49,14 @@ public class DependenciesInfoTask extends DefaultTask {
 
     /** Dependencies to gather information from. */
     @Input
-    public DependencySet dependencies
+    public Configuration runtimeConfiguration
+
+    /** We subtract compile-only dependencies. */
+    @Input
+    public Configuration compileOnlyConfiguration
+
+    @Input
+    public LinkedHashMap<String, String> mappings
 
     /** Directory to read license files */
     @InputDirectory
@@ -59,15 +71,33 @@ public class DependenciesInfoTask extends DefaultTask {
 
     @TaskAction
     public void generateDependenciesInfo() {
+
+        final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies()
+        // we have to resolve the transitive dependencies and create a group:artifactId:version map
+        final Set<String> compileOnlyArtifacts =
+                compileOnlyConfiguration
+                        .getResolvedConfiguration()
+                        .resolvedArtifacts
+                        .collect { it -> "${it.moduleVersion.id.group}:${it.moduleVersion.id.name}:${it.moduleVersion.id.version}" }
+
         final StringBuilder output = new StringBuilder()
 
-        for (Dependency dependency : dependencies) {
-            // Only external dependencies are checked
-            if (dependency.group != null && dependency.group.contains("elasticsearch") == false) {
-                final String url = createURL(dependency.group, dependency.name, dependency.version)
-                final String licenseType = getLicenseType(dependency.group, dependency.name)
-                output.append("${dependency.group}:${dependency.name},${dependency.version},${url},${licenseType}\n")
+        for (final Dependency dependency : runtimeDependencies) {
+            // we do not need compile-only dependencies here
+            if (compileOnlyArtifacts.contains("${dependency.group}:${dependency.name}:${dependency.version}")) {
+                continue
             }
+            // only external dependencies are checked
+            if (dependency.group != null && dependency.group.contains("org.elasticsearch")) {
+                continue
+            }
+
+            final String url = createURL(dependency.group, dependency.name, dependency.version)
+            final String dependencyName = DependencyLicensesTask.getDependencyName(mappings, dependency.name)
+
+            final String licenseType = getLicenseType(dependency.group, dependencyName)
+            output.append("${dependency.group}:${dependency.name},${dependency.version},${url},${licenseType}\n")
+
         }
         outputFile.setText(output.toString(), 'UTF-8')
     }
@@ -98,6 +128,8 @@ public class DependenciesInfoTask extends DefaultTask {
      */
     protected String getLicenseType(final String group, final String name) {
         File license
+
+        logger.info("checking dependency group ${group} with name ${name} in ${licensesDir}")
 
         if (licensesDir.exists()) {
             licensesDir.eachFileMatch({ it ==~ /.*-LICENSE.*/ }) { File file ->
@@ -173,7 +205,7 @@ are met:
     derived from this software without specific prior written permission\\.|
   (3\\.)? Neither the name of .+ nor the names of its
      contributors may be used to endorse or promote products derived from
-     this software without specific prior written permission\\.)  
+     this software without specific prior written permission\\.)
 
 THIS SOFTWARE IS PROVIDED BY .+ (``|''|")AS IS(''|") AND ANY EXPRESS OR
 IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES

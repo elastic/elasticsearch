@@ -242,7 +242,7 @@ The syntax is the same as the <<query-dsl-minimum-should-match,minimum should ma
 (Defaults to `"30%"`).
 
 `fail_on_unsupported_field`::
-Controls whether the query should fail (throw an  exception) if any of the 
+Controls whether the query should fail (throw an exception) if any of the 
 specified fields are not of the supported types
 (`text` or `keyword'). Set this to `false` to ignore the field and continue
 processing. Defaults to

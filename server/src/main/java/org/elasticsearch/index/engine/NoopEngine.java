@@ -186,7 +186,7 @@ final class NoopEngine extends Engine {
     }
 
     @Override
-    public Translog getTranslog() {
+    Translog getTranslog() {
         return translog;
     }
 

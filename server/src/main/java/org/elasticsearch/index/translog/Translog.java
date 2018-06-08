@@ -696,6 +696,41 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return TRANSLOG_FILE_PREFIX + generation + CHECKPOINT_SUFFIX;
     }
 
+    /**
+     * Trims translog for terms of files below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>.
+     * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveSeqNo} therefore {@link TranslogSnapshot} skips those operations.
+     */
+    public void trimOperations(long belowTerm, long aboveSeqNo) throws IOException {
+        assert aboveSeqNo >= SequenceNumbers.NO_OPS_PERFORMED : "aboveSeqNo has to a valid sequence number";
+
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            if (current.getPrimaryTerm() < belowTerm) {
+                throw new IllegalArgumentException("Trimming the translog can only be done for terms lower than the current one. " +
+                    "Trim requested for term [ " + belowTerm + " ] , current is [ " + current.getPrimaryTerm() + " ]");
+            }
+            // we assume that the current translog generation doesn't have trimmable ops. Verify that.
+            assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
+            // update all existed ones (if it is necessary) as checkpoint and reader are immutable
+            final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
+            try {
+                for (TranslogReader reader : readers) {
+                    final TranslogReader newReader =
+                        reader.getPrimaryTerm() < belowTerm
+                            ? reader.closeIntoTrimmedReader(aboveSeqNo, getChannelFactory())
+                            : reader;
+                    newReaders.add(newReader);
+                }
+            } catch (IOException e) {
+                IOUtils.closeWhileHandlingException(newReaders);
+                close();
+                throw e;
+            }
+
+            this.readers.clear();
+            this.readers.addAll(newReaders);
+        }
+    }
 
     /**
      * Ensures that the given location has be synced / written to the underlying storage.
@@ -844,6 +879,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * The total estimated number of operations in the snapshot.
          */
         int totalOperations();
+
+        /**
+         * The number of operations have been skipped (overridden or trimmed) in the snapshot so far.
+         */
+        default int skippedOperations() {
+            return 0;
+        }
 
         /**
          * The number of operations have been overridden (eg. superseded) in the snapshot so far.

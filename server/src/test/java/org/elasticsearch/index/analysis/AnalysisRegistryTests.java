@@ -22,10 +22,12 @@ package org.elasticsearch.index.analysis;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.MockTokenFilter;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -238,5 +240,95 @@ public class AnalysisRegistryTests extends ESTestCase {
 
         registry.close();
         verify(mock).close();
+    }
+
+    private final class TruncateTokenFilter extends TokenFilter {
+
+        CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+        final int length;
+
+        public TruncateTokenFilter(TokenStream input, int length) {
+            super(input);
+            this.length = length;
+        }
+
+        @Override
+        public boolean incrementToken() throws IOException {
+            if (input.incrementToken() == false)
+                return false;
+            termAtt.setLength(length);
+            return true;
+        }
+    }
+
+    public void testMultiplexingFilter() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.filter.myNgramFilter.type", "truncate")
+            .put("index.analysis.filter.myNgramFilter.length", "2")
+            .put("index.analysis.filter.multiplexFilter.type", "multiplexer")
+            .putList("index.analysis.filter.multiplexFilter.filters", "identity", "lowercase", "myNgramFilter")
+            .put("index.analysis.analyzer.myAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.myAnalyzer.filter", "multiplexFilter")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+        AnalysisPlugin plugin = new AnalysisPlugin() {
+
+            class TruncateFactory extends AbstractTokenFilterFactory {
+
+                final int length;
+
+                public TruncateFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                    this.length = settings.getAsInt("length", 4);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    return new TruncateTokenFilter(tokenStream, length);
+                }
+            }
+
+            @Override
+            public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+                return singletonMap("truncate", TruncateFactory::new);
+            }
+        };
+
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
+
+        try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
+            assertNotNull(analyzer);
+            TokenStream tokenStream = analyzer.tokenStream("foo", "ONe tHree");
+            tokenStream.reset();
+            CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
+            PositionIncrementAttribute posIncAtt = tokenStream.addAttribute(PositionIncrementAttribute.class);
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("ONe", charTermAttribute.toString());
+            assertEquals(1, posIncAtt.getPositionIncrement());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("one", charTermAttribute.toString());
+            assertEquals(0, posIncAtt.getPositionIncrement());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("ON", charTermAttribute.toString());
+            assertEquals(0, posIncAtt.getPositionIncrement());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("tHree", charTermAttribute.toString());
+            assertEquals(1, posIncAtt.getPositionIncrement());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("three", charTermAttribute.toString());
+            assertEquals(0, posIncAtt.getPositionIncrement());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("tH", charTermAttribute.toString());
+            assertEquals(0, posIncAtt.getPositionIncrement());
+            assertFalse(tokenStream.incrementToken());
+        }
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.config.RuleConditionType;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.junit.After;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.isOneOf;
 /**
  * An integration test for detection rules
  */
+@Ignore
 public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
     @After

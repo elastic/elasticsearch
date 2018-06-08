@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@Ignore
 public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
     @After

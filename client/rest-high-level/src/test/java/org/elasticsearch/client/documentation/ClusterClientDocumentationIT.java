@@ -190,7 +190,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();
-        client.indices().create(new CreateIndexRequest("index"));
+        client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
         {
             // tag::health-request
             ClusterHealthRequest request = new ClusterHealthRequest();

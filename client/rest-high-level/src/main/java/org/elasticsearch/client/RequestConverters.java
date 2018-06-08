@@ -30,6 +30,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -109,6 +110,17 @@ final class RequestConverters {
 
     private RequestConverters() {
         // Contains only status utility methods
+    }
+
+    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
+        Params params = new Params(request);
+        params.withTimeout(cancelTasksRequest.getTimeout())
+            .withTaskId(cancelTasksRequest.getTaskId())
+            .withNodes(cancelTasksRequest.getNodes())
+            .withParentTaskId(cancelTasksRequest.getParentTaskId())
+            .withActions(cancelTasksRequest.getActions());
+        return request;
     }
 
     static Request delete(DeleteRequest deleteRequest) {
@@ -1091,6 +1103,13 @@ final class RequestConverters {
         Params withActions(String[] actions) {
             if (actions != null && actions.length > 0) {
                 return putParam("actions", String.join(",", actions));
+            }
+            return this;
+        }
+
+        Params withTaskId(TaskId taskId) {
+            if (taskId != null && taskId.isSet()) {
+                return putParam("task_id", taskId.toString());
             }
             return this;
         }

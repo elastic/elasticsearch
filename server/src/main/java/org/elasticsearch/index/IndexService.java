@@ -139,7 +139,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             SimilarityService similarityService,
             ShardStoreDeleter shardStoreDeleter,
             AnalysisRegistry registry,
-            @Nullable EngineFactory engineFactory,
+            EngineFactory engineFactory,
             CircuitBreakerService circuitBreakerService,
             BigArrays bigArrays,
             ThreadPool threadPool,
@@ -188,7 +188,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
             bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
-        this.engineFactory = engineFactory;
+        this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -681,9 +681,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
-    final EngineFactory getEngineFactory() {
+    public final EngineFactory getEngineFactory() {
         return engineFactory;
-    } // pkg private for testing
+    }
 
     final IndexSearcherWrapper getSearcherWrapper() {
         return searcherWrapper;

@@ -25,6 +25,14 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Note: classes that extend the {@link ActionRequest} should also implement
+ * {@link IndicesRequest} to provide index access information for x-pack security
+ * filters.
+ *
+ * @see IndicesRequest
+ * @see IndicesRequest.Replaceable
+ */
 public abstract class ActionRequest extends TransportRequest {
 
     public ActionRequest() {

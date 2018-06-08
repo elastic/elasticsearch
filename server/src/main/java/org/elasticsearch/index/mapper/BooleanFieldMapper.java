@@ -85,14 +85,6 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder tokenized(boolean tokenized) {
-            if (tokenized) {
-                throw new IllegalArgumentException("bool field can't be tokenized");
-            }
-            return super.tokenized(tokenized);
-        }
-
-        @Override
         public BooleanFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new BooleanFieldMapper(name, fieldType, defaultFieldType,

@@ -30,7 +30,6 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
-import org.apache.lucene.util.Version;
 
 /** Filters {@link StandardTokenizer} with {@link StandardFilter}, {@link
  * LowerCaseFilter}, {@link StopFilter} and {@link SnowballFilter}.

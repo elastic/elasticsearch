@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.rollup;
 
 import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 /**
  * This action is testing whether a user has the specified

@@ -59,7 +59,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * <li>must not contain invalid file name characters {@link org.elasticsearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  */
-public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest> implements IndicesRequest.Replaceable, ToXContentObject {
+public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>
+        implements IndicesRequest.Replaceable, ToXContentObject {
 
     private String snapshot;
 

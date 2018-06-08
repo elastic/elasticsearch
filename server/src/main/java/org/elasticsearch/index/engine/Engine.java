@@ -62,7 +62,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -635,11 +635,28 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * The sequence number service for this engine.
-     *
-     * @return the sequence number service
+     * @return the local checkpoint for this Engine
      */
-    public abstract LocalCheckpointTracker getLocalCheckpointTracker();
+    public abstract long getLocalCheckpoint();
+
+    /**
+     * Waits for all operations up to the provided sequence number to complete.
+     *
+     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     */
+    public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
+
+    /**
+     * Reset the local checkpoint in the tracker to the given local checkpoint
+     * @param localCheckpoint the new checkpoint to be set
+     */
+    public abstract void resetLocalCheckpoint(long localCheckpoint);
+
+    /**
+     * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
+     */
+    public abstract SeqNoStats getSeqNoStats(long globalCheckpoint);
 
     /**
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)

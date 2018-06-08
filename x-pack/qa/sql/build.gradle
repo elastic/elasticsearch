@@ -91,6 +91,7 @@ subprojects {
     // JDBC testing dependencies
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
     testRuntime "com.h2database:h2:1.4.196"
+    testRuntime "org.orbisgis:h2gis-ext:1.3.2"
     testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
     testRuntime xpackProject('plugin:sql:sql-shared-client')
 

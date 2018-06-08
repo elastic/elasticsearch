@@ -19,31 +19,19 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.rest.RestResponse;
 
-import java.util.List;
-import java.util.Map;
+import java.io.Closeable;
 
-public interface LLHttpRequest {
+public class LLHttpChannel implements Closeable {
 
-    RestRequest.Method method();
+    public void sendResponse(RestResponse response, ActionListener<Void> listener) {
 
-    /**
-     * The uri of the rest request, with the query string.
-     */
-    String uri();
+    }
 
-    BytesReference content();
+    @Override
+    public void close() {
 
-    /**
-     * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
-     */
-    Map<String, List<String>> getHeaders();
-
-    List<String> strictCookies();
-
-    RestRequest.HttpVersion protocolVersion();
-
-    LLHttpRequest removeHeader(String header);
+    }
 }

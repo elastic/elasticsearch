@@ -19,6 +19,8 @@
 
 package org.elasticsearch.http.nio;
 
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -39,7 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class LLNioHttpRequest extends LLHttpRequest {
+public class LLNioHttpRequest implements LLHttpRequest {
 
     private final FullHttpRequest request;
     private final BytesReference content;
@@ -130,6 +132,19 @@ public class LLNioHttpRequest extends LLHttpRequest {
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }
+    }
+
+    @Override
+    public LLHttpRequest removeHeader(String header) {
+        HttpHeaders headersWithoutContentTypeHeader = new DefaultHttpHeaders();
+        headersWithoutContentTypeHeader.add(request.headers());
+        headersWithoutContentTypeHeader.remove(header);
+        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
+        trailingHeaders.add(request.trailingHeaders());
+        trailingHeaders.remove(header);
+        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
+            request.content(), headersWithoutContentTypeHeader, trailingHeaders);
+        return new LLNioHttpRequest(requestWithoutHeader);
     }
 
     /**

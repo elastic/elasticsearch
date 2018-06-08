@@ -32,7 +32,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 
-import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -49,10 +48,12 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final BigArrays bigArrays;
     private final HttpHandlingSettings settings;
     private final ThreadContext threadContext;
-    private final LLHttpChannel channel = new LLHttpChannel();
+    private final LLHttpChannel httpChannel;
 
-    public DefaultRestChannel(BigArrays bigArrays, RestRequest request, HttpHandlingSettings settings, ThreadContext threadContext) {
+    public DefaultRestChannel(LLHttpChannel httpChannel, RestRequest request, BigArrays bigArrays, HttpHandlingSettings settings,
+                              ThreadContext threadContext) {
         super(request, settings.getDetailedErrorsEnabled());
+        this.httpChannel = httpChannel;
         this.bigArrays = bigArrays;
         this.settings = settings;
         this.threadContext = threadContext;
@@ -97,11 +98,11 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             }
 
             if (isCloseConnection()) {
-                toClose.add(channel::close);
+                toClose.add(httpChannel::close);
             }
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
-            channel.sendResponse(response, listener);
+            httpChannel.sendResponse(response, listener);
             success = true;
         } finally {
             if (success == false) {
@@ -153,15 +154,4 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         return request.protocolVersion() == RestRequest.HttpVersion.HTTP_1_0;
     }
 
-    private static class LLHttpChannel implements Closeable {
-
-        private void sendResponse(RestResponse response, ActionListener<Void> listener) {
-
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
 }

@@ -22,12 +22,30 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.LLHttpRequest;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 public class NewRestRequest extends RestRequest {
 
     private final LLHttpRequest httpRequest;
 
-    public NewRestRequest(NamedXContentRegistry xContentRegistry, LLHttpRequest httpRequest) {
+    /**
+     * Creates a new REST request.
+     *
+     * @param xContentRegistry the content registry
+     * @param httpRequest      the underlying http request
+     * @throws BadParameterException      if the parameters can not be decoded
+     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
+     */
+    private NewRestRequest(NamedXContentRegistry xContentRegistry, LLHttpRequest httpRequest) {
         super(xContentRegistry, httpRequest.uri(), httpRequest.getHeaders());
+        this.httpRequest = httpRequest;
+    }
+
+    private NewRestRequest(NamedXContentRegistry xContentRegistry, LLHttpRequest httpRequest, Map<String, List<String>> headers,
+                           Map<String, String> params) {
+        super(xContentRegistry, params, httpRequest.uri(), headers);
         this.httpRequest = httpRequest;
     }
 
@@ -49,5 +67,17 @@ public class NewRestRequest extends RestRequest {
     @Override
     public BytesReference content() {
         return httpRequest.content();
+    }
+
+    public LLHttpRequest httpRequest() {
+        return httpRequest;
+    }
+
+    public static NewRestRequest request(NamedXContentRegistry xContentRegistry, LLHttpRequest httpRequest) {
+        return new NewRestRequest(xContentRegistry, httpRequest);
+    }
+
+    public static NewRestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, LLHttpRequest httpRequest) {
+        return new NewRestRequest(xContentRegistry, httpRequest, httpRequest.getHeaders(), Collections.emptyMap());
     }
 }

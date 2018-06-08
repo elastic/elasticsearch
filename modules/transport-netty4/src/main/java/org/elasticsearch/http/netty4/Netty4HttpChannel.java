@@ -82,7 +82,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
     @Override
     protected BytesStreamOutput newBytesOutput() {
-        return new ReleasableBytesStreamOutput(transport.bigArrays);
+        return new ReleasableBytesStreamOutput(transport.getBigArrays());
     }
 
     @Override

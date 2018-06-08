@@ -260,6 +260,7 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     public HttpVersion protocolVersion() {
+        // TODO: Base on actual version
         return HttpVersion.HTTP_1_1;
     }
 

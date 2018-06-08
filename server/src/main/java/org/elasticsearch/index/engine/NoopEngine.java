@@ -192,7 +192,7 @@ final class NoopEngine extends Engine {
 
     @Override
     public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        return false;
+        throw new UnsupportedOperationException("translog synchronization should never be needed");
     }
 
     @Override

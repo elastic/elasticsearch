@@ -295,7 +295,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
                     search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
                 );
-                assertEquals("Iterable object is self-referencing itself (init script)", ex.getMessage());
+                assertEquals("Iterable object is self-referencing itself (Scripted metric aggs init script)", ex.getMessage());
             }
         }
     }
@@ -315,7 +315,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
                     search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
                 );
-                assertEquals("Iterable object is self-referencing itself (map script)", ex.getMessage());
+                assertEquals("Iterable object is self-referencing itself (Scripted metric aggs map script)", ex.getMessage());
             }
         }
     }
@@ -332,7 +332,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
                     search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
                 );
-                assertEquals("Iterable object is self-referencing itself (combine script)", ex.getMessage());
+                assertEquals("Iterable object is self-referencing itself (Scripted metric aggs combine script)", ex.getMessage());
             }
         }
     }

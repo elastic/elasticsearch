@@ -231,15 +231,6 @@ public class CollectionUtils {
      * Deeply inspects a Map, Iterable, or Object array looking for references back to itself.
      * @throws IllegalArgumentException if a self-reference is found
      * @param value The object to evaluate looking for self references
-     */
-    public static void ensureNoSelfReferences(Object value) {
-        ensureNoSelfReferences(value, "");
-    }
-
-    /**
-     * Deeply inspects a Map, Iterable, or Object array looking for references back to itself.
-     * @throws IllegalArgumentException if a self-reference is found
-     * @param value The object to evaluate looking for self references
      * @param messageHint A string to be included in the exception message if the call fails, to provide
      *                    more context to the handler of the exception
      */

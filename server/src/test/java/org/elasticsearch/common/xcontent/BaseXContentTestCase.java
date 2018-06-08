@@ -843,8 +843,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testEnsureNoSelfReferences() throws IOException {
-        CollectionUtils.ensureNoSelfReferences(emptyMap());
-        CollectionUtils.ensureNoSelfReferences(null);
+        builder().map(emptyMap());
+        builder().map(null);
 
         Map<String, Object> map = new HashMap<>();
         map.put("field", map);

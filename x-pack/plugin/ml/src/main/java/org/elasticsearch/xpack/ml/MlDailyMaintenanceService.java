@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.CheckRemoteLicenseAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -111,24 +110,10 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void triggerTasks() {
         LOGGER.info("triggering scheduled [ML] maintenance tasks");
-
-        ActionListener<CheckRemoteLicenseAction.Response> checkLicenseListener = ActionListener.wrap(
-                response -> LOGGER.info("Successfully completed [ML] maintenance tasks"),
-                e -> LOGGER.error("An error occurred during maintenance license checks", e)
-        );
-
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
                 ActionListener.wrap(
-                        response -> checkLicensesForCrossClusterSearch(checkLicenseListener),
-                        e -> {
-                            LOGGER.error("An error occurred during maintenance tasks execution deleting expired data", e);
-                            checkLicensesForCrossClusterSearch(checkLicenseListener);
-                        }));
-
+                        response -> LOGGER.info("Successfully completed [ML] maintenance tasks"),
+                        e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
         scheduleNext();
-    }
-
-    private void checkLicensesForCrossClusterSearch(ActionListener<CheckRemoteLicenseAction.Response> listener) {
-        executeAsyncWithOrigin(client, ML_ORIGIN, CheckRemoteLicenseAction.INSTANCE, new CheckRemoteLicenseAction.Request(), listener);
     }
 }

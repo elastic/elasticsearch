@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.CheckRemoteLicenseAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.junit.After;
 import org.junit.Before;
@@ -23,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,14 +42,6 @@ public class MlDailyManagementServiceTests extends ESTestCase {
     }
 
     public void testScheduledTriggering() throws InterruptedException {
-        doAnswer(invocationMock -> {
-            @SuppressWarnings("raw_types")
-            ActionListener listener = (ActionListener) invocationMock.getArguments()[2];
-            listener.onResponse(null);
-            return null;
-        }).when(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-
-
         int triggerCount = randomIntBetween(2, 4);
         CountDownLatch latch = new CountDownLatch(triggerCount);
         try (MlDailyMaintenanceService service = createService(latch, client)) {
@@ -61,7 +50,6 @@ public class MlDailyManagementServiceTests extends ESTestCase {
         }
 
         verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(CheckRemoteLicenseAction.INSTANCE), any(), any());
     }
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {

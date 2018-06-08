@@ -131,22 +131,19 @@ public class RatedRequestsTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31104")
     public void testXContentParsingIsNotLenient() throws IOException {
         RatedRequest testItem = createTestItem(randomBoolean());
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            Exception exception = expectThrows(Exception.class, () -> RatedRequest.fromXContent(parser));
-            if (exception instanceof XContentParseException) {
-                XContentParseException xcpe = (XContentParseException) exception;
-                assertThat(xcpe.getCause().getMessage(), containsString("unknown field"));
-                assertThat(xcpe.getCause().getMessage(), containsString("parser not found"));
-            }
-            if (exception instanceof XContentParseException) {
+            Throwable exception = expectThrows(XContentParseException.class, () -> RatedRequest.fromXContent(parser));
+            if (exception.getCause() != null) {
                 assertThat(exception.getMessage(), containsString("[request] failed to parse field"));
+                exception = exception.getCause();
             }
+            assertThat(exception.getMessage(), containsString("unknown field"));
+            assertThat(exception.getMessage(), containsString("parser not found"));
         }
     }
 

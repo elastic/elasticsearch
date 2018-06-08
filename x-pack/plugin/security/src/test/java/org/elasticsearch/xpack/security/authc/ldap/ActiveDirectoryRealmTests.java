@@ -320,7 +320,9 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
 
-        Map<String, Object> stats = realm.usageStats();
+        PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        realm.usageStats(future);
+        Map<String, Object> stats = future.get();
         assertThat(stats, is(notNullValue()));
         assertThat(stats, hasEntry("name", realm.name()));
         assertThat(stats, hasEntry("order", realm.order()));

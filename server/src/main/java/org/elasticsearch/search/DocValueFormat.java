@@ -39,6 +39,7 @@ import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -49,17 +50,17 @@ public interface DocValueFormat extends NamedWriteable {
     /** Format a long value. This is used by terms and histogram aggregations
      *  to format keys for fields that use longs as a doc value representation
      *  such as the {@code long} and {@code date} fields. */
-    String format(long value);
+    Object format(long value);
 
     /** Format a double value. This is used by terms and stats aggregations
      *  to format keys for fields that use numbers as a doc value representation
      *  such as the {@code long}, {@code double} or {@code date} fields. */
-    String format(double value);
+    Object format(double value);
 
     /** Format a binary value. This is used by terms aggregations to format
      *  keys for fields that use binary doc value representations such as the
      *  {@code keyword} and {@code ip} fields. */
-    String format(BytesRef value);
+    Object format(BytesRef value);
 
     /** Parse a value that was formatted with {@link #format(long)} back to the
      *  original long value. */
@@ -85,13 +86,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public String format(long value) {
-            return Long.toString(value);
+        public Long format(long value) {
+            return value;
         }
 
         @Override
-        public String format(double value) {
-            return Double.toString(value);
+        public Double format(double value) {
+            return value;
         }
 
         @Override
@@ -118,6 +119,50 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
+        }
+    };
+
+    DocValueFormat BINARY = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "binary";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        public Object format(long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object format(double value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String format(BytesRef value) {
+            return Base64.getEncoder()
+                    .withoutPadding()
+                    .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
+        }
+
+        @Override
+        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            return new BytesRef(Base64.getDecoder().decode(value));
         }
     };
 
@@ -235,13 +280,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public String format(long value) {
-            return java.lang.Boolean.valueOf(value != 0).toString();
+        public Boolean format(long value) {
+            return java.lang.Boolean.valueOf(value != 0);
         }
 
         @Override
-        public String format(double value) {
-            return java.lang.Boolean.valueOf(value != 0).toString();
+        public Boolean format(double value) {
+            return java.lang.Boolean.valueOf(value != 0);
         }
 
         @Override

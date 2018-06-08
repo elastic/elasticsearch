@@ -97,29 +97,21 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return this.client.doesContainerExist(this.clientName, this.locMode, container);
     }
 
-    public boolean blobExists(String blob) throws URISyntaxException, StorageException
-    {
+    public boolean blobExists(String blob) throws URISyntaxException, StorageException {
         return this.client.blobExists(this.clientName, this.locMode, container, blob);
     }
 
-    public void deleteBlob(String blob) throws URISyntaxException, StorageException
-    {
+    public void deleteBlob(String blob) throws URISyntaxException, StorageException {
         this.client.deleteBlob(this.clientName, this.locMode, container, blob);
     }
 
-    public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException
-    {
+    public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException {
         return this.client.getInputStream(this.clientName, this.locMode, container, blob);
     }
 
-    public Map<String,BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
+    public Map<String, BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         return this.client.listBlobsByPrefix(this.clientName, this.locMode, container, keyPath, prefix);
-    }
-
-    public void moveBlob(String sourceBlob, String targetBlob) throws URISyntaxException, StorageException
-    {
-        this.client.moveBlob(this.clientName, this.locMode, container, sourceBlob, targetBlob);
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException {

@@ -10,14 +10,14 @@ apply plugin: 'elasticsearch.build'
 description = 'Code shared between jdbc and cli'
 
 dependencies {
-    compile xpackProject('plugin:sql:sql-proto')
+    compile xpackProject('plugin:sql:sql-shared-proto')
     compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     testCompile "org.elasticsearch.test:framework:${version}"
 }
 
 dependencyLicenses {
     mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /sql-proto.*/, to: 'elasticsearch'
+    mapping from: /sql-shared-proto.*/, to: 'elasticsearch'
     mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
     mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
     mapping from: /lucene-.*/, to: 'lucene'

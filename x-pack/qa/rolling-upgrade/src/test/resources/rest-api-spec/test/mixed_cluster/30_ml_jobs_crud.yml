@@ -1,12 +1,8 @@
 ---
-setup:
- - do:
-     cluster.health:
-        wait_for_status: yellow
-        wait_for_nodes: 2
-
----
 "Test get old cluster job":
+  - skip:
+      version: "all"
+      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/30982"
   - do:
       xpack.ml.get_jobs:
         job_id: old-cluster-job
@@ -86,6 +82,13 @@ setup:
   - do:
       xpack.ml.close_job:
         job_id: mixed-cluster-job
+
+# Wait for indices to be fully allocated before
+# killing the node
+  - do:
+     cluster.health:
+       index: [".ml-state", ".ml-anomalies-shared"]
+       wait_for_status: green
 
 ---
 "Test get job with rules":

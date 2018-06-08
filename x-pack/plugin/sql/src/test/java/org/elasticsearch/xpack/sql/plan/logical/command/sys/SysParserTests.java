@@ -57,8 +57,8 @@ public class SysParserTests extends ESTestCase {
     public void testSysTypes() throws Exception {
         Command cmd = sql("SYS TYPES").v1();
 
-        List<String> names = asList("BYTE", "SHORT", "INTEGER", "LONG", "HALF_FLOAT", "SCALED_FLOAT", "FLOAT", "DOUBLE", "KEYWORD", "TEXT",
-                "DATE", "BINARY", "NULL", "UNSUPPORTED", "OBJECT", "NESTED", "BOOLEAN");
+        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "SCALED_FLOAT", "FLOAT", "DOUBLE",
+                "KEYWORD", "TEXT", "BOOLEAN", "DATE", "UNSUPPORTED", "OBJECT", "NESTED");
 
         cmd.execute(null, ActionListener.wrap(r -> {
             assertEquals(19, r.columnCount());
@@ -68,6 +68,8 @@ public class SysParserTests extends ESTestCase {
             assertFalse(r.column(9, Boolean.class));
             // make sure precision is returned as boolean (not int)
             assertFalse(r.column(10, Boolean.class));
+            // no auto-increment
+            assertFalse(r.column(11, Boolean.class));
             
             for (int i = 0; i < r.size(); i++) {
                 assertEquals(names.get(i), r.column(0));

@@ -14,7 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.xpack.core.ml.MlClientHelper;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 
@@ -112,7 +112,7 @@ class AggregationDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return MlClientHelper.execute(context.headers, client, searchRequestBuilder::get);
+        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
     private SearchRequestBuilder buildSearchRequest() {
@@ -121,7 +121,7 @@ class AggregationDataExtractor implements DataExtractor {
         // in that bucket
         long histogramSearchStartTime = Math.max(0, context.start - getHistogramInterval());
 
-        SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setIndices(context.indices)
                 .setTypes(context.types)
                 .setSize(0)

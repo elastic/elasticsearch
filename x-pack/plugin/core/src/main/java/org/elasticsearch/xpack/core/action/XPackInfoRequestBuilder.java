@@ -11,7 +11,7 @@ import org.elasticsearch.license.XPackInfoResponse;
 
 import java.util.EnumSet;
 
-public class XPackInfoRequestBuilder extends ActionRequestBuilder<XPackInfoRequest, XPackInfoResponse, XPackInfoRequestBuilder> {
+public class XPackInfoRequestBuilder extends ActionRequestBuilder<XPackInfoRequest, XPackInfoResponse> {
 
     public XPackInfoRequestBuilder(ElasticsearchClient client) {
         this(client, XPackInfoAction.INSTANCE);

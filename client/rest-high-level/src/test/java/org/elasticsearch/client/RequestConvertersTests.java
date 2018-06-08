@@ -29,6 +29,13 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -39,8 +46,10 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -57,6 +66,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -76,15 +88,18 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -93,7 +108,10 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -104,11 +122,14 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -134,6 +155,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestConvertersTests extends ESTestCase {
@@ -180,8 +202,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         int numberOfRequests = randomIntBetween(0, 32);
         for (int i = 0; i < numberOfRequests; i++) {
-            MultiGetRequest.Item item =
-                    new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
+            MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
             if (randomBoolean()) {
                 item.routing(randomAlphaOfLength(4));
             }
@@ -260,7 +281,7 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testIndicesExistEmptyIndices() {
         expectThrows(IllegalArgumentException.class, () -> RequestConverters.indicesExist(new GetIndexRequest()));
-        expectThrows(IllegalArgumentException.class, () -> RequestConverters.indicesExist(new GetIndexRequest().indices((String[])null)));
+        expectThrows(IllegalArgumentException.class, () -> RequestConverters.indicesExist(new GetIndexRequest().indices((String[]) null)));
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
@@ -385,6 +406,47 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(putMappingRequest, request.getEntity());
     }
 
+    public void testGetMapping() throws IOException {
+        GetMappingsRequest getMappingRequest = new GetMappingsRequest();
+
+        String[] indices = Strings.EMPTY_ARRAY;
+        if (randomBoolean()) {
+            indices = randomIndicesNames(0, 5);
+            getMappingRequest.indices(indices);
+        } else if (randomBoolean()) {
+            getMappingRequest.indices((String[]) null);
+        }
+
+        String type = null;
+        if (randomBoolean()) {
+            type = randomAlphaOfLengthBetween(3, 10);
+            getMappingRequest.types(type);
+        } else if (randomBoolean()) {
+            getMappingRequest.types((String[]) null);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomIndicesOptions(getMappingRequest::indicesOptions, getMappingRequest::indicesOptions, expectedParams);
+        setRandomMasterTimeout(getMappingRequest, expectedParams);
+        setRandomLocal(getMappingRequest, expectedParams);
+
+        Request request = RequestConverters.getMappings(getMappingRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+        if (type != null) {
+            endpoint.add(type);
+        }
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+    }
+
     public void testDeleteIndex() {
         String[] indices = randomIndicesNames(0, 5);
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indices);
@@ -414,7 +476,8 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomLocal(getSettingsRequest, expectedParams);
 
         if (randomBoolean()) {
-            //the request object will not have include_defaults present unless it is set to true
+            // the request object will not have include_defaults present unless it is set to
+            // true
             getSettingsRequest.includeDefaults(randomBoolean());
             if (getSettingsRequest.includeDefaults()) {
                 expectedParams.put("include_defaults", Boolean.toString(true));
@@ -624,6 +687,29 @@ public class RequestConvertersTests extends ESTestCase {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_flush");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+    }
+
+    public void testSyncedFlush() {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        SyncedFlushRequest syncedFlushRequest;
+        if (randomBoolean()) {
+            syncedFlushRequest = new SyncedFlushRequest(indices);
+        } else {
+            syncedFlushRequest = new SyncedFlushRequest();
+            syncedFlushRequest.indices(indices);
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(syncedFlushRequest::indicesOptions, syncedFlushRequest::indicesOptions, expectedParams);
+        Request request = RequestConverters.flushSynced(syncedFlushRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+                endpoint.add(String.join(",", indices));
+            }
+        endpoint.add("_flush/synced");
         assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
@@ -958,22 +1044,21 @@ public class RequestConvertersTests extends ESTestCase {
             bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.SMILE));
             bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
-            assertEquals("Mismatching content-type found for request with content-type [JSON], " +
-                            "previous requests have content-type [SMILE]", exception.getMessage());
+            assertEquals(
+                    "Mismatching content-type found for request with content-type [JSON], " + "previous requests have content-type [SMILE]",
+                    exception.getMessage());
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new IndexRequest("index", "type", "0")
-                    .source(singletonMap("field", "value"), XContentType.JSON));
-            bulkRequest.add(new IndexRequest("index", "type", "1")
-                    .source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
             bulkRequest.add(new UpdateRequest("index", "type", "2")
                     .doc(new IndexRequest().source(singletonMap("field", "value"), XContentType.JSON))
-                    .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE))
-            );
+                    .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE)));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
-            assertEquals("Mismatching content-type found for request with content-type [SMILE], " +
-                            "previous requests have content-type [JSON]", exception.getMessage());
+            assertEquals(
+                    "Mismatching content-type found for request with content-type [SMILE], " + "previous requests have content-type [JSON]",
+                    exception.getMessage());
         }
         {
             XContentType xContentType = randomFrom(XContentType.CBOR, XContentType.YAML);
@@ -1010,42 +1095,14 @@ public class RequestConvertersTests extends ESTestCase {
         searchRequest.types(types);
 
         Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
-        if (randomBoolean()) {
-            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("routing", searchRequest.routing());
-        }
-        if (randomBoolean()) {
-            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
-            expectedParams.put("preference", searchRequest.preference());
-        }
-        if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.values()));
-        }
-        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        if (randomBoolean()) {
-            searchRequest.requestCache(randomBoolean());
-            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
-        }
-        if (randomBoolean()) {
-            searchRequest.allowPartialSearchResults(randomBoolean());
-            expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
-        }
-        if (randomBoolean()) {
-            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
-        }
-        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
-        if (randomBoolean()) {
-            searchRequest.scroll(randomTimeValue());
-            expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
-        }
-
+        setRandomSearchParams(searchRequest, expectedParams);
         setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        //rarely skip setting the search source completely
+        // rarely skip setting the search source completely
         if (frequently()) {
-            //frequently set the search source to have some content, otherwise leave it empty but still set it
+            // frequently set the search source to have some content, otherwise leave it
+            // empty but still set it
             if (frequently()) {
                 if (randomBoolean()) {
                     searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));
@@ -1115,7 +1172,8 @@ public class RequestConvertersTests extends ESTestCase {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         for (int i = 0; i < numberOfSearchRequests; i++) {
             SearchRequest searchRequest = randomSearchRequest(() -> {
-                // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
+                // No need to return a very complex SearchSourceBuilder here, that is tested
+                // elsewhere
                 SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
                 searchSourceBuilder.from(randomInt(10));
                 searchSourceBuilder.size(randomIntBetween(20, 100));
@@ -1123,14 +1181,13 @@ public class RequestConvertersTests extends ESTestCase {
             });
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
-            // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
+            // only expand_wildcards, ignore_unavailable and allow_no_indices can be
+            // specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
             IndicesOptions msearchDefault = new MultiSearchRequest().indicesOptions();
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(
-                    randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
-                    randomlyGenerated.expandWildcardsClosed(), msearchDefault.allowAliasesToMultipleIndices(),
-                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases()
-            ));
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(randomlyGenerated.ignoreUnavailable(),
+                    randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(), randomlyGenerated.expandWildcardsClosed(),
+                    msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases()));
             multiSearchRequest.add(searchRequest);
         }
 
@@ -1155,8 +1212,8 @@ public class RequestConvertersTests extends ESTestCase {
             requests.add(searchRequest);
         };
         MultiSearchRequest.readMultiLineFormat(new BytesArray(EntityUtils.toByteArray(request.getEntity())),
-                REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null,
-                null, xContentRegistry(), true);
+                REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null,
+                xContentRegistry(), true);
         assertEquals(requests, multiSearchRequest.requests());
     }
 
@@ -1188,11 +1245,70 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
+    public void testSearchTemplate() throws Exception {
+        // Create a random request.
+        String[] indices = randomIndicesNames(0, 5);
+        SearchRequest searchRequest = new SearchRequest(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomSearchParams(searchRequest, expectedParams);
+        setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
+
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
+
+        searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
+        searchTemplateRequest.setScriptType(ScriptType.INLINE);
+        searchTemplateRequest.setProfile(randomBoolean());
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("field", "name");
+        scriptParams.put("value", "soren");
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        // Verify that the resulting REST request looks as expected.
+        Request request = RequestConverters.searchTemplate(searchTemplateRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_search/template");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(searchTemplateRequest, request.getEntity());
+    }
+
+    public void testRenderSearchTemplate() throws Exception {
+        // Create a simple request.
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+        searchTemplateRequest.setSimulate(true); // Setting simulate true means the template should only be rendered.
+
+        searchTemplateRequest.setScript("template1");
+        searchTemplateRequest.setScriptType(ScriptType.STORED);
+        searchTemplateRequest.setProfile(randomBoolean());
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("field", "name");
+        scriptParams.put("value", "soren");
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        // Verify that the resulting REST request looks as expected.
+        Request request = RequestConverters.searchTemplate(searchTemplateRequest);
+        String endpoint = "_render/template";
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertToXContentBody(searchTemplateRequest, request.getEntity());
+    }
+
     public void testExistsAlias() {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
         String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
         getAliasesRequest.indices(indices);
-        //the HEAD endpoint requires at least an alias or an index
+        // the HEAD endpoint requires at least an alias or an index
         boolean hasIndices = indices != null && indices.length > 0;
         String[] aliases;
         if (hasIndices) {
@@ -1223,15 +1339,15 @@ public class RequestConvertersTests extends ESTestCase {
     public void testExistsAliasNoAliasNoIndex() {
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                    RequestConverters.existsAlias(getAliasesRequest));
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                    () -> RequestConverters.existsAlias(getAliasesRequest));
             assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
         }
         {
-            GetAliasesRequest getAliasesRequest = new GetAliasesRequest((String[])null);
-            getAliasesRequest.indices((String[])null);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                    RequestConverters.existsAlias(getAliasesRequest));
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest((String[]) null);
+            getAliasesRequest.indices((String[]) null);
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                    () -> RequestConverters.existsAlias(getAliasesRequest));
             assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
         }
     }
@@ -1241,14 +1357,10 @@ public class RequestConvertersTests extends ESTestCase {
         String[] indices = randomIndicesNames(0, 5);
         String[] fields = generateRandomStringArray(5, 10, false, false);
 
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest()
-            .indices(indices)
-            .fields(fields);
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(indices).fields(fields);
 
         Map<String, String> indicesOptionsParams = new HashMap<>();
-        setRandomIndicesOptions(fieldCapabilitiesRequest::indicesOptions,
-            fieldCapabilitiesRequest::indicesOptions,
-            indicesOptionsParams);
+        setRandomIndicesOptions(fieldCapabilitiesRequest::indicesOptions, fieldCapabilitiesRequest::indicesOptions, indicesOptionsParams);
 
         Request request = RequestConverters.fieldCaps(fieldCapabilitiesRequest);
 
@@ -1263,12 +1375,13 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(4, request.getParameters().size());
 
-        // Note that we don't check the field param value explicitly, as field names are passed through
-        // a hash set before being added to the request, and can appear in a non-deterministic order.
+        // Note that we don't check the field param value explicitly, as field names are
+        // passed through
+        // a hash set before being added to the request, and can appear in a
+        // non-deterministic order.
         assertThat(request.getParameters(), hasKey("fields"));
         String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
-        assertEquals(new HashSet<>(Arrays.asList(fields)),
-            new HashSet<>(Arrays.asList(requestFields)));
+        assertEquals(new HashSet<>(Arrays.asList(fields)), new HashSet<>(Arrays.asList(requestFields)));
 
         for (Map.Entry<String, String> param : indicesOptionsParams.entrySet()) {
             assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
@@ -1363,6 +1476,55 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
+    public void testPutPipeline() throws IOException {
+        String pipelineId = "some_pipeline_id";
+        PutPipelineRequest request = new PutPipelineRequest(
+            "some_pipeline_id",
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(request, expectedParams);
+        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request expectedRequest = RequestConverters.putPipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        endpoint.add(pipelineId);
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testGetPipeline() {
+        String pipelineId = "some_pipeline_id";
+        Map<String, String> expectedParams = new HashMap<>();
+        GetPipelineRequest request = new GetPipelineRequest("some_pipeline_id");
+        setRandomMasterTimeout(request, expectedParams);
+        Request expectedRequest = RequestConverters.getPipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        endpoint.add(pipelineId);
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testDeletePipeline() {
+        String pipelineId = "some_pipeline_id";
+        Map<String, String> expectedParams = new HashMap<>();
+        DeletePipelineRequest request = new DeletePipelineRequest(pipelineId);
+        setRandomMasterTimeout(request, expectedParams);
+        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        Request expectedRequest = RequestConverters.deletePipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        endpoint.add(pipelineId);
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpDelete.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -1427,6 +1589,157 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
     }
 
+    public void testCancelTasks() {
+        CancelTasksRequest request = new CancelTasksRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        request.setTaskId(taskId);
+        request.setParentTaskId(parentTaskId);
+        expectedParams.put("task_id", taskId.toString());
+        expectedParams.put("parent_task_id", parentTaskId.toString());
+        Request httpRequest = RequestConverters.cancelTasks(request);
+        assertThat(httpRequest, notNullValue());
+        assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(httpRequest.getEntity(), nullValue());
+        assertThat(httpRequest.getEndpoint(), equalTo("/_tasks/_cancel"));
+        assertThat(httpRequest.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testListTasks() {
+        {
+            ListTasksRequest request = new ListTasksRequest();
+            Map<String, String> expectedParams = new HashMap<>();
+            if (randomBoolean()) {
+                request.setDetailed(randomBoolean());
+                if (request.getDetailed()) {
+                    expectedParams.put("detailed", "true");
+                }
+            }
+            if (randomBoolean()) {
+                request.setWaitForCompletion(randomBoolean());
+                if (request.getWaitForCompletion()) {
+                    expectedParams.put("wait_for_completion", "true");
+                }
+            }
+            if (randomBoolean()) {
+                String timeout = randomTimeValue();
+                request.setTimeout(timeout);
+                expectedParams.put("timeout", timeout);
+            }
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+                    request.setParentTaskId(taskId);
+                    expectedParams.put("parent_task_id", taskId.toString());
+                } else {
+                    request.setParentTask(TaskId.EMPTY_TASK_ID);
+                }
+            }
+            if (randomBoolean()) {
+                String[] nodes = generateRandomStringArray(10, 8, false);
+                request.setNodes(nodes);
+                if (nodes.length > 0) {
+                    expectedParams.put("nodes", String.join(",", nodes));
+                }
+            }
+            if (randomBoolean()) {
+                String[] actions = generateRandomStringArray(10, 8, false);
+                request.setActions(actions);
+                if (actions.length > 0) {
+                    expectedParams.put("actions", String.join(",", actions));
+                }
+            }
+            expectedParams.put("group_by", "none");
+            Request httpRequest = RequestConverters.listTasks(request);
+            assertThat(httpRequest, notNullValue());
+            assertThat(httpRequest.getMethod(), equalTo(HttpGet.METHOD_NAME));
+            assertThat(httpRequest.getEntity(), nullValue());
+            assertThat(httpRequest.getEndpoint(), equalTo("/_tasks"));
+            assertThat(httpRequest.getParameters(), equalTo(expectedParams));
+        }
+        {
+            ListTasksRequest request = new ListTasksRequest();
+            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.listTasks(request));
+            assertEquals("TaskId cannot be used for list tasks request", exception.getMessage());
+        }
+    }
+
+    public void testGetRepositories() {
+        Map<String, String> expectedParams = new HashMap<>();
+        StringBuilder endpoint = new StringBuilder("/_snapshot");
+
+        GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
+        setRandomMasterTimeout(getRepositoriesRequest, expectedParams);
+        setRandomLocal(getRepositoriesRequest, expectedParams);
+
+        if (randomBoolean()) {
+            String[] entries = new String[] { "a", "b", "c" };
+            getRepositoriesRequest.repositories(entries);
+            endpoint.append("/" + String.join(",", entries));
+        }
+
+        Request request = RequestConverters.getRepositories(getRepositoriesRequest);
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
+    public void testCreateRepository() throws IOException {
+        String repository = randomIndicesNames(1, 1)[0];
+        String endpoint = "/_snapshot/" + repository;
+        Path repositoryLocation = PathUtils.get(".");
+        PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
+        putRepositoryRequest.type(FsRepository.TYPE);
+        putRepositoryRequest.verify(randomBoolean());
+
+        putRepositoryRequest.settings(
+            Settings.builder()
+                .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
+                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .build());
+
+        Request request = RequestConverters.createRepository(putRepositoryRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
+        assertToXContentBody(putRepositoryRequest, request.getEntity());
+    }
+
+    public void testDeleteRepository() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+
+        StringBuilder endpoint = new StringBuilder("/_snapshot/" + repository);
+
+        DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest();
+        deleteRepositoryRequest.name(repository);
+        setRandomMasterTimeout(deleteRepositoryRequest, expectedParams);
+        setRandomTimeout(deleteRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.deleteRepository(deleteRepositoryRequest);
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
+    }
+
+    public void testVerifyRepository() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String endpoint = "/_snapshot/" + repository + "/_verify";
+
+        VerifyRepositoryRequest verifyRepositoryRequest = new VerifyRepositoryRequest(repository);
+        setRandomMasterTimeout(verifyRepositoryRequest, expectedParams);
+        setRandomTimeout(verifyRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.verifyRepository(verifyRepositoryRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
     public void testPutTemplateRequest() throws Exception {
         Map<String, String> names = new HashMap<>();
         names.put("log", "log");
@@ -1434,9 +1747,8 @@ public class RequestConvertersTests extends ESTestCase {
         names.put("-#template", "-%23template");
         names.put("foo^bar", "foo%5Ebar");
 
-        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
-            .name(randomFrom(names.keySet()))
-            .patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest().name(randomFrom(names.keySet()))
+                .patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
         if (randomBoolean()) {
             putTemplateRequest.order(randomInt());
         }
@@ -1493,14 +1805,12 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals("/a/b", endpointBuilder.build());
         }
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPart("b")
-                    .addPathPartAsIs("_create");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPart("b").addPathPartAsIs("_create");
             assertEquals("/a/b/_create", endpointBuilder.build());
         }
 
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b", "c")
-                    .addPathPartAsIs("_create");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b", "c").addPathPartAsIs("_create");
             assertEquals("/a/b/c/_create", endpointBuilder.build());
         }
         {
@@ -1559,13 +1869,12 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals("/foo%5Ebar", endpointBuilder.build());
         }
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("cluster1:index1,index2")
-                    .addPathPartAsIs("_search");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("cluster1:index1,index2").addPathPartAsIs("_search");
             assertEquals("/cluster1:index1,index2/_search", endpointBuilder.build());
         }
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder()
-                    .addCommaSeparatedPathParts(new String[]{"index1", "index2"}).addPathPartAsIs("cache/clear");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addCommaSeparatedPathParts(new String[] { "index1", "index2" })
+                    .addPathPartAsIs("cache/clear");
             assertEquals("/index1,index2/cache/clear", endpointBuilder.build());
         }
     }
@@ -1573,12 +1882,12 @@ public class RequestConvertersTests extends ESTestCase {
     public void testEndpoint() {
         assertEquals("/index/type/id", RequestConverters.endpoint("index", "type", "id"));
         assertEquals("/index/type/id/_endpoint", RequestConverters.endpoint("index", "type", "id", "_endpoint"));
-        assertEquals("/index1,index2", RequestConverters.endpoint(new String[]{"index1", "index2"}));
-        assertEquals("/index1,index2/_endpoint", RequestConverters.endpoint(new String[]{"index1", "index2"}, "_endpoint"));
-        assertEquals("/index1,index2/type1,type2/_endpoint", RequestConverters.endpoint(new String[]{"index1", "index2"},
-                new String[]{"type1", "type2"}, "_endpoint"));
-        assertEquals("/index1,index2/_endpoint/suffix1,suffix2", RequestConverters.endpoint(new String[]{"index1", "index2"},
-                "_endpoint", new String[]{"suffix1", "suffix2"}));
+        assertEquals("/index1,index2", RequestConverters.endpoint(new String[] { "index1", "index2" }));
+        assertEquals("/index1,index2/_endpoint", RequestConverters.endpoint(new String[] { "index1", "index2" }, "_endpoint"));
+        assertEquals("/index1,index2/type1,type2/_endpoint",
+                RequestConverters.endpoint(new String[] { "index1", "index2" }, new String[] { "type1", "type2" }, "_endpoint"));
+        assertEquals("/index1,index2/_endpoint/suffix1,suffix2",
+                RequestConverters.endpoint(new String[] { "index1", "index2" }, "_endpoint", new String[] { "suffix1", "suffix2" }));
     }
 
     public void testCreateContentType() {
@@ -1594,20 +1903,22 @@ public class RequestConvertersTests extends ESTestCase {
 
         XContentType bulkContentType = randomBoolean() ? xContentType : null;
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-                enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.CBOR), bulkContentType));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.CBOR),
+                        bulkContentType));
         assertEquals("Unsupported content-type found for request with content-type [CBOR], only JSON and SMILE are supported",
                 exception.getMessage());
 
-        exception = expectThrows(IllegalArgumentException.class, () ->
-                enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.YAML), bulkContentType));
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.YAML),
+                        bulkContentType));
         assertEquals("Unsupported content-type found for request with content-type [YAML], only JSON and SMILE are supported",
                 exception.getMessage());
 
         XContentType requestContentType = xContentType == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
 
-        exception = expectThrows(IllegalArgumentException.class, () ->
-                enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
@@ -1641,12 +1952,44 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    private static void setRandomSearchParams(SearchRequest searchRequest,
+                                              Map<String, String> expectedParams) {
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (randomBoolean()) {
+            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", searchRequest.routing());
+        }
+        if (randomBoolean()) {
+            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", searchRequest.preference());
+        }
+        if (randomBoolean()) {
+            searchRequest.searchType(randomFrom(SearchType.values()));
+        }
+        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        if (randomBoolean()) {
+            searchRequest.requestCache(randomBoolean());
+            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
+        }
+        if (randomBoolean()) {
+            searchRequest.allowPartialSearchResults(randomBoolean());
+            expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+        }
+        if (randomBoolean()) {
+            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        if (randomBoolean()) {
+            searchRequest.scroll(randomTimeValue());
+            expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
+        }
+    }
+
     private static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
-                                                Map<String, String> expectedParams) {
+            Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
-            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean()));
+            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         expectedParams.put("ignore_unavailable", Boolean.toString(getter.get().ignoreUnavailable()));
         expectedParams.put("allow_no_indices", Boolean.toString(getter.get().allowNoIndices()));

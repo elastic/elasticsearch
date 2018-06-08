@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ar.ArabicAnalyzer;
+import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<ArabicAnalyzer> {
+public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<GermanAnalyzer> {
 
-    private final ArabicAnalyzer arabicAnalyzer;
+    private final GermanAnalyzer analyzer;
 
-    public ArabicAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    GermanAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        arabicAnalyzer = new ArabicAnalyzer(
-            Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet()),
+        analyzer = new GermanAnalyzer(
+            Analysis.parseStopWords(env, settings, GermanAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        arabicAnalyzer.setVersion(version);
+        analyzer.setVersion(version);
     }
 
     @Override
-    public ArabicAnalyzer get() {
-        return this.arabicAnalyzer;
+    public GermanAnalyzer get() {
+        return this.analyzer;
     }
 }

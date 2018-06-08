@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class BulgarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<BulgarianAnalyzer> {
+public class BengaliAnalyzerProvider extends AbstractIndexAnalyzerProvider<BengaliAnalyzer> {
 
-    private final BulgarianAnalyzer analyzer;
+    private final BengaliAnalyzer analyzer;
 
-    public BulgarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    BengaliAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new BulgarianAnalyzer(
-            Analysis.parseStopWords(env, settings, BulgarianAnalyzer.getDefaultStopSet()),
+        analyzer = new BengaliAnalyzer(
+            Analysis.parseStopWords(env, settings, BengaliAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public BulgarianAnalyzer get() {
+    public BengaliAnalyzer get() {
         return this.analyzer;
     }
 }

@@ -109,7 +109,8 @@ public class DependenciesInfoTask extends DefaultTask {
         }
 
         if (license) {
-            final String content = license.readLines("UTF-8").toString()
+            // replace * because they are sometimes used at the beginning lines as if the license was a multi-line comment
+            final String content = new String(license.readBytes(), "UTF-8").replaceAll("\\s+", " ").replaceAll("\\*", " ")
             final String spdx = checkSPDXLicense(content)
             if (spdx ==  null) {
                 // License has not be identified as SPDX.
@@ -133,13 +134,84 @@ public class DependenciesInfoTask extends DefaultTask {
     private String checkSPDXLicense(final String licenseText) {
         String spdx = null
 
-        final String APACHE_2_0 = "Apache.*License.*(v|V)ersion 2.0"
-        final String BSD_2 = "BSD 2-clause.*License"
+        final String APACHE_2_0 = "Apache.*License.*(v|V)ersion.*2\\.0"
+
+        final String BSD_2 = """
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1\\. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer\\.
+ 2\\. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution\\.
+
+THIS SOFTWARE IS PROVIDED BY .+ (``|''|")AS IS(''|") AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED\\.
+IN NO EVENT SHALL .+ BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES \\(INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION\\) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+\\(INCLUDING NEGLIGENCE OR OTHERWISE\\) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE\\.
+""".replaceAll("\\s+", "\\\\s*")
+
+        final String BSD_3 = """
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ (1\\.)? Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer\\.
+ (2\\.)? Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution\\.
+ ((3\\.)? The name of .+ may not be used to endorse or promote products
+    derived from this software without specific prior written permission\\.|
+  (3\\.)? Neither the name of .+ nor the names of its
+     contributors may be used to endorse or promote products derived from
+     this software without specific prior written permission\\.)  
+
+THIS SOFTWARE IS PROVIDED BY .+ (``|''|")AS IS(''|") AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED\\.
+IN NO EVENT SHALL .+ BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES \\(INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION\\) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+\\(INCLUDING NEGLIGENCE OR OTHERWISE\\) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE\\.
+""".replaceAll("\\s+", "\\\\s*")
+
         final String CDDL_1_0 = "COMMON DEVELOPMENT AND DISTRIBUTION LICENSE.*Version 1.0"
         final String CDDL_1_1 = "COMMON DEVELOPMENT AND DISTRIBUTION LICENSE.*Version 1.1"
         final String ICU = "ICU License - ICU 1.8.1 and later"
         final String LGPL_3 = "GNU LESSER GENERAL PUBLIC LICENSE.*Version 3"
-        final String MIT = "MIT License"
+
+        final String MIT = """
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files \\(the "Software"\\), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software\\.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT\\. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE\\.
+""".replaceAll("\\s+", "\\\\s*")
+
         final String MOZILLA_1_1 = "Mozilla Public License.*Version 1.1"
 
         switch (licenseText) {
@@ -151,6 +223,9 @@ public class DependenciesInfoTask extends DefaultTask {
                 break
             case ~/.*${BSD_2}.*/:
                 spdx = 'BSD-2-Clause'
+                break
+            case ~/.*${BSD_3}.*/:
+                spdx = 'BSD-3-Clause'
                 break
             case ~/.*${LGPL_3}.*/:
                 spdx = 'LGPL-3.0'

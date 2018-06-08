@@ -14,7 +14,7 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-r
 --------------------------------------------------
 
 ==== Required Arguments
-The following arguments must be provided:
+The following arguments are mandatory:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -29,29 +29,46 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-r
 <1> The name of the snapshot.
 
 ==== Optional Arguments
-The following arguments can optionally be provided:
+The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-timeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-indices]
 --------------------------------------------------
-<1> Timeout to wait for the all the nodes to acknowledge the settings were applied
-as a `TimeValue`
-<2> Timeout to wait for the all the nodes to acknowledge the settings were applied
-as a `String`
+<1> A list of indices the snapshot is applied to.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-masterTimeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-indicesOptions]
 --------------------------------------------------
-<1> Timeout to connect to the master node as a `TimeValue`
-<2> Timeout to connect to the master node as a `String`
+<1> Options applied to the indices.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-verify]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-partial]
 --------------------------------------------------
-<1> Verify after creation as a `Boolean`
+<1> Set `partial` to `true` to allow a successful snapshot without the
+availability of all the indices primary shards. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-includeGlobalState]
+--------------------------------------------------
+<1> Set `includeGlobalState` to `false` to prevent writing the cluster's global
+state as part of the snapshot. Defaults to `true`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`.
+<2> Timeout to connect to the master node as a `String`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-waitForCompletion]
+--------------------------------------------------
+<1> Waits for the snapshot to be completed before a response is returned.
 
 [[java-rest-high-snapshot-create-repository-sync]]
 ==== Synchronous Execution

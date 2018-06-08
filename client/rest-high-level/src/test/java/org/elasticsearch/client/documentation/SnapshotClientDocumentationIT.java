@@ -391,15 +391,15 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // tag::create-snapshot-request-indices
         request.indices("test-index0, test-index1"); // <1>
         // end::create-snapshot-request-indices
-        // tag::create-snapshot-request-indices-options
+        // tag::create-snapshot-request-indicesOptions
         request.indicesOptions(IndicesOptions.fromOptions(false, false, true, true)); // <1>
-        // end::create-snapshot-request-indices-options
+        // end::create-snapshot-request-indicesOptions
         // tag::create-snapshot-request-partial
         request.partial(false); // <1>
         // end::create-snapshot-request-partial
-        // tag::create-snapshot-request-include-global-state
+        // tag::create-snapshot-request-includeGlobalState
         request.includeGlobalState(true); // <1>
-        // end::create-snapshot-request-include-global-state
+        // end::create-snapshot-request-includeGlobalState
 
         // tag::create-snapshot-request-masterTimeout
         request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>

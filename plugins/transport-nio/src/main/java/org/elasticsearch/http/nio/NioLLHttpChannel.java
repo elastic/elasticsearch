@@ -17,18 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.http.nio;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.http.LLHttpChannel;
+import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.RestResponse;
 
-import java.io.Closeable;
+import java.io.IOException;
+import java.nio.channels.SocketChannel;
 
-public interface LLHttpChannel extends Closeable {
+public class NioLLHttpChannel extends NioSocketChannel implements LLHttpChannel {
 
-    void sendResponse(RestResponse response, ActionListener<Void> listener);
+    public NioLLHttpChannel(SocketChannel socketChannel) throws IOException {
+        super(socketChannel);
+    }
 
-    @Override
-    void close();
-
+    public void sendResponse(RestResponse response, ActionListener<Void> listener) {
+        getContext().sendMessage(response, ActionListener.toBiConsumer(listener));
+    }
 }

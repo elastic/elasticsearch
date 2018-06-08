@@ -39,11 +39,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.nio.cors.NioCorsConfig;
+import org.elasticsearch.http.LLHttpChannel;
+import org.elasticsearch.http.LLHttpRequest;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -73,7 +73,7 @@ import static org.mockito.Mockito.verify;
 public class HttpReadWriteHandlerTests extends ESTestCase {
 
     private HttpReadWriteHandler handler;
-    private NioSocketChannel nioSocketChannel;
+    private NioLLHttpChannel nioHttpChannel;
     private NioHttpServerTransport transport;
 
     private final RequestEncoder requestEncoder = new RequestEncoder();
@@ -97,10 +97,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings),
             SETTING_PIPELINING_MAX_EVENTS.getDefault(settings),
             SETTING_CORS_ENABLED.getDefault(settings));
-        ThreadContext threadContext = new ThreadContext(settings);
-        nioSocketChannel = mock(NioSocketChannel.class);
-        handler = new HttpReadWriteHandler(nioSocketChannel, transport, httpHandlingSettings, NamedXContentRegistry.EMPTY,
-            NioCorsConfigBuilder.forAnyOrigin().build(), threadContext);
+        nioHttpChannel = mock(NioLLHttpChannel.class);
+        handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, NioCorsConfigBuilder.forAnyOrigin().build());
     }
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {
@@ -114,17 +112,16 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         ByteBuf slicedBuf2 = buf.retainedSlice(slicePoint, buf.writerIndex());
         handler.consumeReads(toChannelBuffer(slicedBuf));
 
-        verify(transport, times(0)).dispatchRequest(any(RestRequest.class), any(RestChannel.class));
+        verify(transport, times(0)).incomingRequest(any(LLHttpRequest.class), any(NioLLHttpChannel.class));
 
         handler.consumeReads(toChannelBuffer(slicedBuf2));
 
-        ArgumentCaptor<RestRequest> requestCaptor = ArgumentCaptor.forClass(RestRequest.class);
-        verify(transport).dispatchRequest(requestCaptor.capture(), any(RestChannel.class));
+        ArgumentCaptor<LLHttpRequest> requestCaptor = ArgumentCaptor.forClass(LLHttpRequest.class);
+        verify(transport).incomingRequest(requestCaptor.capture(), any(NioLLHttpChannel.class));
 
-        NioHttpRequest nioHttpRequest = (NioHttpRequest) requestCaptor.getValue();
-        FullHttpRequest nettyHttpRequest = nioHttpRequest.getRequest();
-        assertEquals(httpRequest.protocolVersion(), nettyHttpRequest.protocolVersion());
-        assertEquals(httpRequest.method(), nettyHttpRequest.method());
+        LLHttpRequest nioHttpRequest = requestCaptor.getValue();
+        assertEquals(RestRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
+        assertEquals(RestRequest.Method.GET, nioHttpRequest.method());
     }
 
     public void testDecodeHttpRequestError() throws IOException {
@@ -138,8 +135,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         handler.consumeReads(toChannelBuffer(buf));
 
-        ArgumentCaptor<Throwable> exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
-        verify(transport).dispatchBadRequest(any(RestRequest.class), any(RestChannel.class), exceptionCaptor.capture());
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(transport).incomingRequestError(any(LLHttpRequest.class), any(NioLLHttpChannel.class), exceptionCaptor.capture());
 
         assertTrue(exceptionCaptor.getValue() instanceof IllegalArgumentException);
     }
@@ -154,8 +151,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         handler.consumeReads(toChannelBuffer(buf));
 
-        verify(transport, times(0)).dispatchBadRequest(any(), any(), any());
-        verify(transport, times(0)).dispatchRequest(any(), any());
+        verify(transport, times(0)).incomingRequestError(any(), any(), any());
+        verify(transport, times(0)).incomingRequest(any(), any());
 
         List<FlushOperation> flushOperations = handler.pollFlushOperations();
         assertFalse(flushOperations.isEmpty());
@@ -168,7 +165,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         flushOperation.getListener().accept(null, null);
         // Since we have keep-alive set to false, we should close the channel after the response has been
         // flushed
-        verify(nioSocketChannel).close();
+        verify(nioHttpChannel).close();
     }
 
     @SuppressWarnings("unchecked")
@@ -188,9 +185,9 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
     }
 
-    private FullHttpRequest prepareHandlerForResponse(HttpReadWriteHandler adaptor) throws IOException {
-        HttpMethod method = HttpMethod.GET;
-        HttpVersion version = HttpVersion.HTTP_1_1;
+    private LLNioHttpRequest prepareHandlerForResponse(HttpReadWriteHandler adaptor) throws IOException {
+        HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;
+        HttpVersion version = randomBoolean() ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
 
         HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
@@ -198,16 +195,19 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         handler.consumeReads(toChannelBuffer(buf));
 
-        ArgumentCaptor<RestRequest> requestCaptor = ArgumentCaptor.forClass(RestRequest.class);
-        verify(transport).dispatchRequest(requestCaptor.capture(), any(RestChannel.class));
+        ArgumentCaptor<LLNioHttpRequest> requestCaptor = ArgumentCaptor.forClass(LLNioHttpRequest.class);
+        verify(transport).incomingRequest(requestCaptor.capture(), any(LLHttpChannel.class));
 
-        NioHttpRequest nioHttpRequest = (NioHttpRequest) requestCaptor.getValue();
-        FullHttpRequest requestParsed = nioHttpRequest.getRequest();
-        assertNotNull(requestParsed);
-        assertEquals(requestParsed.method(), method);
-        assertEquals(requestParsed.protocolVersion(), version);
-        assertEquals(requestParsed.uri(), uri);
-        return requestParsed;
+        LLNioHttpRequest nioHttpRequest = requestCaptor.getValue();
+        assertNotNull(nioHttpRequest);
+        assertEquals(method.name(), nioHttpRequest.method().name());
+        if (version == HttpVersion.HTTP_1_1) {
+            assertEquals(RestRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
+        } else {
+            assertEquals(RestRequest.HttpVersion.HTTP_1_0, nioHttpRequest.protocolVersion());
+        }
+        assertEquals(nioHttpRequest.uri(), uri);
+        return nioHttpRequest;
     }
 
     private InboundChannelBuffer toChannelBuffer(ByteBuf buf) {

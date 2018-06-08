@@ -320,17 +320,17 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         socketChannels.add(socketChannel);
     }
 
-    private class HttpChannelFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
+    private class HttpChannelFactory extends ChannelFactory<NioServerSocketChannel, NioLLHttpChannel> {
 
         private HttpChannelFactory() {
             super(new RawChannelFactory(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize));
         }
 
         @Override
-        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            NioSocketChannel nioChannel = new NioSocketChannel(channel);
+        public NioLLHttpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+            NioLLHttpChannel nioChannel = new NioLLHttpChannel(channel);
             HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(nioChannel,NioHttpServerTransport.this,
-                httpHandlingSettings, xContentRegistry, corsConfig, threadPool.getThreadContext());
+                httpHandlingSettings, corsConfig);
             Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
             SocketChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, httpReadWritePipeline,
                 InboundChannelBuffer.allocatingInstance());

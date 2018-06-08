@@ -186,8 +186,16 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    private void incomingRequest(final LLHttpRequest httpRequest, final LLHttpChannel httpChannel) {
-        Exception badRequestCause = null;
+    public void incomingRequest(final LLHttpRequest httpRequest, final LLHttpChannel httpChannel) {
+        incomingRequest0(httpRequest, httpChannel, null);
+    }
+
+    public void incomingRequestError(final LLHttpRequest httpRequest, final LLHttpChannel httpChannel, final Exception exception) {
+        incomingRequest0(httpRequest, httpChannel, exception);
+    }
+
+    private void incomingRequest0(final LLHttpRequest httpRequest, final LLHttpChannel httpChannel, final Exception exception) {
+        Exception badRequestCause = exception;
 
         /*
          * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
@@ -202,10 +210,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             try {
                 innerRestRequest = NewRestRequest.request(xContentRegistry, httpRequest);
             } catch (final RestRequest.ContentTypeHeaderException e) {
-                badRequestCause = e;
+                badRequestCause = getException(badRequestCause, e);
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {
-                badRequestCause = e;
+                badRequestCause = getException(badRequestCause, e);
                 innerRestRequest =  NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest);
             }
             restRequest = innerRestRequest;
@@ -224,11 +232,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             try {
                 innerChannel = new DefaultRestChannel(httpChannel, restRequest, bigArrays, httpHandlingSettings, threadContext);
             } catch (final IllegalArgumentException e) {
-                if (badRequestCause == null) {
-                    badRequestCause = e;
-                } else {
-                    badRequestCause.addSuppressed(e);
-                }
+                badRequestCause = getException(badRequestCause, e);
                 // TODO: Should we rewrite the original request?
                 final RestRequest innerRequest = NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest);
                 innerChannel = new DefaultRestChannel(httpChannel, innerRequest, bigArrays, httpHandlingSettings, threadContext);
@@ -236,10 +240,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             channel = innerChannel;
         }
 
-        if (badRequestCause != null) {
-            dispatchBadRequest(restRequest, channel, badRequestCause);
-        } else {
-            dispatchRequest(restRequest, channel);
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            if (badRequestCause != null) {
+                dispatcher.dispatchBadRequest(restRequest, channel, threadContext, badRequestCause);
+            } else {
+                dispatcher.dispatchRequest(restRequest, channel, threadContext);
+            }
         }
     }
 
@@ -251,5 +258,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             badRequestCause.addSuppressed(e);
             return NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType);
         }
+    }
+
+    private static Exception getException(Exception firstException, Exception secondException) {
+        if (firstException == null) {
+            firstException = secondException;
+        } else {
+            firstException.addSuppressed(secondException);
+        }
+        return firstException;
     }
 }

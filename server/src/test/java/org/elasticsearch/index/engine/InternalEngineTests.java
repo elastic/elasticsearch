@@ -2058,12 +2058,12 @@ public class InternalEngineTests extends EngineTestCase {
                     final Engine.DeleteResult result = initialEngine.delete(delete);
                     if (result.getResultType() == Engine.Result.Type.SUCCESS) {
                         assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
-                        assertThat(initialEngine.getMaxSeqNo(), equalTo(primarySeqNo + 1));
+                        assertThat(initialEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.remove(id);
                         primarySeqNo++;
                     } else {
                         assertThat(result.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-                        assertThat(initialEngine.getMaxSeqNo(), equalTo(primarySeqNo));
+                        assertThat(initialEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo(primarySeqNo));
                     }
                 } else {
                     // index a document
@@ -2076,12 +2076,12 @@ public class InternalEngineTests extends EngineTestCase {
                     final Engine.IndexResult result = initialEngine.index(index);
                     if (result.getResultType() == Engine.Result.Type.SUCCESS) {
                         assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
-                        assertThat(initialEngine.getMaxSeqNo(), equalTo(primarySeqNo + 1));
+                        assertThat(initialEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.add(id);
                         primarySeqNo++;
                     } else {
                         assertThat(result.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-                        assertThat(initialEngine.getMaxSeqNo(), equalTo(primarySeqNo));
+                        assertThat(initialEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo(primarySeqNo));
                     }
                 }
 
@@ -2103,7 +2103,7 @@ public class InternalEngineTests extends EngineTestCase {
             logger.info("localcheckpoint {}, global {}", replicaLocalCheckpoint, primarySeqNo);
             globalCheckpoint = gcpTracker.getGlobalCheckpoint();
 
-            assertEquals(primarySeqNo, initialEngine.getMaxSeqNo());
+            assertEquals(primarySeqNo, initialEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(primarySeqNo, initialEngine.getLocalCheckpoint());
             assertThat(globalCheckpoint, equalTo(replicaLocalCheckpoint));
 
@@ -2126,7 +2126,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (InternalEngine recoveringEngine = new InternalEngine(initialEngine.config())){
             recoveringEngine.recoverFromTranslog();
 
-            assertEquals(primarySeqNo, recoveringEngine.getMaxSeqNo());
+            assertEquals(primarySeqNo, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(primarySeqNo));
@@ -2140,7 +2140,7 @@ public class InternalEngineTests extends EngineTestCase {
                 // we have assigned sequence numbers to should be in the commit
                 equalTo(primarySeqNo));
             assertThat(recoveringEngine.getLocalCheckpoint(), equalTo(primarySeqNo));
-            assertThat(recoveringEngine.getMaxSeqNo(), equalTo(primarySeqNo));
+            assertThat(recoveringEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo(primarySeqNo));
             assertThat(recoveringEngine.generateSeqNo(), equalTo(primarySeqNo + 1));
         }
     }
@@ -3653,7 +3653,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             assertThat(initialEngine.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint.get()));
-            assertThat(initialEngine.getMaxSeqNo(), equalTo((long) (docs - 1)));
+            assertThat(initialEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo((long) (docs - 1)));
             initialEngine.flush(true, true);
 
             latchReference.get().countDown();
@@ -3977,15 +3977,15 @@ public class InternalEngineTests extends EngineTestCase {
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         Engine recoveringEngine = null;
         try {
-            assertEquals(docs - 1, engine.getMaxSeqNo());
+            assertEquals(docs - 1, engine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(docs - 1, engine.getLocalCheckpoint());
-            assertEquals(maxSeqIDOnReplica, replicaEngine.getMaxSeqNo());
+            assertEquals(maxSeqIDOnReplica, replicaEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.getLocalCheckpoint());
             trimUnsafeCommits(copy(replicaEngine.config(), globalCheckpoint::get));
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
             assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().stats().getUncommittedOperations());
             recoveringEngine.recoverFromTranslog();
-            assertEquals(maxSeqIDOnReplica, recoveringEngine.getMaxSeqNo());
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(checkpointOnReplica, recoveringEngine.getLocalCheckpoint());
             assertEquals((maxSeqIDOnReplica + 1) - numDocsOnReplica, recoveringEngine.fillSeqNoGaps(2));
 
@@ -4001,10 +4001,10 @@ public class InternalEngineTests extends EngineTestCase {
                     }
 
                 }
-                assertEquals(maxSeqIDOnReplica, recoveringEngine.getMaxSeqNo());
+                assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
                 assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpoint());
                 if ((flushed = randomBoolean())) {
-                    globalCheckpoint.set(recoveringEngine.getMaxSeqNo());
+                    globalCheckpoint.set(recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
                     recoveringEngine.getTranslog().sync();
                     recoveringEngine.flush(true, true);
                 }
@@ -4021,10 +4021,10 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(recoveringEngine.getTranslog().stats().getUncommittedOperations(), equalTo(0));
             }
             recoveringEngine.recoverFromTranslog();
-            assertEquals(maxSeqIDOnReplica, recoveringEngine.getMaxSeqNo());
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpoint());
             assertEquals(0, recoveringEngine.fillSeqNoGaps(3));
-            assertEquals(maxSeqIDOnReplica, recoveringEngine.getMaxSeqNo());
+            assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpoint());
         } finally {
             IOUtils.close(recoveringEngine);
@@ -4546,7 +4546,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             final long deleteBatch = between(10, 20);
             final long gapSeqNo = randomLongBetween(
-                engine.getMaxSeqNo() + 1, engine.getMaxSeqNo() + deleteBatch);
+                engine.getSeqNoStats(-1).getMaxSeqNo() + 1, engine.getSeqNoStats(-1).getMaxSeqNo() + deleteBatch);
             for (int i = 0; i < deleteBatch; i++) {
                 final long seqno = engine.generateSeqNo();
                 if (seqno != gapSeqNo) {

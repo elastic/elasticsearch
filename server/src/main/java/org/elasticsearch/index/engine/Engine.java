@@ -640,11 +640,6 @@ public abstract class Engine implements Closeable {
     public abstract long getLocalCheckpoint();
 
     /**
-     * @return the maximum sequence number from the local checkpoint tracker
-     */
-    public abstract long getMaxSeqNo();
-
-    /**
      * @return generate a new sequence number from the local checkpoint tracker
      */
     public abstract long generateSeqNo();

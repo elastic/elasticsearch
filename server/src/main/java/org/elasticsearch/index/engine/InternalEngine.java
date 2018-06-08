@@ -2186,26 +2186,27 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
+    @Override
     public long getLocalCheckpoint() {
         return localCheckpointTracker.getCheckpoint();
     }
 
-    public long getMaxSeqNo() {
-        return localCheckpointTracker.getMaxSeqNo();
-    }
-
+    @Override
     public long generateSeqNo() {
         return localCheckpointTracker.generateSeqNo();
     }
 
+    @Override
     public void waitForOpsToComplete(long seqNo) throws InterruptedException {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
     }
 
+    @Override
     public void resetLocalCheckpoint(long localCheckpoint) {
         localCheckpointTracker.resetCheckpoint(localCheckpoint);
     }
 
+    @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return localCheckpointTracker.getStats(globalCheckpoint);
     }

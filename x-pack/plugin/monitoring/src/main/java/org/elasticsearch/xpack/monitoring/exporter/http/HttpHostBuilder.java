@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 
 import java.net.URI;
 import java.net.URISyntaxException;

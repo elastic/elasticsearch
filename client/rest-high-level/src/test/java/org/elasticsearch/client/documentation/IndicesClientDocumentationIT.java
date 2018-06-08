@@ -568,7 +568,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
             request.type("tweet");
@@ -581,7 +581,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -625,7 +625,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         final RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
             request.type("tweet");
@@ -638,7 +638,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 

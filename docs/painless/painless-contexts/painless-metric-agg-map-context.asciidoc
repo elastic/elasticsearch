@@ -22,6 +22,9 @@ part of a full metric aggregation.
         Contains the fields of the current document where each field is a
         `List` of values.
 
+`_score` (`double` read-only)::
+        The similarity score of the current document.
+
 *Side Effects*
 
 `params['_agg']` (`Map`)::

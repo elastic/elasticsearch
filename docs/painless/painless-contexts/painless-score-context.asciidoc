@@ -15,7 +15,7 @@ score to documents returned from a query.
         `List` of values.
 
 `_score` (`double` read-only)::
-        The original score of the current document.
+        The similarity score of the current document.
 
 *Return*
 

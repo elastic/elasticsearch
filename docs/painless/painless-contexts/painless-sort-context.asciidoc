@@ -14,7 +14,7 @@ Use a Painless script to
         `List` of values.
 
 `_score` (`double` read-only)::
-        The original score of the current document.
+        The similarity score of the current document.
 
 *Return*
 

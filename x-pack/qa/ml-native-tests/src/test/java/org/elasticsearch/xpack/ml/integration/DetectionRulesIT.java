@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.isOneOf;
 /**
  * An integration test for detection rules
  */
-@Ignore
 public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
     @After
@@ -53,6 +52,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "this test is muted temporarily until the new rules implementation is merged in")
     public void testNumericalRule() throws Exception {
         RuleCondition condition1 = RuleCondition.createNumerical(
                 RuleConditionType.NUMERICAL_ACTUAL,
@@ -154,6 +154,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(secondHaldRecordByFieldValues, contains("by_field_value_1", "by_field_value_2"));
     }
 
+    @AwaitsFix(bugUrl = "this test is muted temporarily until the new rules implementation is merged in")
     public void testCategoricalRule() throws Exception {
         MlFilter safeIps = new MlFilter("safe_ips", Arrays.asList("111.111.111.111", "222.222.222.222"));
         assertThat(putMlFilter(safeIps), is(true));

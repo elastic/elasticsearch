@@ -29,13 +29,22 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
 .Example 1: Analyzing transactions with the lat_long function
 [source,js]
 --------------------------------------------------
+PUT _xpack/ml/anomaly_detectors/example1
 {
-  "function" : "lat_long",
-  "field_name" : "transactionCoordinates",
-  "by_field_name" : "creditCardNumber"
+  "analysis_config": {
+    "detectors": [{
+      "function" : "lat_long",
+      "field_name" : "transactionCoordinates",
+      "by_field_name" : "creditCardNumber"
+    }]
+  },
+  "data_description": {
+    "time_field":"timestamp",
+    "time_format": "epoch_ms"
+  }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 
 If you use this `lat_long` function in a detector in your job, it
 detects anomalies where the geographic location of a credit card transaction is
@@ -67,7 +76,15 @@ format. For example, the following Painless script transforms
 
 [source,js]
 --------------------------------------------------
+PUT _xpack/ml/datafeeds/datafeed-test2
 {
+  "job_id": "farequote",
+  "indices": ["farequote"],
+  "query": {
+    "match_all": {
+          "boost": 1
+    }
+  },
   "script_fields": {
     "lat-lon": {
       "script": {
@@ -78,6 +95,7 @@ format. For example, the following Painless script transforms
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:farequote_job]
 
 For more information, see <<ml-configuring-transform>>.

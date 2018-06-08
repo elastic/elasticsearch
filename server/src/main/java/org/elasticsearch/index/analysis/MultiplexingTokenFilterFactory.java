@@ -4,6 +4,7 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -52,15 +53,46 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory {
     public void buildFilters(Map<String, TokenFilterFactory> factories) {
         filters = new ArrayList<>();
         for (String filter : filterNames) {
-            if ("identity".equals(filter)) {
-                filters.add(IDENTITY_FACTORY);
-            }
-            else if (factories.containsKey(filter) == false) {
-                throw new IllegalArgumentException("Multiplexing filter [" + name() + "] refers to undefined tokenfilter [" + filter + "]");
+            String[] parts = Strings.tokenizeToStringArray(filter, ",");
+            if (parts.length == 1) {
+                filters.add(resolveFilterFactory(factories, parts[0]));
             }
             else {
-                filters.add(factories.get(filter));
+                List<TokenFilterFactory> chain = new ArrayList<>();
+                for (String subfilter : parts) {
+                    chain.add(resolveFilterFactory(factories, subfilter));
+                }
+                filters.add(chainFilters(filter, chain));
             }
+        }
+    }
+
+    private TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                for (TokenFilterFactory tff : filters) {
+                    tokenStream = tff.create(tokenStream);
+                }
+                return tokenStream;
+            }
+        };
+    }
+
+    private TokenFilterFactory resolveFilterFactory(Map<String, TokenFilterFactory> factories, String name) {
+        if ("identity".equals(name)) {
+            return IDENTITY_FACTORY;
+        }
+        else if (factories.containsKey(name) == false) {
+            throw new IllegalArgumentException("Multiplexing filter [" + name() + "] refers to undefined tokenfilter [" + name + "]");
+        }
+        else {
+            return factories.get(name);
         }
     }
 

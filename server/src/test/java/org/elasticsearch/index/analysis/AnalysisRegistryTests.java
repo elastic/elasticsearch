@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.analysis.CharacterUtils;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -44,6 +45,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -262,16 +264,33 @@ public class AnalysisRegistryTests extends ESTestCase {
         }
     }
 
+    private final class UppercaseTokenFilter extends TokenFilter {
+
+        CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+        protected UppercaseTokenFilter(TokenStream input) {
+            super(input);
+        }
+
+        @Override
+        public boolean incrementToken() throws IOException {
+            if (input.incrementToken() == false)
+                return false;
+            CharacterUtils.toUpperCase(termAtt.buffer(), 0, termAtt.length());
+            return true;
+        }
+    }
+
     public void testMultiplexingFilter() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put("index.analysis.filter.myNgramFilter.type", "truncate")
-            .put("index.analysis.filter.myNgramFilter.length", "2")
+            .put("index.analysis.filter.t.type", "truncate")
+            .put("index.analysis.filter.t.length", "2")
             .put("index.analysis.filter.multiplexFilter.type", "multiplexer")
-            .putList("index.analysis.filter.multiplexFilter.filters", "identity", "lowercase", "myNgramFilter")
+            .putList("index.analysis.filter.multiplexFilter.filters", "identity", "lowercase, t", "uppercase")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
             .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.myAnalyzer.filter", "multiplexFilter")
@@ -295,9 +314,24 @@ public class AnalysisRegistryTests extends ESTestCase {
                 }
             }
 
+            class UppercaseFactory extends AbstractTokenFilterFactory {
+
+                public UppercaseFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    return new UppercaseTokenFilter(tokenStream);
+                }
+            }
+
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-                return singletonMap("truncate", TruncateFactory::new);
+                Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
+                filters.put("truncate", TruncateFactory::new);
+                filters.put("uppercase", UppercaseFactory::new);
+                return filters;
             }
         };
 
@@ -314,19 +348,19 @@ public class AnalysisRegistryTests extends ESTestCase {
             assertEquals("ONe", charTermAttribute.toString());
             assertEquals(1, posIncAtt.getPositionIncrement());
             assertTrue(tokenStream.incrementToken());
-            assertEquals("one", charTermAttribute.toString());
+            assertEquals("on", charTermAttribute.toString());
             assertEquals(0, posIncAtt.getPositionIncrement());
             assertTrue(tokenStream.incrementToken());
-            assertEquals("ON", charTermAttribute.toString());
+            assertEquals("ONE", charTermAttribute.toString());
             assertEquals(0, posIncAtt.getPositionIncrement());
             assertTrue(tokenStream.incrementToken());
             assertEquals("tHree", charTermAttribute.toString());
             assertEquals(1, posIncAtt.getPositionIncrement());
             assertTrue(tokenStream.incrementToken());
-            assertEquals("three", charTermAttribute.toString());
+            assertEquals("th", charTermAttribute.toString());
             assertEquals(0, posIncAtt.getPositionIncrement());
             assertTrue(tokenStream.incrementToken());
-            assertEquals("tH", charTermAttribute.toString());
+            assertEquals("THREE", charTermAttribute.toString());
             assertEquals(0, posIncAtt.getPositionIncrement());
             assertFalse(tokenStream.incrementToken());
         }

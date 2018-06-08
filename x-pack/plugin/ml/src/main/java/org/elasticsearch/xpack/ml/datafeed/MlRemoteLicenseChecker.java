@@ -170,7 +170,7 @@ public class MlRemoteLicenseChecker {
             License.OperationMode mode = License.OperationMode.resolve(clusterLicenseInfo.licenseInfo.getMode());
             if (mode != License.OperationMode.PLATINUM && mode != License.OperationMode.TRIAL) {
                 error.append("The license mode [").append(mode)
-                        .append("] on cluster [").append(mode)
+                        .append("] on cluster [")
                         .append(clusterLicenseInfo.clusterName)
                         .append("] does not enable Machine Learning. ");
             }

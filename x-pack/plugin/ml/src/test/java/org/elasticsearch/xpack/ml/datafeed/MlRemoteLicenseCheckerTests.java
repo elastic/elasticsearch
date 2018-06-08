@@ -155,7 +155,7 @@ public class MlRemoteLicenseCheckerTests extends ESTestCase {
 
         XPackInfoResponse.LicenseInfo basicLicense = createBasicLicenseResponse();
         info = new MlRemoteLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
-        String expected = "The license mode on cluster [basic-cluster] with mode [BASIC] does not enable Machine Learning. "
+        String expected = "The license mode [BASIC] on cluster [basic-cluster] does not enable Machine Learning. "
                 + Strings.toString(basicLicense);
         assertEquals(expected, MlRemoteLicenseChecker.buildErrorMessage(info));
 

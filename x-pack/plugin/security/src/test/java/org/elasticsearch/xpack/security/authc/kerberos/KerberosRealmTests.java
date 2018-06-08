@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -38,13 +40,10 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.Matchers;
 import org.ietf.jgss.GSSException;
-import org.ietf.jgss.GSSName;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
-import org.mockito.AdditionalMatchers;
 import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
@@ -59,7 +58,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.security.auth.login.LoginException;
 
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -79,8 +80,6 @@ public class KerberosRealmTests extends ESTestCase {
     private KerberosTicketValidator mockKerberosTicketValidator;
     private Cache<String, User> mockUsernameUserCache;
     private NativeRoleMappingStore mockNativeRoleMappingStore;
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
 
     private static final Set<String> roles;
     static {
@@ -95,7 +94,7 @@ public class KerberosRealmTests extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         Path dir = createTempDir();
         globalSettings = Settings.builder().put("path.home", dir).build();
-        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.writeKeyTab(dir, "key.keytab", "asa").toString());
+        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), "asa").toString());
     }
 
     @After
@@ -130,7 +129,9 @@ public class KerberosRealmTests extends ESTestCase {
 
         final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, null, true);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
+        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug))
                 .thenReturn(new Tuple<>("test@REALM", "out-token"));
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
 
@@ -148,8 +149,7 @@ public class KerberosRealmTests extends ESTestCase {
         assertSuccessAuthnResult(expectedUser, "out-token", result);
         assertThat(user1, sameInstance(user2));
 
-        Mockito.verify(mockKerberosTicketValidator, Mockito.times(2)).validateTicket(Mockito.eq("*"),
-                Mockito.eq(GSSName.NT_HOSTBASED_SERVICE), AdditionalMatchers.aryEq(decodedTicket), Mockito.eq(config));
+        Mockito.verify(mockKerberosTicketValidator, Mockito.times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug));
     }
 
     public void testAuthenticateDifferentFailureScenarios() throws LoginException, GSSException {
@@ -159,25 +159,26 @@ public class KerberosRealmTests extends ESTestCase {
         final boolean returnOutToken = randomBoolean();
         final boolean throwLoginException = randomBoolean();
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
+        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
         if (validTicket) {
-            when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
+            when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug))
                     .thenReturn(new Tuple<>("test@REALM", "out-token"));
         } else {
             if (throwExceptionForInvalidTicket) {
                 if (throwLoginException) {
-                    when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
+                    when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug))
                             .thenThrow(new LoginException("Login Exception"));
                 } else {
-                    when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
+                    when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug))
                             .thenThrow(new GSSException(GSSException.FAILURE));
                 }
             } else {
                 if (returnOutToken) {
-                    when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
+                    when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug))
                             .thenReturn(new Tuple<>(null, "out-token"));
                 } else {
-                    when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
-                            .thenReturn(null);
+                    when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug)).thenReturn(null);
                 }
             }
         }
@@ -228,25 +229,25 @@ public class KerberosRealmTests extends ESTestCase {
                 }
                 verifyZeroInteractions(mockUsernameUserCache);
             }
-            Mockito.verify(mockKerberosTicketValidator).validateTicket(Mockito.eq("*"), Mockito.eq(GSSName.NT_HOSTBASED_SERVICE),
-                    AdditionalMatchers.aryEq(decodedTicket), Mockito.eq(config));
+            Mockito.verify(mockKerberosTicketValidator).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug));
         }
     }
 
     public void testFailedAuthorization() throws LoginException, GSSException {
         final KerberosRealm kerberosRealm = createKerberosRealm("test@REALM");
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
+        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug))
                 .thenReturn(new Tuple<>("does-not-exist@REALM", "out-token"));
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
 
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
 
-        thrown.expect(ElasticsearchSecurityException.class);
-        thrown.expectMessage("Expected UPN 'test@REALM' but was 'does-not-exist@REALM");
-        future.actionGet();
-        verifyZeroInteractions(mockUsernameUserCache);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
+        assertThat(e.status(), is(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), Matchers.equalTo("Expected UPN 'test@REALM' but was 'does-not-exist@REALM'"));
     }
 
     public void testLookupUser() {
@@ -267,7 +268,9 @@ public class KerberosRealmTests extends ESTestCase {
         String authNUsername = randomFrom(userNames);
         String outToken = randomAlphaOfLength(5);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        when(mockKerberosTicketValidator.validateTicket("*", GSSName.NT_HOSTBASED_SERVICE, decodedTicket, config))
+        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        when(mockKerberosTicketValidator.validateTicket(decodedTicket, keytabPath, krbDebug))
                 .thenReturn(new Tuple<>(authNUsername, outToken));
         final User expectedUser = new User(authNUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
 
@@ -375,7 +378,7 @@ public class KerberosRealmTests extends ESTestCase {
         return roleMapper;
     }
 
-    class ClearRealmCacheRequestMatcher extends BaseMatcher<ClearRealmCacheRequest> {
+    private static class ClearRealmCacheRequestMatcher extends BaseMatcher<ClearRealmCacheRequest> {
         final String expectedRealmNameInRequest;
         final AtomicBoolean invalidateKerbRealmActionState;
 
@@ -403,4 +406,5 @@ public class KerberosRealmTests extends ESTestCase {
         public void describeTo(Description description) {
         }
     }
+
 }

@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
-import org.ietf.jgss.GSSName;
 
+import java.nio.file.Path;
 import java.util.Collections;
 
 import javax.security.auth.login.LoginException;
@@ -81,7 +81,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
     @Override
     public AuthenticationToken token(final ThreadContext context) {
-        return KerberosAuthenticationToken.extractToken(context);
+        return KerberosAuthenticationToken.extractToken(context.getHeader(KerberosAuthenticationToken.AUTH_HEADER));
     }
 
     @Override
@@ -91,8 +91,11 @@ public final class KerberosRealm extends Realm implements CachingRealm {
             AuthenticationResult authenticationResult = AuthenticationResult.terminate("Spnego authentication failure", null);
 
             try {
-                final Tuple<String, String> userPrincipalNameOutToken = kerberosTicketValidator.validateTicket("*",
-                        GSSName.NT_HOSTBASED_SERVICE, (byte[]) kerbAuthnToken.credentials(), config);
+                final Path keytabPath =
+                        config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+                final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+                final Tuple<String, String> userPrincipalNameOutToken =
+                        kerberosTicketValidator.validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, krbDebug);
 
                 if (userPrincipalNameOutToken != null && userPrincipalNameOutToken.v1() != null) {
                     userDetails(userPrincipalNameOutToken, listener);

@@ -200,6 +200,17 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
         void finishAndRunNext() {
             semaphore.release();
+            tryRun();
+        }
+
+        synchronized void add(Runnable runnable) {
+            if (queue == null) { // create this lazily
+                queue = new LinkedList<>();
+            }
+            queue.add(runnable);
+        }
+
+        void tryRun() {
             if (semaphore.tryAcquire()) {
                 final Runnable poll;
                 synchronized (this) {
@@ -211,13 +222,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     semaphore.release();
                 }
             }
-        }
-
-        synchronized void add(Runnable runnable) {
-            if (queue == null) { // create this lazily
-                queue = new LinkedList<>();
-            }
-            queue.add(runnable);
         }
 
         boolean tryAcquire() {
@@ -291,6 +295,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             } else {
                 assert throttleConcurrentRequests;
                 pendingExecutions.add(r);
+                // now try to run it again in case we had a race while the other request was giving the permit back while we added it.
+                pendingExecutions.tryRun();
             }
         }
     }

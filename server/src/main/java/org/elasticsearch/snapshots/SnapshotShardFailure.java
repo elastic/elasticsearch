@@ -250,15 +250,17 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotShardFailure that = (SnapshotShardFailure) o;
-        return Objects.equals(shardId, that.shardId) &&
+        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
+        return shardId.id() == that.shardId.id() &&
+            shardId.getIndexName().equals(shardId.getIndexName()) &&
             Objects.equals(reason, that.reason) &&
             Objects.equals(nodeId, that.nodeId) &&
-            status == that.status;
+            status.getStatus() == that.status.getStatus();
     }
 
     @Override
     public int hashCode() {
-
-        return Objects.hash(shardId, reason, nodeId, status);
+        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
+        return Objects.hash(shardId.id(), shardId.getIndexName(), reason, nodeId, status.getStatus());
     }
 }

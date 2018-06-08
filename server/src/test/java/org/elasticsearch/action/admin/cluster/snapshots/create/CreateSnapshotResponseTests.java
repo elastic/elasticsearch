@@ -52,13 +52,13 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         String reason = "reason";
         long startTime = System.currentTimeMillis();
         long endTime = startTime + 10000;
-        int totalShards = randomIntBetween(1, 15);
-        int successfulShards = randomIntBetween(14, 15);
+        int totalShards = randomIntBetween(1, 3);
+        int successfulShards = randomIntBetween(0, totalShards);
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
 
         for (int count = successfulShards; count < totalShards; ++count) {
             shardFailures.add(new SnapshotShardFailure(
-                "node-id", new ShardId("index", UUID.randomUUID().toString(), randomInt()), "reason"));
+                "node-id", new ShardId("index-" + count, UUID.randomUUID().toString(), randomInt()), "reason"));
         }
 
         boolean globalState = randomBoolean();

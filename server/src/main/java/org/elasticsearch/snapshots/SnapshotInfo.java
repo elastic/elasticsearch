@@ -138,6 +138,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
 
         private void setShardFailures(XContentParser parser) {
+            if (shardFailures == null) {
+                shardFailures = new ArrayList<>();
+            }
+
             try {
                 if (parser.currentToken() == Token.START_ARRAY) {
                     parser.nextToken();
@@ -145,6 +149,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
                 while (parser.currentToken() != Token.END_ARRAY) {
                     shardFailures.add(SnapshotShardFailure.fromXContent(parser));
+                    parser.nextToken();
                 }
             } catch (IOException exception) {
                 throw new UncheckedIOException(exception);
@@ -232,7 +237,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
         SNAPSHOT_INFO_PARSER.declareField(
-                SnapshotInfoBuilder::setShardFailures, parser -> parser, new ParseField(FAILURES), ValueType.OBJECT_ARRAY);
+                SnapshotInfoBuilder::setShardFailures, parser -> parser, new ParseField(FAILURES), ValueType.OBJECT_ARRAY_OR_STRING);
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreVersion, new ParseField(VERSION));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreStartTime, new ParseField(START_TIME));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreEndTime, new ParseField(END_TIME));

@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.Map;
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokenInOldCluster() throws Exception {
-        assumeTrue("this test should only run against the old cluster", clusterType == CLUSTER_TYPE.OLD);
+        assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         final StringEntity tokenPostBody = new StringEntity("{\n" +
                 "    \"username\": \"test_user\",\n" +
                 "    \"password\": \"x-pack-test-password\",\n" +
@@ -61,7 +62,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testTokenWorksInMixedOrUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed or upgraded cluster",
-                clusterType == CLUSTER_TYPE.MIXED || clusterType == CLUSTER_TYPE.UPGRADED);
+                CLUSTER_TYPE == ClusterType.MIXED || CLUSTER_TYPE == ClusterType.UPGRADED);
         Response getResponse = client().performRequest("GET", "token_backwards_compatibility_it/doc/old_cluster_token1");
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -69,8 +70,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testMixedCluster() throws Exception {
-        assumeTrue("this test should only run against the mixed cluster", clusterType == CLUSTER_TYPE.MIXED);
+        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
+        assumeFalse("can't be run twice because it invalidates a token so we skip the first attempt",
+                Booleans.parseBoolean(System.getProperty("tests.first_round")));
+
         Response getResponse = client().performRequest("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -117,7 +121,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the mixed cluster", clusterType == CLUSTER_TYPE.UPGRADED);
+        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
         Response getResponse = client().performRequest("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");

@@ -43,6 +43,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -632,72 +633,22 @@ public class TextFieldMapper extends FieldMapper {
             return termQuery(nullValue(), null);
         }
 
+        @Override
         public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
-
             if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
-            PhraseQuery.Builder builder = new PhraseQuery.Builder();
-            builder.setSlop(slop);
-
-            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-            int position = -1;
-
-            stream.reset();
-            while (stream.incrementToken()) {
-                if (enablePosIncrements) {
-                    position += posIncrAtt.getPositionIncrement();
-                }
-                else {
-                    position += 1;
-                }
-                builder.add(new Term(field, termAtt.getBytesRef()), position);
-            }
-
-            return builder.build();
+            return super.phraseQuery(field, stream, slop, enablePosIncrements);
         }
 
         @Override
         public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-
             if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
-
-            MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
-            mpqb.setSlop(slop);
-
-            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-
-            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-            int position = -1;
-
-            List<Term> multiTerms = new ArrayList<>();
-            stream.reset();
-            while (stream.incrementToken()) {
-                int positionIncrement = posIncrAtt.getPositionIncrement();
-
-                if (positionIncrement > 0 && multiTerms.size() > 0) {
-                    if (enablePositionIncrements) {
-                        mpqb.add(multiTerms.toArray(new Term[0]), position);
-                    } else {
-                        mpqb.add(multiTerms.toArray(new Term[0]));
-                    }
-                    multiTerms.clear();
-                }
-                position += positionIncrement;
-                multiTerms.add(new Term(field, termAtt.getBytesRef()));
-            }
-
-            if (enablePositionIncrements) {
-                mpqb.add(multiTerms.toArray(new Term[0]), position);
-            } else {
-                mpqb.add(multiTerms.toArray(new Term[0]));
-            }
-            return mpqb.build();
+            return super.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
         }
 
         private static CachingTokenFilter cache(TokenStream in) {

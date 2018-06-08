@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -121,6 +122,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 }
             }
         }
+        if (randomBoolean()) {
+            result.ignoreUnmapped(result.ignoreUnmapped() == false);
+        }
         return result;
     }
 
@@ -154,7 +158,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     @Override
     protected GeoDistanceSortBuilder mutate(GeoDistanceSortBuilder original) throws IOException {
         GeoDistanceSortBuilder result = new GeoDistanceSortBuilder(original);
-        int parameter = randomIntBetween(0, 7);
+        int parameter = randomIntBetween(0, 8);
         switch (parameter) {
         case 0:
             while (Arrays.deepEquals(original.points(), result.points())) {
@@ -193,6 +197,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             break;
         case 7:
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
+            break;
+        case 8:
+            result.ignoreUnmapped(result.ignoreUnmapped() == false);
             break;
         }
         return result;

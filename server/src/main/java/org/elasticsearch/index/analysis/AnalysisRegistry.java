@@ -21,9 +21,9 @@ package org.elasticsearch.index.analysis;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.elasticsearch.Version;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -75,14 +75,16 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
                             Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                             Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
-                            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
+                            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
+                            Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
         this.environment = environment;
         this.charFilters = unmodifiableMap(charFilters);
         this.tokenFilters = unmodifiableMap(tokenFilters);
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
-        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
+        prebuiltAnalysis =
+            new PrebuiltAnalysis(preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers, preConfiguredAnalyzers);
     }
 
     /**
@@ -403,13 +405,15 @@ public final class AnalysisRegistry implements Closeable {
         private PrebuiltAnalysis(
                 Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                 Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
-                Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
-            Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
+                Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
+                Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
 
-            // Analyzers
+            Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
+            analyzerProviderFactories.putAll(preConfiguredAnalyzers);
+            // Pre-build analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
                 String name = preBuiltAnalyzerEnum.name().toLowerCase(Locale.ROOT);
-                analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, AnalyzerScope.INDICES, preBuiltAnalyzerEnum.getAnalyzer(Version.CURRENT)));
+                analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, preBuiltAnalyzerEnum));
             }
 
             this.analyzerProviderFactories = Collections.unmodifiableMap(analyzerProviderFactories);
@@ -434,17 +438,10 @@ public final class AnalysisRegistry implements Closeable {
             return analyzerProviderFactories.get(name);
         }
 
-        Analyzer analyzer(String name) {
-            PreBuiltAnalyzerProviderFactory  analyzerProviderFactory = (PreBuiltAnalyzerProviderFactory) analyzerProviderFactories.get(name);
-            if (analyzerProviderFactory == null) {
-                return null;
-            }
-            return analyzerProviderFactory.analyzer();
-        }
-
         @Override
         public void close() throws IOException {
-            IOUtils.close(analyzerProviderFactories.values().stream().map((a) -> ((PreBuiltAnalyzerProviderFactory)a).analyzer()).collect(Collectors.toList()));
+            IOUtils.close(analyzerProviderFactories.values().stream()
+                .map((a) -> ((PreBuiltAnalyzerProviderFactory)a)).collect(Collectors.toList()));
         }
     }
 

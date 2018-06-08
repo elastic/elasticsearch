@@ -214,3 +214,20 @@ These extra tokens were ignored by the query parser before 6.3 but the next
 The ability to query and index context enabled suggestions without contexts
 has been deprecated. Context enabled suggestion queries without contexts have
 to visit every suggestion, which degrades the search performance considerably.
+
+==== Limiting the length of regex that can be used in a Regexp Query request
+
+Regexp Query with long string made of many operators may run into a stack overflow.
+To safeguard against this, the maximum length of regex that can be used in a
+Regexp Query request has been limited to 1000. This default maximum can be changed
+for a particular index with the index setting `index.max_regex_length`.
+
+==== Limiting the max number of expansion of span_multi queries
+
+`span_multi` queries will hit too many clauses failure if the number of terms that match the
+query exceeds the boolean query limit (defaults to 1024). To avoid an unbounded expansion you
+can set the <<query-dsl-multi-term-rewrite, rewrite method>> of the multi term query to `top_terms_*`
+rewrite. Or, if you use `span_multi` on `prefix` query only, you can activate the
+<<index-prefix-config,`index_prefixes`>> field option of the `text` field instead. This will
+rewrite any prefix query on the field to a a single term query that matches the indexed prefix.
+

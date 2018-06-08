@@ -1,5 +1,4 @@
 [role="xpack"]
-[float]
 [[audit-index]]
 === Index audit output
 
@@ -36,3 +35,8 @@ xpack.security.audit.index.settings:
     number_of_shards: 1
     number_of_replicas: 1
 ----------------------------
+
+NOTE: Audit events are batched for indexing so there is a lag before
+events appear in the index. You can control how frequently batches of
+events are pushed to the index by setting
+`xpack.security.audit.index.flush_interval` in `elasticsearch.yml`.

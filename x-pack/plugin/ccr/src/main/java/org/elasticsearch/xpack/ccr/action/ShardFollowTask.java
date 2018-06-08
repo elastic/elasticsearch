@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,7 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class ShardFollowTask implements PersistentTaskParams {
+public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final String NAME = "xpack/ccr/shard_follow_task";
 

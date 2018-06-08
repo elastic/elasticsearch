@@ -143,4 +143,4 @@ stored, that is to say the monitoring cluster. To grant all of the necessary per
 
 include::indices.asciidoc[]
 include::tribe.asciidoc[]
-include::{xes-repo-dir}/settings/monitoring-settings.asciidoc[]
+include::{es-repo-dir}/settings/monitoring-settings.asciidoc[]

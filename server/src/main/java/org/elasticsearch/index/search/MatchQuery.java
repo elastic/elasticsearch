@@ -20,8 +20,8 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
@@ -29,7 +29,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -49,6 +48,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -65,6 +66,8 @@ import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuer
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQuery {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MappedFieldType.class));
 
     public enum Type implements Writeable {
         /**
@@ -266,7 +269,7 @@ public class MatchQuery {
          */
         boolean noForcedAnalyzer = this.analyzer == null;
         if (fieldType.tokenized() == false && noForcedAnalyzer &&
-                fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
+            fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
@@ -354,38 +357,53 @@ public class MatchQuery {
 
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            IllegalStateException e = checkForPositions(field);
-            if (e != null) {
+            try {
+                checkForPositions(field);
+                Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
+                if (query instanceof PhraseQuery) {
+                    // synonyms that expand to multiple terms can return a phrase query.
+                    return blendPhraseQuery((PhraseQuery) query, mapper);
+                }
+                return query;
+            }
+            catch (IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
                 throw e;
             }
-            Query query = mapper.phraseQuery(field, stream, slop, enablePositionIncrements);
-            if (query instanceof PhraseQuery) {
-                // synonyms that expand to multiple terms can return a phrase query.
-                return blendPhraseQuery((PhraseQuery) query, mapper);
+            catch (IllegalArgumentException e) {
+                if (lenient == false) {
+                    DEPRECATION_LOGGER.deprecated(e.getMessage());
+                }
+                return newLenientFieldQuery(field, e);
             }
-            return query;
         }
 
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
-            IllegalStateException e = checkForPositions(field);
-            if (e != null) {
+            try {
+                checkForPositions(field);
+                return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+            }
+            catch (IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
                 }
                 throw e;
             }
-            return mapper.multiPhraseQuery(field, stream, slop, enablePositionIncrements);
+            catch (IllegalArgumentException e) {
+                if (lenient == false) {
+                    DEPRECATION_LOGGER.deprecated(e.getMessage());
+                }
+                return newLenientFieldQuery(field, e);
+            }
         }
 
-        private IllegalStateException checkForPositions(String field) {
+        private void checkForPositions(String field) {
             if (hasPositions(mapper) == false) {
-                return new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
-            return null;
         }
 
         /**
@@ -467,9 +485,9 @@ public class MatchQuery {
             } else if (query instanceof SpanNearQuery) {
                 SpanNearQuery spanNearQuery = (SpanNearQuery) query;
                 SpanQuery[] clauses = spanNearQuery.getClauses();
-                if (clauses[clauses.length-1] instanceof SpanTermQuery) {
-                    clauses[clauses.length-1] = new SpanMultiTermQueryWrapper<>(
-                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length-1]).getTerm())
+                if (clauses[clauses.length - 1] instanceof SpanTermQuery) {
+                    clauses[clauses.length - 1] = new SpanMultiTermQueryWrapper<>(
+                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length - 1]).getTerm())
                     );
                 }
                 SpanNearQuery newQuery = new SpanNearQuery(clauses, spanNearQuery.getSlop(), spanNearQuery.isInOrder());

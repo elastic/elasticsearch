@@ -151,8 +151,7 @@ class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    S3Repository(RepositoryMetaData metadata, Settings settings,
-                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+    S3Repository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) {
         super(metadata, settings, namedXContentRegistry);
 
         String bucket = BUCKET_SETTING.get(metadata.settings());

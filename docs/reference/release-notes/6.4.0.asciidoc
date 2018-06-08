@@ -720,7 +720,7 @@ these events, see {stack-ov}/auditing.html[Auditing Security Events].
 * Added audit event ignore policies, which are a way to tune the verbosity of an
 audit trail. These policies define rules for ignoring audit events that match
 specific attribute values. For more information, see
-{stack-ov}/auditing.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
+{stack-ov}/audit-log-output.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
 * Added a certificates API, which enables you to retrieve information about the
 X.509 certificates that are used to encrypt communications in your {es} cluster.
 For more information, see <<security-api-ssl>>.

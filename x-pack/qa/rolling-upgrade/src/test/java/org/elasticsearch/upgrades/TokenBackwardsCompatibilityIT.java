@@ -69,6 +69,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertTokenWorks((String) source.get("token"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31195")
     public void testMixedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());

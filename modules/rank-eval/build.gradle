@@ -23,3 +23,12 @@ esplugin {
   hasClientJar = true
 }
 
+integTestCluster {
+  // Modules who's integration is explicitly tested in integration tests
+  module project(':modules:lang-mustache')
+}
+
+run {
+  // Modules who's integration is explicitly tested in integration tests
+  module project(':modules:lang-mustache')
+}

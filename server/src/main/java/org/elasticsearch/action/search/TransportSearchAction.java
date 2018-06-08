@@ -254,7 +254,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 String[] aliases = aliasFilter.getAliases();
                 String[] finalIndices = aliases.length == 0 ? new String[] {shardId.getIndexName()} : aliases;
-                // here we have to pendingExecutionsPerNode the filters to the UUID since from now on we use the uuid for the lookup
+                // here we have to map the filters to the UUID since from now on we use the uuid for the lookup
                 aliasFilterMap.put(shardId.getIndex().getUUID(), aliasFilter);
                 final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;

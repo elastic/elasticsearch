@@ -203,8 +203,8 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     /**
-     * Return a pendingExecutionsPerNode of nodeId to pending number of search requests.
-     * This is a snapshot of the current pending search and not a live pendingExecutionsPerNode.
+     * Return a map of nodeId to pending number of search requests.
+     * This is a snapshot of the current pending search and not a live map.
      */
     public Map<String, Long> getPendingSearchRequests() {
         return new HashMap<>(clientConnections);

@@ -83,8 +83,6 @@ public class ReservedRolesStore {
                             "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml",
                             "cluster:admin/xpack/security/privilege/get",
                             "cluster:admin/xpack/security/privilege/put",
-                            "cluster:admin/xpack/security/role/get",
-                            "cluster:admin/xpack/security/role/put"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build(),

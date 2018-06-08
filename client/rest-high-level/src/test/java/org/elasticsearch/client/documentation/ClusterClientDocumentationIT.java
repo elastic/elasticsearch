@@ -178,4 +178,5 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+
 }

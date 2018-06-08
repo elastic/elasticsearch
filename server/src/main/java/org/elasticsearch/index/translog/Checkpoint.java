@@ -53,7 +53,7 @@ final class Checkpoint {
 
     private static final String CHECKPOINT_CODEC = "ckp";
 
-    // size of 7.0.0 checkpoint
+    // size of 6.4.0 checkpoint
 
     static final int V3_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
         + Integer.BYTES  // ops

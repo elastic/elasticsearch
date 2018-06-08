@@ -90,7 +90,7 @@ public class SearchResponseSections implements ToXContentFragment {
 
     /**
      * Returns the profile results for this search response (including all shards).
-     * An empty map is returned if profiling was not enabled
+     * An empty pendingExecutionsPerNode is returned if profiling was not enabled
      *
      * @return Profile results
      */

@@ -199,7 +199,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * If profiling was enabled, this returns an object containing the profile results from
      * each shard.  If profiling was not enabled, this will return null
      *
-     * @return The profile results or an empty map
+     * @return The profile results or an empty pendingExecutionsPerNode
      */
     @Nullable
     public Map<String, ProfileShardResult> getProfileResults() {

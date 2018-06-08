@@ -1,5 +1,9 @@
 ---
 "Shrink index via API":
+  - skip:
+      version: " - 6.9.99"
+      reason: expects warnings that pre-7.0.0 will not send
+      features: "warnings"
   # creates an index with one document solely allocated on the master node
   # and shrinks it into a new index with a single shard
   # we don't do the relocation to a single node after the index is created
@@ -20,7 +24,8 @@
           settings:
             # ensure everything is allocated on a single node
             index.routing.allocation.include._id: $master
-            number_of_replicas: 0
+            index.number_of_shards: 2
+            index.number_of_replicas: 0
   - do:
       index:
         index: source

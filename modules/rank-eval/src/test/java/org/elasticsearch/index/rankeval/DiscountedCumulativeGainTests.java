@@ -25,6 +25,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -41,7 +42,7 @@ import java.util.List;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class DiscountedCumulativeGainTests extends ESTestCase {
 
@@ -280,9 +281,9 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            XContentParseException exception = expectThrows(XContentParseException.class,
                     () -> DiscountedCumulativeGain.fromXContent(parser));
-            assertThat(exception.getMessage(), startsWith("[dcg_at] unknown field"));
+            assertThat(exception.getMessage(), containsString("[dcg_at] unknown field"));
         }
     }
 

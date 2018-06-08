@@ -80,19 +80,6 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         return fields;
     }
 
-    public FieldMapper smartNameFieldMapper(String name) {
-        FieldMapper fieldMapper = getMapper(name);
-        if (fieldMapper != null) {
-            return fieldMapper;
-        }
-        for (FieldMapper otherFieldMapper : this) {
-            if (otherFieldMapper.fieldType().name().equals(name)) {
-                return otherFieldMapper;
-            }
-        }
-        return null;
-    }
-
     /**
      * A smart analyzer used for indexing that takes into account specific analyzers configured
      * per {@link FieldMapper}.

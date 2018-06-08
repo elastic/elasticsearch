@@ -9,7 +9,7 @@ dependencies {
   compile "org.elasticsearch.test:framework:${version}"
 
   // JDBC testing dependencies
-  compile xpackProject('plugin:sql:jdbc')
+  compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
 
   // CLI testing dependencies
@@ -89,16 +89,10 @@ subprojects {
     testCompile "org.elasticsearch.test:framework:${version}"
 
     // JDBC testing dependencies
-    testRuntime xpackProject('plugin:sql:jdbc')
-    testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
-      transitive = false
-    }
-
-    testRuntime("com.h2database:h2:1.4.196") {
-      transitive = false
-    }
-
-    testRuntime "org.orbisgis:h2gis-ext:1.3.2"
+    testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
+    testRuntime "com.h2database:h2:1.4.196"
+    testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+    testRuntime xpackProject('plugin:sql:sql-shared-client')
 
     // TODO check if needed
     testRuntime("org.antlr:antlr4-runtime:4.5.3") {
@@ -107,6 +101,9 @@ subprojects {
 
     // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
+    testRuntime (xpackProject('plugin:sql:sql-proto')) {
+      transitive = false
+    }
     testRuntime "org.jline:jline:3.6.0"
   }
 

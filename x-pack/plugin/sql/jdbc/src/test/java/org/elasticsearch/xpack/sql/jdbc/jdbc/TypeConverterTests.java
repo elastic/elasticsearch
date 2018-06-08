@@ -10,10 +10,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
+import org.joda.time.ReadableDateTime;
 
 import java.sql.JDBCType;
 
@@ -52,7 +51,11 @@ public class TypeConverterTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("value");
-        SqlQueryResponse.value(builder, AbstractSqlRequest.Mode.JDBC, value);
+        if (value instanceof ReadableDateTime) {
+            builder.value(((ReadableDateTime) value).getMillis());
+        } else {
+            builder.value(value);
+        }
         builder.endObject();
         builder.close();
         Object copy = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2().get("value");

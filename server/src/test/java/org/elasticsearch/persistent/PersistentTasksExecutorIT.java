@@ -30,7 +30,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
@@ -69,15 +69,15 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertNoRunningTasks();
     }
 
-    public static class WaitForPersistentTaskStatusFuture<Params extends PersistentTaskParams>
+    public static class WaitForPersistentTaskFuture<Params extends PersistentTaskParams>
             extends PlainActionFuture<PersistentTask<Params>>
-            implements WaitForPersistentTaskStatusListener<Params> {
+            implements WaitForPersistentTaskListener<Params> {
     }
 
     public void testPersistentActionFailure() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
-        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
+        persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         long allocationId = future.get().getAllocationId();
         assertBusy(() -> {
             // Wait for the task to start
@@ -108,7 +108,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         String taskId = UUIDs.base64UUID();
-        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
+        persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         long allocationId = future.get().getAllocationId();
         assertBusy(() -> {
             // Wait for the task to start
@@ -127,7 +127,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             logger.info("Simulating errant completion notification");
             //try sending completion request with incorrect allocation id
             PlainActionFuture<PersistentTask<?>> failedCompletionNotificationFuture = new PlainActionFuture<>();
-            persistentTasksService.sendCompletionNotification(taskId, Long.MAX_VALUE, null, failedCompletionNotificationFuture);
+            persistentTasksService.sendCompletionRequest(taskId, Long.MAX_VALUE, null, failedCompletionNotificationFuture);
             assertThrows(failedCompletionNotificationFuture, ResourceNotFoundException.class);
             // Make sure that the task is still running
             assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
@@ -142,7 +142,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         TestParams testParams = new TestParams("Blah");
         testParams.setExecutorNodeAttr("test");
-        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, testParams, future);
+        persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, testParams, future);
         String taskId = future.get().getId();
 
         Settings nodeSettings = Settings.builder().put(nodeSettings(0)).put("node.attr.test_attr", "test").build();
@@ -169,14 +169,14 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         // Remove the persistent task
         PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
-        persistentTasksService.cancelPersistentTask(taskId, removeFuture);
+        persistentTasksService.sendRemoveRequest(taskId, removeFuture);
         assertEquals(removeFuture.get().getId(), taskId);
     }
 
     public void testPersistentActionStatusUpdate() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
-        persistentTasksService.startPersistentTask(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
+        persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         String taskId = future.get().getId();
 
         assertBusy(() -> {
@@ -200,16 +200,16 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
                     .get().getTasks().size(), equalTo(1));
 
             int finalI = i;
-            WaitForPersistentTaskStatusFuture<?> future1 = new WaitForPersistentTaskStatusFuture<>();
-            persistentTasksService.waitForPersistentTaskStatus(taskId,
+            WaitForPersistentTaskFuture<?> future1 = new WaitForPersistentTaskFuture<>();
+            persistentTasksService.waitForPersistentTaskCondition(taskId,
                     task -> task != null && task.getStatus() != null && task.getStatus().toString() != null &&
                             task.getStatus().toString().equals("{\"phase\":\"phase " + (finalI + 1) + "\"}"),
                     TimeValue.timeValueSeconds(10), future1);
             assertThat(future1.get().getId(), equalTo(taskId));
         }
 
-        WaitForPersistentTaskStatusFuture<?> future1 = new WaitForPersistentTaskStatusFuture<>();
-        persistentTasksService.waitForPersistentTaskStatus(taskId,
+        WaitForPersistentTaskFuture<?> future1 = new WaitForPersistentTaskFuture<>();
+        persistentTasksService.waitForPersistentTaskCondition(taskId,
                 task -> false, TimeValue.timeValueMillis(10), future1);
 
         assertThrows(future1, IllegalStateException.class, "timed out after 10ms");
@@ -220,8 +220,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
                 " and allocation id -2 doesn't exist");
 
         // Wait for the task to disappear
-        WaitForPersistentTaskStatusFuture<?> future2 = new WaitForPersistentTaskStatusFuture<>();
-        persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(10), future2);
+        WaitForPersistentTaskFuture<?> future2 = new WaitForPersistentTaskFuture<>();
+        persistentTasksService.waitForPersistentTaskCondition(taskId, Objects::isNull, TimeValue.timeValueSeconds(10), future2);
 
         logger.info("Completing the running task");
         // Complete the running task and make sure it finishes properly
@@ -235,11 +235,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         String taskId = UUIDs.base64UUID();
-        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
+        persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         future.get();
 
         PlainActionFuture<PersistentTask<TestParams>> future2 = new PlainActionFuture<>();
-        persistentTasksService.startPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future2);
+        persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future2);
         assertThrows(future2, ResourceAlreadyExistsException.class);
 
         assertBusy(() -> {

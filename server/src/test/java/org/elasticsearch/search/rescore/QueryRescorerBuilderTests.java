@@ -170,6 +170,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
 
     class AlwaysRewriteQueryBuilder extends MatchAllQueryBuilder {
 
+        @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
             return new MatchAllQueryBuilder();
         }
@@ -254,8 +255,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("[query] unknown field [bad_fieldname], parser not found", e.getMessage());
+            XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("[3:17] [query] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         rescoreElement = "{\n" +

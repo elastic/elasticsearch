@@ -9,16 +9,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.util.TimeZone;
 
-// Typed object holding properties for a given action 
+// Typed object holding properties for a given action
 public class Configuration {
     public static final Configuration DEFAULT = new Configuration(TimeZone.getTimeZone("UTC"),
-            AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE,
-            AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT,
-            AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT,
-            null);
+        Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null);
 
     private TimeZone timeZone;
     private int pageSize;

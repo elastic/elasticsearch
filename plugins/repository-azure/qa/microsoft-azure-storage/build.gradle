@@ -24,17 +24,11 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: ':plugins:repository-azure', configuration: 'runtime')
+    testCompile project(':test:fixtures:basic-fixture')
 }
 
 integTestCluster {
     plugin ':plugins:repository-azure'
-}
-
-forbiddenApisTest {
-    // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
 }
 
 boolean useFixture = false
@@ -64,6 +58,7 @@ Map<String, Object> expansions = [
         'container': azureContainer,
         'base_path': azureBasePath
 ]
+
 processTestResources {
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)

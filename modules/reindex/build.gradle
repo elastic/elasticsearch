@@ -121,6 +121,10 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
            baseDir,
            unzip.temporaryDir,
            version == '090'
+      waitCondition = { fixture, ant ->
+        return fixture.portsFile.exists()
+
+      }
     }
     integTest.dependsOn fixture
     integTestRunner {

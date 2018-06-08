@@ -39,7 +39,7 @@ import javax.security.auth.login.LoginException;
  * <p>
  * It may respond with token which needs to be communicated with the peer.
  */
-final class KerberosTicketValidator {
+public class KerberosTicketValidator {
     static final Oid SPNEGO_OID = getSpnegoOid();
 
     private static Oid getSpnegoOid() {
@@ -80,7 +80,7 @@ final class KerberosTicketValidator {
      * @throws GSSException thrown when GSS Context negotiation fails
      *             {@link GSSException}
      */
-    Tuple<String, String> validateTicket(final byte[] decodedToken, final Path keyTabPath, final boolean krbDebug)
+    public Tuple<String, String> validateTicket(final byte[] decodedToken, final Path keyTabPath, final boolean krbDebug)
             throws LoginException, GSSException {
         final GSSManager gssManager = GSSManager.getInstance();
         GSSContext gssContext = null;

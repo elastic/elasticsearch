@@ -56,6 +56,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
@@ -94,7 +95,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             SETTING_HTTP_COMPRESSION.getDefault(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.getDefault(settings),
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings),
-            SETTING_PIPELINING_MAX_EVENTS.getDefault(settings));
+            SETTING_PIPELINING_MAX_EVENTS.getDefault(settings),
+            SETTING_CORS_ENABLED.getDefault(settings));
         ThreadContext threadContext = new ThreadContext(settings);
         nioSocketChannel = mock(NioSocketChannel.class);
         handler = new HttpReadWriteHandler(nioSocketChannel, transport, httpHandlingSettings, NamedXContentRegistry.EMPTY,

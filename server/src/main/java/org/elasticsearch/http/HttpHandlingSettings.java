@@ -22,6 +22,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
@@ -47,7 +48,7 @@ public class HttpHandlingSettings {
 
     public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
                                 boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled,
-                                int pipeliningMaxEvents) {
+                                int pipeliningMaxEvents, boolean corsEnabled) {
         this.maxContentLength = maxContentLength;
         this.maxChunkSize = maxChunkSize;
         this.maxHeaderSize = maxHeaderSize;
@@ -57,6 +58,7 @@ public class HttpHandlingSettings {
         this.compressionLevel = compressionLevel;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
         this.pipeliningMaxEvents = pipeliningMaxEvents;
+        this.corsEnabled = corsEnabled;
     }
 
     public static HttpHandlingSettings fromSettings(Settings settings) {
@@ -68,7 +70,8 @@ public class HttpHandlingSettings {
             SETTING_HTTP_COMPRESSION.get(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
-            SETTING_PIPELINING_MAX_EVENTS.get(settings));
+            SETTING_PIPELINING_MAX_EVENTS.get(settings),
+            SETTING_CORS_ENABLED.get(settings));
     }
 
     public int getMaxContentLength() {

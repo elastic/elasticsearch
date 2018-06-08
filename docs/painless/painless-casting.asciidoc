@@ -347,7 +347,7 @@ reference type to its corresponding primitive type.
 
 Implicit boxing/unboxing occurs during the following operations:
 
-* Conversions between a `def` type and a primitive type is implicitly
+* Conversions between a `def` type and a primitive type are implicitly
   boxed/unboxed as necessary, though this is referred to as an implicit cast
   throughout the documentation.
 * Method/function call arguments are implicitly boxed/unboxed as necessary.

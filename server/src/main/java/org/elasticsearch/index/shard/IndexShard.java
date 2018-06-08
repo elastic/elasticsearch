@@ -82,7 +82,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -194,7 +193,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     protected volatile IndexShardState state;
     protected volatile long primaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
-    protected final EngineFactory engineFactory;
+    final EngineFactory engineFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
@@ -267,7 +266,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        this.engineFactory = engineFactory == null ? new InternalEngineFactory() : engineFactory;
+        this.engineFactory = Objects.requireNonNull(engineFactory);
         this.store = store;
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;

@@ -120,6 +120,6 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 [[character-literals]]
 ==== Characters
 
-A character literal is not specified directly. Instead, use the
+Character literals are not specified directly. Instead, use the
 <<string-character-casting, cast operator>> to convert a `String` type value
 into a `char` type value.

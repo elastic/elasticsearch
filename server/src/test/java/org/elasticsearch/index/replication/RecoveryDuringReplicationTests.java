@@ -38,6 +38,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -406,7 +407,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 if (routing.primary()) {
                     return primaryEngineFactory;
                 } else {
-                    return null;
+                    return new InternalEngineFactory();
                 }
             }
         }) {
@@ -500,7 +501,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     @Override
                     protected EngineFactory getEngineFactory(final ShardRouting routing) {
                         if (routing.primary()) {
-                            return null;
+                            return new InternalEngineFactory();
                         } else {
                             return replicaEngineFactory;
                         }

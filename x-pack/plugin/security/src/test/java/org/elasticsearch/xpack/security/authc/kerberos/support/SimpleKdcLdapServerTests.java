@@ -33,16 +33,18 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
     public void testPrincipalCreationAndSearchOnLdap() throws Exception {
         simpleKdcLdapServer.createPrincipal(workDir.resolve("p1p2.keytab"), "p1", "p2");
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
-        LDAPConnection ldapConn = AccessController.doPrivileged(new PrivilegedExceptionAction<LDAPConnection>() {
+        try (LDAPConnection ldapConn = AccessController.doPrivileged(new PrivilegedExceptionAction<LDAPConnection>() {
 
             @Override
             public LDAPConnection run() throws Exception {
                 return new LDAPConnection("localhost", simpleKdcLdapServer.getLdapListenPort());
             }
-        });
-        assertTrue(ldapConn.isConnected());
-        SearchResult sr = ldapConn.search("dc=example,dc=com", SearchScope.SUB, "(uid=p1)");
-        assertEquals(1, sr.getEntryCount());
+        });) {
+            assertTrue(ldapConn.isConnected());
+            SearchResult sr = ldapConn.search("dc=example,dc=com", SearchScope.SUB, "(krb5PrincipalName=p1@EXAMPLE.COM)");
+            assertEquals(1, sr.getEntryCount());
+            assertEquals("uid=p1,dc=example,dc=com", sr.getSearchEntries().get(0).getDN());
+        }
     }
 
     public void testClientServiceMutualAuthentication() throws PrivilegedActionException, GSSException, LoginException, ParseException {

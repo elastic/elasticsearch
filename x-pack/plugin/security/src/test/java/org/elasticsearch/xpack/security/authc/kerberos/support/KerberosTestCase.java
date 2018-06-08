@@ -65,7 +65,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     }
 
     @BeforeClass
-    public static void setupSaml() throws Exception {
+    public static void setupKerberos() throws Exception {
         Logger logger = Loggers.getLogger(SamlTestCase.class);
         if (isLocaleUnsupported()) {
             logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",

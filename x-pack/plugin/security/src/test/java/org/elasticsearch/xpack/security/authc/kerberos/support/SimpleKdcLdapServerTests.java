@@ -12,17 +12,18 @@ import com.unboundid.ldap.sdk.SearchScope;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 import org.ietf.jgss.GSSException;
-import org.ietf.jgss.GSSName;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.text.ParseException;
 import java.util.Base64;
 
 import javax.security.auth.login.LoginException;
@@ -44,31 +45,29 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         assertEquals(1, sr.getEntryCount());
     }
 
-    public void testClientServiceMutualAuthentication() throws PrivilegedActionException, GSSException, LoginException {
+    public void testClientServiceMutualAuthentication() throws PrivilegedActionException, GSSException, LoginException, ParseException {
         final String serviceUserName = randomFrom(serviceUserNames);
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
-        final SpnegoClient spnegoClient =
-                new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName(serviceUserName));
-        final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
-        assertNotNull(base64KerbToken);
-        final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(Base64.getDecoder().decode(base64KerbToken));
+        try (SpnegoClient spnegoClient =
+                new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName(serviceUserName));) {
+            final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
+            assertNotNull(base64KerbToken);
+            final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(Base64.getDecoder().decode(base64KerbToken));
 
-        // Service Login
-        final RealmConfig config = new RealmConfig("test-kerb-realm", settings, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        // Handle Authz header which contains base64 token
-        final Tuple<String, String> userNameOutToken = new KerberosTicketValidator().validateTicket(principalName(serviceUserName),
-                GSSName.NT_USER_NAME, (byte[]) kerbAuthnToken.credentials(), config);
-        assertNotNull(userNameOutToken);
-        assertEquals(principalName(clientUserName), userNameOutToken.v1());
+            // Service Login
+            final Environment env = TestEnvironment.newEnvironment(globalSettings);
+            final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
+            // Handle Authz header which contains base64 token
+            final Tuple<String, String> userNameOutToken =
+                    new KerberosTicketValidator().validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, true);
+            assertNotNull(userNameOutToken);
+            assertEquals(principalName(clientUserName), userNameOutToken.v1());
 
-        // Authenticate service on client side.
-        final String outToken = spnegoClient.handleResponse(userNameOutToken.v2());
-        assertNull(outToken);
-        assertTrue(spnegoClient.isEstablished());
-
-        // Close
-        spnegoClient.close();
+            // Authenticate service on client side.
+            final String outToken = spnegoClient.handleResponse(userNameOutToken.v2());
+            assertNull(outToken);
+            assertTrue(spnegoClient.isEstablished());
+        }
     }
 }

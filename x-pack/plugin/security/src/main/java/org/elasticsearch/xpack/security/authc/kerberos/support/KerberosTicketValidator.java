@@ -10,49 +10,44 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
-import org.ietf.jgss.GSSName;
 import org.ietf.jgss.Oid;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
-import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import javax.security.auth.Subject;
-import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 
 /**
- * Responsible for validating Kerberos ticket<br>
- * Performs service login using keytab, supports multiple principals in keytab.
+ * Utility class that validates kerberos ticket for peer authentication.
+ * <p>
+ * This class takes care of login by ES service credentials using keytab,
+ * GSSContext establishment, and then validating the incoming token.
+ * <p>
+ * It may respond with token which needs to be communicated with the peer.
  */
-public class KerberosTicketValidator {
-    public static final Oid SPNEGO_OID = getSpnegoOid();
+final class KerberosTicketValidator {
+    static final Oid SPNEGO_OID = getSpnegoOid();
 
     private static Oid getSpnegoOid() {
         Oid oid = null;
         try {
             oid = new Oid("1.3.6.1.5.5.2");
         } catch (GSSException gsse) {
-            ExceptionsHelper.convertToRuntime(gsse);
+            throw ExceptionsHelper.convertToRuntime(gsse);
         }
         return oid;
     }
@@ -63,12 +58,20 @@ public class KerberosTicketValidator {
     private static final String SUN_KRB5_LOGIN_MODULE = "com.sun.security.auth.module.Krb5LoginModule";
 
     /**
-     * Validates client kerberos ticket.
+     * Validates client kerberos ticket received from the peer.
+     * <p>
+     * First performs service login using keytab, supports multiple principals in
+     * keytab and the principal is selected based on the request.
+     * <p>
+     * The GSS security context establishment is handled and if it is established then
+     * returns the Tuple of username and out token for peer reply. It may return
+     * Tuple with null username but with a outToken to be sent to peer for further
+     * negotiation.
      *
-     * @param servicePrincipalName Service principal name
-     * @param nameType {@link GSSName} type depending on GSS API principal entity
      * @param decodedToken base64 decoded kerberos ticket bytes
-     * @param config {@link RealmConfig}
+     * @param keyTabPath Path to Service key tab file containing credentials for ES
+     *            service.
+     * @param krbDebug if {@code true} enables jaas krb5 login module debug logs.
      * @return {@link Tuple} of user name {@link GSSContext#getSrcName()} and out
      *         token base64 encoded if any. When context is not yet established user
      *         name is {@code null}.
@@ -77,77 +80,94 @@ public class KerberosTicketValidator {
      * @throws GSSException thrown when GSS Context negotiation fails
      *             {@link GSSException}
      */
-    public Tuple<String, String> validateTicket(final String servicePrincipalName, Oid nameType, final byte[] decodedToken,
-            final RealmConfig config) throws LoginException, GSSException {
+    Tuple<String, String> validateTicket(final byte[] decodedToken, final Path keyTabPath, final boolean krbDebug)
+            throws LoginException, GSSException {
         final GSSManager gssManager = GSSManager.getInstance();
         GSSContext gssContext = null;
         LoginContext loginContext = null;
         try {
-            Path keyTabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
-            if (Files.exists(keyTabPath) == false) {
-                throw new IllegalArgumentException("configured service key tab file does not exist for "
-                        + RealmSettings.getFullSettingKey(config, KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
-            }
-            loginContext = serviceLogin(servicePrincipalName, keyTabPath.toString(), config.settings());
-            GSSCredential serviceCreds = createCredentials(servicePrincipalName, nameType, gssManager, loginContext);
+            loginContext = serviceLogin(keyTabPath.toString(), krbDebug);
+            GSSCredential serviceCreds = createCredentials(gssManager, loginContext.getSubject());
             gssContext = gssManager.createContext(serviceCreds);
-            final byte[] outToken = acceptSecContext(decodedToken, gssContext, loginContext);
-
-            String base64OutToken = null;
-            if (outToken != null && outToken.length > 0) {
-                base64OutToken = Base64.getEncoder().encodeToString(outToken);
-            }
+            final String base64OutToken = base64Encode(acceptSecContext(decodedToken, gssContext, loginContext.getSubject()));
             LOGGER.trace("validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}", gssContext.isEstablished(),
                     gssContext.getSrcName().toString(), base64OutToken);
             return new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken);
         } catch (PrivilegedActionException pve) {
-            if (pve.getException() instanceof LoginException) {
+            if (pve.getCause() instanceof LoginException) {
                 throw (LoginException) pve.getCause();
             }
-            if (pve.getException() instanceof GSSException) {
+            if (pve.getCause() instanceof GSSException) {
                 throw (GSSException) pve.getCause();
             }
             throw ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(pve));
         } finally {
-            privilegedDisposeNoThrow(loginContext);
-            privilegedCloseNoThrow(gssContext);
+            privilegedLogoutNoThrow(loginContext);
+            privilegedDisposeNoThrow(gssContext);
         }
     }
 
-    private static byte[] acceptSecContext(final byte[] base64Ticket, GSSContext gssContext, LoginContext loginContext)
-            throws PrivilegedActionException {
-        final GSSContext finalGSSContext = gssContext;
-        // process token with gss context
-        return doAsWrapper(loginContext.getSubject(),
-                (PrivilegedExceptionAction<byte[]>) () -> finalGSSContext.acceptSecContext(base64Ticket, 0, base64Ticket.length));
-    }
-
-    private static GSSCredential createCredentials(final String servicePrincipalName, Oid nameType, final GSSManager gssManager,
-            LoginContext loginContext) throws GSSException, PrivilegedActionException {
-        final GSSName gssServicePrincipalName;
-        if (servicePrincipalName.equals("*") == false) {
-            gssServicePrincipalName = gssManager.createName(servicePrincipalName, nameType);
-        } else {
-            gssServicePrincipalName = null;
+    private String base64Encode(final byte[] outToken) {
+        if (outToken != null && outToken.length > 0) {
+            return Base64.getEncoder().encodeToString(outToken);
         }
-        return doAsWrapper(loginContext.getSubject(), (PrivilegedExceptionAction<GSSCredential>) () -> gssManager
-                .createCredential(gssServicePrincipalName, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.ACCEPT_ONLY));
+        return null;
     }
 
     /**
-     * Privileged Wrapper that invokes action with Subject.doAs
+     * Handles GSS context establishment. Received token is passed to the GSSContext
+     * on acceptor side and returns with out token that needs to be sent to peer for
+     * further GSS context establishment.
+     * <p>
      *
-     * @param subject {@link Subject}
+     * @param base64decodedTicket in token generated by peer
+     * @param gssContext instance of acceptor {@link GSSContext}
+     * @param subject authenticated subject
+     * @return a byte[] containing the token to be sent to the peer. null indicates
+     *         that no token is generated.
+     * @throws PrivilegedActionException
+     * @see GSSContext#acceptSecContext(byte[], int, int)
+     */
+    private static byte[] acceptSecContext(final byte[] base64decodedTicket, final GSSContext gssContext, Subject subject)
+            throws PrivilegedActionException {
+        // process token with gss context
+        return doAsWrapper(subject,
+                (PrivilegedExceptionAction<byte[]>) () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length));
+    }
+
+    /**
+     * For acquiring SPNEGO mechanism credentials for service based on the subject
+     *
+     * @param gssManager {@link GSSManager}
+     * @param subject logged in {@link Subject}
+     * @return {@link GSSCredential} for particular mechanism
+     * @throws GSSException
+     * @throws PrivilegedActionException
+     */
+    private static GSSCredential createCredentials(final GSSManager gssManager,
+            final Subject subject) throws GSSException, PrivilegedActionException {
+        return doAsWrapper(subject, (PrivilegedExceptionAction<GSSCredential>) () -> gssManager
+                .createCredential(null, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.ACCEPT_ONLY));
+    }
+
+    /**
+     * Privileged Wrapper that invokes action with Subject.doAs to perform work as
+     * given subject.
+     *
+     * @param subject {@link Subject} to be used for this work
      * @param action {@link PrivilegedExceptionAction} action for performing inside
      *            Subject.doAs
-     * @return
+     * @return the value returned by the PrivilegedExceptionAction's run method
      * @throws PrivilegedActionException
      */
     private static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
         } catch (PrivilegedActionException pae) {
-            throw (PrivilegedActionException) pae.getException();
+            if (pae.getCause() instanceof PrivilegedActionException) {
+                throw (PrivilegedActionException) pae.getCause();
+            }
+            throw pae;
         }
     }
 
@@ -155,9 +175,9 @@ public class KerberosTicketValidator {
      * Privileged wrapper for closing GSSContext, does not throw exceptions but logs
      * them as warning.
      *
-     * @param gssContext
+     * @param gssContext GSSContext to be disposed.
      */
-    private static void privilegedCloseNoThrow(final GSSContext gssContext) {
+    private static void privilegedDisposeNoThrow(final GSSContext gssContext) {
         if (gssContext != null) {
             try {
                 AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -165,10 +185,8 @@ public class KerberosTicketValidator {
                     return null;
                 });
             } catch (PrivilegedActionException e) {
-                RuntimeException rte = ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
-                LOGGER.debug("Could not dispose GSS Context", rte);
+                LOGGER.debug("Could not dispose GSS Context", (Exception) ExceptionsHelper.unwrapCause(e));
             }
-            return;
         }
     }
 
@@ -176,9 +194,9 @@ public class KerberosTicketValidator {
      * Privileged wrapper for closing LoginContext, does not throw exceptions but
      * logs them as warning.
      *
-     * @param loginContext
+     * @param loginContext LoginContext to be closed
      */
-    private static void privilegedDisposeNoThrow(final LoginContext loginContext) {
+    private static void privilegedLogoutNoThrow(final LoginContext loginContext) {
         if (loginContext != null) {
             try {
                 AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -186,33 +204,25 @@ public class KerberosTicketValidator {
                     return null;
                 });
             } catch (PrivilegedActionException e) {
-                RuntimeException rte = ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
-                LOGGER.debug("Could not close LoginContext", rte);
+                LOGGER.debug("Could not close LoginContext", (Exception) ExceptionsHelper.unwrapCause(e));
             }
         }
     }
 
     /**
-     * Performs authentication using provided principal name and keytab
+     * Performs authentication using provided keytab
      *
-     * @param principal Principal name
      * @param keytabFilePath Keytab file path
-     * @param settings {@link Settings}
+     * @param krbDebug if {@code true} enables jaas krb5 login module debug logs..
      * @return authenticated {@link LoginContext} instance. Note: This needs to be
-     *         closed {@link LoginContext#logout()} after usage.
-     * @throws PrivilegedActionException
+     *         closed using {@link LoginContext#logout()} after usage.
+     * @throws PrivilegedActionException when privileged action threw exception
      */
-    private static LoginContext serviceLogin(final String principal, final String keytabFilePath, final Settings settings)
+    private static LoginContext serviceLogin(final String keytabFilePath, final boolean krbDebug)
             throws PrivilegedActionException {
         return AccessController.doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> {
-            final Set<Principal> principals = new HashSet<>();
-            if (principal.equals("*") == false) {
-                principals.add(new KerberosPrincipal(principal));
-            }
-
-            final Subject subject = new Subject(false, principals, new HashSet<Object>(), new HashSet<Object>());
-
-            final Configuration conf = new KeytabJaasConf(principal, keytabFilePath, settings);
+            final Subject subject = new Subject(false, Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
+            final Configuration conf = new KeytabJaasConf(keytabFilePath, krbDebug);
             final LoginContext loginContext = new LoginContext(KEY_TAB_CONF_NAME, subject, null, conf);
             loginContext.login();
             return loginContext;
@@ -220,34 +230,41 @@ public class KerberosTicketValidator {
     }
 
     /**
-     * Instead of jaas.conf, this requires refresh of {@link Configuration}.
+     * Usually we would have a JAAS configuration file for login configuration. As
+     * we have static configuration except debug flag, we are constructing in memory. This
+     * avoid additional configuration required from the user.
+     * <p>
+     * As we are using this instead of jaas.conf, this requires refresh of
+     * {@link Configuration} and requires appropriate security permissions to do so.
      */
     static class KeytabJaasConf extends Configuration {
-        private final String principal;
         private final String keytabFilePath;
-        private final Settings settings;
+        private final boolean krbDebug;
 
-        KeytabJaasConf(final String principal, final String keytabFilePath, final Settings settings) {
-            this.principal = principal;
+        KeytabJaasConf(final String keytabFilePath, final boolean krbDebug) {
             this.keytabFilePath = keytabFilePath;
-            this.settings = settings;
+            this.krbDebug = krbDebug;
         }
 
         @Override
         public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
             final Map<String, String> options = new HashMap<>();
             options.put("keyTab", keytabFilePath);
-            options.put("principal", principal);
+            /*
+             * As acceptor, we can have multiple SPNs, we do not want to use particular
+             * principal so it uses "*"
+             */
+            options.put("principal", "*");
             options.put("useKeyTab", Boolean.TRUE.toString());
             options.put("storeKey", Boolean.TRUE.toString());
             options.put("doNotPrompt", Boolean.TRUE.toString());
             options.put("renewTGT", Boolean.FALSE.toString());
             options.put("refreshKrb5Config", Boolean.TRUE.toString());
             options.put("isInitiator", Boolean.FALSE.toString());
-            options.put("debug", KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(settings).toString());
+            options.put("debug", Boolean.toString(krbDebug));
 
-            return new AppConfigurationEntry[] {
-                    new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE, AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, options) };
+            return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };
         }
 
     }

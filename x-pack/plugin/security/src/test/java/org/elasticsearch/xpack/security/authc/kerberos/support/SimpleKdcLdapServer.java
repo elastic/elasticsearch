@@ -34,7 +34,6 @@ import java.util.Locale;
  * {@link InMemoryDirectoryServer}.<br>
  * Starts in memory Ldap server and then uses it as backend for Kdc Server.
  */
-@SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File")
 public class SimpleKdcLdapServer {
     private static final Logger logger = Loggers.getLogger(SimpleKdcLdapServer.class);
 
@@ -90,6 +89,7 @@ public class SimpleKdcLdapServer {
         logger.info("SimpleKdcLdapServer started.");
     }
 
+    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File")
     private void init() throws Exception {
         // start ldap server
         createLdapServiceAndStart();
@@ -117,6 +117,7 @@ public class SimpleKdcLdapServer {
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }
 
+    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File")
     private void prepareKdcServerAndStart() throws Exception {
         // transport
         simpleKdc.setWorkDir(workDir.toFile());
@@ -142,11 +143,12 @@ public class SimpleKdcLdapServer {
         long maxRenewableLifeTime = simpleKdc.getKdcConfig().getMaximumRenewableLifetime();
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, 86400000L);
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, 604800000L);
-        logger.info("MINIMUM_TICKET_LIFETIME changed from {}  to {}", minimumTicketLifeTime, 86400000L);
-        logger.info("MAXIMUM_RENEWABLE_LIFETIME changed from {}  to {}", maxRenewableLifeTime, 604800000L);
+        logger.info("MINIMUM_TICKET_LIFETIME changed from {}  to {}", minimumTicketLifeTime,
+                simpleKdc.getKdcConfig().getMinimumTicketLifetime());
+        logger.info("MAXIMUM_RENEWABLE_LIFETIME changed from {}  to {}", maxRenewableLifeTime,
+                simpleKdc.getKdcConfig().getMaximumRenewableLifetime());
         simpleKdc.init();
         simpleKdc.start();
-
     }
 
     public String getRealm() {
@@ -181,6 +183,7 @@ public class SimpleKdcLdapServer {
      * @throws Exception thrown if the principals or the keytab file could not be
      *             created.
      */
+    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File")
     public synchronized void createPrincipal(final Path keytabFile, final String... principals) throws Exception {
         simpleKdc.createPrincipals(principals);
         for (String principal : principals) {

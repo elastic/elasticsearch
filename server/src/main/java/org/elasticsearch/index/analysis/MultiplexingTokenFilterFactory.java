@@ -106,7 +106,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory {
         /**
          * Creates a MultiplexTokenFilter on the given input with a set of filters
          */
-        public MultiplexTokenFilter(TokenStream input, List<Function<TokenStream, TokenStream>> filters) {
+        MultiplexTokenFilter(TokenStream input, List<Function<TokenStream, TokenStream>> filters) {
             super(input);
             TokenStream source = new MultiplexerFilter(input);
             for (int i = 0; i < filters.size(); i++) {

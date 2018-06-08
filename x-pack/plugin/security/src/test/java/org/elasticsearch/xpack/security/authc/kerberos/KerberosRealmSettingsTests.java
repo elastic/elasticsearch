@@ -24,14 +24,13 @@ public class KerberosRealmSettingsTests extends ESTestCase {
         if (Files.exists(configDir) == false) {
             configDir = Files.createDirectory(configDir);
         }
-        KerberosTestCase.writeKeyTab(dir, "config" + dir.getFileSystem().getSeparator() + "http.keytab", null);
+        final String keyTabPathConfig = "config" + dir.getFileSystem().getSeparator() + "http.keytab";
+        KerberosTestCase.writeKeyTab(dir.resolve(keyTabPathConfig), null);
         final Integer maxUsers = randomInt();
         final String cacheTTL = randomLongBetween(10L, 100L) + "m";
-        final Settings settings = KerberosTestCase.buildKerberosRealmSettings("config" + dir.getFileSystem().getSeparator() + "http.keytab",
-                maxUsers, cacheTTL, true);
+        final Settings settings = KerberosTestCase.buildKerberosRealmSettings(keyTabPathConfig, maxUsers, cacheTTL, true);
 
-        assertEquals("config" + dir.getFileSystem().getSeparator() + "http.keytab",
-                KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
+        assertEquals(keyTabPathConfig, KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
         assertEquals(TimeValue.parseTimeValue(cacheTTL, KerberosRealmSettings.CACHE_TTL_SETTING.getKey()),
                 KerberosRealmSettings.CACHE_TTL_SETTING.get(settings));
         assertEquals(maxUsers, KerberosRealmSettings.CACHE_MAX_USERS_SETTING.get(settings));

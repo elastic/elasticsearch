@@ -7,100 +7,71 @@
 package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Base64;
-import java.util.List;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class KerberosAuthenticationTokenTests extends ESTestCase {
 
     private static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal Name>";
 
-    private ThreadContext threadContext;
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
-    @Before
-    public void setup() throws IOException {
-        final Path dir = createTempDir();
-        final Path ktab = KerberosTestCase.writeKeyTab(dir, "http.keytab", null);
-        final Settings settings = KerberosTestCase.buildKerberosRealmSettings(ktab.toString());
-        threadContext = new ThreadContext(settings);
-    }
-
-    @After
-    public void cleanup() throws IOException {
-        threadContext.close();
-        threadContext = null;
-    }
-
     public void testExtractTokenForValidAuthorizationHeader() throws IOException {
         final String base64Token = Base64.getEncoder().encodeToString(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8));
         final String negotiate = randomBoolean() ? KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER : "negotiate ";
-        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, negotiate + base64Token);
+        final String authzHeader = negotiate + base64Token;
 
-        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(threadContext);
+        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(authzHeader);
         assertNotNull(kerbAuthnToken);
         assertEquals(UNAUTHENTICATED_PRINCIPAL_NAME, kerbAuthnToken.principal());
         assertTrue(kerbAuthnToken.credentials() instanceof byte[]);
         assertArrayEquals(Base64.getDecoder().decode(base64Token), (byte[]) kerbAuthnToken.credentials());
     }
 
-    public void testExtractTokenForInvalidAuthorizationHeaderThrowsException() throws IOException {
+    public void testExtractTokenForInvalidNegotiateAuthorizationHeaderThrowsException() throws IOException {
         final String header =
-                randomFrom(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER, "negotiate", "negotiate ", "Negotiate", "Negotiate        ");
-        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, header);
-
-        thrown.expect(ElasticsearchSecurityException.class);
-        thrown.expectMessage(
-                Matchers.equalTo("invalid negotiate authentication header value, expected base64 encoded token but value is empty"));
-        thrown.expect(new ESEMatcher());
-        KerberosAuthenticationToken.extractToken(threadContext);
-        fail("Expected exception not thrown");
+                randomFrom(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER, "negotiate", "negotiate ", "Negotiate", "Negotiate      ");
+        final ElasticsearchSecurityException e =
+                expectThrows(ElasticsearchSecurityException.class, () -> KerberosAuthenticationToken.extractToken(header));
+        assertThat(e.getMessage(),
+                equalTo("invalid negotiate authentication header value, expected base64 encoded token but value is empty"));
+        assertContainsAuthenticateHeader(e);
     }
 
     public void testExtractTokenForNotBase64EncodedTokenThrowsException() throws IOException {
         final String notBase64Token = "[B@6499375d";
-        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER,
-                KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + notBase64Token);
 
-        thrown.expect(ElasticsearchSecurityException.class);
-        thrown.expectMessage(
-                Matchers.equalTo("invalid negotiate authentication header value, could not decode base64 token " + notBase64Token));
-        thrown.expect(new ESEMatcher());
-        KerberosAuthenticationToken.extractToken(threadContext);
-        fail("Expected exception not thrown");
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> KerberosAuthenticationToken.extractToken(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + notBase64Token));
+        assertThat(e.getMessage(),
+                equalTo("invalid negotiate authentication header value, could not decode base64 token " + notBase64Token));
+        assertContainsAuthenticateHeader(e);
     }
 
-    public void testExtractTokenForNoAuthorizationHeaderShouldReturnNull() throws IOException {
-        final String header = randomFrom(" Negotiate", "Basic ", " Random ", null);
-        if (header != null) {
-            threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, header);
-        }
-        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(threadContext);
+    public void testExtractTokenForInvalidAuthorizationHeaderShouldReturnNull() throws IOException {
+        final String header = randomFrom(Arrays.asList(" Negotiate", "Basic ", " Custom ", null));
+        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(header);
         assertNull(kerbAuthnToken);
     }
 
     public void testKerberoAuthenticationTokenClearCredentials() {
-        final String base64Token = Base64.getEncoder().encodeToString(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8));
-        threadContext.putHeader(KerberosAuthenticationToken.AUTH_HEADER, KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + base64Token);
-        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(threadContext);
+        byte[] inputBytes = randomByteArrayOfLength(5);
+        final String base64Token = Base64.getEncoder().encodeToString(inputBytes);
+        final KerberosAuthenticationToken kerbAuthnToken =
+                KerberosAuthenticationToken.extractToken(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER + base64Token);
         kerbAuthnToken.clearCredentials();
-        assertNull(kerbAuthnToken.credentials());
+        Arrays.fill(inputBytes, (byte) 0);
+        assertArrayEquals(inputBytes, (byte[]) kerbAuthnToken.credentials());
     }
 
     public void testEqualsHashCode() {
@@ -127,21 +98,11 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         }
     }
 
-    private static class ESEMatcher extends BaseMatcher<ElasticsearchSecurityException> {
-        @Override
-        public boolean matches(Object item) {
-            if (item instanceof ElasticsearchSecurityException) {
-                List<String> authHeaderValue =
-                        ((ElasticsearchSecurityException) item).getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
-                if (authHeaderValue.size() == 1 && KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.contains(authHeaderValue.get(0))) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        @Override
-        public void describeTo(Description description) {
-        }
+    private static void assertContainsAuthenticateHeader(ElasticsearchSecurityException e) {
+        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
+        assertThat(e.getHeaderKeys(), hasSize(1));
+        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), notNullValue());
+        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE),
+                contains(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.trim()));
     }
 }

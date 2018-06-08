@@ -20,26 +20,26 @@ public final class KerberosRealmSettings {
     public static final String TYPE = "kerberos";
 
     /**
-     * Kerberos Key tab for Elasticsearch HTTP Service and Kibana HTTP Service<br>
+     * Kerberos key tab for Elasticsearch service<br>
      * Uses single key tab for multiple service accounts.
      */
     public static final Setting<String> HTTP_SERVICE_KEYTAB_PATH =
-            Setting.simpleString("http.service.keytab.path", Setting.Property.NodeScope);
+            Setting.simpleString("keytab.path", Property.NodeScope);
     public static final Setting<Boolean> SETTING_KRB_DEBUG_ENABLE =
-            Setting.boolSetting("krb.debug", Boolean.FALSE, Setting.Property.Dynamic, Property.NodeScope);
+            Setting.boolSetting("krb.debug", Boolean.FALSE, Property.NodeScope);
+
     // Cache
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
-    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("cache.ttl", DEFAULT_TTL, Setting.Property.NodeScope);
     private static final int DEFAULT_MAX_USERS = 100_000; // 100k users
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("cache.ttl", DEFAULT_TTL, Setting.Property.NodeScope);
     public static final Setting<Integer> CACHE_MAX_USERS_SETTING =
-            Setting.intSetting("cache.max_users", DEFAULT_MAX_USERS, Setting.Property.NodeScope);
+            Setting.intSetting("cache.max_users", DEFAULT_MAX_USERS, Property.NodeScope);
 
     private KerberosRealmSettings() {
-        /* Empty private constructor */
     }
 
     /**
-     * @return Set of {@link Setting}s for {@value #TYPE}
+     * @return the valid set of {@link Setting}s for a {@value #TYPE} realm
      */
     public static Set<Setting<?>> getSettings() {
         Set<Setting<?>> settings = new HashSet<>();

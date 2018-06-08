@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
@@ -18,44 +17,53 @@ import java.util.Base64;
 import java.util.Objects;
 
 /**
- * Holds on to base 64 encoded ticket, also helps extracting token from
- * {@link ThreadContext}
+ * This class represents AuthenticationToken for Kerberos authentication using
+ * SPNEGO mechanism. The token stores base 64 decoded token bytes, extracted
+ * from the Authorization header with auth scheme 'Negotiate'.
+ * <p>
+ * Example Authorization header "Authorization: Negotiate
+ * YIIChgYGKwYBBQUCoII..."
+ * <p>
+ * If there is any error handling during extraction of 'Negotiate' header then
+ * it throws {@link ElasticsearchSecurityException} with
+ * {@link RestStatus#UNAUTHORIZED} and header 'WWW-Authenticate: Negotiate'
  */
 public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     public static final String WWW_AUTHENTICATE = "WWW-Authenticate";
     public static final String AUTH_HEADER = "Authorization";
     public static final String NEGOTIATE_AUTH_HEADER = "Negotiate ";
-    public static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal Name>";
 
-    private byte[] decodedTicket;
+    private static final boolean IGNORE_CASE_AUTH_HEADER_MATCH = true;
 
-    public KerberosAuthenticationToken(final byte[] base64EncodedToken) {
-        this.decodedTicket = base64EncodedToken;
+    private final byte[] base64DecodedToken;
+
+    public KerberosAuthenticationToken(final byte[] base64DecodedToken) {
+        this.base64DecodedToken = base64DecodedToken;
     }
 
     /**
-     * Extract token from header and if valid {@link #NEGOTIATE_AUTH_HEADER} then
-     * returns {@link KerberosAuthenticationToken}
+     * Extract token from authorization header and if it is valid
+     * {@link #NEGOTIATE_AUTH_HEADER} then returns
+     * {@link KerberosAuthenticationToken}
      *
-     * @param context {@link ThreadContext}
+     * @param authorizationHeader Authorization header from request
      * @return returns {@code null} if {@link #AUTH_HEADER} is empty or not an
      *         {@link #NEGOTIATE_AUTH_HEADER} else returns valid
      *         {@link KerberosAuthenticationToken}
+     * @throws ElasticsearchSecurityException when negotiate header is invalid.
      */
-    public static KerberosAuthenticationToken extractToken(final ThreadContext context) {
-        final String authHeader = context.getHeader(AUTH_HEADER);
-        if (Strings.isNullOrEmpty(authHeader)) {
+    public static KerberosAuthenticationToken extractToken(final String authorizationHeader) {
+        if (Strings.isNullOrEmpty(authorizationHeader)) {
             return null;
         }
 
-        boolean ignoreCase = true;
-        if (authHeader.regionMatches(ignoreCase, 0, NEGOTIATE_AUTH_HEADER.trim(), 0,
-                NEGOTIATE_AUTH_HEADER.trim().length()) == Boolean.FALSE) {
+        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER.trim(), 0,
+                NEGOTIATE_AUTH_HEADER.trim().length()) == false) {
             return null;
         }
 
-        final String base64EncodedToken = authHeader.substring(NEGOTIATE_AUTH_HEADER.trim().length()).trim();
+        final String base64EncodedToken = authorizationHeader.substring(NEGOTIATE_AUTH_HEADER.trim().length()).trim();
         if (Strings.isEmpty(base64EncodedToken)) {
             throw unauthorized("invalid negotiate authentication header value, expected base64 encoded token but value is empty", null);
         }
@@ -72,23 +80,22 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     @Override
     public String principal() {
-        return UNAUTHENTICATED_PRINCIPAL_NAME;
+        return "<Unauthenticated Principal Name>";
     }
 
     @Override
     public Object credentials() {
-        return decodedTicket;
+        return base64DecodedToken;
     }
 
     @Override
     public void clearCredentials() {
-        Arrays.fill(decodedTicket, (byte) 0);
-        this.decodedTicket = null;
+        Arrays.fill(base64DecodedToken, (byte) 0);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(decodedTicket);
+        return Objects.hash(base64DecodedToken);
     }
 
     @Override

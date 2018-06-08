@@ -91,6 +91,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractRawValues;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1045,10 +1046,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
         GetIndexTemplatesResponse getBoth = execute(getBothRequest, client.indices()::getTemplates, client.indices()::getTemplatesAsync);
         assertThat(getBoth.getIndexTemplates(), hasSize(2));
-        assertThat(getBoth.getIndexTemplates().get(0).name(), equalTo("template-1"));
-        assertThat(getBoth.getIndexTemplates().get(0).patterns(), contains("pattern-1", "name-1"));
-        assertThat(getBoth.getIndexTemplates().get(1).name(), equalTo("template-2"));
-        assertThat(getBoth.getIndexTemplates().get(1).patterns(), contains("pattern-2", "name-2"));
+        assertThat(getBoth.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).toArray(),
+            arrayContainingInAnyOrder("template-1", "template-2"));
 
         ElasticsearchException notFound = expectThrows(ElasticsearchException.class, () -> execute(
             new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplates, client.indices()::getTemplatesAsync));

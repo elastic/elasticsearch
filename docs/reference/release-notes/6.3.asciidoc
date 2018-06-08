@@ -24,8 +24,13 @@
 //[float]
 //=== Enhancements
 
-//[float]
-//=== Bug Fixes
+[float]
+=== Bug Fixes
+
+Machine Learning:: 
+
+* Function description for population lat_long results should be lat_long instead of mean ({pull}81[#81])
+* By-fields should respect model_plot_config.terms ({pull}86[#86])
 
 //[float]
 //=== Regressions

@@ -75,6 +75,12 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -181,6 +187,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(SamlAuthenticateAction.NAME), is(true));
         assertThat(kibanaRole.cluster().check(InvalidateTokenAction.NAME), is(true));
         assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME), is(false));
+
+        // Security
+        assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME), is(false));
+        assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(ClearRolesCacheAction.NAME), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteRoleAction.NAME), is(false));
+        assertThat(kibanaRole.cluster().check(GetRolesAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(PutRoleAction.NAME), is(true));
+
 
         // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));

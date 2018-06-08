@@ -9,7 +9,7 @@ dependencies {
   compile "org.elasticsearch.test:framework:${version}"
 
   // JDBC testing dependencies
-  compile xpackProject('plugin:sql:jdbc')
+  compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
 
   // CLI testing dependencies
@@ -87,7 +87,9 @@ subprojects {
     // JDBC testing dependencies
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
     testRuntime "com.h2database:h2:1.4.197"
-    testRuntime xpackProject('plugin:sql:jdbc')
+    testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+    testRuntime xpackProject('plugin:sql:sql-shared-client')
+
 
     // TODO check if needed
     testRuntime("org.antlr:antlr4-runtime:4.5.3") {

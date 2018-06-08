@@ -68,7 +68,7 @@ class FieldDataValueSource extends ValueSource {
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
-        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues(), 0d);
+        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleDocValues(this) {
           @Override
           public double doubleVal(int doc) throws IOException {

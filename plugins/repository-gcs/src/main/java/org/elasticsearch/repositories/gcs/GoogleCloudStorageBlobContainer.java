@@ -73,11 +73,6 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         blobStore.deleteBlob(buildKey(blobName));
     }
 
-    @Override
-    public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        blobStore.moveBlob(buildKey(sourceBlobName), buildKey(targetBlobName));
-    }
-
     protected String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;

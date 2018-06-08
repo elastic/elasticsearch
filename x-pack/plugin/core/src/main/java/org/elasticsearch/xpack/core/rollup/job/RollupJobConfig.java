@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -173,7 +174,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -335,6 +336,17 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             }
             if (indexPattern == null || indexPattern.isEmpty()) {
                 throw new IllegalArgumentException("An index pattern is mandatory.");
+            }
+            if (Regex.isMatchAllPattern(indexPattern)) {
+                throw new IllegalArgumentException("Index pattern must not match all indices (as it would match it's own rollup index");
+            }
+            if (Regex.isSimpleMatchPattern(indexPattern)) {
+                if (Regex.simpleMatch(indexPattern, rollupIndex)) {
+                    throw new IllegalArgumentException("Index pattern would match rollup index name which is not allowed.");
+                }
+            }
+            if (indexPattern.equals(rollupIndex)) {
+                throw new IllegalArgumentException("Rollup index may not be the same as the index pattern.");
             }
             if (rollupIndex == null || rollupIndex.isEmpty()) {
                 throw new IllegalArgumentException("A rollup index name is mandatory.");

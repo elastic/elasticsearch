@@ -177,6 +177,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31196")
     public void testWatcherRestart() throws Exception {
         executeUpgradeIfNeeded();
 

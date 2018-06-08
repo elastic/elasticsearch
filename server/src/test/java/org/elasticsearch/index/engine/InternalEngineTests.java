@@ -225,7 +225,7 @@ public class InternalEngineTests extends EngineTestCase {
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
         operation = randomBoolean() ?
             appendOnlyPrimary(doc, false, 1)
-            : appendOnlyReplica(doc, false, 1, engine.generateSeqNo());
+            : appendOnlyReplica(doc, false, 1, generateNewSeqNo(engine));
         engine.index(operation);
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         assertEquals(1, engine.getVersionMapSize()); // now we add this to the map
@@ -2141,7 +2141,7 @@ public class InternalEngineTests extends EngineTestCase {
                 equalTo(primarySeqNo));
             assertThat(recoveringEngine.getLocalCheckpoint(), equalTo(primarySeqNo));
             assertThat(recoveringEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo(primarySeqNo));
-            assertThat(recoveringEngine.generateSeqNo(), equalTo(primarySeqNo + 1));
+            assertThat(generateNewSeqNo(recoveringEngine), equalTo(primarySeqNo + 1));
         }
     }
 
@@ -3600,7 +3600,7 @@ public class InternalEngineTests extends EngineTestCase {
             final AtomicBoolean stall,
             final AtomicLong expectedLocalCheckpoint) {
         return (engine, operation) -> {
-            final long seqNo = engine.generateSeqNo();
+            final long seqNo = generateNewSeqNo(engine);
             final CountDownLatch latch = latchReference.get();
             if (stall.get()) {
                 try {
@@ -3943,7 +3943,7 @@ public class InternalEngineTests extends EngineTestCase {
             intersection.retainAll(LongStream.range(resetLocalCheckpoint + 1, operations).boxed().collect(Collectors.toSet()));
             assertThat(completedSeqNos, equalTo(intersection));
             assertThat(actualEngine.getLocalCheckpoint(), equalTo(currentLocalCheckpoint));
-            assertThat(actualEngine.generateSeqNo(), equalTo((long) operations));
+            assertThat(generateNewSeqNo(actualEngine), equalTo((long) operations));
         } finally {
             IOUtils.close(actualEngine);
         }
@@ -4432,13 +4432,13 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(0));
         // If the new index commit still points to the same translog generation as the current index commit,
         // we should not enable the periodically flush condition; otherwise we can get into an infinite loop of flushes.
-        engine.generateSeqNo(); // create a gap here
+        generateNewSeqNo(engine); // create a gap here
         for (int id = 0; id < numDocs; id++) {
             if (randomBoolean()) {
                 translog.rollGeneration();
             }
             final ParsedDocument doc = testParsedDocument("new" + id, null, testDocumentWithTextField(), SOURCE, null);
-            engine.index(replicaIndexForDoc(doc, 2L, engine.generateSeqNo(), false));
+            engine.index(replicaIndexForDoc(doc, 2L, generateNewSeqNo(engine), false));
             if (engine.shouldPeriodicallyFlush()) {
                 engine.flush();
                 assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
@@ -4548,7 +4548,7 @@ public class InternalEngineTests extends EngineTestCase {
             final long gapSeqNo = randomLongBetween(
                 engine.getSeqNoStats(-1).getMaxSeqNo() + 1, engine.getSeqNoStats(-1).getMaxSeqNo() + deleteBatch);
             for (int i = 0; i < deleteBatch; i++) {
-                final long seqno = engine.generateSeqNo();
+                final long seqno = generateNewSeqNo(engine);
                 if (seqno != gapSeqNo) {
                     if (randomBoolean()) {
                         clock.incrementAndGet();
@@ -4595,7 +4595,7 @@ public class InternalEngineTests extends EngineTestCase {
                     for (int i = 0; i < numDocs; i++) {
                         ParsedDocument doc = testParsedDocument("append-only" + i, null, testDocumentWithTextField(), SOURCE, null);
                         if (randomBoolean()) {
-                            engine.index(appendOnlyReplica(doc, randomBoolean(), 1, engine.generateSeqNo()));
+                            engine.index(appendOnlyReplica(doc, randomBoolean(), 1, generateNewSeqNo(engine)));
                         } else {
                             engine.index(appendOnlyPrimary(doc, randomBoolean(), randomNonNegativeLong()));
                         }
@@ -4612,7 +4612,7 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numOps; i++) {
                 ParsedDocument parsedDocument = testParsedDocument(Integer.toString(i), null, testDocumentWithTextField(), SOURCE, null);
                 if (randomBoolean()) { // On replica - update max_seqno for non-append-only operations
-                    final long seqno = engine.generateSeqNo();
+                    final long seqno = generateNewSeqNo(engine);
                     final Engine.Index doc = replicaIndexForDoc(parsedDocument, 1, seqno, randomBoolean());
                     if (randomBoolean()) {
                         engine.index(doc);
@@ -4649,8 +4649,8 @@ public class InternalEngineTests extends EngineTestCase {
             lookupTimes++;
         }
         // doc1 is delayed and arrived after a non-append-only op.
-        final long seqNoAppendOnly1 = engine.generateSeqNo();
-        final long seqnoNormalOp = engine.generateSeqNo();
+        final long seqNoAppendOnly1 = generateNewSeqNo(engine);
+        final long seqnoNormalOp = generateNewSeqNo(engine);
         if (randomBoolean()) {
             engine.index(replicaIndexForDoc(
                 testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, seqnoNormalOp, false));
@@ -4669,7 +4669,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         // optimize for other append-only 2 (its seqno > max_seqno of non-append-only) - do not look up in version map.
         engine.index(appendOnlyReplica(testParsedDocument("append-only-2", null, testDocumentWithTextField(), SOURCE, null),
-            false, randomNonNegativeLong(), engine.generateSeqNo()));
+            false, randomNonNegativeLong(), generateNewSeqNo(engine)));
         assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
     }
 

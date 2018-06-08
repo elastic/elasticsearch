@@ -640,11 +640,6 @@ public abstract class Engine implements Closeable {
     public abstract long getLocalCheckpoint();
 
     /**
-     * @return generate a new sequence number from the local checkpoint tracker
-     */
-    public abstract long generateSeqNo();
-
-    /**
      * Waits for all operations up to the provided sequence number to complete.
      *
      * @param seqNo the sequence number that the checkpoint must advance to before this method returns

@@ -2186,14 +2186,14 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    @Override
-    public long getLocalCheckpoint() {
-        return localCheckpointTracker.getCheckpoint();
+    // Used only for testing! Package private to prevent anyone else from using it
+    LocalCheckpointTracker getLocalCheckpointTracker() {
+        return localCheckpointTracker;
     }
 
     @Override
-    public long generateSeqNo() {
-        return localCheckpointTracker.generateSeqNo();
+    public long getLocalCheckpoint() {
+        return localCheckpointTracker.getCheckpoint();
     }
 
     @Override

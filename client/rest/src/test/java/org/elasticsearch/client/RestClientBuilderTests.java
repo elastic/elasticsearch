@@ -40,14 +40,14 @@ public class RestClientBuilderTests extends RestClientTestCase {
             RestClient.builder((HttpHost[])null);
             fail("should have failed");
         } catch(IllegalArgumentException e) {
-            assertEquals("hosts must not be null or empty", e.getMessage());
+            assertEquals("hosts must not be null nor empty", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost[] {});
             fail("should have failed");
         } catch(IllegalArgumentException e) {
-            assertEquals("hosts must not be null or empty", e.getMessage());
+            assertEquals("hosts must not be null nor empty", e.getMessage());
         }
 
         try {

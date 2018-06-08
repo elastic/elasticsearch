@@ -62,12 +62,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -131,7 +129,7 @@ public class RestClient implements Closeable {
      * If you don't either one is fine.
      */
     public static RestClientBuilder builder(Node... nodes) {
-        return new RestClientBuilder(nodes);
+        return new RestClientBuilder(nodes == null ? null : Arrays.asList(nodes));
     }
 
     /**
@@ -154,15 +152,7 @@ public class RestClient implements Closeable {
      */
     @Deprecated
     public void setHosts(HttpHost... hosts) {
-        if (hosts == null || hosts.length == 0) {
-            throw new IllegalArgumentException("hosts must not be null nor empty");
-        }
-        List<Node> nodes = new ArrayList<>();
-        for (HttpHost host : hosts) {
-            nodes.add(new Node(
-                Objects.requireNonNull(host, "host cannot be null")));
-        }
-        setNodes(nodes);
+        setNodes(hostsToNodes(hosts));
     }
 
     /**
@@ -186,13 +176,13 @@ public class RestClient implements Closeable {
         this.blacklist.clear();
     }
 
-    private static Node[] hostsToNodes(HttpHost[] hosts) {
+    private static List<Node> hostsToNodes(HttpHost[] hosts) {
         if (hosts == null || hosts.length == 0) {
-            throw new IllegalArgumentException("hosts must not be null or empty");
+            throw new IllegalArgumentException("hosts must not be null nor empty");
         }
-        Node[] nodes = new Node[hosts.length];
+        List<Node> nodes = new ArrayList<>(hosts.length);
         for (int i = 0; i < hosts.length; i++) {
-            nodes[i] = new Node(hosts[i]);
+            nodes.add(new Node(hosts[i]));
         }
         return nodes;
     }
@@ -1008,7 +998,7 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * {@link NodeTupe} enables the {@linkplain Node}s and {@linkplain AuthCache}
+     * {@link NodeTuple} enables the {@linkplain Node}s and {@linkplain AuthCache}
      * to be set together in a thread safe, volatile way.
      */
     static class NodeTuple<T> {

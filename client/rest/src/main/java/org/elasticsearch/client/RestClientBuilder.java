@@ -31,7 +31,6 @@ import javax.net.ssl.SSLContext;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -62,8 +61,8 @@ public final class RestClientBuilder {
      *
      * @throws IllegalArgumentException if {@code nodes} is {@code null} or empty.
      */
-    RestClientBuilder(Node[] nodes) {
-        if (nodes == null || nodes.length == 0) {
+    RestClientBuilder(List<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
             throw new IllegalArgumentException("nodes must not be null or empty");
         }
         for (Node node : nodes) {
@@ -71,7 +70,7 @@ public final class RestClientBuilder {
                 throw new IllegalArgumentException("node cannot be null");
             }
         }
-        this.nodes = Arrays.asList(nodes);
+        this.nodes = nodes;
     }
 
     /**

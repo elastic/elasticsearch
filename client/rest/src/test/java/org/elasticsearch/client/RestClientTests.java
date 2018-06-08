@@ -251,13 +251,13 @@ public class RestClientTests extends RestClientTestCase {
         try (RestClient restClient = createRestClient()) {
             restClient.setHosts((HttpHost) null);
             fail("setHosts should have failed");
-        } catch (NullPointerException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
         try (RestClient restClient = createRestClient()) {
             restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
             fail("setHosts should have failed");
-        } catch (NullPointerException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
     }

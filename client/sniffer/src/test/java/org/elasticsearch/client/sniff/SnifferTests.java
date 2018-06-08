@@ -670,7 +670,7 @@ public class SnifferTests extends RestClientTestCase {
                 assertEquals(expectedNode.getRoles(), actualNode.getRoles());
             }
         } catch (AssertionError e) {
-            throw new AssertionError("nodes differ expected: " + expected + " but was: " + actual, e);
+            throw new AssertionError("nodes differ, expected: " + expected + " but was: " + actual, e);
         }
     }
 }

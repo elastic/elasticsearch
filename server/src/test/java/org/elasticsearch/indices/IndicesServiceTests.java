@@ -559,8 +559,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final IllegalStateException e =
                 expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList()));
         final String pattern =
-                ".*multiple plugins provided engine factories for \\[foobar/.*\\]: "
-                        + "\\[.*FooEnginePlugin/.*FooEngineFactory\\],\\[.*BarEnginePlugin/.*BarEngineFactory\\].*";
+                ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
     }
 

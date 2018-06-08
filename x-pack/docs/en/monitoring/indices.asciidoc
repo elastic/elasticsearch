@@ -11,6 +11,8 @@ You can retrieve the templates through the `_template` API:
 ----------------------------------
 GET /_template/.monitoring-*
 ----------------------------------
+// CONSOLE
+// TEST[catch:missing]
 
 By default, the template configures one shard and one replica for the
 monitoring indices. To override the default settings, add your own template:
@@ -36,6 +38,7 @@ PUT /_template/custom_monitoring
     }
 }
 ----------------------------------
+// CONSOLE
 
 IMPORTANT: Only set the `number_of_shards` and `number_of_replicas` in the
 settings section. Overriding other monitoring template settings could cause

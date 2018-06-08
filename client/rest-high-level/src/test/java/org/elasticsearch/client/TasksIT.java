@@ -19,9 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -58,4 +61,26 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         assertTrue("List tasks were not found", listTasksFound);
     }
 
+    public void testCancelTasks() throws IOException {
+        ListTasksRequest listRequest = new ListTasksRequest();
+        ListTasksResponse listResponse = execute(
+            listRequest,
+            highLevelClient().tasks()::list,
+            highLevelClient().tasks()::listAsync
+        );
+        // in this case, probably no task will actually be cancelled.
+        // this is ok, that case is covered in TasksIT.testTasksCancellation
+        TaskInfo firstTask = listResponse.getTasks().get(0);
+        String node = listResponse.getPerNodeTasks().keySet().iterator().next();
+
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setTaskId(new TaskId(node, firstTask.getId()));
+        cancelTasksRequest.setReason("testreason");
+        CancelTasksResponse response = execute(cancelTasksRequest,
+            highLevelClient().tasks()::cancel,
+            highLevelClient().tasks()::cancelAsync);
+        // Since the task may or may not have been cancelled, assert that we received a response only
+        // The actual testing of task cancellation is covered by TasksIT.testTasksCancellation
+        assertThat(response, notNullValue());
+    }
 }

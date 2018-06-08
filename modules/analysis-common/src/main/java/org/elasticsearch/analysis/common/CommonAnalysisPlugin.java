@@ -19,6 +19,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
@@ -79,7 +80,9 @@ import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -87,6 +90,7 @@ import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.tartarus.snowball.ext.DutchStemmer;
@@ -102,6 +106,15 @@ import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(CommonAnalysisPlugin.class));
+
+    @Override
+    public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+        Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> analyzers = new TreeMap<>();
+        analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
+        analyzers.put("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
+        analyzers.put("pattern", PatternAnalyzerProvider::new);
+        return analyzers;
+    }
 
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
@@ -195,6 +208,16 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         tokenizers.put("whitespace", WhitespaceTokenizerFactory::new);
         tokenizers.put("keyword", KeywordTokenizerFactory::new);
         return tokenizers;
+    }
+
+    @Override
+    public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
+        List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.LUCENE,
+            version -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH, version ->
+            new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET)));
+        return analyzers;
     }
 
     @Override

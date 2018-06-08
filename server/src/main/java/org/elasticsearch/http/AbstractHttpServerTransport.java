@@ -169,4 +169,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             dispatcher.dispatchBadRequest(request, channel, threadContext, cause);
         }
     }
+
+    private void thing(final RestRequest request, final RestChannel channel) {
+
+
+    }
 }

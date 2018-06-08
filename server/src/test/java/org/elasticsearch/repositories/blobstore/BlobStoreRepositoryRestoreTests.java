@@ -100,9 +100,14 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
 
             // build a new shard using the same store directory as the closed shard
             ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(), EXISTING_STORE_INSTANCE);
-            shard = newShard(shardRouting, shard.shardPath(), shard.indexSettings().getIndexMetaData(), null,
-                new InternalEngineFactory(), () -> {},
-                EMPTY_EVENT_LISTENER);
+            shard = newShard(
+                    shardRouting,
+                    shard.shardPath(),
+                    shard.indexSettings().getIndexMetaData(),
+                    null,
+                    new InternalEngineFactory(),
+                    () -> {},
+                    EMPTY_EVENT_LISTENER);
 
             // restore the shard
             recoverShardFromSnapshot(shard, snapshot, repository);

@@ -142,4 +142,4 @@ stored, that is to say the monitoring cluster. To grant all of the necessary per
 <<config-monitoring-indices,Configure the indices that store the monitoring data>>. 
 
 include::indices.asciidoc[]
-include::{xes-repo-dir}/settings/monitoring-settings.asciidoc[]
+include::{es-repo-dir}/settings/monitoring-settings.asciidoc[]

@@ -25,7 +25,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -68,6 +67,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -180,7 +180,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesRequestCache indicesRequestCache;
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
-    private final Collection<EnginePlugin> enginePlugins;
+    private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
 
     @Override
     protected void doStart() {
@@ -193,7 +193,7 @@ public class IndicesService extends AbstractLifecycleComponent
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
-                          Collection<EnginePlugin> enginePlugins) {
+                          Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -224,7 +224,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
-        this.enginePlugins = enginePlugins;
+        this.engineFactoryProviders = engineFactoryProviders;
     }
 
     @Override
@@ -478,27 +478,27 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
-        final List<Tuple<EnginePlugin, Optional<EngineFactory>>> engineFactories =
-                enginePlugins
+        final List<Optional<EngineFactory>> engineFactories =
+                engineFactoryProviders
                         .stream()
-                        .map(p -> Tuple.tuple(p, p.getEngineFactory(idxSettings)))
-                        .filter(t -> Objects.requireNonNull(t.v2()).isPresent())
+                        .map(engineFactoryProvider -> engineFactoryProvider.apply(idxSettings))
+                        .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
                         .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
-            assert engineFactories.get(0).v2().isPresent();
-            return engineFactories.get(0).v2().get();
+            assert engineFactories.get(0).isPresent();
+            return engineFactories.get(0).get();
         } else {
             final String message = String.format(
                     Locale.ROOT,
-                    "multiple plugins provided engine factories for %s: %s",
+                    "multiple engine factories provided for %s: %s",
                     idxSettings.getIndex(),
                     engineFactories
                             .stream()
                             .map(t -> {
-                                assert t.v2().isPresent();
-                                return "[" + t.v1().getClass().getName() + "/" + t.v2().get().getClass().getName() + "]";
+                                assert t.isPresent();
+                                return "[" + t.get().getClass().getName() + "]";
                             })
                             .collect(Collectors.joining(",")));
             throw new IllegalStateException(message);

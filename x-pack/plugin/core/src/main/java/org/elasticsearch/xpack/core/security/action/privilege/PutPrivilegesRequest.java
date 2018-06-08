@@ -50,6 +50,22 @@ public final class PutPrivilegesRequest extends ActionRequest implements WriteRe
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(e.getMessage(), validationException);
             }
+            try {
+                ApplicationPrivilege.validatePrivilegeName(privilege.getName());
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(e.getMessage(), validationException);
+            }
+            for (String action : privilege.getActions()) {
+                if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
+                    validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
+                        validationException);
+                }
+                try {
+                    ApplicationPrivilege.validatePrivilegeOrActionName(action);
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(e.getMessage(), validationException);
+                }
+            }
             if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
                 validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
                     + "] (in privilege " + privilege.getApplication() + ' ' + privilege.getName() + ")", validationException);

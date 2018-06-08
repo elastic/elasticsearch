@@ -32,75 +32,32 @@ import java.util.stream.Collectors;
 public final class ApplicationPrivilege extends Privilege {
 
     private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
-    private static final Pattern VALID_APPLICATION_OR_WILDCARD = Pattern.compile("^[A-Za-z0-9_*-]+");
+    private static final Pattern VALID_APPLICATION_OR_WILDCARD = Pattern.compile("^[a-z*][A-Za-z0-9_*-]*");
     private static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
+    private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
     public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
 
     private final String application;
     private final String[] patterns;
 
-    public ApplicationPrivilege(String application, String privilegeName, Collection<String> patterns) {
-        this(application, Collections.singleton(privilegeName), patterns.toArray(new String[patterns.size()]), true);
-    }
-
     public ApplicationPrivilege(String application, String privilegeName, String... patterns) {
-        this(application, Collections.singleton(privilegeName), patterns, true);
+        this(application, Collections.singleton(privilegeName), patterns);
     }
 
-    private ApplicationPrivilege(String application, Set<String> name, String[] patterns, boolean validateNames) {
+    public ApplicationPrivilege(String application, Set<String> name, String... patterns) {
         super(name, patterns);
         this.application = application;
         this.patterns = patterns;
-        validate(validateNames);
-    }
-
-    private ApplicationPrivilege(ApplicationPrivilegeDescriptor descriptor) {
-        this(descriptor.getApplication(), Collections.singleton(descriptor.getName()),
-            descriptor.getActions().toArray(new String[descriptor.getActions().size()]), false);
     }
 
     public String getApplication() {
         return application;
     }
 
-    /**
-     * If this privilege has a single name, returns that name. Otherwise throws {@link IllegalStateException}.
-     *
-     * @see #name()
-     */
-    public String getPrivilegeName() {
-        if (name.size() == 1) {
-            return name.iterator().next();
-        } else {
-            throw new IllegalStateException(this + " has a multivariate name: " + Strings.collectionToCommaDelimitedString(name));
-        }
-    }
-
     // Package level for testing
     String[] getPatterns() {
         return patterns;
-    }
-
-    private void validate(boolean validateNames) {
-        // Treat wildcards differently so that the error message matches the context
-        if (Regex.isSimpleMatchPattern(application)) {
-            validateApplicationName(application, VALID_APPLICATION_OR_WILDCARD);
-        } else {
-            validateApplicationName(application, VALID_APPLICATION);
-        }
-
-        for (String name : super.name()) {
-            if (validateNames) {
-                validatePrivilegeName(name);
-            }
-        }
-        for (String pattern : patterns) {
-            if (pattern.indexOf('/') == -1 && pattern.indexOf('*') == -1 && pattern.indexOf(':') == -1) {
-                throw new IllegalArgumentException(
-                    "The application privilege pattern [" + pattern + "] must contain one of [ '/' , '*' , ':' ]");
-            }
-        }
     }
 
     /**
@@ -110,6 +67,15 @@ public final class ApplicationPrivilege extends Privilege {
      */
     public static void validateApplicationName(String application) {
         validateApplicationName(application, VALID_APPLICATION);
+    }
+
+    /**
+     * Validate that the provided name is a valid application, or a wildcard pattern for an application and throws an exception otherwise
+     *
+     * @throws IllegalArgumentException if the name is not valid
+     */
+    public static void validateApplicationNameOrWildcard(String application) {
+        validateApplicationName(application, VALID_APPLICATION_OR_WILDCARD);
     }
 
     private static void validateApplicationName(String application, Pattern pattern) {
@@ -131,9 +97,20 @@ public final class ApplicationPrivilege extends Privilege {
         }
     }
 
-
     private static boolean isValidPrivilegeName(String name) {
         return VALID_NAME.matcher(name).matches();
+    }
+
+    /**
+     * Validate that the provided name is a valid privilege name or action name, and throws an exception otherwise
+     *
+     * @throws IllegalArgumentException if the name is not valid
+     */
+    public static void validatePrivilegeOrActionName(String name) {
+        if(VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
+            throw new IllegalArgumentException("Application privilege names and actions must match the pattern "
+                + VALID_NAME_OR_ACTION.pattern() + " (found '" + name + "')");
+        }
     }
 
     /**
@@ -163,24 +140,18 @@ public final class ApplicationPrivilege extends Privilege {
             name = name.toLowerCase(Locale.ROOT);
             if (isValidPrivilegeName(name)) {
                 ApplicationPrivilegeDescriptor descriptor = lookup.get(name);
-                if (descriptor != null && size == 1) {
-                    return new ApplicationPrivilege(descriptor);
-                } else if (descriptor != null) {
+                if (descriptor != null) {
                     patterns.addAll(descriptor.getActions());
                 } else {
-                    throw new IllegalArgumentException("unknown application privilege [" + names + "]");
+                    throw new IllegalArgumentException("unknown application privilege [" + name + "]");
                 }
             } else {
                 actions.add(name);
             }
         }
 
-        if (actions.isEmpty()) {
-            return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]), true);
-        } else {
-            patterns.addAll(actions);
-            return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]), false);
-        }
+        patterns.addAll(actions);
+        return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]));
     }
 
     @Override

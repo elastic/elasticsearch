@@ -22,6 +22,7 @@ dependencies {
 test.enabled = false
 
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {

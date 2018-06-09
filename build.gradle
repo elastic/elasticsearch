@@ -482,7 +482,7 @@ gradle.projectsEvaluated {
 
 }
 
-/* Remove assemble on all qa projects because we don't need to publish
+/* Remove assemble/dependenciesInfo on all qa projects because we don't need to publish
  * artifacts for them. */
 gradle.projectsEvaluated {
   subprojects {
@@ -491,6 +491,11 @@ gradle.projectsEvaluated {
       if (assemble) {
         project.tasks.remove(assemble)
         project.build.dependsOn.remove('assemble')
+      }
+      Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+      if (dependenciesInfo) {
+        project.tasks.remove(dependenciesInfo)
+        project.precommit.dependsOn.remove('dependenciesInfo')
       }
     }
   }

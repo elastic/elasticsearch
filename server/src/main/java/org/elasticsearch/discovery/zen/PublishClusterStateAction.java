@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
@@ -206,6 +206,12 @@ public class PublishClusterStateAction extends AbstractComponent {
                     logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})",
                         clusterState.version(), publishTimeout, pendingNodes);
                 }
+            }
+            // The failure is logged under debug when a sending failed. we now log a summary.
+            Set<DiscoveryNode> failedNodes = publishResponseHandler.getFailedNodes();
+            if (failedNodes.isEmpty() == false) {
+                logger.warn("publishing cluster state with version [{}] failed for the following nodes: [{}]",
+                    clusterChangedEvent.state().version(), failedNodes);
             }
         } catch (InterruptedException e) {
             // ignore & restore interrupt
@@ -396,6 +402,9 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
         } catch (IncompatibleClusterStateVersionException e) {
             incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+            throw e;
+        } catch (Exception e) {
+            logger.warn("unexpected error while deserializing an incoming cluster state", e);
             throw e;
         } finally {
             IOUtils.close(in);

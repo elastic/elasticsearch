@@ -481,6 +481,15 @@ public abstract class EngineTestCase extends ESTestCase {
         IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException;
     }
 
+    /**
+     * Generate a new sequence number and return it. Only works on InternalEngines
+     */
+    public static long generateNewSeqNo(final Engine engine) {
+        assert engine instanceof InternalEngine : "expected InternalEngine, got: " + engine.getClass();
+        InternalEngine internalEngine = (InternalEngine) engine;
+        return internalEngine.getLocalCheckpointTracker().generateSeqNo();
+    }
+
     public static InternalEngine createInternalEngine(
             @Nullable final IndexWriterFactory indexWriterFactory,
             @Nullable final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,

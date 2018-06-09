@@ -629,10 +629,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
+        FieldMapper mapper = defaultMapper.mappers().getMapper("s_long");
         assertThat(mapper.fieldType().typeName(), equalTo("long"));
 
-        mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
+        mapper = defaultMapper.mappers().getMapper("s_double");
         assertThat(mapper.fieldType().typeName(), equalTo("float"));
     }
 
@@ -656,10 +656,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
+        FieldMapper mapper = defaultMapper.mappers().getMapper("s_long");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
 
-        mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
+        mapper = defaultMapper.mappers().getMapper("s_double");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
     }
 
@@ -707,9 +707,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         defaultMapper = index.mapperService().documentMapper("type");
 
-        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date1");
-        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date2");
-        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date3");
+        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().getMapper("date1");
+        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().getMapper("date2");
+        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().getMapper("date3");
         // inherited from dynamic date format
         assertEquals("yyyy-MM-dd", dateMapper1.fieldType().dateTimeFormatter().format());
         // inherited from dynamic date format since the mapping in the template did not specify a format

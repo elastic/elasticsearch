@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.de.GermanAnalyzer;
+import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<GermanAnalyzer> {
+public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<FrenchAnalyzer> {
 
-    private final GermanAnalyzer analyzer;
+    private final FrenchAnalyzer analyzer;
 
-    public GermanAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    FrenchAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new GermanAnalyzer(
-            Analysis.parseStopWords(env, settings, GermanAnalyzer.getDefaultStopSet()),
+        analyzer = new FrenchAnalyzer(
+            Analysis.parseStopWords(env, settings, FrenchAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public GermanAnalyzer get() {
+    public FrenchAnalyzer get() {
         return this.analyzer;
     }
 }

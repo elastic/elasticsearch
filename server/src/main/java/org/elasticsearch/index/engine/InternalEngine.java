@@ -76,6 +76,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -1652,7 +1653,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void trimTranslog() throws EngineException {
+    public void trimUnreferencedTranslogFiles() throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             translog.trimUnreferencedReaders();
@@ -1666,6 +1667,24 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw new EngineException(shardId, "failed to trim translog", e);
+        }
+    }
+
+    @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.trimOperations(belowTerm, aboveSeqNo);
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog operations trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to trim translog operations", e);
         }
     }
 
@@ -2289,8 +2308,29 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    public final LocalCheckpointTracker getLocalCheckpointTracker() {
+    // Used only for testing! Package private to prevent anyone else from using it
+    LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
+    }
+
+    @Override
+    public long getLocalCheckpoint() {
+        return localCheckpointTracker.getCheckpoint();
+    }
+
+    @Override
+    public void waitForOpsToComplete(long seqNo) throws InterruptedException {
+        localCheckpointTracker.waitForOpsToComplete(seqNo);
+    }
+
+    @Override
+    public void resetLocalCheckpoint(long localCheckpoint) {
+        localCheckpointTracker.resetCheckpoint(localCheckpoint);
+    }
+
+    @Override
+    public SeqNoStats getSeqNoStats(long globalCheckpoint) {
+        return localCheckpointTracker.getStats(globalCheckpoint);
     }
 
     /**

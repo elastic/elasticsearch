@@ -80,10 +80,6 @@ public class DependenciesInfoTask extends DefaultTask {
                         .resolvedArtifacts
                         .collect { it -> "${it.moduleVersion.id.group}:${it.moduleVersion.id.name}:${it.moduleVersion.id.version}" }
 
-        println runtimeDependencies
-        println providedConfiguration.getResolvedConfiguration().getResolvedArtifacts()
-        println providedArtifacts
-
         final StringBuilder output = new StringBuilder()
 
         for (final Dependency dependency : runtimeDependencies) {

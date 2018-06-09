@@ -669,6 +669,10 @@ class BuildPlugin implements Plugin<Project> {
 
     private static configureDependenciesInfo(Project project) {
         Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
-        deps.dependencies = project.configurations.compile.allDependencies
+        deps.runtimeConfiguration = project.configurations.runtime
+        deps.providedConfiguration = project.configurations.provided
+        project.afterEvaluate {
+            deps.mappings = project.dependencyLicenses.mappings
+        }
     }
 }

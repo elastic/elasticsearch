@@ -20,6 +20,8 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.ConcatFilesTask
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.tasks.wrapper.Wrapper
@@ -414,7 +416,6 @@ task run(type: Run) {
 task wrapper(type: Wrapper)
 
 gradle.projectsEvaluated {
-
   allprojects {
     tasks.withType(Wrapper) { Wrapper wrapper ->
       wrapper.distributionType = DistributionType.ALL
@@ -432,7 +433,7 @@ gradle.projectsEvaluated {
 
 }
 
-/* Remove assemble on all qa projects because we don't need to publish
+/* Remove assemble/dependenciesInfo on all qa projects because we don't need to publish
  * artifacts for them. */
 gradle.projectsEvaluated {
   subprojects {
@@ -441,6 +442,11 @@ gradle.projectsEvaluated {
       if (assemble) {
         project.tasks.remove(assemble)
         project.build.dependsOn.remove('assemble')
+      }
+      Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+      if (dependenciesInfo) {
+        project.tasks.remove(dependenciesInfo)
+        project.precommit.dependsOn.remove('dependenciesInfo')
       }
     }
   }

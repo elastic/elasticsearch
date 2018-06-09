@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.http.LLHttpRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,11 +53,6 @@ import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public abstract class RestRequest implements ToXContent.Params {
-
-    public enum HttpVersion {
-        HTTP_1_0,
-        HTTP_1_1
-    }
 
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
@@ -255,13 +251,9 @@ public abstract class RestRequest implements ToXContent.Params {
         return params;
     }
 
-    public List<String> strictCookies() {
-        return Collections.emptyList();
-    }
-
-    public HttpVersion protocolVersion() {
-        // TODO: Base on actual version
-        return HttpVersion.HTTP_1_1;
+    // TODO: Override
+    public LLHttpRequest getHttpRequest() {
+        return null;
     }
 
     /**

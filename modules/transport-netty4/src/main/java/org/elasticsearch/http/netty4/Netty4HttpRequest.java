@@ -30,6 +30,7 @@ import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.http.LLHttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -184,11 +185,11 @@ public class Netty4HttpRequest extends RestRequest {
     }
 
     @Override
-    public HttpVersion protocolVersion() {
+    public LLHttpRequest.HttpVersion protocolVersion() {
         if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
-            return HttpVersion.HTTP_1_0;
+            return LLHttpRequest.HttpVersion.HTTP_1_0;
         } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
-            return HttpVersion.HTTP_1_1;
+            return LLHttpRequest.HttpVersion.HTTP_1_1;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }

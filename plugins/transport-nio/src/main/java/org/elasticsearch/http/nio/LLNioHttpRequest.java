@@ -124,11 +124,11 @@ public class LLNioHttpRequest implements LLHttpRequest {
     }
 
     @Override
-    public RestRequest.HttpVersion protocolVersion() {
+    public HttpVersion protocolVersion() {
         if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
-            return RestRequest.HttpVersion.HTTP_1_0;
+            return LLHttpRequest.HttpVersion.HTTP_1_0;
         } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
-            return RestRequest.HttpVersion.HTTP_1_1;
+            return LLHttpRequest.HttpVersion.HTTP_1_1;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }

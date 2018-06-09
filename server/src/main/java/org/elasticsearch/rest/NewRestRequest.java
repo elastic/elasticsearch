@@ -69,6 +69,11 @@ public class NewRestRequest extends RestRequest {
         return httpRequest.content();
     }
 
+    @Override
+    public LLHttpRequest getHttpRequest() {
+        return httpRequest;
+    }
+
     public LLHttpRequest httpRequest() {
         return httpRequest;
     }

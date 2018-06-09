@@ -24,7 +24,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
@@ -36,8 +35,6 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.LLHttpChannel;
 import org.elasticsearch.http.LLHttpRequest;
@@ -45,7 +42,6 @@ import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -120,7 +116,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         verify(transport).incomingRequest(requestCaptor.capture(), any(NioLLHttpChannel.class));
 
         LLHttpRequest nioHttpRequest = requestCaptor.getValue();
-        assertEquals(RestRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
+        assertEquals(LLHttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
         assertEquals(RestRequest.Method.GET, nioHttpRequest.method());
     }
 
@@ -202,9 +198,9 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         assertNotNull(nioHttpRequest);
         assertEquals(method.name(), nioHttpRequest.method().name());
         if (version == HttpVersion.HTTP_1_1) {
-            assertEquals(RestRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
+            assertEquals(LLHttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
         } else {
-            assertEquals(RestRequest.HttpVersion.HTTP_1_0, nioHttpRequest.protocolVersion());
+            assertEquals(LLHttpRequest.HttpVersion.HTTP_1_0, nioHttpRequest.protocolVersion());
         }
         assertEquals(nioHttpRequest.uri(), uri);
         return nioHttpRequest;

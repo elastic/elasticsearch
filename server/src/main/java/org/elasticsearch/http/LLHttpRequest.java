@@ -43,7 +43,12 @@ public interface LLHttpRequest {
 
     List<String> strictCookies();
 
-    RestRequest.HttpVersion protocolVersion();
+    HttpVersion protocolVersion();
 
     LLHttpRequest removeHeader(String header);
+
+    enum HttpVersion {
+        HTTP_1_0,
+        HTTP_1_1
+    }
 }

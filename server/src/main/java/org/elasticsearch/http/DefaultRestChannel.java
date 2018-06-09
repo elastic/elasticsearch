@@ -38,12 +38,13 @@ import java.util.Map;
 
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
-    private static final String CLOSE = "close";
-    private static final String CONNECTION = "connection";
-    private static final String KEEP_ALIVE = "keep-alive";
+    static final String CLOSE = "close";
+    static final String CONNECTION = "connection";
+    static final String KEEP_ALIVE = "keep-alive";
     private static final String CONTENT_TYPE = "content-type";
     private static final String CONTENT_LENGTH = "content-length";
     private static final String SET_COOKIE = "set-cookie";
+    static final String X_OPAQUE_ID = "X-Opaque-Id";
 
     private final BigArrays bigArrays;
     private final HttpHandlingSettings settings;
@@ -69,9 +70,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         // TODO: Ideally we should move the setting of Cors headers into :server
         // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 
-        String opaque = request.header("X-Opaque-Id");
+        String opaque = request.header(X_OPAQUE_ID);
         if (opaque != null) {
-            setHeaderField(response, "X-Opaque-Id", opaque);
+            setHeaderField(response, X_OPAQUE_ID, opaque);
         }
 
         // Add all custom headers
@@ -134,7 +135,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     private void addCookies(RestResponse response) {
         if (settings.isResetCookies()) {
-            List<String> cookies = request.strictCookies();
+            List<String> cookies = request.getHttpRequest().strictCookies();
             if (cookies.isEmpty() == false) {
                 for (String cookie : cookies) {
                     response.addHeader(SET_COOKIE, cookie);
@@ -151,7 +152,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     // Determine if the request protocol version is HTTP 1.0
     private boolean isHttp10() {
-        return request.protocolVersion() == RestRequest.HttpVersion.HTTP_1_0;
+        return request.getHttpRequest().protocolVersion() == LLHttpRequest.HttpVersion.HTTP_1_0;
     }
-
 }

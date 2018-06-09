@@ -245,6 +245,8 @@ SOFTWARE\\.
 
         final String MOZILLA_1_1 = "Mozilla Public License.*Version 1.1"
 
+        final String MOZILLA_2_0 = "Mozilla\\s*Public\\s*License\\s*Version\\s*2\\.0"
+
         switch (licenseText) {
             case ~/.*${APACHE_2_0}.*/:
                 spdx = 'Apache-2.0'
@@ -272,6 +274,9 @@ SOFTWARE\\.
                 break
             case ~/.*${MOZILLA_1_1}.*/:
                 spdx = 'MPL-1.1'
+                break
+            case ~/.*${MOZILLA_2_0}.*/:
+                spdx = 'MPL-2.0'
                 break
             default:
                 break

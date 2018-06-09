@@ -59,9 +59,15 @@ public abstract class KerberosTestCase extends ESTestCase {
     private static Set<String> unsupportedLocaleLanguages;
     static {
         unsupportedLocaleLanguages = new HashSet<>();
-        // arabic has problem due to handling of GeneralizedTime in SimpleKdcServer
-        // For more look at : org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes()
+        /*
+         * arabic and other languages have problem due to handling of GeneralizedTime in
+         * SimpleKdcServer For more look at :
+         * org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes()
+         */
         unsupportedLocaleLanguages.add("ar");
+        unsupportedLocaleLanguages.add("ja");
+        unsupportedLocaleLanguages.add("th");
+        unsupportedLocaleLanguages.add("hi");
     }
 
     @BeforeClass

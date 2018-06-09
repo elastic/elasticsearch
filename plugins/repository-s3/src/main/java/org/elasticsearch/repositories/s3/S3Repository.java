@@ -188,13 +188,7 @@ class S3Repository extends BlobStoreRepository {
         // deprecated behavior: override client credentials from the cluster state
         // (repository settings)
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
-                    + "store these in named clients and the elasticsearch keystore for secure settings.");
-            final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
-            // hack, but that's ok because the whole if branch should be axed
-            final Map<String, S3ClientSettings> prevSettings = awsService.refreshAndClearCache(S3ClientSettings.load(Settings.EMPTY));
-            final Map<String, S3ClientSettings> newSettings = S3ClientSettings.overrideCredentials(prevSettings, insecureCredentials);
-            awsService.refreshAndClearCache(newSettings);
+            overrideCredentialsFromClusterState(awsService);
         }
         blobStore = new S3BlobStore(settings, awsService, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
@@ -224,5 +218,15 @@ class S3Repository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    void overrideCredentialsFromClusterState(AwsS3Service awsService) {
+        deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
+                + "store these in named clients and the elasticsearch keystore for secure settings.");
+        final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
+        // hack, but that's ok because the whole if branch should be axed
+        final Map<String, S3ClientSettings> prevSettings = awsService.refreshAndClearCache(S3ClientSettings.load(Settings.EMPTY));
+        final Map<String, S3ClientSettings> newSettings = S3ClientSettings.overrideCredentials(prevSettings, insecureCredentials);
+        awsService.refreshAndClearCache(newSettings);
     }
 }

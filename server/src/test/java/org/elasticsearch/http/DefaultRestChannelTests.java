@@ -47,15 +47,19 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -199,8 +203,29 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertNull(headers.get("non-existent-header"));
         assertEquals(customHeaderValue, headers.get(customHeader).get(0));
         assertEquals("abc", headers.get(DefaultRestChannel.X_OPAQUE_ID).get(0));
-        assertEquals(Integer.toString(resp.content().length()), headers.get("content-length").get(0));
-        assertEquals(resp.contentType(), headers.get("content-type").get(0));
+        assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
+        assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
+    }
+
+    public void testCookiesSet() {
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
+        final TestRequest httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        httpRequest.getHeaders().put(DefaultRestChannel.X_OPAQUE_ID, Collections.singletonList("abc"));
+        final RestRequest request = NewRestRequest.request(xContentRegistry(), httpRequest);
+        HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
+
+        // send a response
+        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request, bigArrays, handlingSettings,
+            threadPool.getThreadContext());
+        channel.sendResponse(new TestResponse());
+
+        // inspect what was written
+        ArgumentCaptor<RestResponse> responseCaptor = ArgumentCaptor.forClass(RestResponse.class);
+        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
+        RestResponse nioResponse = responseCaptor.getValue();
+        Map<String, List<String>> headers = nioResponse.getHeaders();
+        assertThat(headers.get(DefaultRestChannel.SET_COOKIE), hasItem("cookie"));
+        assertThat(headers.get(DefaultRestChannel.SET_COOKIE), hasItem("cookie2"));
     }
 
     @SuppressWarnings("unchecked")
@@ -339,7 +364,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         @Override
         public List<String> strictCookies() {
-            return Collections.emptyList();
+            return Arrays.asList("cookie", "cookie2");
         }
 
         @Override

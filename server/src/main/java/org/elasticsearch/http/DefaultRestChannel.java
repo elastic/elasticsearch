@@ -41,9 +41,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
     static final String KEEP_ALIVE = "keep-alive";
-    private static final String CONTENT_TYPE = "content-type";
-    private static final String CONTENT_LENGTH = "content-length";
-    private static final String SET_COOKIE = "set-cookie";
+    static final String CONTENT_TYPE = "content-type";
+    static final String CONTENT_LENGTH = "content-length";
+    static final String SET_COOKIE = "set-cookie";
     static final String X_OPAQUE_ID = "X-Opaque-Id";
 
     private final BigArrays bigArrays;

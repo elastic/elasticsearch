@@ -21,11 +21,17 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 import java.util.Map;
 
 public interface LLHttpRequest {
+
+    enum HttpVersion {
+        HTTP_1_0,
+        HTTP_1_1
+    }
 
     RestRequest.Method method();
 
@@ -47,8 +53,16 @@ public interface LLHttpRequest {
 
     LLHttpRequest removeHeader(String header);
 
-    enum HttpVersion {
-        HTTP_1_0,
-        HTTP_1_1
+    default LLHttpResponse createResponse(RestStatus status, BytesReference content) {
+        return null;
+    }
+
+    interface LLHttpResponse {
+        
+        void addHeader(String name, String value);
+
+        boolean containsHeader(String name);
+
+
     }
 }

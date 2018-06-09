@@ -94,6 +94,7 @@ public class DependenciesInfoTask extends DefaultTask {
 
             final String url = createURL(dependency.group, dependency.name, dependency.version)
             final String dependencyName = DependencyLicensesTask.getDependencyName(mappings, dependency.name)
+            logger.info("mapped dependency ${dependency.group}:${dependency.name} to ${dependencyName} for license info")
 
             final String licenseType = getLicenseType(dependency.group, dependencyName)
             output.append("${dependency.group}:${dependency.name},${dependency.version},${url},${licenseType}\n")
@@ -128,8 +129,6 @@ public class DependenciesInfoTask extends DefaultTask {
      */
     protected String getLicenseType(final String group, final String name) {
         File license
-
-        logger.info("checking dependency group ${group} with name ${name} in ${licensesDir}")
 
         if (licensesDir.exists()) {
             licensesDir.eachFileMatch({ it ==~ /.*-LICENSE.*/ }) { File file ->

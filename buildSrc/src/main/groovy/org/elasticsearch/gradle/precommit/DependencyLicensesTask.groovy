@@ -162,9 +162,8 @@ public class DependencyLicensesTask extends DefaultTask {
                 checkSha(dependency, jarName, shaFiles)
             }
 
-            logger.info("Checking license/notice for " + depName)
             final String dependencyName = getDependencyName(mappings, depName)
-            logger.info("Mapped dependency name ${depName} to ${dependencyName} for license check")
+            logger.info("mapped dependency name ${depName} to ${dependencyName} for license/notice check")
             checkFile(dependencyName, jarName, licenses, 'LICENSE')
             checkFile(dependencyName, jarName, notices, 'NOTICE')
         }

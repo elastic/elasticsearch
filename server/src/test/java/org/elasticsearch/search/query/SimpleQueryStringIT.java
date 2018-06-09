@@ -19,6 +19,12 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.analysis.CharacterUtils;
+import org.apache.lucene.analysis.MockLowerCaseFilter;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -28,12 +34,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -42,14 +55,19 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
@@ -72,11 +90,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleQueryStringIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+        return Arrays.asList(MockAnalysisPlugin.class, InternalSettingsPlugin.class); // uses index.version.created
     }
 
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        Settings.Builder settings = Settings.builder();
+        settings.put(indexSettings());
+        settings.put("index.analysis.analyzer.mock_snowball.tokenizer", "standard");
+        settings.put("index.analysis.analyzer.mock_snowball.filter", "mock_snowball");
+        createIndex("test", settings.build());
         indexRandom(true, false,
                 client().prepareIndex("test", "type1", "1").setSource("body", "foo"),
                 client().prepareIndex("test", "type1", "2").setSource("body", "bar"),
@@ -108,7 +130,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "4", "5");
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("eggplants").analyzer("snowball")).get();
+                simpleQueryStringQuery("eggplants").analyzer("mock_snowball")).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("4"));
 
@@ -312,7 +334,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "text")
-                .field("analyzer", "german")
+                .field("analyzer", "standard")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -582,5 +604,34 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
             hitIds.add(hit.getId());
         }
         assertThat(hitIds, containsInAnyOrder(ids));
+    }
+
+    public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
+
+        public final class MockSnowBall extends TokenFilter {
+            private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+            /** Sole constructor. */
+            MockSnowBall(TokenStream in) {
+                super(in);
+            }
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (input.incrementToken()) {
+                    char[] buffer = termAtt.buffer();
+                    if (buffer[termAtt.length() - 1] == 's') {
+                        termAtt.setLength(termAtt.length() - 1);
+                    }
+                    return true;
+                } else
+                    return false;
+            }
+        }
+
+        @Override
+        public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+            return singletonList(PreConfiguredTokenFilter.singleton("mock_snowball", false, MockSnowBall::new));
+        }
     }
 }

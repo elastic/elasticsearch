@@ -162,10 +162,9 @@ public class AmazonS3TestServer {
             })
         );
 
-        // PUT Object & PUT Object Copy
+        // PUT Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html
-        // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectCOPY.html
         objectsPaths("PUT " + endpoint + "/{bucket}").forEach(path ->
             handlers.insert(path, (params, headers, body, id) -> {
                 final String destBucketName = params.get("bucket");
@@ -177,65 +176,38 @@ public class AmazonS3TestServer {
 
                 final String destObjectName = objectName(params);
 
-                // Request is a copy request
-                List<String> headerCopySource = headers.getOrDefault("x-amz-copy-source", emptyList());
-                if (headerCopySource.isEmpty() == false) {
-                    String srcObjectName = headerCopySource.get(0);
+                // This is a chunked upload request. We should have the header "Content-Encoding : aws-chunked,gzip"
+                // to detect it but it seems that the AWS SDK does not follow the S3 guidelines here.
+                //
+                // See https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html
+                //
+                List<String> headerDecodedContentLength = headers.getOrDefault("X-amz-decoded-content-length", emptyList());
+                if (headerDecodedContentLength.size() == 1) {
+                    int contentLength = Integer.valueOf(headerDecodedContentLength.get(0));
 
-                    Bucket srcBucket = null;
-                    for (Bucket bucket : buckets.values()) {
-                        String prefix = "/" + bucket.name + "/";
-                        if (srcObjectName.startsWith(prefix)) {
-                            srcObjectName = srcObjectName.replaceFirst(prefix, "");
-                            srcBucket = bucket;
-                            break;
-                        }
-                    }
-
-                    if (srcBucket == null || srcBucket.objects.containsKey(srcObjectName) == false) {
-                        return newObjectNotFoundError(id, srcObjectName);
-                    }
-
-                    byte[] bytes = srcBucket.objects.get(srcObjectName);
-                    if (bytes != null) {
-                        destBucket.objects.put(destObjectName, bytes);
-                        return newCopyResultResponse(id);
-                    } else {
-                        return newObjectNotFoundError(id, srcObjectName);
-                    }
-                } else {
-                    // This is a chunked upload request. We should have the header "Content-Encoding : aws-chunked,gzip"
-                    // to detect it but it seems that the AWS SDK does not follow the S3 guidelines here.
+                    // Chunked requests have a payload like this:
                     //
-                    // See https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html
+                    // 105;chunk-signature=01d0de6be013115a7f4794db8c4b9414e6ec71262cc33ae562a71f2eaed1efe8
+                    // ...  bytes of data ....
+                    // 0;chunk-signature=f890420b1974c5469aaf2112e9e6f2e0334929fd45909e03c0eff7a84124f6a4
                     //
-                    List<String> headerDecodedContentLength = headers.getOrDefault("X-amz-decoded-content-length", emptyList());
-                    if (headerDecodedContentLength.size() == 1) {
-                        int contentLength = Integer.valueOf(headerDecodedContentLength.get(0));
-
-                        // Chunked requests have a payload like this:
-                        //
-                        // 105;chunk-signature=01d0de6be013115a7f4794db8c4b9414e6ec71262cc33ae562a71f2eaed1efe8
-                        // ...  bytes of data ....
-                        // 0;chunk-signature=f890420b1974c5469aaf2112e9e6f2e0334929fd45909e03c0eff7a84124f6a4
-                        //
-                        try (BufferedInputStream inputStream = new BufferedInputStream(new ByteArrayInputStream(body))) {
-                            int b;
-                            // Moves to the end of the first signature line
-                            while ((b = inputStream.read()) != -1) {
-                                if (b == '\n') {
-                                    break;
-                                }
+                    try (BufferedInputStream inputStream = new BufferedInputStream(new ByteArrayInputStream(body))) {
+                        int b;
+                        // Moves to the end of the first signature line
+                        while ((b = inputStream.read()) != -1) {
+                            if (b == '\n') {
+                                break;
                             }
-
-                            final byte[] bytes = new byte[contentLength];
-                            inputStream.read(bytes, 0, contentLength);
-
-                            destBucket.objects.put(destObjectName, bytes);
-                            return new Response(RestStatus.OK, emptyMap(), "text/plain", EMPTY_BYTE);
                         }
+
+                        final byte[] bytes = new byte[contentLength];
+                        inputStream.read(bytes, 0, contentLength);
+
+                        destBucket.objects.put(destObjectName, bytes);
+                        return new Response(RestStatus.OK, emptyMap(), "text/plain", EMPTY_BYTE);
                     }
                 }
+
                 return newInternalError(id, "Something is wrong with this PUT request");
             })
         );
@@ -463,20 +435,6 @@ public class AmazonS3TestServer {
             }
         }
         response.append("</ListBucketResult>");
-        return new Response(RestStatus.OK, singletonMap("x-amz-request-id", id), "application/xml", response.toString().getBytes(UTF_8));
-    }
-
-    /**
-     * S3 Copy Result Response
-     */
-    private static Response newCopyResultResponse(final long requestId) {
-        final String id = Long.toString(requestId);
-        final StringBuilder response = new StringBuilder();
-        response.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-        response.append("<CopyObjectResult>");
-        response.append("<LastModified>").append(DateUtils.formatISO8601Date(new Date())).append("</LastModified>");
-        response.append("<ETag>").append(requestId).append("</ETag>");
-        response.append("</CopyObjectResult>");
         return new Response(RestStatus.OK, singletonMap("x-amz-request-id", id), "application/xml", response.toString().getBytes(UTF_8));
     }
 

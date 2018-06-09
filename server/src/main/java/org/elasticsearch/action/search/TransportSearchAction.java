@@ -346,7 +346,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
              * it sane. A single search request that fans out to lots of shards should not hit a cluster too hard while 256 is already a
              * lot.
              */
-            searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount));
+            // we use nodeCount * 5 as we used to default this to the default number of shard which used to be 5.
+            searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount * 5));
         }
         boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),

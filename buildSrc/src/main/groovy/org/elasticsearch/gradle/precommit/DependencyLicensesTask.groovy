@@ -151,7 +151,7 @@ public class DependencyLicensesTask extends DefaultTask {
 
         for (File dependency : dependencies) {
             String jarName = dependency.getName()
-            String depName = jarName - ~/\-\d+.*/
+            String depName = jarName - ~/\-v?\d+.*/
             if (ignoreShas.contains(depName)) {
                 // local deps should not have sha files!
                 if (getShaFile(jarName).exists()) {

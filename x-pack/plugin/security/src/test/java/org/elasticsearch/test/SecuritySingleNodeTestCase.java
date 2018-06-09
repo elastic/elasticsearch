@@ -3,8 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.http.HttpHost;
@@ -49,7 +51,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  * {@link SecurityIntegTestCase} due to simplicity and improved speed from not needing to start
  * multiple nodes and wait for the cluster to form.
  */
-public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
+public abstract class SecuritySingleNodeTestCase extends XPackSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;

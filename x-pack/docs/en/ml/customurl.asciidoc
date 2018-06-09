@@ -1,22 +1,48 @@
+[role="xpack"]
 [[ml-configuring-url]]
-=== Adding Custom URLs To Machine Learning Results
+=== Adding custom URLs to machine learning results
 
 When you create an advanced job or edit any job in {kib}, you can optionally
-attach one or more custom URLs. You can also specify these custom settings when
-you create or update jobs by using the {ml} APIs.
+attach one or more custom URLs. 
 
-The custom URLs provide links from the anomalies table in the Anomaly Explorer
-or Single Metric Viewer window in {kib} to custom dashboards or external
+The custom URLs provide links from the anomalies table in the *Anomaly Explorer*
+or *Single Metric Viewer* window in {kib} to custom dashboards or external
 websites. For example, you can define a custom URL that provides a way for users
 to drill down to the source data from the results set.
 
-For each custom URL, you must supply the URL and a label, which is the link text
-that appears in the anomalies table.
+When you edit a job in {kib}, it simplifies the creation of the custom URLs for  
+{kib} dashboards and the *Discover* page and it enables you to test your URLs. 
+For example:
 
 [role="screenshot"]
-image::images/ml-customurl.jpg["Links in the Anomaly Explorer anoamilies table"]
+image::images/ml-customurl-edit.jpg["Edit a job to add a custom URL"]
+
+For each custom URL, you must supply the URL and a label, which is the link text
+that appears in the anomalies table. For example, these are the values that are 
+added for `My link 1`:
+
+[role="screenshot"]
+image::images/ml-customurl-detail.jpg["An example of a label and URL"]
+
+As in this case, the custom URL can contain 
+<<ml-configuring-url-strings,dollar sign delimited tokens>>, which 
+are populated when you click the link in the anomalies table. If you were 
+interested in the following anomaly, for example: 
+
+[role="screenshot"]
+image::images/ml-customurl.jpg["An example of the custom URL links in the Anomaly Explorer anomalies table"]
+
+...clicking `My Link 1` opens the *Discover* page and show results for the 
+service and date that were identified in the anomaly:
+
+[role="screenshot"]
+image::images/ml-customurl-discover.jpg["An example of the results on the Discover page"]
+
+You can also specify these custom URL settings when you create or update jobs by 
+using the {ml} APIs.
 
 [float]
+[[ml-configuring-url-strings]]
 ==== String Substitution in Custom URLs
 
 You can use dollar sign ($) delimited tokens in a custom URL. These tokens are

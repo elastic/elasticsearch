@@ -32,11 +32,6 @@ Collection distributions = project('archives').subprojects + project('packages')
 
 // Concatenates the dependencies CSV files into a single file
 task generateDependenciesReport(type: ConcatFilesTask) {
-  project.rootProject.allprojects {
-    afterEvaluate {
-      if (it.tasks.findByName("dependenciesInfo")) dependsOn it.tasks.dependenciesInfo
-    }
-  }
   files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
   headerLine = "name,version,url,license"
   target = new File(System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv")

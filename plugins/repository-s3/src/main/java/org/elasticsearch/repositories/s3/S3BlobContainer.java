@@ -23,7 +23,6 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -94,15 +93,14 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("Blob [" + blobName + "] already exists, cannot overwrite");
-        }
-
-        if (blobSize <= blobStore.bufferSizeInBytes()) {
-            executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
-        } else {
-            executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize);
-        }
+        SocketAccess.doPrivilegedIOException(() -> {
+            if (blobSize <= blobStore.bufferSizeInBytes()) {
+                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
+            } else {
+                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize);
+            }
+            return null;
+        });
     }
 
     @Override
@@ -149,27 +147,6 @@ class S3BlobContainer extends AbstractBlobContainer {
             return blobsBuilder.immutableMap();
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when listing blobs by prefix [" + blobNamePrefix + "]", e);
-        }
-    }
-
-    @Override
-    public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        final CopyObjectRequest request = new CopyObjectRequest(blobStore.bucket(), buildKey(sourceBlobName), blobStore.bucket(),
-                buildKey(targetBlobName));
-
-        if (blobStore.serverSideEncryption()) {
-            final ObjectMetadata objectMetadata = new ObjectMetadata();
-            objectMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
-            request.setNewObjectMetadata(objectMetadata);
-        }
-
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            SocketAccess.doPrivilegedVoid(() -> {
-                clientReference.client().copyObject(request);
-                clientReference.client().deleteObject(blobStore.bucket(), buildKey(sourceBlobName));
-            });
-        } catch (final AmazonS3Exception e) {
-            throw new IOException(e);
         }
     }
 

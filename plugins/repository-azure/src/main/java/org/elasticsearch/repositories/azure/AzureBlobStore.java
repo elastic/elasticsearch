@@ -111,13 +111,9 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return service.getInputStream(clientName, container, blob);
     }
 
-    public Map<String,BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
+    public Map<String, BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         return service.listBlobsByPrefix(clientName, container, keyPath, prefix);
-    }
-
-    public void moveBlob(String sourceBlob, String targetBlob) throws URISyntaxException, StorageException {
-        service.moveBlob(clientName, container, sourceBlob, targetBlob);
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException {

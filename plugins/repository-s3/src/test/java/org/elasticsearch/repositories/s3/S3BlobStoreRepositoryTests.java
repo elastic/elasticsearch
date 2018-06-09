@@ -115,8 +115,11 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                         public synchronized AmazonS3Reference client(String clientName) {
                             return new AmazonS3Reference(new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass));
                         }
-                    }));
-
+                    }) {
+                        @Override
+                        void overrideCredentialsFromClusterState(AwsS3Service awsService) {
+                        }
+                    });
         }
     }
 

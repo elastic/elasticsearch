@@ -42,6 +42,6 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     }
 
     public static IndicesAliasesResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new IndicesAliasesResponse(parseAcknowledged(parser));
     }
 }

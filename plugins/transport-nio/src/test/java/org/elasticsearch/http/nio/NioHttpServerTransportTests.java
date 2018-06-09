@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -45,6 +46,7 @@ import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -58,9 +60,19 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.containsString;
@@ -94,36 +106,36 @@ public class NioHttpServerTransportTests extends ESTestCase {
         bigArrays = null;
     }
 
-//    public void testCorsConfig() {
-//        final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
-//        final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-//        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
-//        final Settings settings = Settings.builder()
-//            .put(SETTING_CORS_ENABLED.getKey(), true)
-//            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-//            .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", prefix, ""))
-//            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", prefix, ""))
-//            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-//            .build();
-//        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
-//        assertTrue(corsConfig.isAnyOriginSupported());
-//        assertEquals(headers, corsConfig.allowedRequestHeaders());
-//        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-//    }
+    public void testCorsConfig() {
+        final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
+        final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
+        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
+        final Settings settings = Settings.builder()
+            .put(SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
+            .put(SETTING_CORS_ALLOW_METHODS.getKey(), Strings.collectionToDelimitedString(methods, ",", prefix, ""))
+            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), Strings.collectionToDelimitedString(headers, ",", prefix, ""))
+            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .build();
+        final NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
+        assertTrue(corsConfig.isAnyOriginSupported());
+        assertEquals(headers, corsConfig.allowedRequestHeaders());
+        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
+    }
 
-//    public void testCorsConfigWithDefaults() {
-//        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
-//        final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
-//        final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
-//        final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();
-//        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
-//        assertFalse(corsConfig.isAnyOriginSupported());
-//        assertEquals(Collections.emptySet(), corsConfig.origins().get());
-//        assertEquals(headers, corsConfig.allowedRequestHeaders());
-//        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-//        assertEquals(maxAge, corsConfig.maxAge());
-//        assertFalse(corsConfig.isCredentialsAllowed());
-//    }
+    public void testCorsConfigWithDefaults() {
+        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
+        final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
+        final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
+        final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();
+        final NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
+        assertFalse(corsConfig.isAnyOriginSupported());
+        assertEquals(Collections.emptySet(), corsConfig.origins().get());
+        assertEquals(headers, corsConfig.allowedRequestHeaders());
+        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
+        assertEquals(maxAge, corsConfig.maxAge());
+        assertFalse(corsConfig.isCredentialsAllowed());
+    }
 
     /**
      * Test that {@link NioHttpServerTransport} supports the "Expect: 100-continue" HTTP header

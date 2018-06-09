@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResp
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -134,7 +135,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-repository-request-verify
 
         // tag::create-repository-execute
-        PutRepositoryResponse response = client.snapshot().createRepository(request);
+        PutRepositoryResponse response = client.snapshot().createRepository(request, RequestOptions.DEFAULT);
         // end::create-repository-execute
 
         // tag::create-repository-response
@@ -168,7 +169,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::create-repository-execute-async
-            client.snapshot().createRepositoryAsync(request, listener); // <1>
+            client.snapshot().createRepositoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::create-repository-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -197,7 +198,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-repository-request-masterTimeout
 
         // tag::get-repository-execute
-        GetRepositoriesResponse response = client.snapshot().getRepositories(request);
+        GetRepositoriesResponse response = client.snapshot().getRepositories(request, RequestOptions.DEFAULT);
         // end::get-repository-execute
 
         // tag::get-repository-response
@@ -232,7 +233,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-repository-execute-async
-            client.snapshot().getRepositoriesAsync(request, listener); // <1>
+            client.snapshot().getRepositoriesAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-repository-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -258,7 +259,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::delete-repository-request-timeout
 
         // tag::delete-repository-execute
-        DeleteRepositoryResponse response = client.snapshot().deleteRepository(request);
+        DeleteRepositoryResponse response = client.snapshot().deleteRepository(request, RequestOptions.DEFAULT);
         // end::delete-repository-execute
 
         // tag::delete-repository-response
@@ -292,7 +293,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::delete-repository-execute-async
-            client.snapshot().deleteRepositoryAsync(request, listener); // <1>
+            client.snapshot().deleteRepositoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::delete-repository-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -317,7 +318,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::verify-repository-request-timeout
 
         // tag::verify-repository-execute
-        VerifyRepositoryResponse response = client.snapshot().verifyRepository(request);
+        VerifyRepositoryResponse response = client.snapshot().verifyRepository(request, RequestOptions.DEFAULT);
         // end::verify-repository-execute
 
         // tag::verify-repository-response
@@ -352,7 +353,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::verify-repository-execute-async
-            client.snapshot().verifyRepositoryAsync(request, listener); // <1>
+            client.snapshot().verifyRepositoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::verify-repository-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -363,6 +364,6 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         PutRepositoryRequest request = new PutRepositoryRequest(repositoryName);
         request.type(FsRepository.TYPE);
         request.settings("{\"location\": \".\"}", XContentType.JSON);
-        assertTrue(highLevelClient().snapshot().createRepository(request).isAcknowledged());
+        assertTrue(highLevelClient().snapshot().createRepository(request, RequestOptions.DEFAULT).isAcknowledged());
     }
 }

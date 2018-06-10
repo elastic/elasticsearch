@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tools.versionchecker;
+package org.elasticsearch.tools.java_version_checker;
 
 import java.util.Arrays;
 import java.util.Locale;

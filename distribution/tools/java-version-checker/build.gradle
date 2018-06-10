@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.build'
 
 targetCompatibility = JavaVersion.VERSION_1_7
 
-// versionchecker do not depend on core so only JDK signatures should be checked
+// java_version_checker do not depend on core so only JDK signatures should be checked
 List jdkSignatures = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 forbiddenApisMain.signaturesURLs = jdkSignatures
 

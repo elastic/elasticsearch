@@ -38,7 +38,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.elasticsearch.tools.versionchecker.JavaVersion;
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
 
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.

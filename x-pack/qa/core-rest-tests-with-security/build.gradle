@@ -32,8 +32,8 @@ integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   setupCommand 'setupDummyUser',
                'bin/elasticsearch-users',
-               'useradd', System.getProperty('tests.rest.cluster.username'),
-               '-p', System.getProperty('tests.rest.cluster.password'),
+               'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),
+               '-p', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password'),
                '-r', 'superuser'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

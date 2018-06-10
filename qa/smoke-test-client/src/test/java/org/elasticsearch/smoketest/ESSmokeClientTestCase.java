@@ -19,6 +19,8 @@
 
 package org.elasticsearch.smoketest;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -62,7 +64,17 @@ import static org.hamcrest.Matchers.notNullValue;
  * then run JUnit. If you changed the default port, set "-Dtests.cluster=localhost:PORT" when running your test.
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@ThreadLeakFilters(filters = {ESSmokeClientTestCase.ObjectCleanerThreadThreadFilter.class})
 public abstract class ESSmokeClientTestCase extends LuceneTestCase {
+
+    public static class ObjectCleanerThreadThreadFilter implements ThreadFilter {
+
+        @Override
+        public boolean reject(final Thread t) {
+            // TODO: replace with constant from Netty when https://github.com/netty/netty/pull/8014 is integrated
+            return "ObjectCleanerThread".equals(t.getName());
+        }
+    }
 
     /**
      * Key used to eventually switch to using an external cluster and provide its transport addresses

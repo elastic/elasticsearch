@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch;
+package org.elasticsearch.test;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.nio.NioHttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.nio.NioTransport;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 

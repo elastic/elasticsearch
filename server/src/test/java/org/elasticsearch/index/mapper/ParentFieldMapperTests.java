@@ -124,7 +124,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject();
         mapperService.merge("some_type", new CompressedXContent(Strings.toString(mappingSource)), MergeReason.MAPPING_UPDATE, false);
-        Set<String> allFields = new HashSet<>(mapperService.simpleMatchToIndexNames("*"));
+        Set<String> allFields = new HashSet<>(mapperService.simpleMatchToFullName("*"));
         assertTrue(allFields.contains("_parent"));
         assertFalse(allFields.contains("_parent#null"));
         MappedFieldType fieldType = mapperService.fullName("_parent");

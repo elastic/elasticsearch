@@ -17,19 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
 public class BasqueAnalyzerProvider extends AbstractIndexAnalyzerProvider<BasqueAnalyzer> {
 
     private final BasqueAnalyzer analyzer;
 
-    public BasqueAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    BasqueAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new BasqueAnalyzer(
             Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, BasqueAnalyzer.getDefaultStopSet()),

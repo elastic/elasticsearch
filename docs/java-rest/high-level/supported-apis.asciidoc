@@ -140,5 +140,7 @@ include::snapshot/verify_repository.asciidoc[]
 The Java High Level REST Client supports the following Tasks APIs:
 
 * <<java-rest-high-tasks-list>>
+* <<java-rest-high-cluster-cancel-tasks>>
 
 include::tasks/list_tasks.asciidoc[]
+include::tasks/cancel_tasks.asciidoc[]

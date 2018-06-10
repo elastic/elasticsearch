@@ -20,8 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -56,12 +54,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetMappingAction extends BaseRestHandler {
 
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
+        controller.registerHandler(GET, "/_mapping", this);
+        controller.registerHandler(GET, "/_mappings", this);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mappings", this);
         controller.registerHandler(GET, "/{index}/_mapping", this);

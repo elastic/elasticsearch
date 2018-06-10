@@ -1,5 +1,5 @@
 ---
-"search with query_string parameters":
+"Test query string with snowball":
   - do:
       indices.create:
           index:  test
@@ -7,6 +7,8 @@
             mappings:
               test:
                 properties:
+                  field:
+                    type: text
                   number:
                     type: integer
 
@@ -22,39 +24,35 @@
         index: [test]
 
   - do:
+      indices.validate_query:
+        index: test
+        q: field:bars
+        analyzer: snowball
+
+  - is_true: valid
+
+  - do:
       search:
         index: test
-        q: bar
-        df: field
+        q: field:bars
+        analyzer: snowball
 
   - match: {hits.total: 1}
 
   - do:
-      search:
-        index: test
-        q: field:foo field:xyz
+      explain:
+        index:  test
+        type:   test
+        id:     1
+        q: field:bars
+        analyzer: snowball
 
-  - match: {hits.total: 1}
-
-  - do:
-      search:
-        index: test
-        q: field:foo field:xyz
-        default_operator: AND
-
-  - match: {hits.total: 0}
+  - is_true: matched
 
   - do:
-      search:
+      count:
         index: test
-        q: field:BA*
+        q: field:bars
+        analyzer: snowball
 
-  - match: {hits.total: 1}
-
-  - do:
-      search:
-        index: test
-        q: number:foo
-        lenient: true
-
-  - match: {hits.total: 0}
+  - match: {count : 1}

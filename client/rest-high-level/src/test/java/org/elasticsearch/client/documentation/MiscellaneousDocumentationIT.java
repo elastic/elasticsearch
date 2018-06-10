@@ -23,6 +23,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.apache.http.HttpHost;
@@ -40,7 +41,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
         {
             //tag::main-execute
-            MainResponse response = client.info();
+            MainResponse response = client.info(RequestOptions.DEFAULT);
             //end::main-execute
             assertTrue(response.isAvailable());
             //tag::main-response
@@ -61,7 +62,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testPing() throws IOException {
         RestHighLevelClient client = highLevelClient();
         //tag::ping-execute
-        boolean response = client.ping();
+        boolean response = client.ping(RequestOptions.DEFAULT);
         //end::ping-execute
         assertTrue(response);
     }

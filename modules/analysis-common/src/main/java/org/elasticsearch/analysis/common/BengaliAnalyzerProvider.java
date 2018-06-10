@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.cjk.CJKAnalyzer;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class CjkAnalyzerProvider extends AbstractIndexAnalyzerProvider<CJKAnalyzer> {
+public class BengaliAnalyzerProvider extends AbstractIndexAnalyzerProvider<BengaliAnalyzer> {
 
-    private final CJKAnalyzer analyzer;
+    private final BengaliAnalyzer analyzer;
 
-    public CjkAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    BengaliAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        CharArraySet stopWords = Analysis.parseStopWords(
-            env, indexSettings.getIndexVersionCreated(), settings, CJKAnalyzer.getDefaultStopSet());
-
-        analyzer = new CJKAnalyzer(stopWords);
+        analyzer = new BengaliAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, BengaliAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 
     @Override
-    public CJKAnalyzer get() {
+    public BengaliAnalyzer get() {
         return this.analyzer;
     }
 }

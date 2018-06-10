@@ -68,7 +68,7 @@ public class BlockingClusterStatePublishResponseHandler {
         boolean found = pendingNodes.remove(node);
         assert found : "node [" + node + "] already responded or failed";
         boolean added = failedNodes.add(node);
-        assert added : "double failures for " + node;
+        assert added : "duplicate failures for " + node;
         latch.countDown();
     }
 

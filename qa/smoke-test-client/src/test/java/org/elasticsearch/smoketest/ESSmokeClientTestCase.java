@@ -67,6 +67,11 @@ import static org.hamcrest.Matchers.notNullValue;
 @ThreadLeakFilters(filters = {ESSmokeClientTestCase.ObjectCleanerThreadThreadFilter.class})
 public abstract class ESSmokeClientTestCase extends LuceneTestCase {
 
+    /**
+     * The Netty object cleaner thread is not closeable and it does not terminate in a timely manner. This means that thread leak control in
+     * tests will fail test suites when the object cleaner thread has not terminated. Since there is not a reliable way to terminate this
+     * thread we instead filter it out of thread leak control.
+     */
     public static class ObjectCleanerThreadThreadFilter implements ThreadFilter {
 
         @Override

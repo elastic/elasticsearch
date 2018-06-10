@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.qa;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -32,7 +35,23 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration tests that test a transport client with security being loaded that connect to an external cluster
  */
+@ThreadLeakFilters(filters = {SecurityTransportClientIT.ObjectCleanerThreadThreadFilter.class})
 public class SecurityTransportClientIT extends ESIntegTestCase {
+
+    /**
+     * The Netty object cleaner thread is not closeable and it does not terminate in a timely manner. This means that thread leak control in
+     * tests will fail test suites when the object cleaner thread has not terminated. Since there is not a reliable way to terminate this
+     * thread we instead filter it out of thread leak control.
+     */
+    public static class ObjectCleanerThreadThreadFilter implements ThreadFilter {
+
+        @Override
+        public boolean reject(final Thread t) {
+            return "ObjectCleanerThread".equals(t.getName());
+        }
+
+    }
+
     static final String ADMIN_USER_PW = "test_user:x-pack-test-password";
     static final String TRANSPORT_USER_PW = "transport:x-pack-test-password";
 

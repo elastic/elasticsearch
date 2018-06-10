@@ -174,9 +174,10 @@ public class UsersToolTests extends CommandTestCase {
                 continue;
             }
             String gotHash = usernameHash[1];
-            SecureString expectedHash = new SecureString(password);
-            assertTrue("Expected hash " + expectedHash + " for password " + password + " but got " + gotHash,
-                hasher.verify(expectedHash, gotHash.toCharArray()));
+            SecureString expectedHash = new SecureString(password.toCharArray());
+            // CommandTestCase#execute runs passwd with default settings, so bcrypt with cost of 10
+            Hasher bcryptHasher = HasherFactory.getHasher("bcrypt");
+            assertTrue("Could not validate password for user", bcryptHasher.verify(expectedHash, gotHash.toCharArray()));
             return;
         }
         fail("Could not find username " + username + " in users file:\n" + lines.toString());

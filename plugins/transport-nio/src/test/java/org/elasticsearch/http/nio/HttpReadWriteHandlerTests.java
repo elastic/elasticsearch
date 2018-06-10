@@ -39,6 +39,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.nio.cors.NioCorsConfig;
+import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -54,6 +56,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
@@ -61,11 +64,11 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUN
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class HttpReadWriteHandlerTests extends ESTestCase {
 
@@ -91,10 +94,13 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             SETTING_HTTP_RESET_COOKIES.getDefault(settings),
             SETTING_HTTP_COMPRESSION.getDefault(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.getDefault(settings),
-            SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings));
+            SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings),
+            SETTING_PIPELINING_MAX_EVENTS.getDefault(settings),
+            SETTING_CORS_ENABLED.getDefault(settings));
         ThreadContext threadContext = new ThreadContext(settings);
         nioSocketChannel = mock(NioSocketChannel.class);
-        handler = new HttpReadWriteHandler(nioSocketChannel, transport, httpHandlingSettings, NamedXContentRegistry.EMPTY, threadContext);
+        handler = new HttpReadWriteHandler(nioSocketChannel, transport, httpHandlingSettings, NamedXContentRegistry.EMPTY,
+            NioCorsConfigBuilder.forAnyOrigin().build(), threadContext);
     }
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {
@@ -148,7 +154,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         handler.consumeReads(toChannelBuffer(buf));
 
-        verifyZeroInteractions(transport);
+        verify(transport, times(0)).dispatchBadRequest(any(), any(), any());
+        verify(transport, times(0)).dispatchRequest(any(), any());
 
         List<FlushOperation> flushOperations = handler.pollFlushOperations();
         assertFalse(flushOperations.isEmpty());
@@ -169,9 +176,10 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         prepareHandlerForResponse(handler);
 
         FullHttpResponse fullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+        NioHttpResponse pipelinedResponse = new NioHttpResponse(0, fullHttpResponse);
 
         SocketChannelContext context = mock(SocketChannelContext.class);
-        HttpWriteOperation writeOperation = new HttpWriteOperation(context, fullHttpResponse, mock(BiConsumer.class));
+        HttpWriteOperation writeOperation = new HttpWriteOperation(context, pipelinedResponse, mock(BiConsumer.class));
         List<FlushOperation> flushOperations = handler.writeToBytes(writeOperation);
 
         HttpResponse response = responseDecoder.decode(Unpooled.wrappedBuffer(flushOperations.get(0).getBuffersToWrite()));

@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -61,12 +60,8 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     private Iterator<Job> newJobIterator() {
-        List<Job> jobs = new ArrayList<>();
         ClusterState clusterState = clusterService.state();
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata != null) {
-            jobs.addAll(mlMetadata.getJobs().values());
-        }
+        List<Job> jobs = new ArrayList<>(MlMetadata.getMlMetadata(clusterState).getJobs().values());
         return createVolatileCursorIterator(jobs);
     }
 

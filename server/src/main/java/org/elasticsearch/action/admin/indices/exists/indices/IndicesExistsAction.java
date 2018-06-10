@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndicesExistsAction extends Action<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
+public class IndicesExistsAction extends Action<IndicesExistsRequest, IndicesExistsResponse> {
 
     public static final IndicesExistsAction INSTANCE = new IndicesExistsAction();
     public static final String NAME = "indices:admin/exists";
@@ -34,10 +33,5 @@ public class IndicesExistsAction extends Action<IndicesExistsRequest, IndicesExi
     @Override
     public IndicesExistsResponse newResponse() {
         return new IndicesExistsResponse();
-    }
-
-    @Override
-    public IndicesExistsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndicesExistsRequestBuilder(client, this);
     }
 }

@@ -18,20 +18,39 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.ScoringRewrite;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -39,12 +58,10 @@ import java.util.Objects;
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
 public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder>
-        implements SpanQueryBuilder {
+    implements SpanQueryBuilder {
 
     public static final String NAME = "span_multi";
-
     private static final ParseField MATCH_FIELD = new ParseField("match");
-
     private final MultiTermQueryBuilder multiTermQueryBuilder;
 
     public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
@@ -73,7 +90,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params)
-            throws IOException {
+        throws IOException {
         builder.startObject(NAME);
         builder.field(MATCH_FIELD.getPreferredName());
         multiTermQueryBuilder.toXContent(builder, params);
@@ -95,7 +112,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof MultiTermQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
+                            "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
                     }
                     subQuery = (MultiTermQueryBuilder) query;
                 } else {
@@ -114,32 +131,124 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
         if (subQuery == null) {
             throw new ParsingException(parser.getTokenLocation(),
-                    "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
+                "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
         }
 
         return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
+    }
+
+    static class TopTermSpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrapper.SpanRewriteMethod {
+        private final long maxExpansions;
+
+        TopTermSpanBooleanQueryRewriteWithMaxClause() {
+            this.maxExpansions = BooleanQuery.getMaxClauseCount();
+        }
+
+        @Override
+        public SpanQuery rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
+            final MultiTermQuery.RewriteMethod delegate = new ScoringRewrite<List<SpanQuery>>() {
+                @Override
+                protected List<SpanQuery> getTopLevelBuilder() {
+                    return new ArrayList();
+                }
+
+                @Override
+                protected Query build(List<SpanQuery> builder) {
+                    return new SpanOrQuery((SpanQuery[]) builder.toArray(new SpanQuery[builder.size()]));
+                }
+
+                @Override
+                protected void checkMaxClauseCount(int count) {
+                    if (count > maxExpansions) {
+                        throw new RuntimeException("[" + query.toString() + " ] " +
+                            "exceeds maxClauseCount [ Boolean maxClauseCount is set to " + BooleanQuery.getMaxClauseCount() + "]");
+                    }
+                }
+
+                @Override
+                protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermContext states) {
+                    SpanTermQuery q = new SpanTermQuery(term, states);
+                    topLevel.add(q);
+                }
+            };
+            return (SpanQuery) delegate.rewrite(reader, query);
+        }
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query subQuery = multiTermQueryBuilder.toQuery(context);
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        if (subQuery instanceof BoostQuery) {
-            BoostQuery boostQuery = (BoostQuery) subQuery;
-            subQuery = boostQuery.getQuery();
-            boost = boostQuery.getBoost();
+        while (true) {
+            if (subQuery instanceof ConstantScoreQuery) {
+                subQuery = ((ConstantScoreQuery) subQuery).getQuery();
+                boost = 1;
+            } else if (subQuery instanceof BoostQuery) {
+                BoostQuery boostQuery = (BoostQuery) subQuery;
+                subQuery = boostQuery.getQuery();
+                boost *= boostQuery.getBoost();
+            } else {
+                break;
+            }
         }
-        //no MultiTermQuery extends SpanQuery, so SpanBoostQuery is not supported here
+        final SpanQuery spanQuery;
+        // no MultiTermQuery extends SpanQuery, so SpanBoostQuery is not supported here
         assert subQuery instanceof SpanBoostQuery == false;
-        if (subQuery instanceof MultiTermQuery == false) {
-            throw new UnsupportedOperationException("unsupported inner query, should be " + MultiTermQuery.class.getName() +" but was "
-                    + subQuery.getClass().getName());
+        if (subQuery instanceof TermQuery) {
+            /**
+             * Text fields that index prefixes can rewrite prefix queries
+             * into term queries. See {@link TextFieldMapper.TextFieldType#prefixQuery}.
+             */
+            if (multiTermQueryBuilder.getClass() != PrefixQueryBuilder.class) {
+                throw new UnsupportedOperationException("unsupported inner query generated by " +
+                    multiTermQueryBuilder.getClass().getName() + ", should be " + MultiTermQuery.class.getName()
+                    + " but was " + subQuery.getClass().getName());
+            }
+            if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_4_0)) {
+                /**
+                 * Indices created in this version do not index positions on the prefix field
+                 * so we cannot use it to match positional queries. Instead, we explicitly create the prefix
+                 * query on the main field to avoid the rewrite.
+                 */
+                PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
+                PrefixQuery prefixQuery = new PrefixQuery(new Term(prefixBuilder.fieldName(), prefixBuilder.value()));
+                if (prefixBuilder.rewrite() != null) {
+                    MultiTermQuery.RewriteMethod rewriteMethod =
+                        QueryParsers.parseRewriteMethod(prefixBuilder.rewrite(), null, LoggingDeprecationHandler.INSTANCE);
+                    prefixQuery.setRewriteMethod(rewriteMethod);
+                }
+                subQuery = prefixQuery;
+                spanQuery = new SpanMultiTermQueryWrapper<>(prefixQuery);
+            } else {
+                String origFieldName = ((PrefixQueryBuilder) multiTermQueryBuilder).fieldName();
+                SpanTermQuery spanTermQuery = new SpanTermQuery(((TermQuery) subQuery).getTerm());
+                /**
+                 * Prefixes are indexed in a different field so we mask the term query with the original field
+                 * name. This is required because span_near and span_or queries don't work across different field.
+                 * The masking is safe because the prefix field is indexed using the same content than the original field
+                 * and the prefix analyzer preserves positions.
+                 */
+                spanQuery = new FieldMaskingSpanQuery(spanTermQuery, origFieldName);
+            }
+        } else {
+            if (subQuery instanceof MultiTermQuery == false) {
+                throw new UnsupportedOperationException("unsupported inner query, should be "
+                    + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName());
+            }
+            spanQuery = new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
         }
-        SpanQuery wrapper = new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
+        if (subQuery instanceof MultiTermQuery) {
+            MultiTermQuery multiTermQuery = (MultiTermQuery) subQuery;
+            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) spanQuery;
+            if (multiTermQuery.getRewriteMethod() instanceof TopTermsRewrite == false) {
+                wrapper.setRewriteMethod(new TopTermSpanBooleanQueryRewriteWithMaxClause());
+            }
+        }
         if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
-            wrapper = new SpanBoostQuery(wrapper, boost);
+            return new SpanBoostQuery(spanQuery, boost);
         }
-        return wrapper;
+
+        return spanQuery;
     }
 
     @Override

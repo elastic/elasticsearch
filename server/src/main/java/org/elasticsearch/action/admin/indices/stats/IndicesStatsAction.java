@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndicesStatsAction extends Action<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
+public class IndicesStatsAction extends Action<IndicesStatsRequest, IndicesStatsResponse> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();
     public static final String NAME = "indices:monitor/stats";
@@ -34,10 +33,5 @@ public class IndicesStatsAction extends Action<IndicesStatsRequest, IndicesStats
     @Override
     public IndicesStatsResponse newResponse() {
         return new IndicesStatsResponse();
-    }
-
-    @Override
-    public IndicesStatsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndicesStatsRequestBuilder(client, this);
     }
 }

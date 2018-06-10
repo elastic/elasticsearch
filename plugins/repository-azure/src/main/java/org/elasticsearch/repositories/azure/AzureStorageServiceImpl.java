@@ -288,24 +288,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob)
-        throws URISyntaxException, StorageException {
-        logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}]", container, sourceBlob, targetBlob);
-
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blobContainer = client.getContainerReference(container);
-        CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        if (SocketAccess.doPrivilegedException(() -> blobSource.exists(null, null, generateOperationContext(account)))) {
-            CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
-            SocketAccess.doPrivilegedVoidException(() -> {
-                blobTarget.startCopy(blobSource, null, null, null, generateOperationContext(account));
-                blobSource.delete(DeleteSnapshotsOption.NONE, null, null, generateOperationContext(account));
-            });
-            logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
-        }
-    }
-
-    @Override
     public void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize)
         throws URISyntaxException, StorageException {
         logger.trace("writeBlob({}, stream, {})", blobName, blobSize);

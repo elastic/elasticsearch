@@ -29,6 +29,8 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -47,6 +49,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -63,6 +66,8 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -399,6 +404,47 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(putMappingRequest, request.getEntity());
+    }
+
+    public void testGetMapping() throws IOException {
+        GetMappingsRequest getMappingRequest = new GetMappingsRequest();
+
+        String[] indices = Strings.EMPTY_ARRAY;
+        if (randomBoolean()) {
+            indices = randomIndicesNames(0, 5);
+            getMappingRequest.indices(indices);
+        } else if (randomBoolean()) {
+            getMappingRequest.indices((String[]) null);
+        }
+
+        String type = null;
+        if (randomBoolean()) {
+            type = randomAlphaOfLengthBetween(3, 10);
+            getMappingRequest.types(type);
+        } else if (randomBoolean()) {
+            getMappingRequest.types((String[]) null);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomIndicesOptions(getMappingRequest::indicesOptions, getMappingRequest::indicesOptions, expectedParams);
+        setRandomMasterTimeout(getMappingRequest, expectedParams);
+        setRandomLocal(getMappingRequest, expectedParams);
+
+        Request request = RequestConverters.getMappings(getMappingRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+        if (type != null) {
+            endpoint.add(type);
+        }
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
     }
 
     public void testDeleteIndex() {
@@ -1450,6 +1496,35 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
+    public void testGetPipeline() {
+        String pipelineId = "some_pipeline_id";
+        Map<String, String> expectedParams = new HashMap<>();
+        GetPipelineRequest request = new GetPipelineRequest("some_pipeline_id");
+        setRandomMasterTimeout(request, expectedParams);
+        Request expectedRequest = RequestConverters.getPipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        endpoint.add(pipelineId);
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testDeletePipeline() {
+        String pipelineId = "some_pipeline_id";
+        Map<String, String> expectedParams = new HashMap<>();
+        DeletePipelineRequest request = new DeletePipelineRequest(pipelineId);
+        setRandomMasterTimeout(request, expectedParams);
+        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        Request expectedRequest = RequestConverters.deletePipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        endpoint.add(pipelineId);
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpDelete.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -1512,6 +1587,23 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testCancelTasks() {
+        CancelTasksRequest request = new CancelTasksRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        request.setTaskId(taskId);
+        request.setParentTaskId(parentTaskId);
+        expectedParams.put("task_id", taskId.toString());
+        expectedParams.put("parent_task_id", parentTaskId.toString());
+        Request httpRequest = RequestConverters.cancelTasks(request);
+        assertThat(httpRequest, notNullValue());
+        assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(httpRequest.getEntity(), nullValue());
+        assertThat(httpRequest.getEndpoint(), equalTo("/_tasks/_cancel"));
+        assertThat(httpRequest.getParameters(), equalTo(expectedParams));
     }
 
     public void testListTasks() {

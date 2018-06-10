@@ -30,7 +30,6 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -148,8 +147,6 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         return httpServer;
     }
 
-    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-    @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         private final int sniffTimeoutMillis;
         private final SniffResponse sniffResponse;

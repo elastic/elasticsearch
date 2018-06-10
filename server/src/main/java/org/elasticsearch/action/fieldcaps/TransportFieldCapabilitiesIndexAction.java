@@ -76,7 +76,7 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
         MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
-            fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
+            fieldNames.addAll(mapperService.simpleMatchToFullName(field));
         }
         Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         Map<String, FieldCapabilities> responseMap = new HashMap<>();

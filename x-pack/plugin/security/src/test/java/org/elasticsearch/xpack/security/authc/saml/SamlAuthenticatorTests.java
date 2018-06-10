@@ -523,11 +523,57 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</assert:Attribute></assert:AttributeStatement>" +
                 "</assert:Assertion>" +
                 "</proto:Response>";
-        SamlToken token = token(signDoc(xml));
+        SamlToken token = randomBoolean() ? token(signDoc(xml)) : token(signAssertions(xml, idpSigningCertificatePair));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("destination"));
         assertThat(exception.getCause(), nullValue());
         assertThat(SamlUtils.isSamlException(exception), is(true));
+    }
+
+    public void testMissingDestinationIsNotRejectedForNotSignedResponse() throws Exception {
+        Instant now = clock.instant();
+        Instant validUntil = now.plusSeconds(30);
+        String sessionindex = randomId();
+        final String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
+            "<proto:Response ID='" + randomId() + "' InResponseTo='" + requestId +
+            "' IssueInstant='" + now + "' Version='2.0'" +
+            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
+            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
+            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
+            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Success'/></proto:Status>" +
+            "<assert:Assertion ID='" + sessionindex + "' IssueInstant='" + now + "' Version='2.0'>" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<assert:Subject>" +
+            "<assert:NameID SPNameQualifier='" + SP_ENTITY_ID + "' Format='" + TRANSIENT + "'>randomopaquestring</assert:NameID>" +
+            "<assert:SubjectConfirmation Method='" + METHOD_BEARER + "'>" +
+            "<assert:SubjectConfirmationData NotOnOrAfter='" + validUntil + "' Recipient='" + SP_ACS_URL + "' " +
+            "   InResponseTo='" + requestId + "'/>" +
+            "</assert:SubjectConfirmation>" +
+            "</assert:Subject>" +
+            "<assert:AuthnStatement AuthnInstant='" + now + "' SessionNotOnOrAfter='" + validUntil +
+            "' SessionIndex='" + sessionindex + "'>" +
+            "<assert:AuthnContext>" +
+            "<assert:AuthnContextClassRef>" + PASSWORD_AUTHN_CTX + "</assert:AuthnContextClassRef>" +
+            "</assert:AuthnContext>" +
+            "</assert:AuthnStatement>" +
+            "<assert:AttributeStatement><assert:Attribute " +
+            "   NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri' Name='urn:oid:0.9.2342.19200300.100.1.1'>" +
+            "<assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>" +
+            "</assert:Attribute></assert:AttributeStatement>" +
+            "</assert:Assertion>" +
+            "</proto:Response>";
+        SamlToken token = token(signAssertions(xml, idpSigningCertificatePair));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(1));
+        final List<String> uid = attributes.getAttributeValues("urn:oid:0.9.2342.19200300.100.1.1");
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
     }
 
     public void testIncorrectRequestIdIsRejected() throws Exception {

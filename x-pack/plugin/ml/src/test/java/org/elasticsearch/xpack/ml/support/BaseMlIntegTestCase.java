@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.support;
 
-import com.carrotsearch.randomizedtesting.ThreadFilter;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -72,20 +71,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0,
         transportClientRatio = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends XPackIntegTestCase {
-
-    /**
-     * The Netty object cleaner thread is not closeable and it does not terminate in a timely manner. This means that thread leak control in
-     * tests will fail test suites when the object cleaner thread has not terminated. Since there is not a reliable way to terminate this
-     * thread we instead filter it out of thread leak control.
-     */
-    public static class ObjectCleanerThreadThreadFilter implements ThreadFilter {
-
-        @Override
-        public boolean reject(final Thread t) {
-            return "ObjectCleanerThread".equals(t.getName());
-        }
-
-    }
 
     @Override
     protected boolean ignoreExternalCluster() {

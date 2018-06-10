@@ -30,6 +30,7 @@ public class ObjectCleanerThreadThreadFilter implements ThreadFilter {
 
     @Override
     public boolean reject(final Thread t) {
+        // TODO: replace with constant from Netty when https://github.com/netty/netty/pull/8014 is integrated
         return "ObjectCleanerThread".equals(t.getName());
     }
 

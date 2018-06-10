@@ -31,11 +31,11 @@ import java.util.List;
 import java.util.Map;
 
 public class ScriptedMetricAggContexts {
-    private abstract static class ParamsAndAggBase {
+    private abstract static class ParamsAndStateBase {
         private final Map<String, Object> params;
         private final Object state;
 
-        ParamsAndAggBase(Map<String, Object> params, Object state) {
+        ParamsAndStateBase(Map<String, Object> params, Object state) {
             this.params = params;
             this.state = state;
         }
@@ -49,7 +49,7 @@ public class ScriptedMetricAggContexts {
         }
     }
 
-    public abstract static class InitScript extends ParamsAndAggBase {
+    public abstract static class InitScript extends ParamsAndStateBase {
         public InitScript(Map<String, Object> params, Object state) {
             super(params, state);
         }
@@ -64,7 +64,7 @@ public class ScriptedMetricAggContexts {
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_init", Factory.class);
     }
 
-    public abstract static class MapScript extends ParamsAndAggBase {
+    public abstract static class MapScript extends ParamsAndStateBase {
         private final LeafSearchLookup leafLookup;
         private Scorer scorer;
 
@@ -117,7 +117,7 @@ public class ScriptedMetricAggContexts {
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_map", Factory.class);
     }
 
-    public abstract static class CombineScript extends ParamsAndAggBase {
+    public abstract static class CombineScript extends ParamsAndStateBase {
         public CombineScript(Map<String, Object> params, Object state) {
             super(params, state);
         }

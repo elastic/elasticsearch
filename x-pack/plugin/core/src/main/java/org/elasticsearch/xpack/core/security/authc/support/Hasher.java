@@ -22,19 +22,13 @@ public interface Hasher {
 
     char[] hash(SecureString data);
 
-    char[] hash(SecureString data, int cost);
-
     boolean verify(SecureString data, char[] hash);
 
     String getAlgorithm();
+    int getCost();
 
 
     class NoopHasher implements Hasher {
-
-        @Override
-        public char[] hash(SecureString data, int cost) {
-            return data.clone().getChars();
-        }
 
         @Override
         public char[] hash(SecureString data) {
@@ -50,24 +44,24 @@ public interface Hasher {
         public String getAlgorithm() {
             return "noop";
         }
+
+        @Override
+        public int getCost() {
+            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
+        }
     }
 
     class BcryptHasher implements Hasher {
-        private int defaultCost;
+        private int cost;
         private static final String BCRYPT_PREFIX = "$2a$";
 
         public BcryptHasher(int cost) {
-            this.defaultCost = cost;
+            this.cost = cost;
         }
 
         @Override
         public char[] hash(SecureString data) {
-            return hash(data, defaultCost);
-        }
-
-        @Override
-        public char[] hash(SecureString data, int cost) {
-            String salt = BCrypt.gensalt(cost);
+            String salt = BCrypt.gensalt(this.cost);
             return BCrypt.hashpw(data, salt).toCharArray();
         }
 
@@ -84,40 +78,38 @@ public interface Hasher {
         public String getAlgorithm() {
             return "bcrypt";
         }
+
+        @Override
+        public int getCost(){ return this.cost; }
     }
 
     class PBKDF2Hasher implements Hasher {
-        private int defaultCost;
+        private int cost;
         private static final String PBKDF2_PREFIX = "{PBKDF2}";
 
         public PBKDF2Hasher(int cost) {
-            this.defaultCost = cost;
+            this.cost = cost;
         }
 
         @Override
-        public char[] hash(SecureString data, int cost) {
+        public char[] hash(SecureString data) {
             try {
                 StringBuilder result = new StringBuilder();
                 result.append(PBKDF2_PREFIX);
-                String costString = String.valueOf(cost);
+                String costString = String.valueOf(this.cost);
                 result.append(costString);
                 result.append("$");
                 char[] salt = SaltProvider.salt(32);  // 32 characters for 64 bytes
                 result.append(salt);
                 result.append("$");
                 SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-                PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), CharArrays.toUtf8Bytes(salt), cost, 256);
+                PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), CharArrays.toUtf8Bytes(salt), this.cost, 256);
                 String pwdHash = Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded());
                 result.append(pwdHash);
                 return result.toString().toCharArray();
             } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
                 throw new IllegalStateException("Can't use PKDF2 for password hashing", e);
             }
-        }
-
-        @Override
-        public char[] hash(SecureString data) {
-            return hash(data, defaultCost);
         }
 
         @Override
@@ -147,6 +139,11 @@ public interface Hasher {
         public String getAlgorithm() {
             return "pbkdf2";
         }
+
+        @Override
+        public int getCost() {
+            return this.cost;
+        }
     }
 
     class SSHA256Hasher implements Hasher {
@@ -164,12 +161,6 @@ public interface Hasher {
             System.arraycopy(salt, 0, result, SSHA256_PREFIX.length(), salt.length);
             System.arraycopy(hash.toCharArray(), 0, result, SSHA256_PREFIX.length() + salt.length, hash.length());
             return result;
-        }
-
-        @Override
-        public char[] hash(SecureString data, int cost) {
-            // No cost factor for SSHA256
-            return hash(data);
         }
 
         @Override
@@ -191,6 +182,11 @@ public interface Hasher {
         public String getAlgorithm() {
             return "ssha256";
         }
+
+        @Override
+        public int getCost() {
+            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
+        }
     }
 
     class SHA1Hasher implements Hasher {
@@ -203,11 +199,6 @@ public interface Hasher {
             md.update(textBytes);
             String hash = Base64.getEncoder().encodeToString(md.digest());
             return (SHA1_PREFIX + hash).toCharArray();
-        }
-
-        @Override
-        public char[] hash(SecureString data, int cost) {
-            return hash(data);
         }
 
         @Override
@@ -228,6 +219,11 @@ public interface Hasher {
         public String getAlgorithm() {
             return "sha1";
         }
+
+        @Override
+        public int getCost() {
+            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
+        }
     }
 
     class MD5Hasher implements Hasher {
@@ -239,11 +235,6 @@ public interface Hasher {
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
             String hash = Base64.getEncoder().encodeToString(md.digest());
             return (MD5_PREFIX + hash).toCharArray();
-        }
-
-        @Override
-        public char[] hash(SecureString data, int cost) {
-            return hash(data);
         }
 
         @Override
@@ -263,6 +254,11 @@ public interface Hasher {
         public String getAlgorithm() {
             return "md5";
     }
+
+        @Override
+        public int getCost() {
+            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
+        }
     }
 
     final class SaltProvider {

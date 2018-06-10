@@ -47,17 +47,33 @@ public class HasherTests extends ESTestCase {
     }
 
     public void testHasherFactory() throws Exception {
+        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt", -1).getAlgorithm());
+        assertEquals(10, HasherFactory.getHasher("bcrypt", -1).getCost());
+        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt", 7).getAlgorithm());
+        assertEquals(7, HasherFactory.getHasher("bcrypt", 7).getCost());
+        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt5", 6).getAlgorithm());
+        assertEquals(6, HasherFactory.getHasher("bcrypt5", 6).getCost());
         assertEquals("bcrypt", HasherFactory.getHasher("bcrypt").getAlgorithm());
+        assertEquals(10, HasherFactory.getHasher("bcrypt").getCost());
         assertEquals("bcrypt", HasherFactory.getHasher("bcrypt4").getAlgorithm());
+        assertEquals(4, HasherFactory.getHasher("bcrypt4").getCost());
         assertEquals("bcrypt", HasherFactory.getHasher("bcrypt5").getAlgorithm());
+        assertEquals(5, HasherFactory.getHasher("bcrypt5").getCost());
         assertEquals("bcrypt", HasherFactory.getHasher("bcrypt6").getAlgorithm());
+        assertEquals(6, HasherFactory.getHasher("bcrypt6").getCost());
         assertEquals("bcrypt", HasherFactory.getHasher("bcrypt7").getAlgorithm());
+        assertEquals(7, HasherFactory.getHasher("bcrypt7").getCost());
         assertEquals("bcrypt", HasherFactory.getHasher("bcrypt8").getAlgorithm());
+        assertEquals(8, HasherFactory.getHasher("bcrypt8").getCost());
         assertEquals("bcrypt", HasherFactory.getHasher("bcrypt9").getAlgorithm());
+        assertEquals(9, HasherFactory.getHasher("bcrypt9").getCost());
         assertEquals("sha1", HasherFactory.getHasher("sha1").getAlgorithm());
         assertEquals("md5", HasherFactory.getHasher("md5").getAlgorithm());
         assertEquals("ssha256", HasherFactory.getHasher("ssha256").getAlgorithm());
         assertEquals("pbkdf2", HasherFactory.getHasher("pbkdf2").getAlgorithm());
+        assertEquals(10000, HasherFactory.getHasher("pbkdf2").getCost());
+        assertEquals("pbkdf2", HasherFactory.getHasher("pbkdf2", 100000).getAlgorithm());
+        assertEquals(100000, HasherFactory.getHasher("pbkdf2", 100000).getCost());
         assertEquals("noop", HasherFactory.getHasher("noop").getAlgorithm());
         assertEquals("noop", HasherFactory.getHasher("clear_text").getAlgorithm());
         try {
@@ -69,7 +85,7 @@ public class HasherTests extends ESTestCase {
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) throws Exception {
-        SecureString passwd = new SecureString(randomAlphaOfLength(10));
+        SecureString passwd = new SecureString(randomAlphaOfLength(10).toCharArray());
         char[] hash = hasher.hash(passwd);
         assertTrue(hasher.verify(passwd, hash));
     }

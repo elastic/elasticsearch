@@ -236,8 +236,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
 
         void pullOperations(Engine follower) throws IOException {
-            long leaderCheckpoint = leader.getLocalCheckpointTracker().getCheckpoint();
-            long followerCheckpoint = follower.getLocalCheckpointTracker().getCheckpoint();
+            long leaderCheckpoint = leader.getLocalCheckpoint();
+            long followerCheckpoint = follower.getLocalCheckpoint();
             if (followerCheckpoint < leaderCheckpoint) {
                 long fromSeqNo = followerCheckpoint + 1;
                 long batchSize = randomLongBetween(0, 100);
@@ -255,7 +255,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 readLatch.countDown();
                 readLatch.await();
                 while (isDone.get() == false ||
-                    follower.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpointTracker().getCheckpoint()) {
+                    follower.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpoint()) {
                     pullOperations(follower);
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, mapperService);

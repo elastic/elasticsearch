@@ -1361,7 +1361,7 @@ public class InternalEngineTests extends EngineTestCase {
                     liveDocs.add(doc.id());
                 }
             }
-            long localCheckpoint = engine.getLocalCheckpointTracker().getCheckpoint();
+            long localCheckpoint = engine.getLocalCheckpoint();
             globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
             engine.getTranslog().sync();
             engine.forceMerge(true, 1, false, false, false);
@@ -1427,7 +1427,7 @@ public class InternalEngineTests extends EngineTestCase {
                     liveDocs.add(doc.id());
                 }
             }
-            long localCheckpoint = engine.getLocalCheckpointTracker().getCheckpoint();
+            long localCheckpoint = engine.getLocalCheckpoint();
             globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
             engine.getTranslog().sync();
             long keptIndex = globalCheckpoint.get() + 1 - retainedExtraOps;

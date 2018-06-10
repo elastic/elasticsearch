@@ -28,8 +28,4 @@ public class XPackSettingsTests extends ESTestCase {
             assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_RSA_WITH_AES_256_CBC_SHA")));
         }
     }
-
-    public void testDefaultHashingAlgorithm() throws Exception{
-        assertThat(XPackSettings.PASSWORD_HASHING_ALGORITHM, equalTo("bcrypt"));
-    }
 }

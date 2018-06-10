@@ -74,6 +74,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
             // TODO: replace with constant from Netty when https://github.com/netty/netty/pull/8014 is integrated
             return "ObjectCleanerThread".equals(t.getName());
         }
+
     }
 
     /**

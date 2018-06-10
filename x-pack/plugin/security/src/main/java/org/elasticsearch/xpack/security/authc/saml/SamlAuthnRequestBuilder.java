@@ -7,13 +7,17 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.opensaml.saml.saml2.core.AuthnContextClassRef;
+import org.opensaml.saml.saml2.core.AuthnContextComparisonTypeEnumeration;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.NameIDPolicy;
+import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 
 import java.time.Clock;
+import java.util.List;
 
 /**
  * Generates a SAML {@link AuthnRequest} from a simplified set of parameters.
@@ -24,12 +28,14 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
     private final String idpBinding;
     private Boolean forceAuthn;
     private NameIDPolicySettings nameIdSettings;
+    private List<String> reqAuthnCtxClassRef;
 
     SamlAuthnRequestBuilder(SpConfiguration spConfig, String spBinding, EntityDescriptor idpDescriptor, String idBinding, Clock clock) {
         super(idpDescriptor, spConfig, clock);
         this.spBinding = spBinding;
         this.idpBinding = idBinding;
         this.nameIdSettings = new NameIDPolicySettings(NameID.TRANSIENT, false, null);
+        this.reqAuthnCtxClassRef = spConfig.getReqAuthnCtxClassRef();
     }
 
     SamlAuthnRequestBuilder forceAuthn(Boolean forceAuthn) {
@@ -55,8 +61,25 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
         if (nameIdSettings != null) {
             request.setNameIDPolicy(buildNameIDPolicy());
         }
+        if (reqAuthnCtxClassRef.isEmpty() == false) {
+            request.setRequestedAuthnContext(buildRequestedAuthnContext());
+        }
         request.setForceAuthn(forceAuthn);
         return request;
+    }
+
+    private RequestedAuthnContext buildRequestedAuthnContext() {
+        RequestedAuthnContext requestedAuthnContext = SamlUtils.buildObject(RequestedAuthnContext.class, RequestedAuthnContext
+            .DEFAULT_ELEMENT_NAME);
+        for (String authnCtxClass : reqAuthnCtxClassRef) {
+            AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(AuthnContextClassRef.class, AuthnContextClassRef
+                .DEFAULT_ELEMENT_NAME);
+            authnContextClassRef.setAuthnContextClassRef(authnCtxClass);
+            requestedAuthnContext.getAuthnContextClassRefs().add(authnContextClassRef);
+        }
+        // We handle only EXACT comparison
+        requestedAuthnContext.setComparison(AuthnContextComparisonTypeEnumeration.EXACT);
+        return requestedAuthnContext;
     }
 
     private NameIDPolicy buildNameIDPolicy() {
@@ -87,5 +110,4 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
             this.spNameQualifier = spNameQualifier;
         }
     }
-
 }

@@ -2020,7 +2020,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-templates-request-masterTimeout
 
         // tag::get-templates-execute
-        GetIndexTemplatesResponse getTemplatesResponse = client.indices().getTemplates(request, RequestOptions.DEFAULT);
+        GetIndexTemplatesResponse getTemplatesResponse = client.indices().getTemplate(request, RequestOptions.DEFAULT);
         // end::get-templates-execute
 
         // tag::get-templates-response
@@ -2050,7 +2050,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::get-templates-execute-async
-        client.indices().getTemplatesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.indices().getTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::get-templates-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

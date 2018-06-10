@@ -1021,7 +1021,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             equalTo(true));
 
         GetIndexTemplatesResponse getTemplate1 = execute(new GetIndexTemplatesRequest().names("template-1"),
-            client.indices()::getTemplates, client.indices()::getTemplatesAsync);
+            client.indices()::getTemplate, client.indices()::getTemplateAsync);
         assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
         IndexTemplateMetaData template1 = getTemplate1.getIndexTemplates().get(0);
         assertThat(template1.name(), equalTo("template-1"));
@@ -1029,7 +1029,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(template1.aliases().containsKey("alias-1"));
 
         GetIndexTemplatesResponse getTemplate2 = execute(new GetIndexTemplatesRequest().names("template-2"),
-            client.indices()::getTemplates, client.indices()::getTemplatesAsync);
+            client.indices()::getTemplate, client.indices()::getTemplateAsync);
         assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
         IndexTemplateMetaData template2 = getTemplate2.getIndexTemplates().get(0);
         assertThat(template2.name(), equalTo("template-2"));
@@ -1044,13 +1044,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         } else {
             getBothRequest.names("template-*");
         }
-        GetIndexTemplatesResponse getBoth = execute(getBothRequest, client.indices()::getTemplates, client.indices()::getTemplatesAsync);
+        GetIndexTemplatesResponse getBoth = execute(getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync);
         assertThat(getBoth.getIndexTemplates(), hasSize(2));
         assertThat(getBoth.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).toArray(),
             arrayContainingInAnyOrder("template-1", "template-2"));
 
         ElasticsearchException notFound = expectThrows(ElasticsearchException.class, () -> execute(
-            new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplates, client.indices()::getTemplatesAsync));
+            new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplate, client.indices()::getTemplateAsync));
         assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
     }
 }

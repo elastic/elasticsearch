@@ -802,7 +802,7 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        long maxSeqNo = Math.max(0, engine.getLocalCheckpointTracker().getMaxSeqNo());
+        long maxSeqNo = Math.max(0, ((InternalEngine)engine).getLocalCheckpointTracker().getMaxSeqNo());
         try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, 0, maxSeqNo, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null){
@@ -838,7 +838,7 @@ public abstract class EngineTestCase extends ESTestCase {
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long globalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
-        final long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
+        long maxSeqNo = Math.max(0, ((InternalEngine)engine).getLocalCheckpointTracker().getMaxSeqNo());
         for (Translog.Operation translogOp : translogOps.values()) {
             final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
             if (luceneOp == null) {

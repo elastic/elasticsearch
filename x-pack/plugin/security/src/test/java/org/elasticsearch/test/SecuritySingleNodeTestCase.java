@@ -6,7 +6,6 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.http.HttpHost;
@@ -24,6 +23,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.xpack.core.test.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;

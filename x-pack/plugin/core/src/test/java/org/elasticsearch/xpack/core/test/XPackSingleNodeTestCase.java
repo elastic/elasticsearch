@@ -4,10 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.test;
+package org.elasticsearch.xpack.core.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 @ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
-public abstract class XPackSingleNodeTestCase extends ESSingleNodeTestCase{
+public abstract class XPackSingleNodeTestCase extends ESSingleNodeTestCase {
 }

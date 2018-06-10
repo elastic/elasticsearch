@@ -15,11 +15,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
@@ -40,12 +42,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -75,6 +72,15 @@ public class ReservedRealmTests extends ESTestCase {
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+    }
+
+    public void testInvalidHashingAlgorithmFails(){
+        final String invalidAlgorithm = randomFrom("sha1", "md5", "noop");
+        final Settings invalidSettings = Settings.builder().put("xpack.security.authc.password_hashing.algorithm",invalidAlgorithm).build();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->new ReservedRealm(mock(Environment.class),
+            invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), securityIndex, threadPool));
+        assertThat(exception.getMessage(), containsString(invalidAlgorithm));
+        assertThat(exception.getMessage(), containsString("Only pbkdf2 or bcrypt family algorithms can be used for password hashing"));
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
@@ -124,10 +130,12 @@ public class ReservedRealmTests extends ESTestCase {
         final User expectedUser = randomReservedUser(enabled);
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
+        // Mocked users store is initiated with default hashing algorithm
+        final Hasher hasher = HasherFactory.getHasher("bcrypt");
         when(securityIndex.indexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), enabled, false));
+            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled, false));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -139,7 +147,7 @@ public class ReservedRealmTests extends ESTestCase {
         // the realm assumes it owns the hashed password so it fills it with 0's
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true, false));
+            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), true, false));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -275,7 +283,9 @@ public class ReservedRealmTests extends ESTestCase {
     public void testFailedAuthentication() throws Exception {
         when(securityIndex.indexExists()).thenReturn(true);
         SecureString password = new SecureString("password".toCharArray());
-        char[] hash = Hasher.BCRYPT.hash(password);
+        // Mocked users store is initiated with default hashing algorithm
+        final Hasher hasher = HasherFactory.getHasher("bcrypt");
+        char[] hash = hasher.hash(password);
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
@@ -334,9 +344,11 @@ public class ReservedRealmTests extends ESTestCase {
                 new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
         SecureString password = new SecureString("password".toCharArray());
+        // Mocked users store is initiated with default hashing algorithm
+        final Hasher hasher = HasherFactory.getHasher("bcrypt");
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            char[] hash = Hasher.BCRYPT.hash(password);
+            char[] hash = hasher.hash(password);
             ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
             callback.onResponse(userInfo);
             return null;

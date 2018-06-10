@@ -77,7 +77,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         Set<String> addedUsers = new HashSet(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
             String uname = randomAlphaOfLength(5);
-            c.preparePutUser(uname, "s3kirt".toCharArray(), "role1", "user").get();
+            c.preparePutUser(uname, "s3kirt".toCharArray(), SecuritySettingsSource.HASHING_ALGORITHM, "role1", "user").get();
             addedUsers.add(uname);
         }
         logger.error("--> waiting for .security index");

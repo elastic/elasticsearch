@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -61,7 +62,8 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         final String refresh = request.param("refresh");
         return channel ->
                 new SecurityClient(client)
-                        .prepareChangePassword(username, request.requiredContent(), request.getXContentType())
+                    .prepareChangePassword(username, request.requiredContent(), request.getXContentType(), XPackSettings
+                        .PASSWORD_HASHING_ALGORITHM.get(settings))
                         .setRefreshPolicy(refresh)
                         .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
                             @Override

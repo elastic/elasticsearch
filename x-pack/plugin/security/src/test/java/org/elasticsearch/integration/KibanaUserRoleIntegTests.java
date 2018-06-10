@@ -19,9 +19,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Locale;
@@ -40,7 +43,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("change_me".toCharArray())));
 
     @Override
     public String configRoles() {
@@ -55,15 +57,22 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configUsers() {
+        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
+        final String usersPasswdHashed = new String(hasher.hash(USERS_PASSWD));
         return super.configUsers() +
-                "kibana_user:" + USERS_PASSWD_HASHED;
+                "kibana_user:" + usersPasswdHashed;
     }
 
     @Override
     public String configUsersRoles() {
+
         return super.configUsersRoles() +
                 "my_kibana_user:kibana_user\n" +
                 "kibana_user:kibana_user";
+    }
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     public void testFieldMappings() throws Exception {

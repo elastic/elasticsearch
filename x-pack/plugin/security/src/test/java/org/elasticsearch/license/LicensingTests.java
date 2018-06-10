@@ -79,11 +79,6 @@ public class LicensingTests extends SecurityIntegTestCase {
                     "    - names: 'b'\n" +
                     "      privileges: [all]\n";
 
-    public static final String USERS =
-            SecuritySettingsSource.CONFIG_STANDARD_USER +
-                    "user_a:{plain}passwd\n" +
-                    "user_b:{plain}passwd\n";
-
     public static final String USERS_ROLES =
             SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
                     "role_a:user_a,user_b\n" +
@@ -96,7 +91,9 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        return USERS;
+        return SecuritySettingsSource.CONFIG_STANDARD_USER +
+            "user_a:{plain}passwd\n" +
+            "user_b:{plain}passwd\n";
     }
 
     @Override

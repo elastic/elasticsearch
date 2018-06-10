@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -48,7 +49,8 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutUserRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutUser(request.param("username"), request.requiredContent(), request.getXContentType())
+            .preparePutUser(request.param("username"), request.requiredContent(), request.getXContentType(), XPackSettings
+                .PASSWORD_HASHING_ALGORITHM.get(settings))
                 .setRefreshPolicy(request.param("refresh"));
 
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {

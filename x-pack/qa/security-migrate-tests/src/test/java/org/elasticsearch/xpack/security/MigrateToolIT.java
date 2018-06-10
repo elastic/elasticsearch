@@ -46,7 +46,7 @@ public class MigrateToolIT extends MigrateToolTestCase {
         SecurityClient c = new SecurityClient(client);
 
         // Add an existing user so the tool will skip it
-        PutUserResponse pur = c.preparePutUser("existing", "s3kirt".toCharArray(), "role1", "user").get();
+        PutUserResponse pur = c.preparePutUser("existing", "s3kirt".toCharArray(), "bcrypt", "role1", "user").get();
         assertTrue(pur.created());
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,8 +28,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RealmSettingsTests extends ESTestCase {
-
-    private static final List<String> HASH_ALGOS = Arrays.stream(Hasher.values()).map(Hasher::name).collect(Collectors.toList());
+    private static final List<String> HASH_ALGOS = HasherFactory.getAvailableAlgorithms();
 
     public void testRealmWithoutTypeDoesNotValidate() throws Exception {
         final Settings.Builder builder = baseSettings("x", false);

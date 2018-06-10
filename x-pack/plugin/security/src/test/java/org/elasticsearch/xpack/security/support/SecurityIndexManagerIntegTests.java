@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.hamcrest.Matchers;
@@ -48,7 +49,8 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                     for (int i = 0; i < numRequests; i++) {
                         requests.add(securityClient()
                                 .preparePutUser("user" + userNumber.getAndIncrement(), "password".toCharArray(),
-                                        randomAlphaOfLengthBetween(1, 16))
+                                    SecuritySettingsSource.HASHING_ALGORITHM,
+                                    randomAlphaOfLengthBetween(1, 16))
                                 .request());
                     }
 

@@ -6,3 +6,4 @@ sha:{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w=
 # this is a comment line
 # another comment line
 bcrypt10:$2y$10$FMhmFjwU5.qxQ/BsEciS9OqcJVkFMgXMo4uH5CelOR1j4N9zIv67e
+pbkdf2:{PBKDF2}10000$3UFeVCkSNj.WeiBLqvs2W6Jrb169o9c0$aMEN8zob/LiIYEmdnlffzcaUSxr0QAUAQhxHJiFki10=

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -32,11 +33,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     private final Cache<String, ListenableFuture<Tuple<AuthenticationResult, UserWithHash>>> cache;
     private final ThreadPool threadPool;
-    final Hasher hasher;
+    final Hasher cacheHasher;
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
         super(type, config);
-        hasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()), Hasher.SSHA256);
+        cacheHasher = HasherFactory.getHasher(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()));
         this.threadPool = threadPool;
         TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {
@@ -102,7 +103,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     if (result.isAuthenticated()) {
                         final User user = result.getUser();
                         authenticatedUser.set(user);
-                        final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), hasher);
+                        final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), cacheHasher);
                         future.onResponse(new Tuple<>(result, userWithHash));
                     } else {
                         future.onResponse(new Tuple<>(result, null));

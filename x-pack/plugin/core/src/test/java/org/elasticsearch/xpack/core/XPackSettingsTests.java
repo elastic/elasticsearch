@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 
 import javax.crypto.Cipher;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -26,5 +27,9 @@ public class XPackSettingsTests extends ESTestCase {
             logger.info("AES 256 is not available");
             assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_RSA_WITH_AES_256_CBC_SHA")));
         }
+    }
+
+    public void testDefaultHashingAlgorithm() throws Exception{
+        assertThat(XPackSettings.PASSWORD_HASHING_ALGORITHM, equalTo("bcrypt"));
     }
 }

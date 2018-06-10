@@ -187,12 +187,13 @@ public class SecurityClient {
         client.execute(DeleteUserAction.INSTANCE, request, listener);
     }
 
-    public PutUserRequestBuilder preparePutUser(String username, BytesReference source, XContentType xContentType) throws IOException {
-        return new PutUserRequestBuilder(client).source(username, source, xContentType);
+    public PutUserRequestBuilder preparePutUser(String username, BytesReference source, XContentType xContentType, String hashingAlgorithm)
+        throws IOException {
+        return new PutUserRequestBuilder(client).source(username, source, xContentType, hashingAlgorithm);
     }
 
-    public PutUserRequestBuilder preparePutUser(String username, char[] password, String... roles) {
-        return new PutUserRequestBuilder(client).username(username).password(password).roles(roles);
+    public PutUserRequestBuilder preparePutUser(String username, char[] password, String hashingAlgorithm, String... roles) {
+        return new PutUserRequestBuilder(client).username(username).password(password, hashingAlgorithm).roles(roles);
     }
 
     public void putUser(PutUserRequest request, ActionListener<PutUserResponse> listener) {
@@ -203,13 +204,13 @@ public class SecurityClient {
      * Populates the {@link ChangePasswordRequest} with the username and password. Note: the passed in char[] will be cleared by this
      * method.
      */
-    public ChangePasswordRequestBuilder prepareChangePassword(String username, char[] password) {
-        return new ChangePasswordRequestBuilder(client).username(username).password(password);
+    public ChangePasswordRequestBuilder prepareChangePassword(String username, char[] password, String hashingAlgorithm) {
+        return new ChangePasswordRequestBuilder(client).username(username).password(password, hashingAlgorithm);
     }
 
-    public ChangePasswordRequestBuilder prepareChangePassword(String username, BytesReference source, XContentType xContentType)
-            throws IOException {
-        return new ChangePasswordRequestBuilder(client).username(username).source(source, xContentType);
+    public ChangePasswordRequestBuilder prepareChangePassword(String username, BytesReference source, XContentType xContentType,
+                                                              String hashingAlgorithm) throws IOException {
+        return new ChangePasswordRequestBuilder(client).username(username).source(source, xContentType, hashingAlgorithm);
     }
 
     public void changePassword(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {

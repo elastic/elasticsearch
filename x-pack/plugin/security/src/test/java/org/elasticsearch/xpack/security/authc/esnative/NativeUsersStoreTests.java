@@ -24,9 +24,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -108,6 +110,8 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
         final Map<String, Object> values = new HashMap<>();
+        //startNativeUsersStore creates a NativeUsersStore with empty settings so default hashing algorithm will be used
+        final Hasher hasher = HasherFactory.getHasher("bcrypt");
         values.put(ENABLED_FIELD, Boolean.TRUE);
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
@@ -128,7 +132,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
         assertThat(userInfo.hasEmptyPassword, equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
-        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.EMPTY_PASSWORD_HASH));
+        assertTrue(hasher.verify(new SecureString("".toCharArray()), userInfo.passwordHash));
     }
 
     public void testVerifyUserWithCorrectPassword() throws Exception {
@@ -214,9 +218,11 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {
+        // Native users store is initiated with default hashing algorithm
+        final Hasher hasher = HasherFactory.getHasher("bcrypt");
         final Map<String, Object> values = new HashMap<>();
         values.put(User.Fields.USERNAME.getPreferredName(), username);
-        values.put(User.Fields.PASSWORD.getPreferredName(), String.valueOf(Hasher.BCRYPT.hash(password)));
+        values.put(User.Fields.PASSWORD.getPreferredName(), String.valueOf(hasher.hash(password)));
         values.put(User.Fields.ROLES.getPreferredName(), roles);
         values.put(User.Fields.ENABLED.getPreferredName(), Boolean.TRUE);
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);

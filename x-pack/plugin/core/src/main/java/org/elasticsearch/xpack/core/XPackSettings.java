@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -20,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 
@@ -106,6 +107,19 @@ public class XPackSettings {
         DEFAULT_CIPHERS = ciphers;
     }
 
+    /*
+     * Do not allow insecure hashing algorithms to be used for password hashing
+     */
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
+        SecurityField.setting("authc.password_hashing.algorithm"), "bcrypt", Function.identity(), (v, s) -> {
+        if (Pattern.compile("bcrypt\\d{0,2}").matcher(v).matches() == false && v.equals("pbkdf2") == false) {
+            throw new IllegalArgumentException("Invalid algorithm: "+ v +". Only pbkdf2 or bcrypt family algorithms can be used for " +
+                "password hashing.");
+        }
+    }, Setting.Property.NodeScope);
+    public static final Setting<Integer> PASSWORD_HASHING_COST = Setting.intSetting(
+        SecurityField.setting("authc.password_hashing.cost"), -1, Setting.Property.NodeScope);
+
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
@@ -144,6 +158,8 @@ public class XPackSettings {
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);
+        settings.add(PASSWORD_HASHING_ALGORITHM);
+        settings.add(PASSWORD_HASHING_COST);
         return Collections.unmodifiableList(settings);
     }
 

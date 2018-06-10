@@ -77,7 +77,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  */
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
-    private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
+    protected static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
     protected static SecureString BOOTSTRAP_PASSWORD = null;
 
     /**
@@ -87,7 +87,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
-
 
     @BeforeClass
     public static void generateBootstrapPassword() {

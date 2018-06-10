@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -32,8 +33,6 @@ import java.util.Objects;
 
 public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse>
         implements WriteRequestBuilder<PutUserRequestBuilder> {
-
-    private final Hasher hasher = Hasher.BCRYPT;
 
     public PutUserRequestBuilder(ElasticsearchClient client) {
         this(client, PutUserAction.INSTANCE);
@@ -53,7 +52,12 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder password(@Nullable char[] password) {
+    public PutUserRequestBuilder password(@Nullable char[] password, String hashingAlgorithm) {
+        final Hasher hasher = HasherFactory.getHasher(hashingAlgorithm);
+        return password(password, hasher);
+    }
+
+    private PutUserRequestBuilder password(char[] password, Hasher hasher) {
         if (password != null) {
             Validation.Error error = Validation.Users.validatePassword(password);
             if (error != null) {
@@ -96,7 +100,8 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
     /**
      * Populate the put user request using the given source and username
      */
-    public PutUserRequestBuilder source(String username, BytesReference source, XContentType xContentType) throws IOException {
+    public PutUserRequestBuilder source(String username, BytesReference source, XContentType xContentType, String hashingAlgorithm) throws
+        IOException {
         Objects.requireNonNull(xContentType);
         username(username);
         // EMPTY is ok here because we never call namedObject
@@ -113,7 +118,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
                         char[] passwordChars = password.toCharArray();
-                        password(passwordChars);
+                        password(passwordChars, hashingAlgorithm);
                         Arrays.fill(passwordChars, (char) 0);
                     } else {
                         throw new ElasticsearchParseException(

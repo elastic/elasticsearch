@@ -21,7 +21,7 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -57,8 +58,10 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public static final Settings DEFAULT_SETTINGS = Settings.EMPTY;
 
     public static final String TEST_USER_NAME = "test_user";
+    public static final String HASHING_ALGORITHM = randomFrom("pbkdf2", "bcrypt");
+    private static final Hasher hasher = HasherFactory.getHasher(HASHING_ALGORITHM);
     public static final String TEST_PASSWORD_HASHED =
-        new String(Hasher.BCRYPT.hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        new String(hasher.hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
 
@@ -89,7 +92,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     private final boolean usePEM;
 
     /**
-     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
+     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.//UsersTool
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslEnabled whether ssl is enabled
@@ -103,6 +106,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.sslEnabled = sslEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
         this.usePEM = randomBoolean();
+
     }
 
     Path nodePath(final int nodeOrdinal) {
@@ -134,7 +138,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
                 .put("xpack.security.authc.realms.index.type", NativeRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.index.order", "1");
+            .put("xpack.security.authc.realms.index.order", "1")
+            .put("xpack.security.authc.password_hashing.algorithm", HASHING_ALGORITHM);
         addNodeSSLSettings(builder);
         return builder.build();
     }

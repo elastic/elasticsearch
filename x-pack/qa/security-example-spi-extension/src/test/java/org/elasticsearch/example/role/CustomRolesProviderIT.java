@@ -52,7 +52,7 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
 
     public void setupTestUser(String role) {
         SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser(TEST_USER, TEST_PWD.toCharArray(), role).get();
+        securityClient.preparePutUser(TEST_USER, TEST_PWD.toCharArray(), "bcrypt", role).get();
     }
 
     public void testAuthorizedCustomRoleSucceeds() throws Exception {

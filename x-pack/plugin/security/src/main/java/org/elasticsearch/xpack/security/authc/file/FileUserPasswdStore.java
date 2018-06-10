@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
@@ -46,10 +47,9 @@ public class FileUserPasswdStore {
     private final Logger logger;
 
     private final Path file;
-    private final Hasher hasher = Hasher.BCRYPT;
     private final Settings settings;
     private final CopyOnWriteArrayList<Runnable> listeners;
-
+    private final Hasher hasher;
     private volatile Map<String, char[]> users;
 
     public FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService) {
@@ -62,6 +62,9 @@ public class FileUserPasswdStore {
         settings = config.globalSettings();
         users = parseFileLenient(file, logger, settings);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
+        this.hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), XPackSettings.PASSWORD_HASHING_COST
+            .get
+                (settings));
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
@@ -91,7 +94,7 @@ public class FileUserPasswdStore {
     }
 
     public boolean userExists(String username) {
-        return users.containsKey(username);
+        return users != null && users.containsKey(username);
     }
 
     public static Path resolveFile(Environment env) {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -41,22 +42,23 @@ public class ChangePasswordRequestBuilder
         return this;
     }
 
-    public static char[] validateAndHashPassword(SecureString password) {
+    public static char[] validateAndHashPassword(SecureString password, String hashingAlgorithm) {
+        final Hasher hasher = HasherFactory.getHasher(hashingAlgorithm);
         Validation.Error error = Validation.Users.validatePassword(password.getChars());
         if (error != null) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationError(error.toString());
             throw validationException;
         }
-        return Hasher.BCRYPT.hash(password);
+        return hasher.hash(password);
     }
 
     /**
      * Sets the password. Note: the char[] passed to this method will be cleared.
      */
-    public ChangePasswordRequestBuilder password(char[] password) {
+    public ChangePasswordRequestBuilder password(char[] password, String hashingAlgorithm) {
         try (SecureString secureString = new SecureString(password)) {
-            char[] hash = validateAndHashPassword(secureString);
+            char[] hash = validateAndHashPassword(secureString, hashingAlgorithm);
             request.passwordHash(hash);
         }
         return this;
@@ -65,7 +67,8 @@ public class ChangePasswordRequestBuilder
     /**
      * Populate the change password request from the source in the provided content type
      */
-    public ChangePasswordRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
+    public ChangePasswordRequestBuilder source(BytesReference source, XContentType xContentType, String hashingAlgorithm) throws
+        IOException {
         // EMPTY is ok here because we never call namedObject
         try (InputStream stream = source.streamInput();
              XContentParser parser = xContentType.xContent()
@@ -80,7 +83,7 @@ public class ChangePasswordRequestBuilder
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
                         final char[] passwordChars = password.toCharArray();
-                        password(passwordChars);
+                        password(passwordChars, hashingAlgorithm);
                         assert CharBuffer.wrap(passwordChars).chars().noneMatch((i) -> (char) i != (char) 0) : "expected password to " +
                                 "clear the char[] but it did not!";
                     } else {

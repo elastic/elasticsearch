@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
@@ -124,7 +125,8 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users.containsKey(username)) {
                 throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
-            Hasher hasher = Hasher.BCRYPT;
+            final Hasher hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()),
+                XPackSettings.PASSWORD_HASHING_COST.get(env.settings()));
             users = new HashMap<>(users); // make modifiable
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, passwordFile);
@@ -228,7 +230,9 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
-            users.put(username, Hasher.BCRYPT.hash(new SecureString(password)));
+            final Hasher hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()),
+                XPackSettings.PASSWORD_HASHING_COST.get(env.settings()));
+            users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, file);
 
             attributesChecker.check(terminal);

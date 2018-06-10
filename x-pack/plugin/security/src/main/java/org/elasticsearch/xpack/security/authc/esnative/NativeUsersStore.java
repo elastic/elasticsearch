@@ -36,6 +36,7 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -75,13 +77,14 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  */
 public class NativeUsersStore extends AbstractComponent {
 
+
     public static final String INDEX_TYPE = "doc";
     static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
-
-
-    private final Hasher hasher = Hasher.BCRYPT;
+    private final Hasher hasher;
     private final Client client;
+    private final ReservedUserInfo disabledDefaultUserInfo;
+    private final ReservedUserInfo enabledDefaultUserInfo;
 
     private final SecurityIndexManager securityIndex;
 
@@ -89,6 +92,11 @@ public class NativeUsersStore extends AbstractComponent {
         super(settings);
         this.client = client;
         this.securityIndex = securityIndex;
+        this.hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), XPackSettings.PASSWORD_HASHING_COST
+            .get(settings));
+        final char[] emptyPasswordHash = hasher.hash(new SecureString("".toCharArray()));
+        this.disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
+        this.enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
     }
 
     /**
@@ -514,8 +522,7 @@ public class NativeUsersStore extends AbstractComponent {
                                         } else if (enabled == null) {
                                             listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                         } else if (password.isEmpty()) {
-                                            listener.onResponse((enabled ? ReservedRealm.ENABLED_DEFAULT_USER_INFO : ReservedRealm
-                                                    .DISABLED_DEFAULT_USER_INFO).deepClone());
+                                            listener.onResponse((enabled ? enabledDefaultUserInfo : disabledDefaultUserInfo).deepClone());
                                         } else {
                                             listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled, false));
                                         }

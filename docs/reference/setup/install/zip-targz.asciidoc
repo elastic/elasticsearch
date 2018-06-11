@@ -85,7 +85,7 @@ ifdef::include-xpack[]
 ==== Enable automatic creation of {xpack} indices
 
 {xpack} will try to automatically create a number of indices within {es}.
-include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
+include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 

@@ -21,14 +21,11 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.JavaVersion
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'ru.vyarus.animalsniffer'
 
 sourceCompatibility = JavaVersion.VERSION_1_7
 targetCompatibility = JavaVersion.VERSION_1_7
 
 dependencies {
-    signature "org.codehaus.mojo.signature:java17:1.0@signature"
-
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"

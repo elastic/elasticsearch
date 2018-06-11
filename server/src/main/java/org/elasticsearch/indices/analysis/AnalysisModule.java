@@ -29,25 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.ArabicAnalyzerProvider;
-import org.elasticsearch.index.analysis.ArmenianAnalyzerProvider;
-import org.elasticsearch.index.analysis.BasqueAnalyzerProvider;
-import org.elasticsearch.index.analysis.BengaliAnalyzerProvider;
-import org.elasticsearch.index.analysis.BrazilianAnalyzerProvider;
-import org.elasticsearch.index.analysis.BulgarianAnalyzerProvider;
-import org.elasticsearch.index.analysis.CatalanAnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.ChineseAnalyzerProvider;
-import org.elasticsearch.index.analysis.CjkAnalyzerProvider;
-import org.elasticsearch.index.analysis.CzechAnalyzerProvider;
-import org.elasticsearch.index.analysis.DanishAnalyzerProvider;
-import org.elasticsearch.index.analysis.DutchAnalyzerProvider;
-import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
-import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
-import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
-import org.elasticsearch.index.analysis.FrenchAnalyzerProvider;
-import org.elasticsearch.index.analysis.GalicianAnalyzerProvider;
-import org.elasticsearch.index.analysis.GermanAnalyzerProvider;
 import org.elasticsearch.index.analysis.GreekAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiAnalyzerProvider;
 import org.elasticsearch.index.analysis.HungarianAnalyzerProvider;
@@ -59,9 +41,9 @@ import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
 import org.elasticsearch.index.analysis.LatvianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
-import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -69,11 +51,9 @@ import org.elasticsearch.index.analysis.RomanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.RussianAnalyzerProvider;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
-import org.elasticsearch.index.analysis.SnowballAnalyzerProvider;
 import org.elasticsearch.index.analysis.SoraniAnalyzerProvider;
 import org.elasticsearch.index.analysis.SpanishAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopAnalyzerProvider;
@@ -122,11 +102,12 @@ public final class AnalysisModule {
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
         Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = setupPreConfiguredTokenizers(plugins);
+        Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers = setupPreBuiltAnalyzerProviderFactories(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment,
                 charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers.getRegistry(),
                 analyzers.getRegistry(), normalizers.getRegistry(),
-                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
+                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers, preConfiguredAnalyzers);
     }
 
     HunspellService getHunspellService() {
@@ -160,6 +141,16 @@ public final class AnalysisModule {
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreBuiltAnalyzerProviderFactory> setupPreBuiltAnalyzerProviderFactories(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreBuiltAnalyzerProviderFactory> preConfiguredCharFilters = new NamedRegistry<>("pre-built analyzer");
+        for (AnalysisPlugin plugin : plugins) {
+            for (PreBuiltAnalyzerProviderFactory factory : plugin.getPreBuiltAnalyzerProviderFactories()) {
+                preConfiguredCharFilters.register(factory.getName(), factory);
+            }
+        }
+        return unmodifiableMap(preConfiguredCharFilters.getRegistry());
     }
 
     static Map<String, PreConfiguredCharFilter> setupPreConfiguredCharFilters(List<AnalysisPlugin> plugins) {
@@ -232,30 +223,10 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = new NamedRegistry<>("analyzer");
         analyzers.register("default", StandardAnalyzerProvider::new);
         analyzers.register("standard", StandardAnalyzerProvider::new);
-        analyzers.register("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.register("simple", SimpleAnalyzerProvider::new);
         analyzers.register("stop", StopAnalyzerProvider::new);
         analyzers.register("whitespace", WhitespaceAnalyzerProvider::new);
         analyzers.register("keyword", KeywordAnalyzerProvider::new);
-        analyzers.register("pattern", PatternAnalyzerProvider::new);
-        analyzers.register("snowball", SnowballAnalyzerProvider::new);
-        analyzers.register("arabic", ArabicAnalyzerProvider::new);
-        analyzers.register("armenian", ArmenianAnalyzerProvider::new);
-        analyzers.register("basque", BasqueAnalyzerProvider::new);
-        analyzers.register("bengali", BengaliAnalyzerProvider::new);
-        analyzers.register("brazilian", BrazilianAnalyzerProvider::new);
-        analyzers.register("bulgarian", BulgarianAnalyzerProvider::new);
-        analyzers.register("catalan", CatalanAnalyzerProvider::new);
-        analyzers.register("chinese", ChineseAnalyzerProvider::new);
-        analyzers.register("cjk", CjkAnalyzerProvider::new);
-        analyzers.register("czech", CzechAnalyzerProvider::new);
-        analyzers.register("danish", DanishAnalyzerProvider::new);
-        analyzers.register("dutch", DutchAnalyzerProvider::new);
-        analyzers.register("english", EnglishAnalyzerProvider::new);
-        analyzers.register("finnish", FinnishAnalyzerProvider::new);
-        analyzers.register("french", FrenchAnalyzerProvider::new);
-        analyzers.register("galician", GalicianAnalyzerProvider::new);
-        analyzers.register("german", GermanAnalyzerProvider::new);
         analyzers.register("greek", GreekAnalyzerProvider::new);
         analyzers.register("hindi", HindiAnalyzerProvider::new);
         analyzers.register("hungarian", HungarianAnalyzerProvider::new);
@@ -274,7 +245,6 @@ public final class AnalysisModule {
         analyzers.register("swedish", SwedishAnalyzerProvider::new);
         analyzers.register("turkish", TurkishAnalyzerProvider::new);
         analyzers.register("thai", ThaiAnalyzerProvider::new);
-        analyzers.register("fingerprint", FingerprintAnalyzerProvider::new);
         analyzers.extractAndRegister(plugins, AnalysisPlugin::getAnalyzers);
         return analyzers;
     }

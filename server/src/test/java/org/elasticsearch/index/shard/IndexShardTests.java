@@ -78,6 +78,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.Segment;
@@ -857,7 +858,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replicaShard, primaryShard);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i <= maxSeqNo; i++) {
-            primaryShard.getEngine().getLocalCheckpointTracker().generateSeqNo();
+            EngineTestCase.generateNewSeqNo(primaryShard.getEngine());
         }
         final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
 
@@ -1897,8 +1898,13 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         closeShards(shard);
         IndexShard newShard = newShard(
-            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER);
+                ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
+                shard.shardPath(),
+                shard.indexSettings().getIndexMetaData(),
+                wrapper,
+                new InternalEngineFactory(),
+                () -> {},
+                EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 
@@ -2044,8 +2050,13 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(shard);
         IndexShard newShard = newShard(
-            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER);
+                ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
+                shard.shardPath(),
+                shard.indexSettings().getIndexMetaData(),
+                wrapper,
+                new InternalEngineFactory(),
+                () -> {},
+                EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 

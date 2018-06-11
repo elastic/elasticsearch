@@ -165,7 +165,7 @@ public abstract class MappedFieldType extends FieldType {
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
+        if (indexed != mergeWithIndexed) {
             conflicts.add("mapper [" + name() + "] has different [index] values");
         }
         if (stored() != other.stored()) {

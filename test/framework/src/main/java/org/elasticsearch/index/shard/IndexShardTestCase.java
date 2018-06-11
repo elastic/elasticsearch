@@ -591,7 +591,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             }
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
-                shard.getEngine().getLocalCheckpointTracker().getCheckpoint());
+                shard.getLocalCheckpoint());
         } else {
             result = shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
                 VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
@@ -612,8 +612,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final Engine.DeleteResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
-            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
-                shard.getEngine().getLocalCheckpointTracker().getCheckpoint());
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
         } else {
             result = shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id, VersionType.EXTERNAL);
         }

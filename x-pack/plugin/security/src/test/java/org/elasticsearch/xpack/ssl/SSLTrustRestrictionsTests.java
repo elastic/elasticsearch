@@ -28,6 +28,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
@@ -35,6 +36,8 @@ import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -46,11 +49,6 @@ import static org.hamcrest.Matchers.is;
 @TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
-    /**
-     * Use a small keysize for performance, since the keys are only used in this test, but a large enough keysize
-     * to get past the SSL algorithm checker
-     */
-
     private static final int RESOURCE_RELOAD_MILLIS = 3;
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
 
@@ -61,6 +59,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private static CertificateInfo trustedCert;
     private static CertificateInfo untrustedCert;
     private static Path restrictionsPath;
+    private static Path restrictionsTmpPath;
 
     @Override
     protected int maxNumberOfNodes() {
@@ -124,6 +123,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");
+        restrictionsTmpPath = configPath.resolve("trust_restrictions.tmp");
+
         writeRestrictions("*.trusted");
         builder.put("xpack.ssl.trust_restrictions.path", restrictionsPath);
         builder.put("resource.reload.interval.high", RESOURCE_RELOAD_MILLIS + "ms");
@@ -133,7 +134,12 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     private void writeRestrictions(String trustedPattern) {
         try {
-            Files.write(restrictionsPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
+            Files.write(restrictionsTmpPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
+            try {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException e) {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }

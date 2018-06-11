@@ -721,7 +721,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public Collection<String> simpleMatchToIndexNames(String pattern) {
+    public Collection<String> simpleMatchToFullName(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
             return Collections.singletonList(pattern);

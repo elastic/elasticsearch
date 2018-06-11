@@ -78,16 +78,14 @@ public class ElasticsearchCluster {
     public void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {
-            logger.lifecycle("Asked to unClaimAndStop {}, since cluster still has {} claim it will not be stopped",
-                name, decrementedClaims
-            );
+            logger.lifecycle("Not stopping {}, since cluster still has {} claim(s)",name, decrementedClaims);
             return;
         }
         if (started.get() == false) {
             logger.lifecycle("Asked to unClaimAndStop, but cluster was not running: {}", name);
             return;
         }
-        logger.lifecycle("Stopping {}, since no of claims is {}", name, decrementedClaims);
+        logger.lifecycle("Stopping {}, number of claims is {}", name, decrementedClaims);
     }
 
     @Override

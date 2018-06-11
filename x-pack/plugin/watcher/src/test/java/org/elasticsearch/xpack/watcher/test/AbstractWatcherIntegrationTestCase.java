@@ -31,7 +31,6 @@ import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -40,6 +39,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
@@ -94,7 +94,7 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 3)
-public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
+public abstract class AbstractWatcherIntegrationTestCase extends XPackIntegTestCase {
 
     public static final String WATCHER_LANG = Script.DEFAULT_SCRIPT_LANG;
 

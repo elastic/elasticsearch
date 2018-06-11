@@ -38,6 +38,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import org.elasticsearch.test.Netty4TestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -59,7 +60,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -94,7 +94,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the {@link Netty4HttpServerTransport} class.
  */
-public class Netty4HttpServerTransportTests extends ESTestCase {
+public class Netty4HttpServerTransportTests extends Netty4TestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;

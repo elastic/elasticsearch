@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.netty4;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import org.elasticsearch.test.ObjectCleanerThreadThreadFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,6 +51,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,

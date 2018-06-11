@@ -17,18 +17,22 @@
  * under the License.
  */
 
-grant codeBase "${codebase.netty-common}" {
-   // for reading the system-wide configuration for the backlog of established sockets
-   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+package org.elasticsearch.test;
 
-   permission java.lang.RuntimePermission "setContextClassLoader";
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 
-   // netty makes and accepts socket connections
-   permission java.net.SocketPermission "*", "accept,connect";
-};
+/**
+ * The Netty object cleaner thread is not closeable and it does not terminate in a timely manner. This means that thread leak control in
+ * tests will fail test suites when the object cleaner thread has not terminated. Since there is not a reliable way to terminate this thread
+ * we instead filter it out of thread leak control.
+ */
+public class ObjectCleanerThreadThreadFilter implements ThreadFilter {
 
-grant codeBase "${codebase.netty-transport}" {
-   // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
-   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
-   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
-};
+    @Override
+    public boolean reject(final Thread t) {
+        // TODO: replace with constant from Netty when https://github.com/netty/netty/pull/8014 is integrated
+        return "ObjectCleanerThread".equals(t.getName());
+    }
+
+}
+

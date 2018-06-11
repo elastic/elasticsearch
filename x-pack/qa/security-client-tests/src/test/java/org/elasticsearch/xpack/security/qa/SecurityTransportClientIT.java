@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.qa;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -15,10 +16,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.test.ObjectCleanerThreadThreadFilter;
+import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -32,7 +34,9 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration tests that test a transport client with security being loaded that connect to an external cluster
  */
-public class SecurityTransportClientIT extends ESIntegTestCase {
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
+public class SecurityTransportClientIT extends XPackIntegTestCase {
+
     static final String ADMIN_USER_PW = "test_user:x-pack-test-password";
     static final String TRANSPORT_USER_PW = "transport:x-pack-test-password";
 

@@ -17,18 +17,16 @@
  * under the License.
  */
 
-grant codeBase "${codebase.netty-common}" {
-   // for reading the system-wide configuration for the backlog of established sockets
-   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+package org.elasticsearch.index.reindex.test;
 
-   permission java.lang.RuntimePermission "setContextClassLoader";
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 
-   // netty makes and accepts socket connections
-   permission java.net.SocketPermission "*", "accept,connect";
-};
+public class ObjectCleanerThreadThreadFilter implements ThreadFilter {
 
-grant codeBase "${codebase.netty-transport}" {
-   // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
-   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
-   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
-};
+    @Override
+    public boolean reject(final Thread t) {
+        // TODO: replace with constant from Netty when https://github.com/netty/netty/pull/8014 is integrated
+        return "ObjectCleanerThread".equals(t.getName());
+    }
+
+}

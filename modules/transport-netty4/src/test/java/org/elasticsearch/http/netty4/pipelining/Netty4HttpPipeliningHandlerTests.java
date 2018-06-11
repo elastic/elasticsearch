@@ -37,7 +37,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.Netty4TestCase;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;
@@ -60,7 +60,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;
 
-public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
+public class Netty4HttpPipeliningHandlerTests extends Netty4TestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
     private final Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();

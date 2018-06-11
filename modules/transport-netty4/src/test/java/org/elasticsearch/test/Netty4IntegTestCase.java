@@ -16,19 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch;
 
+package org.elasticsearch.test;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 
 import java.util.Arrays;
 import java.util.Collection;
 
-public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
+public abstract class Netty4IntegTestCase extends ESIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {

@@ -81,6 +81,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -147,7 +148,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {});
-            replicas = new ArrayList<>();
+            replicas = new CopyOnWriteArrayList<>();
             this.indexMetaData = indexMetaData;
             updateAllocationIDsOnPrimary();
             for (int i = 0; i < indexMetaData.getNumberOfReplicas(); i++) {

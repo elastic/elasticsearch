@@ -66,7 +66,7 @@ public interface NodeSelector {
     /**
      * Selector that matches any node that has metadata and doesn't
      * have the {@code master} role OR it has the data {@code data}
-     * role. It does not reorder the nodes sent to it.
+     * role.
      */
     NodeSelector NOT_MASTER_ONLY = new NodeSelector() {
         @Override

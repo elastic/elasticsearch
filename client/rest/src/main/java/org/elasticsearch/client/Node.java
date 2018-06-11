@@ -156,6 +156,24 @@ public class Node {
         return b.append(']').toString();
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        Node other = (Node) obj;
+        return host.equals(other.host)
+            && Objects.equals(boundHosts, other.boundHosts)
+            && Objects.equals(version, other.version)
+            && Objects.equals(name, other.name)
+            && Objects.equals(roles, other.roles);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(host, boundHosts, name, version, roles);
+    }
+
     /**
      * Role information about an Elasticsearch process.
      */

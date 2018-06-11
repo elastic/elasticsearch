@@ -31,7 +31,6 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -56,7 +55,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
@@ -112,11 +111,11 @@ public class SnifferTests extends RestClientTestCase {
                             fail("should have failed given that nodesSniffer says it threw an exception");
                         } else if (nodesSniffer.emptyList.get() > emptyList) {
                             emptyList++;
-                            assertNodesEquals(lastNodes, restClient.getNodes());
+                            assertEquals(lastNodes, restClient.getNodes());
                         } else {
-                            assertNotSame(lastNodes, restClient.getNodes());
+                            assertNotEquals(lastNodes, restClient.getNodes());
                             List<Node> expectedNodes = CountingNodesSniffer.buildNodes(runs);
-                            assertNodesEquals(expectedNodes, restClient.getNodes());
+                            assertEquals(expectedNodes, restClient.getNodes());
                             lastNodes = restClient.getNodes();
                         }
                     } catch(IOException e) {
@@ -653,24 +652,5 @@ public class SnifferTests extends RestClientTestCase {
         verify(executor, times(2)).shutdown();
         verify(executor, times(2)).awaitTermination(1000, TimeUnit.MILLISECONDS);
         verifyNoMoreInteractions(executor);
-    }
-
-    static final void assertNodesEquals(List<Node> expected, List<Node> actual) {
-        try {
-            assertEquals(expected.size(), actual.size());
-            Iterator<Node> expectedItr = expected.iterator();
-            Iterator<Node> actualItr = actual.iterator();
-            while (expectedItr.hasNext()) {
-                Node expectedNode = expectedItr.next();
-                Node actualNode = actualItr.next();
-                assertEquals(expectedNode.getHost(), actualNode.getHost());
-                assertEquals(expectedNode.getBoundHosts(), actualNode.getBoundHosts());
-                assertEquals(expectedNode.getName(), actualNode.getName());
-                assertEquals(expectedNode.getVersion(), actualNode.getVersion());
-                assertEquals(expectedNode.getRoles(), actualNode.getRoles());
-            }
-        } catch (AssertionError e) {
-            throw new AssertionError("nodes differ, expected: " + expected + " but was: " + actual, e);
-        }
     }
 }

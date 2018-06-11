@@ -30,16 +30,12 @@ import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer.Scheme;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import com.fasterxml.jackson.core.JsonFactory;
 
-import static org.elasticsearch.client.sniff.SnifferTests.assertNodesEquals;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
@@ -57,14 +53,11 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
         try {
             HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
             List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
-            // Sort he list so the error messages are easier to read.
-            Collections.sort(nodes, new Comparator<Node>() {
-                @Override
-                public int compare(Node lhs, Node rhs) {
-                    return lhs.getName().compareTo(rhs.getName());
-                }
-            });
-            assertNodesEquals(Arrays.asList(expected), nodes);
+            // Use these assertions because the error messages are nicer than hasItems.
+            assertThat(nodes, hasSize(expected.length));
+            for (Node expectedNode : expected) {
+                assertThat(nodes, hasItem(expectedNode));
+            }
         } finally {
             in.close();
         }
@@ -72,38 +65,38 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
 
     public void test2x() throws IOException {
         checkFile("2.0.0_nodes_http.json",
-                node(9207, "c1", "2.0.0", false, false, false),
-                node(9206, "c2", "2.0.0", false, false, false),
+                node(9200, "m1", "2.0.0", true, false, false),
+                node(9202, "m2", "2.0.0", true, true, false),
+                node(9201, "m3", "2.0.0", true, false, false),
                 node(9205, "d1", "2.0.0", false, true, false),
                 node(9204, "d2", "2.0.0", false, true, false),
                 node(9203, "d3", "2.0.0", false, true, false),
-                node(9200, "m1", "2.0.0", true, false, false),
-                node(9202, "m2", "2.0.0", true, true, false),
-                node(9201, "m3", "2.0.0", true, false, false));
+                node(9207, "c1", "2.0.0", false, false, false),
+                node(9206, "c2", "2.0.0", false, false, false));
     }
 
     public void test5x() throws IOException {
         checkFile("5.0.0_nodes_http.json",
-                node(9206, "c1", "5.0.0", false, false, true),
-                node(9207, "c2", "5.0.0", false, false, true),
+                node(9200, "m1", "5.0.0", true, false, true),
+                node(9201, "m2", "5.0.0", true, true, true),
+                node(9202, "m3", "5.0.0", true, false, true),
                 node(9203, "d1", "5.0.0", false, true, true),
                 node(9204, "d2", "5.0.0", false, true, true),
                 node(9205, "d3", "5.0.0", false, true, true),
-                node(9200, "m1", "5.0.0", true, false, true),
-                node(9201, "m2", "5.0.0", true, true, true),
-                node(9202, "m3", "5.0.0", true, false, true));
+                node(9206, "c1", "5.0.0", false, false, true),
+                node(9207, "c2", "5.0.0", false, false, true));
     }
 
     public void test6x() throws IOException {
         checkFile("6.0.0_nodes_http.json",
-                node(9206, "c1", "6.0.0", false, false, true),
-                node(9207, "c2", "6.0.0", false, false, true),
+                node(9200, "m1", "6.0.0", true, false, true),
+                node(9201, "m2", "6.0.0", true, true, true),
+                node(9202, "m3", "6.0.0", true, false, true),
                 node(9203, "d1", "6.0.0", false, true, true),
                 node(9204, "d2", "6.0.0", false, true, true),
                 node(9205, "d3", "6.0.0", false, true, true),
-                node(9200, "m1", "6.0.0", true, false, true),
-                node(9201, "m2", "6.0.0", true, true, true),
-                node(9202, "m3", "6.0.0", true, false, true));
+                node(9206, "c1", "6.0.0", false, false, true),
+                node(9207, "c2", "6.0.0", false, false, true));
     }
 
     private Node node(int port, String name, String version, boolean master, boolean data, boolean ingest) {

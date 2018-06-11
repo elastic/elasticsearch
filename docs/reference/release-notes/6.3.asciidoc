@@ -25,9 +25,6 @@
 //=== Enhancements
 
 //[float]
-//=== Bug Fixes
-
-//[float]
 //=== Regressions
 
 //[float]
@@ -64,11 +61,28 @@ elasticsearch plugin.
 //[float]
 //=== New Features
 
-//[float]
-//=== Enhancements
+[float]
+=== Enhancements
+
+Machine Learning::
+* Synchronize long and short tests for periodicity {ml-pull}62[#62]
+* Improvements to trend modelling and periodicity testing for forecasting {ml-pull}7[#7] (issue: {ml-issue}5[#5])
 
 [float]
 === Bug Fixes
+
+Machine Learning:: 
+* By-fields should respect model_plot_config.terms {ml-pull}86[#86] (issue: {issue}30004[#30004])
+* Function description for population lat_long results should be lat_long instead of mean {ml-pull}81[#81] (issue: {ml-issue}80[#80])
+* Fix error causing us to overestimate effective history length {ml-pull}66[#66] (issue: {ml-issue}57[#57])
+* Clearing JSON memory allocators {ml-pull}30[#30] (issue: {ml-issue}26[#26])
+* Fix sparse data edge cases for periodicity testing {ml-pull}28[#28] (issue: {ml-issue}20[#20])
+* Impose an absolute cutoff on the minimum variance {ml-pull}8[#8] (issue: {ml-issue}488[#488])
+* Check accesses in bounds when clearing recycled models {ml-pull}79[#79] (issue: {ml-issue}76[#76])
+* Set forecast progress to 100% and status finished in the case of insufficient history (data) {ml-pull}44[#44]
+* Add control message to start background persistence {ml-pull}19[#19]
+* Fail start up if state is missing {ml-pull}4[#4]
+* Do not log incorrect model memory limit {ml-pull}3[#3]
 
 Security::
 * Reduces the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])

@@ -1,0 +1,71 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.elasticsearch.clusterformation;
+
+import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.Plugin;
+import org.gradle.api.Project;
+import org.gradle.api.Task;
+
+public class ClusterformationPlugin implements Plugin<Project> {
+
+    public static final String LIST_TASK_NAME = "listElasticSearchClusters";
+    public static final String EXTENSION_NAME = "elasticSearchClusters";
+    public static final String TASK_EXTENSION_NAME = "clusterFormation";
+
+    @Override
+    public void apply(Project project) {
+        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
+            ElasticsearchCluster.class,
+            (name) -> new ElasticsearchCluster(name, project.getLogger())
+        );
+        project.getExtensions().add(EXTENSION_NAME, container);
+
+        Task listTask = project.getTasks().create(LIST_TASK_NAME);
+        listTask.setGroup("ES cluster formation");
+        listTask.setDescription("Lists all ES clusters configured for this project");
+        listTask.doLast((Task task) ->
+            container.forEach((ElasticsearchCluster cluster) ->
+                project.getLogger().lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
+            )
+        );
+
+        // register an extension for all current and future tasks, so that any task can declare that it wants to use a
+        // specific cluster.
+        project.getTasks().all((Task task) ->
+            task.getExtensions().create(TASK_EXTENSION_NAME, ClusterFormationTaskExtension.class, task)
+        );
+
+        // Make sure we only claim the clusters for the tasks that will actually execute
+        project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
+            taskExecutionGraph.getAllTasks().forEach(task ->
+                getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchCluster::claim)
+            )
+        );
+
+        // create the listener to start the clusters on-demand and terminate when no longer claimed.
+        // we need to use a task execution listener, as tasl
+        project.getGradle().addListener(new ClusterFormationTaskExecutionListener());
+    }
+
+    static ClusterFormationTaskExtension getTaskExtension(Task task) {
+        return task.getExtensions().getByType(ClusterFormationTaskExtension.class);
+    }
+
+}

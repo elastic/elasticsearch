@@ -58,6 +58,12 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wai
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wait-events]
+--------------------------------------------------
+<1> The priority of the events to wait for. Accepts a `Priority` value.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-level]
 --------------------------------------------------
 <1> The level of detail of the returned health information. Accepts a `ClusterHealthRequest.Level` value.

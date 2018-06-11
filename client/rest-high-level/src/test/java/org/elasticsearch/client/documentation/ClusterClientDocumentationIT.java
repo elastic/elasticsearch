@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
@@ -223,6 +224,10 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.waitForStatus(ClusterHealthStatus.YELLOW); // <1>
         request.waitForYellowStatus(); // <2>
         // end::health-request-wait-status
+
+        // tag::health-request-wait-events
+        request.waitForEvents(Priority.NORMAL); // <1>
+        // end::health-request-wait-events
 
         // tag::health-request-level
         request.level(ClusterHealthRequest.Level.SHARDS); // <1>

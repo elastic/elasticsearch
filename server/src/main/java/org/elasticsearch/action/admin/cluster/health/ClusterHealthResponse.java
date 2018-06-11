@@ -151,7 +151,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     }
 
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks,
-        int numberOfInFlightFetch, int delayedUnassignedShards, TimeValue taskMaxWaitingTime) {
+                                 int numberOfInFlightFetch, int delayedUnassignedShards, TimeValue taskMaxWaitingTime) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
@@ -165,7 +165,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
      * For XContent Parser and serialization tests
      */
     ClusterHealthResponse(String clusterName, int numberOfPendingTasks, int numberOfInFlightFetch, int delayedUnassignedShards,
-        TimeValue taskMaxWaitingTime, boolean timedOut, ClusterStateHealth clusterStateHealth) {
+                          TimeValue taskMaxWaitingTime, boolean timedOut, ClusterStateHealth clusterStateHealth) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;

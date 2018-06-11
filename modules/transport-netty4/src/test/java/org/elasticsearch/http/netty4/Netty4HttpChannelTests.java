@@ -212,7 +212,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
-            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
+            HttpHandlingSettings handlingSettings = httpServerTransport.handlingSettings;
 
             // send a response
             Netty4HttpChannel channel =
@@ -242,7 +242,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
-            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
+            HttpHandlingSettings handlingSettings = httpServerTransport.handlingSettings;
             final Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             final TestResponse response = new TestResponse(bigArrays);
@@ -261,7 +261,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
-            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
+            HttpHandlingSettings handlingSettings = httpServerTransport.handlingSettings;
             final Netty4HttpChannel channel =
                 new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
@@ -307,7 +307,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
             // send a response, the channel close status should match
             assertTrue(embeddedChannel.isOpen());
-            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
+            HttpHandlingSettings handlingSettings = httpServerTransport.handlingSettings;
             final Netty4HttpChannel channel =
                 new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());
             final TestResponse resp = new TestResponse();
@@ -334,7 +334,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
             final Netty4HttpRequest request =
                     new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
-            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
+            HttpHandlingSettings handlingSettings = httpServerTransport.handlingSettings;
 
             Netty4HttpChannel channel =
                 new Netty4HttpChannel(httpServerTransport, request, 1, handlingSettings, threadPool.getThreadContext());

@@ -20,13 +20,12 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.rest.RestResponse;
 
 import java.io.Closeable;
 
 public interface LLHttpChannel extends Closeable {
 
-    void sendResponse(RestResponse response, ActionListener<Void> listener);
+    void sendResponse(LLHttpResponse response, ActionListener<Void> listener);
 
     @Override
     void close();

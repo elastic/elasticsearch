@@ -16,18 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.http;
 
-public class HttpPipelinedRequest<R> extends AbstractHttpPipelinedMessage {
+public interface LLHttpResponse {
 
-    private final R request;
+    void addHeader(String name, String value);
 
-    HttpPipelinedRequest(int sequence, R request) {
-        super(sequence);
-        this.request = request;
-    }
+    boolean containsHeader(String name);
 
-    public R getRequest() {
-        return request;
-    }
 }

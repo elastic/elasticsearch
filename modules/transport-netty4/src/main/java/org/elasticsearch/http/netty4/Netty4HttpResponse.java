@@ -20,9 +20,9 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.http.HttpPipelinedMessage;
+import org.elasticsearch.http.AbstractHttpPipelinedMessage;
 
-public class Netty4HttpResponse extends HttpPipelinedMessage {
+public class Netty4HttpResponse extends AbstractHttpPipelinedMessage {
 
     private final FullHttpResponse response;
 

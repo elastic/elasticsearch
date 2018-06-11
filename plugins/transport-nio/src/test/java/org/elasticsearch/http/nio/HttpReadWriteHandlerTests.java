@@ -23,8 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
@@ -33,6 +31,7 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -43,6 +42,7 @@ import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -168,8 +168,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     public void testEncodeHttpResponse() throws IOException {
         prepareHandlerForResponse(handler);
 
-        FullHttpResponse fullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        NioHttpResponse pipelinedResponse = new NioHttpResponse(0, fullHttpResponse);
+        NioHttpResponse pipelinedResponse = new NioHttpResponse(HttpVersion.HTTP_1_1, RestStatus.OK, 0, BytesArray.EMPTY);
 
         SocketChannelContext context = mock(SocketChannelContext.class);
         HttpWriteOperation writeOperation = new HttpWriteOperation(context, pipelinedResponse, mock(BiConsumer.class));

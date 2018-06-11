@@ -19,15 +19,12 @@
 
 package org.elasticsearch.http.nio;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -37,7 +34,10 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -57,7 +57,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;
 
@@ -224,11 +223,10 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
         ArrayList<ChannelPromise> promises = new ArrayList<>();
         for (int i = 1; i < requests.size(); ++i) {
-            final FullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK);
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
             int sequence = requests.get(i).getSequence();
-            NioHttpResponse resp = new NioHttpResponse(sequence, httpResponse);
+            NioHttpResponse resp = new NioHttpResponse(HTTP_1_1, RestStatus.OK, sequence, BytesArray.EMPTY);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -278,9 +276,9 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
             }
 
             final String uri = decoder.path().replace("/", "");
-            final ByteBuf content = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
-            final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK, content);
-            httpResponse.headers().add(CONTENT_LENGTH, content.readableBytes());
+            final BytesReference content = new BytesArray(uri.getBytes(StandardCharsets.UTF_8));
+            final NioHttpResponse httpResponse = new NioHttpResponse(HTTP_1_1, RestStatus.OK, pipelinedRequest.getSequence(), content);
+            httpResponse.addHeader(CONTENT_LENGTH.toString(), Integer.toString(content.length()));
 
             final CountDownLatch waitingLatch = new CountDownLatch(1);
             waitingRequests.put(uri, waitingLatch);
@@ -292,7 +290,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
                     final ChannelPromise promise = ctx.newPromise();
                     eventLoopService.submit(() -> {
-                        ctx.write(new NioHttpResponse(pipelinedRequest.getSequence(), httpResponse), promise);
+                        ctx.write(httpResponse, promise);
                         finishingLatch.countDown();
                     });
                 } catch (InterruptedException e) {

@@ -27,8 +27,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipeliningAggregator;
-import org.elasticsearch.http.nio.NettyListener;
-import org.elasticsearch.http.nio.NioHttpResponse;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.List;
@@ -73,7 +71,7 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
             List<Tuple<NioHttpResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
             success = true;
             for (Tuple<NioHttpResponse, NettyListener> responseToWrite : readyResponses) {
-                ctx.write(responseToWrite.v1().getResponse(), responseToWrite.v2());
+                ctx.write(responseToWrite.v1(), responseToWrite.v2());
             }
         } catch (IllegalStateException e) {
             ctx.channel().close();

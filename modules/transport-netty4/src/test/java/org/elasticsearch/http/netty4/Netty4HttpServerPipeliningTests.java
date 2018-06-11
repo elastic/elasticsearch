@@ -136,7 +136,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         private final ExecutorService executorService;
 
         CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService, ThreadContext threadContext) {
-            super(transport, transport.httpHandlingSettings, threadContext);
+            super(transport, transport.handlingSettings, threadContext);
             this.executorService = executorService;
         }
 

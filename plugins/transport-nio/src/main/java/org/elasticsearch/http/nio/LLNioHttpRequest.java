@@ -31,7 +31,9 @@ import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.LLHttpRequest;
+import org.elasticsearch.http.LLHttpResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -46,10 +48,12 @@ public class LLNioHttpRequest implements LLHttpRequest {
     private final FullHttpRequest request;
     private final BytesReference content;
     private final HttpHeadersMap headers;
+    private final int sequence;
 
-    LLNioHttpRequest(FullHttpRequest request) {
+    LLNioHttpRequest(FullHttpRequest request, int sequence) {
         this.request = request;
         headers = new HttpHeadersMap(request.headers());
+        this.sequence = sequence;
         if (request.content().isReadable()) {
             this.content = ByteBufUtils.toBytesReference(request.content());
         } else {
@@ -144,7 +148,12 @@ public class LLNioHttpRequest implements LLHttpRequest {
         trailingHeaders.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
             request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new LLNioHttpRequest(requestWithoutHeader);
+        return new LLNioHttpRequest(requestWithoutHeader, sequence);
+    }
+
+    @Override
+    public LLHttpResponse createResponse(RestStatus status, BytesReference content) {
+        return new NioHttpResponse(request.protocolVersion(), status, sequence, content);
     }
 
     /**

@@ -55,7 +55,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -386,7 +385,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, httpHandlingSettings, threadPool.getThreadContext());
+        return new HttpChannelHandler(this, handlingSettings, threadPool.getThreadContext());
     }
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {

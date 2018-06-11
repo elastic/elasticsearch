@@ -21,19 +21,19 @@ package org.elasticsearch.http.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.http.LLHttpChannel;
+import org.elasticsearch.http.LLHttpResponse;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.rest.RestResponse;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
 
 public class NioLLHttpChannel extends NioSocketChannel implements LLHttpChannel {
 
-    public NioLLHttpChannel(SocketChannel socketChannel) throws IOException {
+    NioLLHttpChannel(SocketChannel socketChannel) throws IOException {
         super(socketChannel);
     }
 
-    public void sendResponse(RestResponse response, ActionListener<Void> listener) {
+    public void sendResponse(LLHttpResponse response, ActionListener<Void> listener) {
         getContext().sendMessage(response, ActionListener.toBiConsumer(listener));
     }
 }

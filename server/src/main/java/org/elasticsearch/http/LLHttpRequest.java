@@ -57,12 +57,4 @@ public interface LLHttpRequest {
         return null;
     }
 
-    interface LLHttpResponse {
-        
-        void addHeader(String name, String value);
-
-        boolean containsHeader(String name);
-
-
-    }
 }

@@ -60,7 +60,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     public final NamedXContentRegistry xContentRegistry;
     protected final Dispatcher dispatcher;
     // TODO: Should not be public at some point.
-    public final HttpHandlingSettings httpHandlingSettings;
+    public final HttpHandlingSettings handlingSettings;
 
     protected final String[] bindHosts;
     protected final String[] publishHosts;
@@ -77,7 +77,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
-        this.httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
+        this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
@@ -230,12 +230,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestChannel innerChannel;
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
-                innerChannel = new DefaultRestChannel(httpChannel, restRequest, bigArrays, httpHandlingSettings, threadContext);
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = getException(badRequestCause, e);
                 // TODO: Should we rewrite the original request?
                 final RestRequest innerRequest = NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest);
-                innerChannel = new DefaultRestChannel(httpChannel, innerRequest, bigArrays, httpHandlingSettings, threadContext);
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
             }
             channel = innerChannel;
         }

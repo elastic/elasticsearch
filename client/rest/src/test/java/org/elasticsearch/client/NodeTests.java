@@ -31,24 +31,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class NodeTests extends RestClientTestCase {
-    public void testWithHost() {
-        HttpHost h1 = new HttpHost("1");
-        HttpHost h2 = new HttpHost("2");
-        HttpHost h3 = new HttpHost("3");
-
-        Node n = new Node(h1, new HashSet<>(Arrays.asList(h1, h2)),
-                randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(randomBoolean(), randomBoolean(), randomBoolean()));
-
-        // Host is in the bound hosts list
-        assertEquals(h2, n.withHost(h2).getHost());
-        assertEquals(n.getBoundHosts(), n.withHost(h2).getBoundHosts());
-
-        // Host not in the bound hosts list
-        assertEquals(h3, n.withHost(h3).getHost());
-        assertEquals(new HashSet<>(Arrays.asList(h1, h2, h3)), n.withHost(h3).getBoundHosts());
-    }
-
     public void testToString() {
         assertEquals("[host=http://1]", new Node(new HttpHost("1")).toString());
         assertEquals("[host=http://1, roles=mdi]", new Node(new HttpHost("1"),

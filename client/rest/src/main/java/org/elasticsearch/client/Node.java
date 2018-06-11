@@ -19,9 +19,6 @@
 
 package org.elasticsearch.client;
 
-import static java.util.Collections.unmodifiableSet;
-
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -77,25 +74,6 @@ public class Node {
      */
     public Node(HttpHost host) {
         this(host, null, null, null, null);
-    }
-
-    /**
-     * Make a copy of this {@link Node} but replacing its
-     * {@link #getHost() host}. Use this when the sniffing implementation
-     * returns a {@link #getHost() host} that is not useful to the client.
-     */
-    public Node withHost(HttpHost host) {
-        /*
-         * If the new host isn't in the bound hosts list we add it so the
-         * result looks sane.
-         */
-        Set<HttpHost> boundHosts = this.boundHosts;
-        if (false == boundHosts.contains(host)) {
-            boundHosts = new HashSet<>(boundHosts);
-            boundHosts.add(host);
-            boundHosts = unmodifiableSet(boundHosts);
-        }
-        return new Node(host, boundHosts, name, version, roles);
     }
 
     /**
@@ -164,8 +142,8 @@ public class Node {
         Node other = (Node) obj;
         return host.equals(other.host)
             && Objects.equals(boundHosts, other.boundHosts)
-            && Objects.equals(version, other.version)
             && Objects.equals(name, other.name)
+            && Objects.equals(version, other.version)
             && Objects.equals(roles, other.roles);
     }
 

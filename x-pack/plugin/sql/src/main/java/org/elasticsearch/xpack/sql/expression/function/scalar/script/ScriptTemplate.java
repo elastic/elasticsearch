@@ -92,6 +92,6 @@ public class ScriptTemplate {
     }
 
     public static String formatTemplate(String template) {
-        return template.replace("{sql}", "SqlScripts").replace("{}", "params.%s");
+        return template.replace("{sql}", "InternalSqlScripts").replace("{}", "params.%s");
     }
 }

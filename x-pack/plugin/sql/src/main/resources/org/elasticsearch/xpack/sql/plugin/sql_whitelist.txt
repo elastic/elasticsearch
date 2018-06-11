@@ -6,7 +6,7 @@
 
 # This file contains a whitelist for SQL specific utilities available inside SQL scripting
 
-class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.SqlScripts {
+class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScripts {
   
   Integer dateTimeChrono(long, String, String)
 }

@@ -9,12 +9,12 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 
 /**
  * Whitelisted class for SQL scripts.
- * Acts as a registry of the various static methods used internally by the scalar functions
+ * Acts as a registry of the various static methods used <b>internally</b> by the scalar functions
  * (to simplify the whitelist definition).
  */
-public final class SqlScripts {
+public final class InternalSqlScripts {
 
-    private SqlScripts() {}
+    private InternalSqlScripts() {}
 
     public static Integer dateTimeChrono(long millis, String tzId, String chronoName) {
         return DateTimeFunction.dateTimeChrono(millis, tzId, chronoName);

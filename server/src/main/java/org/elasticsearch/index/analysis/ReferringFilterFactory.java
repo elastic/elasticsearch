@@ -24,7 +24,7 @@ import java.util.Map;
 /**
  * Marks a {@link TokenFilterFactory} that refers to other filter factories.
  *
- * The analysis registry will call {@link #addReferences(Map)} with a map of all
+ * The analysis registry will call {@link #setReferences(Map)} with a map of all
  * available TokenFilterFactories after all factories have been registered
  */
 public interface ReferringFilterFactory {
@@ -32,6 +32,6 @@ public interface ReferringFilterFactory {
     /**
      * Called with a map of all registered filter factories
      */
-    void addReferences(Map<String, TokenFilterFactory> factories);
+    void setReferences(Map<String, TokenFilterFactory> factories);
 
 }

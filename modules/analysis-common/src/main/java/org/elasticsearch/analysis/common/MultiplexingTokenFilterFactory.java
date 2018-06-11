@@ -73,7 +73,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
     }
 
     @Override
-    public void addReferences(Map<String, TokenFilterFactory> factories) {
+    public void setReferences(Map<String, TokenFilterFactory> factories) {
         filters = new ArrayList<>();
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");

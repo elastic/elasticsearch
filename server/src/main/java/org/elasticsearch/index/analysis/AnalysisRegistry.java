@@ -174,7 +174,7 @@ public final class AnalysisRegistry implements Closeable {
         // after all factories have been registered
         for (TokenFilterFactory tff : mappings.values()) {
             if (tff instanceof ReferringFilterFactory) {
-                ((ReferringFilterFactory)tff).addReferences(mappings);
+                ((ReferringFilterFactory)tff).setReferences(mappings);
             }
         }
         return mappings;

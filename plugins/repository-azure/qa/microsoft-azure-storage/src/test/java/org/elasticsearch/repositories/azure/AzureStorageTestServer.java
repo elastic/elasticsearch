@@ -164,7 +164,12 @@ public class AzureStorageTestServer {
                 if (destContainer == null) {
                     return newContainerNotFoundError(requestId);
                 }
-                destContainer.objects.put(destBlobName, body);
+
+                byte[] existingBytes = destContainer.objects.putIfAbsent(destBlobName, body);
+                if (existingBytes != null) {
+                    return newBlobAlreadyExistsError(requestId);
+                }
+
                 return new Response(RestStatus.CREATED, emptyMap(), "text/plain", EMPTY_BYTE);
             })
         );
@@ -361,6 +366,10 @@ public class AzureStorageTestServer {
 
     private static Response newBlobNotFoundError(final long requestId) {
         return newError(requestId, RestStatus.NOT_FOUND, "BlobNotFound", "The specified blob does not exist");
+    }
+
+    private static Response newBlobAlreadyExistsError(final long requestId) {
+        return newError(requestId, RestStatus.CONFLICT, "BlobAlreadyExists", "The specified blob already exists");
     }
 
     private static Response newInternalError(final long requestId) {

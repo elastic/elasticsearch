@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.340'
+  'aws': '1.11.344'
 ]
 
 dependencies {

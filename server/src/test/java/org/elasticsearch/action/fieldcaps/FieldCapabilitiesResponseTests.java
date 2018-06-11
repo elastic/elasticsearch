@@ -19,18 +19,13 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,7 +33,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTestCase<FieldCapabilitiesResponse> {
 

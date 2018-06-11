@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.qa.sql.jdbc.LocalH2;
 import org.elasticsearch.xpack.qa.sql.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
@@ -47,8 +48,8 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public void setupTestGeoDataIfNeeded() throws Exception {
         assumeTrue("Cannot support locales that don't use Hindu-Arabic numerals due to H2",
                 "42".equals(NumberFormat.getInstance(Locale.getDefault()).format(42)));
-        if (client().performRequest("HEAD", "/ogc").getStatusLine().getStatusCode() == 404) {
-            GeoDataLoader.loadDatasetIntoEs(client());
+        if (client().performRequest(new Request("HEAD", "/ogc")).getStatusLine().getStatusCode() == 404) {
+            GeoDataLoader.loadOGCDatasetIntoEs(client(), "ogc");
         }
     }
 

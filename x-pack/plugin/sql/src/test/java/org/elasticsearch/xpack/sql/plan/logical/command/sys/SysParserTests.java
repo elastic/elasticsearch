@@ -58,11 +58,11 @@ public class SysParserTests extends ESTestCase {
         Command cmd = sql("SYS TYPES").v1();
 
         List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "SCALED_FLOAT", "FLOAT", "DOUBLE",
-                "KEYWORD", "TEXT", "BOOLEAN", "DATE", "UNSUPPORTED", "GEO_SHAPE", "OBJECT", "NESTED");
+                "KEYWORD", "TEXT", "BOOLEAN", "DATE", "UNSUPPORTED", "GEO_SHAPE", "GEO_POINT", "OBJECT", "NESTED");
 
         cmd.execute(null, ActionListener.wrap(r -> {
             assertEquals(19, r.columnCount());
-            assertEquals(18, r.size());
+            assertEquals(19, r.size());
             assertFalse(r.schema().types().contains(DataType.NULL));
             // test numeric as signed
             assertFalse(r.column(9, Boolean.class));

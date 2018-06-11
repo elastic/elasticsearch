@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.qa.sql.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.qa.sql.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
@@ -34,6 +35,7 @@ public abstract class GeoCsvSpecTestCase extends SpecBaseIntegrationTestCase {
         Parser parser = specParser();
         List<Object[]> tests = new ArrayList<>();
         tests.addAll(readScriptSpec("/ogc/ogc.csv-spec", parser));
+        tests.addAll(readScriptSpec("/geo/geosql.csv-spec", parser));
         return tests;
     }
 
@@ -45,8 +47,11 @@ public abstract class GeoCsvSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Before
     public void setupTestGeoDataIfNeeded() throws Exception {
-        if (client().performRequest("HEAD", "/ogc").getStatusLine().getStatusCode() == 404) {
-            GeoDataLoader.loadDatasetIntoEs(client());
+        if (client().performRequest(new Request("HEAD", "/ogc")).getStatusLine().getStatusCode() == 404) {
+            GeoDataLoader.loadOGCDatasetIntoEs(client(), "ogc");
+        }
+        if (client().performRequest(new Request("HEAD", "/geo")).getStatusLine().getStatusCode() == 404) {
+            GeoDataLoader.loadGeoDatasetIntoEs(client(), "geo");
         }
     }
 

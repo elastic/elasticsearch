@@ -58,6 +58,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -67,6 +69,7 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -82,11 +85,13 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -1980,6 +1985,73 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::put-template-execute-async
         client.indices().putTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::put-template-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetTemplates() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
+            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
+            putRequest.mapping("tweet",
+                    "{\n" +
+                    "  \"tweet\": {\n" +
+                    "    \"properties\": {\n" +
+                    "      \"message\": {\n" +
+                    "        \"type\": \"text\"\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", XContentType.JSON);
+            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::get-templates-request
+        GetIndexTemplatesRequest request = new GetIndexTemplatesRequest("my-template"); // <1>
+        request.names("template-1", "template-2"); // <2>
+        request.names("my-*"); // <3>
+        // end::get-templates-request
+
+        // tag::get-templates-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::get-templates-request-masterTimeout
+
+        // tag::get-templates-execute
+        GetIndexTemplatesResponse getTemplatesResponse = client.indices().getTemplate(request, RequestOptions.DEFAULT);
+        // end::get-templates-execute
+
+        // tag::get-templates-response
+        List<IndexTemplateMetaData> templates = getTemplatesResponse.getIndexTemplates(); // <1>
+        // end::get-templates-response
+
+        assertThat(templates, hasSize(1));
+        assertThat(templates.get(0).name(), equalTo("my-template"));
+
+        // tag::get-templates-execute-listener
+        ActionListener<GetIndexTemplatesResponse> listener =
+            new ActionListener<GetIndexTemplatesResponse>() {
+                @Override
+                public void onResponse(GetIndexTemplatesResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-templates-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-templates-execute-async
+        client.indices().getTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-templates-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

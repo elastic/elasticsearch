@@ -24,7 +24,7 @@ esplugin {
 
 versions << [
   'tika': '1.18',
-  'pdfbox': '2.0.8',
+  'pdfbox': '2.0.9',
   'bouncycastle': '1.55',
   'poi': '3.17',
   'mime4j': '0.8.1'
@@ -35,8 +35,8 @@ dependencies {
   compile "org.apache.tika:tika-core:${versions.tika}"
   // build against Jackson 2.9.5, but still works on our current version
   compile "org.apache.tika:tika-parsers:${versions.tika}"
-  compile 'org.tukaani:xz:1.6'
-  compile 'commons-io:commons-io:2.5'
+  compile 'org.tukaani:xz:1.8'
+  compile 'commons-io:commons-io:2.6'
   compile "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -63,7 +63,7 @@ dependencies {
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile 'org.apache.commons:commons-compress:1.16'
+  compile 'org.apache.commons:commons-compress:1.16.1'
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;

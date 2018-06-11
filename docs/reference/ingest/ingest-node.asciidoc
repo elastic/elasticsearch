@@ -1325,7 +1325,7 @@ This pipeline will insert these named captures as new fields within the document
 // NOTCONSOLE
 
 [[custom-patterns]]
-==== Custom Patterns and Pattern Files
+==== Custom Patterns
 
 The Grok processor comes pre-packaged with a base set of pattern. These patterns may not always have
 what you are looking for. Pattern have a very basic format. Each entry describes has a name and the pattern itself.

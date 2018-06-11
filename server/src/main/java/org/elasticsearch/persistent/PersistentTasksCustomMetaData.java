@@ -93,7 +93,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         parser.declareObject(TaskDescriptionBuilder::setParams,
                 (p, c) -> p.namedObject(PersistentTaskParams.class, c, null), new ParseField("params"));
         parser.declareObject(TaskDescriptionBuilder::setState,
-                (p, c) -> p.namedObject(PersistentTaskState.class, c, null), new ParseField("status"));
+                (p, c) -> p.namedObject(PersistentTaskState.class, c, null), new ParseField("state", "status"));
         TASK_DESCRIPTION_PARSER = (XContentParser p, Void c, String name) -> parser.parse(p, new TaskDescriptionBuilder<>(name), name);
 
         // Assignment parser
@@ -407,8 +407,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                             builder.field("params", params, xParams);
                         }
                         if (state != null) {
-                            // The field is names "status" instead of "state" for bwc reason
-                            builder.field("status", state, xParams);
+                            builder.field("state", state, xParams);
                         }
                     }
                     builder.endObject();

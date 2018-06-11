@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -90,6 +91,12 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                 throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding [skip] so "
                         + "runners that do not support the [warnings] section can skip the test at line ["
                         + doSection.getLocation().lineNumber + "]");
+            }
+            if (NodeSelector.ANY != doSection.getApiCallSection().getNodeSelector()
+                    && false == skipSection.getFeatures().contains("node_selector")) {
+                throw new IllegalArgumentException("Attempted to add a [do] with a [node_selector] section without a corresponding "
+                    + "[skip] so runners that do not support the [node_selector] section can skip the test at line ["
+                    + doSection.getLocation().lineNumber + "]");
             }
         }
         this.executableSections.add(executableSection);

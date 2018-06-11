@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.test.ObjectCleanerThreadThreadFilter;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,6 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Integration test for retry behavior. Useful because retrying relies on the way that the
  * rest of Elasticsearch throws exceptions and unit tests won't verify that.
  */
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class RetryTests extends ESIntegTestCase {
 
     private static final int DOC_COUNT = 20;

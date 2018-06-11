@@ -48,10 +48,6 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
-import javax.net.ssl.SSLHandshakeException;
-
-import static java.util.Collections.singletonList;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.ConnectException;
@@ -78,6 +74,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLHandshakeException;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Client that connects to an Elasticsearch cluster through HTTP.

@@ -346,8 +346,8 @@ public class JobManager extends AbstractComponent {
                 }
 
                 @Override
-                public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                    afterClusterStateUpdate(clusterChangedEvent.state(), request);
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    afterClusterStateUpdate(newState, request);
                     actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
                 }
             });

@@ -213,7 +213,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 logger.debug("Job [" + jobId + "] is successfully marked as deleted");
                 listener.onResponse(true);
             }

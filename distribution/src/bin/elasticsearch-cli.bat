@@ -2,7 +2,7 @@ call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 if defined ES_ADDITIONAL_SOURCES (
   for %%a in ("%ES_ADDITIONAL_SOURCES:;=","%") do (
-    call %~dp0%%a
+    call "%~dp0%%a"
   )
 )
 

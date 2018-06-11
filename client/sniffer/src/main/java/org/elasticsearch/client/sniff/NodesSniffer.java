@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.sniff;
 
-import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,9 +27,9 @@ import java.util.List;
 /**
  * Responsible for sniffing the http hosts
  */
-public interface HostsSniffer {
+public interface NodesSniffer {
     /**
-     * Returns the sniffed http hosts
+     * Returns the sniffed Elasticsearch nodes.
      */
-    List<HttpHost> sniffHosts() throws IOException;
+    List<Node> sniff() throws IOException;
 }

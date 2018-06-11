@@ -166,7 +166,7 @@ public class RestClient implements Closeable {
         Map<HttpHost, Node> nodesByHost = new LinkedHashMap<>();
         for (Node node : nodes) {
             Objects.requireNonNull(node, "node cannot be null");
-            // TODO should we throw an IAE if this happens?
+            // TODO should we throw an IAE if we have two nodes with the same host?
             nodesByHost.put(node.getHost(), node);
             authCache.put(node.getHost(), new BasicScheme());
         }
@@ -627,7 +627,7 @@ public class RestClient implements Closeable {
          * Sort the nodes into living and dead lists.
          */
         List<Node> livingNodes = new ArrayList<>(nodeTuple.nodes.size() - blacklist.size());
-        List<DeadNodeAndDeadness> deadNodes = new ArrayList<>(blacklist.size());
+        List<DeadNode> deadNodes = new ArrayList<>(blacklist.size());
         for (Node node : nodeTuple.nodes) {
             DeadHostState deadness = blacklist.get(node.getHost());
             if (deadness == null) {
@@ -638,7 +638,7 @@ public class RestClient implements Closeable {
                 livingNodes.add(node);
                 continue;
             }
-            deadNodes.add(new DeadNodeAndDeadness(node, deadness));
+            deadNodes.add(new DeadNode(node, deadness));
         }
 
         if (false == livingNodes.isEmpty()) {
@@ -671,7 +671,7 @@ public class RestClient implements Closeable {
          * node.
          */
         if (false == deadNodes.isEmpty()) {
-            final List<DeadNodeAndDeadness> selectedDeadNodes = new ArrayList<>(deadNodes);
+            final List<DeadNode> selectedDeadNodes = new ArrayList<>(deadNodes);
             /*
              * We'd like NodeSelectors to remove items directly from deadNodes
              * so we can find the minimum after it is filtered without having
@@ -681,7 +681,7 @@ public class RestClient implements Closeable {
             nodeSelector.select(new Iterable<Node>() {
                 @Override
                 public Iterator<Node> iterator() {
-                    return new Adapter(selectedDeadNodes.iterator());
+                    return new DeadNodeIteratorAdapter(selectedDeadNodes.iterator());
                 }
             });
             if (false == selectedDeadNodes.isEmpty()) {
@@ -690,33 +690,6 @@ public class RestClient implements Closeable {
         }
         throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, "
                 + "living " + livingNodes + " and dead " + deadNodes);
-    }
-
-    /**
-     * Adapts an <code>Iterator<DeadNodeAndRevival></code> into an
-     * <code>Iterator<Node></code>.
-     */
-    private static class Adapter implements Iterator<Node> {
-        private final Iterator<DeadNodeAndDeadness> itr;
-
-        private Adapter(Iterator<DeadNodeAndDeadness> itr) {
-            this.itr = itr;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return itr.hasNext();
-        }
-
-        @Override
-        public Node next() {
-            return itr.next().node;
-        }
-
-        @Override
-        public void remove() {
-            itr.remove();
-        }
     }
 
     /**
@@ -1014,11 +987,11 @@ public class RestClient implements Closeable {
      * Contains a reference to a blacklisted node and the time until it is
      * revived. We use this so we can do a single pass over the blacklist.
      */
-    private static class DeadNodeAndDeadness implements Comparable<DeadNodeAndDeadness> {
+    private static class DeadNode implements Comparable<DeadNode> {
         final Node node;
         final DeadHostState deadness;
 
-        DeadNodeAndDeadness(Node node, DeadHostState deadness) {
+        DeadNode(Node node, DeadHostState deadness) {
             this.node = node;
             this.deadness = deadness;
         }
@@ -1029,8 +1002,35 @@ public class RestClient implements Closeable {
         }
 
         @Override
-        public int compareTo(DeadNodeAndDeadness rhs) {
+        public int compareTo(DeadNode rhs) {
             return deadness.compareTo(rhs.deadness);
+        }
+    }
+
+    /**
+     * Adapts an <code>Iterator<DeadNodeAndRevival></code> into an
+     * <code>Iterator<Node></code>.
+     */
+    private static class DeadNodeIteratorAdapter implements Iterator<Node> {
+        private final Iterator<DeadNode> itr;
+
+        private DeadNodeIteratorAdapter(Iterator<DeadNode> itr) {
+            this.itr = itr;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return itr.hasNext();
+        }
+
+        @Override
+        public Node next() {
+            return itr.next().node;
+        }
+
+        @Override
+        public void remove() {
+            itr.remove();
         }
     }
 

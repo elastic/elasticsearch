@@ -77,7 +77,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             httpServers[i] = httpServer;
             httpHosts[i] = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         }
-                restClient = buildRestClient();
+        restClient = buildRestClient();
     }
 
     private static RestClient buildRestClient() {

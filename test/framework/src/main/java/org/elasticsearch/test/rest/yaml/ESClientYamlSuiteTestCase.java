@@ -53,10 +53,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * Runs a suite of yaml tests shared with all the official Elasticsearch clients against against an elasticsearch cluster.
+ * Runs a suite of yaml tests shared with all the official Elasticsearch
+ * clients against against an elasticsearch cluster.
+ * <p>
+ * <strong>IMPORTANT</strong>: These tests sniff the cluster for metadata
+ * and hosts on startup and replace the list of hosts that they are
+ * configured to use with the list sniffed from the cluster. So you can't
+ * control which nodes receive the request by providing the right list of
+ * nodes in the <code>tests.rest.cluster</code> system property. Instead
+ * the tests must explictly use `node_selector`s.
  */
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 

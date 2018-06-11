@@ -75,6 +75,9 @@ public class GetIndexTemplatesResponseTests extends AbstractXContentTestCase<Get
 
     @Override
     protected boolean supportsUnknownFields() {
+        // We can not inject anything at the top level because a GetIndexTemplatesResponse is serialized as a map
+        // from template name to template content. IndexTemplateMetaDataTests already covers situations where we
+        // inject arbitrary things inside the IndexTemplateMetaData.
         return false;
     }
 

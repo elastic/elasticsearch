@@ -172,10 +172,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
             @Override
             public boolean incrementToken() throws IOException {
                 if (selector >= filterCount - 1) {
-                    state = null;
                     selector = 0;
-                }
-                if (state == null) {
                     if (input.incrementToken() == false) {
                         return false;
                     }
@@ -191,7 +188,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
             @Override
             public void reset() throws IOException {
                 super.reset();
-                selector = 0;
+                selector = filterCount - 1;
                 this.state = null;
             }
         }

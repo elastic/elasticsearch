@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -73,6 +74,8 @@ final class NoopEngine extends Engine {
     private static final Translog.Location EMPTY_TRANSLOG_LOCATION = new Translog.Location(0, 0, 0);
 
     private final IndexCommit lastCommit;
+    private final long localCheckpoint;
+    private final long maxSeqNo;
     private final String historyUUID;
     private final SegmentInfos lastCommittedSegmentInfos;
 
@@ -87,6 +90,8 @@ final class NoopEngine extends Engine {
             List<IndexCommit> indexCommits = DirectoryReader.listCommits(store.directory());
             lastCommit = indexCommits.get(indexCommits.size()-1);
             historyUUID = lastCommit.getUserData().get(HISTORY_UUID_KEY);
+            localCheckpoint = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            maxSeqNo = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
 
             // The deletion policy for the translog should not keep any translogs around, so the min age/size is set to -1
             final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1);
@@ -230,7 +235,7 @@ final class NoopEngine extends Engine {
 
     @Override
     public long getLocalCheckpoint() {
-        return 0;
+        return this.localCheckpoint;
     }
 
     @Override
@@ -239,11 +244,13 @@ final class NoopEngine extends Engine {
 
     @Override
     public void resetLocalCheckpoint(long localCheckpoint) {
+        assert localCheckpoint == getLocalCheckpoint() : "expected reset to existing local checkpoint of " +
+            getLocalCheckpoint() + " got: " + localCheckpoint;
     }
 
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
-        return new SeqNoStats(0, 0, 0);
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
     @Override

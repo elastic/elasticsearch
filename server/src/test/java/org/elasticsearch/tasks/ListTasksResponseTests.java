@@ -109,20 +109,30 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     protected void assertEqualInstances(ListTasksResponse expectedInstance, ListTasksResponse newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.getTasks(), equalTo(expectedInstance.getTasks()));
-        assertThat(newInstance.getNodeFailures().size(), equalTo(expectedInstance.getNodeFailures().size()));
-        for (int i = 0; i < newInstance.getNodeFailures().size(); i++) {
-            ElasticsearchException newException = newInstance.getNodeFailures().get(i);
-            ElasticsearchException expectedException = expectedInstance.getNodeFailures().get(i);
+        assertOnNodeFailures(newInstance.getNodeFailures(), expectedInstance.getNodeFailures());
+        assertOnTaskFailures(newInstance.getTaskFailures(), expectedInstance.getTaskFailures());
+    }
+
+    protected static void assertOnNodeFailures(List<ElasticsearchException> nodeFailures,
+                                               List<ElasticsearchException> expectedFailures) {
+        assertThat(nodeFailures.size(), equalTo(expectedFailures.size()));
+        for (int i = 0; i < nodeFailures.size(); i++) {
+            ElasticsearchException newException = nodeFailures.get(i);
+            ElasticsearchException expectedException = expectedFailures.get(i);
             assertThat(newException.getMetadata("es.node_id").get(0), equalTo(((FailedNodeException)expectedException).nodeId()));
             assertThat(newException.getMessage(), equalTo("Elasticsearch exception [type=failed_node_exception, reason=error message]"));
             assertThat(newException.getCause(), instanceOf(ElasticsearchException.class));
             ElasticsearchException cause = (ElasticsearchException) newException.getCause();
             assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=connect_exception, reason=null]"));
         }
-        assertThat(newInstance.getTaskFailures().size(), equalTo(expectedInstance.getTaskFailures().size()));
-        for (int i = 0; i < newInstance.getTaskFailures().size(); i++) {
-            TaskOperationFailure newFailure = newInstance.getTaskFailures().get(i);
-            TaskOperationFailure expectedFailure = expectedInstance.getTaskFailures().get(i);
+    }
+
+    protected static void assertOnTaskFailures(List<TaskOperationFailure> taskFailures,
+                                               List<TaskOperationFailure> expectedFailures) {
+        assertThat(taskFailures.size(), equalTo(expectedFailures.size()));
+        for (int i = 0; i < taskFailures.size(); i++) {
+            TaskOperationFailure newFailure = taskFailures.get(i);
+            TaskOperationFailure expectedFailure = expectedFailures.get(i);
             assertThat(newFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
             assertThat(newFailure.getTaskId(), equalTo(expectedFailure.getTaskId()));
             assertThat(newFailure.getStatus(), equalTo(expectedFailure.getStatus()));

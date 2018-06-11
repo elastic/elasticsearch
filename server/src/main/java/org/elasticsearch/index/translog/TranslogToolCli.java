@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 
 /**

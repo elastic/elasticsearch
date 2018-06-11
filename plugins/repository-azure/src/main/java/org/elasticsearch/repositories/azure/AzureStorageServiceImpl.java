@@ -19,11 +19,13 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.AccessCondition;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
+import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
@@ -44,8 +46,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -289,12 +293,21 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     @Override
     public void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize)
-        throws URISyntaxException, StorageException {
+        throws URISyntaxException, StorageException, FileAlreadyExistsException {
         logger.trace("writeBlob({}, stream, {})", blobName, blobSize);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
-        SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, null, null, generateOperationContext(account)));
+        try {
+            SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, AccessCondition.generateIfNotExistsCondition(),
+                null, generateOperationContext(account)));
+        } catch (StorageException se) {
+            if (se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
+                StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
+                throw new FileAlreadyExistsException(blobName, null, se.getMessage());
+            }
+            throw se;
+        }
         logger.trace("writeBlob({}, stream, {}) - done", blobName, blobSize);
     }
 }

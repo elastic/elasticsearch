@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 
@@ -64,5 +66,46 @@ public final class TasksClient {
     public void listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, options,
                 ListTasksResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Cancel one or more cluster tasks using the Task Management API.
+     *
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param cancelTasksRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     *
+     */
+    public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options ) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            cancelTasksRequest,
+            RequestConverters::cancelTasks,
+            options,
+            parser -> CancelTasksResponse.fromXContent(parser),
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously cancel one or more cluster tasks using the Task Management API.
+     *
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html"> Task Management API on elastic.co</a>
+     * @param cancelTasksRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void cancelAsync(CancelTasksRequest cancelTasksRequest, RequestOptions options, ActionListener<CancelTasksResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            cancelTasksRequest,
+            RequestConverters::cancelTasks,
+            options,
+            parser -> CancelTasksResponse.fromXContent(parser),
+            listener,
+            emptySet()
+        );
     }
 }

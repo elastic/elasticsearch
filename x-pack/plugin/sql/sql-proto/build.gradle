@@ -18,7 +18,7 @@ dependencies {
     compile (project(':server')) {
         transitive = false
     }
-    compile (project(':libs:elasticsearch-core')) {
+    compile (project(':libs:core')) {
         transitive = false
     }
     compile (project(':libs:x-content')) {

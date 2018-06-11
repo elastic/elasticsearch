@@ -59,6 +59,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -66,6 +68,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -88,6 +91,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractRawValues;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1001,5 +1005,52 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
             () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
+    }
+
+    public void testGetIndexTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest().name("template-1")
+            .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
+        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
+            equalTo(true));
+        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest().name("template-2")
+            .patterns(Arrays.asList("pattern-2", "name-2"))
+            .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
+        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
+            equalTo(true));
+
+        GetIndexTemplatesResponse getTemplate1 = execute(new GetIndexTemplatesRequest().names("template-1"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
+        IndexTemplateMetaData template1 = getTemplate1.getIndexTemplates().get(0);
+        assertThat(template1.name(), equalTo("template-1"));
+        assertThat(template1.patterns(), contains("pattern-1", "name-1"));
+        assertTrue(template1.aliases().containsKey("alias-1"));
+
+        GetIndexTemplatesResponse getTemplate2 = execute(new GetIndexTemplatesRequest().names("template-2"),
+            client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
+        IndexTemplateMetaData template2 = getTemplate2.getIndexTemplates().get(0);
+        assertThat(template2.name(), equalTo("template-2"));
+        assertThat(template2.patterns(), contains("pattern-2", "name-2"));
+        assertTrue(template2.aliases().isEmpty());
+        assertThat(template2.settings().get("index.number_of_shards"), equalTo("2"));
+        assertThat(template2.settings().get("index.number_of_replicas"), equalTo("0"));
+
+        GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest();
+        if (randomBoolean()) {
+            getBothRequest.names("*-1", "template-2");
+        } else {
+            getBothRequest.names("template-*");
+        }
+        GetIndexTemplatesResponse getBoth = execute(getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync);
+        assertThat(getBoth.getIndexTemplates(), hasSize(2));
+        assertThat(getBoth.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).toArray(),
+            arrayContainingInAnyOrder("template-1", "template-2"));
+
+        ElasticsearchException notFound = expectThrows(ElasticsearchException.class, () -> execute(
+            new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplate, client.indices()::getTemplateAsync));
+        assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
     }
 }

@@ -45,7 +45,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
         if (o == null) {
             values[i].clear();
         } else {
-            CollectionUtils.ensureNoSelfReferences(o);
+            CollectionUtils.ensureNoSelfReferences(o, "ScriptBytesValues value");
             values[i].copyChars(o.toString());
         }
     }

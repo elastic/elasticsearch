@@ -131,9 +131,7 @@ final class ExpandSearchPhase extends SearchPhase {
         if (orig.allowPartialSearchResults() != null){
             groupRequest.allowPartialSearchResults(orig.allowPartialSearchResults());
         }
-        if (orig.isMaxConcurrentShardRequestsSet()) {
-            groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
-        }
+        groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
         return groupRequest;
     }
 

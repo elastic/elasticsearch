@@ -287,9 +287,9 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-sin
 <3> Customize the response consumer.
 
 `addHeader` is for headers that are required for authorization or to work with
-a proxy that in front of Elasticsearch. There is no need to set the
-`Content-Type` header because the client will automatically set that from the
-`HttpEntity` attached to the request.
+a proxy in front of Elasticsearch. There is no need to set the `Content-Type`
+header because the client will automatically set that from the `HttpEntity`
+attached to the request.
 
 You can set the `NodeSelector` which controls which nodes will receive
 requests. `NodeSelector.NOT_MASTER_ONLY` is a good choice.

@@ -42,6 +42,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -91,9 +92,11 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             return;
         }
 
+        XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
-                .indices(request.getConfig().getIndexPattern())
-                .fields(request.getConfig().getAllFields().toArray(new String[0]));
+            .indices(request.getConfig().getIndexPattern())
+            .fields(request.getConfig().getAllFields().toArray(new String[0]));
 
         client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
             @Override
@@ -205,7 +208,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     static void startPersistentTask(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
                                     PersistentTasksService persistentTasksService) {
 
-        persistentTasksService.startPersistentTask(job.getConfig().getId(), RollupField.TASK_NAME, job,
+        persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
                 ActionListener.wrap(
                         rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService),
                         e -> {
@@ -220,8 +223,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
     private static void waitForRollupStarted(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
                                              PersistentTasksService persistentTasksService) {
-        persistentTasksService.waitForPersistentTaskStatus(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
-                new PersistentTasksService.WaitForPersistentTaskStatusListener<RollupJob>() {
+        persistentTasksService.waitForPersistentTaskCondition(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
+                new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {
                         listener.onResponse(new PutRollupJobAction.Response(true));

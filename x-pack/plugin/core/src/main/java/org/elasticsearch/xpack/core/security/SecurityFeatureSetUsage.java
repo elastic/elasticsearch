@@ -92,4 +92,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field(ANONYMOUS_XFIELD, anonymousUsage);
         }
     }
+
+    public Map<String, Object> getRealmsUsage() {
+        return Collections.unmodifiableMap(realmsUsage);
+    }
 }

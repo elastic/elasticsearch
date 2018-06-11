@@ -27,7 +27,6 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
-import com.google.cloud.storage.Storage.CopyRequest;
 import com.google.cloud.storage.StorageException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -312,29 +311,6 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         if (failed) {
             throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs");
         }
-    }
-
-    /**
-     * Moves a blob within the same bucket
-     *
-     * @param sourceBlobName name of the blob to move
-     * @param targetBlobName new name of the blob in the same bucket
-     */
-    void moveBlob(String sourceBlobName, String targetBlobName) throws IOException {
-        final BlobId sourceBlobId = BlobId.of(bucket, sourceBlobName);
-        final BlobId targetBlobId = BlobId.of(bucket, targetBlobName);
-        final CopyRequest request = CopyRequest.newBuilder()
-                .setSource(sourceBlobId)
-                .setTarget(targetBlobId)
-                .build();
-        SocketAccess.doPrivilegedVoidIOException(() -> {
-            // There's no atomic "move" in GCS so we need to copy and delete
-            storage.copy(request).getResult();
-            final boolean deleted = storage.delete(sourceBlobId);
-            if (deleted == false) {
-                throw new IOException("Failed to move source [" + sourceBlobName + "] to target [" + targetBlobName + "]");
-            }
-        });
     }
 
     private static String buildKey(String keyPath, String s) {

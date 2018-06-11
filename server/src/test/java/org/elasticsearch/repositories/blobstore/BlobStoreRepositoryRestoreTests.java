@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -99,8 +100,14 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
 
             // build a new shard using the same store directory as the closed shard
             ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(), EXISTING_STORE_INSTANCE);
-            shard = newShard(shardRouting, shard.shardPath(), shard.indexSettings().getIndexMetaData(), null, null, () -> {},
-                EMPTY_EVENT_LISTENER);
+            shard = newShard(
+                    shardRouting,
+                    shard.shardPath(),
+                    shard.indexSettings().getIndexMetaData(),
+                    null,
+                    new InternalEngineFactory(),
+                    () -> {},
+                    EMPTY_EVENT_LISTENER);
 
             // restore the shard
             recoverShardFromSnapshot(shard, snapshot, repository);

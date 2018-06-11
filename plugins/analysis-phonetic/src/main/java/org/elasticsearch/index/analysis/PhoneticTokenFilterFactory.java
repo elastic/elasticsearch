@@ -23,7 +23,6 @@ import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
 import org.apache.commons.codec.language.Caverphone2;
 import org.apache.commons.codec.language.ColognePhonetic;
-import org.apache.commons.codec.language.DaitchMokotoffSoundex;
 import org.apache.commons.codec.language.Metaphone;
 import org.apache.commons.codec.language.RefinedSoundex;
 import org.apache.commons.codec.language.Soundex;

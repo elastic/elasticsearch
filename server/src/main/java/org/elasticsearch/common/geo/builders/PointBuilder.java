@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;

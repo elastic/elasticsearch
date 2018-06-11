@@ -24,7 +24,6 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.stream.Collectors.toList;

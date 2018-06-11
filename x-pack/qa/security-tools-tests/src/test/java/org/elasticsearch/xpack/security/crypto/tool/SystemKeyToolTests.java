@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.XPackField;
 import org.junit.After;
 
 import java.nio.file.FileSystem;

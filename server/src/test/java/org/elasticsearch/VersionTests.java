@@ -20,7 +20,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -36,7 +35,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.Version.V_5_3_0;
 import static org.elasticsearch.Version.V_6_0_0_beta1;

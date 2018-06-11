@@ -467,7 +467,11 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected EngineConfig noopConfig(IndexSettings indexSettings, Store store, Path translogPath) {
-        return config(indexSettings, store, translogPath, newMergePolicy(), null, null, null);
+        return noopConfig(indexSettings, store, translogPath, null);
+    }
+
+    protected EngineConfig noopConfig(IndexSettings indexSettings, Store store, Path translogPath, LongSupplier globalCheckpointSupplier) {
+        return config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[]{1});

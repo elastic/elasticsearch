@@ -19,11 +19,22 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -56,4 +67,38 @@ public class NoopEngineTests extends EngineTestCase {
         engine2.close();
     }
 
+    public void testNoopAfterRegularEngine() throws IOException {
+        int docs = randomIntBetween(1, 10);
+        ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
+        ShardRouting routing = TestShardRouting.newShardRouting("test", shardId.id(), "node", null, true, ShardRoutingState.STARTED, allocationId);
+        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
+        tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table, Collections.emptySet());
+        tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+        for (int i = 0; i < docs; i++) {
+            ParsedDocument doc = testParsedDocument("" + i, null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            tracker.updateLocalCheckpoint(allocationId.getId(), i);
+        }
+
+        engine.flush(true, true);
+        engine.getTranslog().getDeletionPolicy().setRetentionSizeInBytes(-1);
+        engine.getTranslog().getDeletionPolicy().setRetentionAgeInMillis(-1);
+        engine.getTranslog().getDeletionPolicy().setMinTranslogGenerationForRecovery(
+            engine.getTranslog().getGeneration().translogFileGeneration);
+        engine.flush(true, true);
+
+        long localCheckpoint = engine.getLocalCheckpoint();
+        long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
+        engine.close();
+
+        final NoopEngine noopEngine = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
+        assertThat(noopEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noopEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
+        try (Engine.IndexCommitRef ref = noopEngine.acquireLastIndexCommit(false)) {
+            try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(docs));
+            }
+        }
+        noopEngine.close();
+    }
 }

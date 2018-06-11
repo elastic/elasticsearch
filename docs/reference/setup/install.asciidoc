@@ -65,6 +65,5 @@ include::install/rpm.asciidoc[]
 
 include::install/windows.asciidoc[]
 
-ifdef::include-xpack[]
-include::{xes-repo-dir}/setup/docker.asciidoc[]
-endif::include-xpack[]
+include::install/docker.asciidoc[]
+

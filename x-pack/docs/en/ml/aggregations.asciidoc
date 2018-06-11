@@ -11,11 +11,12 @@ aggregated data into {xpackml} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
 There are some limitations to using aggregations in {dfeeds}, however.
-Your aggregation must include a buckets aggregation, which in turn must contain
-a date histogram aggregation. This requirement ensures that the aggregated
-data is a time series. If you use a terms aggregation and the cardinality of a
-term is high, then the aggregation might not be effective and you might want
-to just use the default search and scroll behavior.
+Your aggregation must include a `date_histogram` aggregation, which in turn must
+contain a `max` aggregation on the time field. This requirement ensures that the
+aggregated data is a time series and the timestamp of each bucket is the time
+of the last record in the bucket. If you use a terms aggregation and the
+cardinality of a term is high, then the aggregation might not be effective and
+you might want to just use the default search and scroll behavior.
 
 When you create or update a job, you can include the names of aggregations, for
 example:
@@ -27,9 +28,9 @@ PUT _xpack/ml/anomaly_detectors/farequote
   "analysis_config": {
     "bucket_span": "60m",
     "detectors": [{
-      "function":"mean",
-      "field_name":"responsetime",
-      "by_field_name":"airline"
+      "function": "mean",
+      "field_name": "responsetime",
+      "by_field_name": "airline"
     }],
     "summary_count_field_name": "doc_count"
   },
@@ -38,6 +39,8 @@ PUT _xpack/ml/anomaly_detectors/farequote
   }
 }
 ----------------------------------
+// CONSOLE
+// TEST[setup:farequote_data]
 
 In this example, the `airline`, `responsetime`, and `time` fields are
 aggregations.
@@ -85,7 +88,8 @@ PUT _xpack/ml/datafeeds/datafeed-farequote
   }
 }
 ----------------------------------
-
+// CONSOLE
+// TEST[setup:farequote_job]
 
 In this example, the aggregations have names that match the fields that they
 operate on. That is to say, the `max` aggregation is named `time` and its
@@ -100,35 +104,86 @@ For all other aggregations, if the aggregation name doesn't match the field name
 there are limitations in the drill-down functionality within the {ml} page in
 {kib}.
 
+{dfeeds} support complex nested aggregations, this example uses the `derivative`
+pipeline aggregation to find the 1st order derivative of the counter
+`system.network.out.bytes` for each value of the field `beat.name`.
+
+[source,js]
+----------------------------------
+"aggregations": {
+  "beat.name": {
+    "terms": {
+      "field": "beat.name"
+    },
+    "aggregations": {
+      "buckets": {
+        "date_histogram": {
+          "field": "@timestamp",
+          "interval": "5m"
+        },
+        "aggregations": {
+          "@timestamp": {
+            "max": {
+              "field": "@timestamp"
+            }
+          },
+          "bytes_out_average": {
+            "avg": {
+              "field": "system.network.out.bytes"
+            }
+          },
+          "bytes_out_derivative": {
+            "derivative": {
+              "buckets_path": "bytes_out_average"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----------------------------------
+// NOTCONSOLE
+
 When you define an aggregation in a {dfeed}, it must have the following form:
 
 [source,js]
 ----------------------------------
-"aggregations" : {
-  "buckets" : {
-    "date_histogram" : {
-      "time_zone": "UTC", ...
+"aggregations": {
+  ["bucketing_aggregation": {
+    "bucket_agg": {
+      ...
     },
-    "aggregations": {
-      "<time_field>": {
-        "max": {
-          "field":"<time_field>"
+    "aggregations": {]
+      "data_histogram_aggregation": {
+        "date_histogram": {
+          "field": "time",
+        },
+        "aggregations": {
+          "timestamp": {
+            "max": {
+              "field": "time"
+            }
+          },
+          [,"<first_term>": {
+            "terms":{...
+            }
+            [,"aggregations" : {
+              [<sub_aggregation>]+
+            } ]
+          }]
         }
       }
-      [,"<first_term>": {
-        "terms":{...
-        }
-        [,"aggregations" : {
-          [<sub_aggregation>]+
-        } ]
-      }]
-   }
- }
+    }
+  }
 }
 ----------------------------------
+// NOTCONSOLE
 
-You must specify `buckets` as the aggregation name and `date_histogram` as the
-aggregation type. For more information, see
+The top level aggregation must be either a {ref}/search-aggregations-bucket.html[Bucket Aggregation]
+containing as single sub-aggregation that is a `date_histogram` or the top level aggregation
+is the required `date_histogram`. There must be exactly 1 `date_histogram` aggregation.
+For more information, see
 {ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date Histogram Aggregation].
 
 NOTE: The `time_zone` parameter in the date histogram aggregation must be set to `UTC`,
@@ -163,6 +218,7 @@ GET .../_search {
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 By default, {es} limits the maximum number of terms returned to 10000. For high
 cardinality fields, the query might not run. It might return errors related to

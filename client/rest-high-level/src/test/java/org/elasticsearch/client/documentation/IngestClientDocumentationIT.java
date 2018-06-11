@@ -27,6 +27,7 @@ import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
@@ -86,7 +87,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-pipeline-request-masterTimeout
 
             // tag::put-pipeline-execute
-            WritePipelineResponse response = client.ingest().putPipeline(request); // <1>
+            WritePipelineResponse response = client.ingest().putPipeline(request, RequestOptions.DEFAULT); // <1>
             // end::put-pipeline-execute
 
             // tag::put-pipeline-response
@@ -129,7 +130,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-pipeline-execute-async
-            client.ingest().putPipelineAsync(request, listener); // <1>
+            client.ingest().putPipelineAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -154,7 +155,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-pipeline-request-masterTimeout
 
             // tag::get-pipeline-execute
-            GetPipelineResponse response = client.ingest().getPipeline(request); // <1>
+            GetPipelineResponse response = client.ingest().getPipeline(request, RequestOptions.DEFAULT); // <1>
             // end::get-pipeline-execute
 
             // tag::get-pipeline-response
@@ -199,7 +200,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-pipeline-execute-async
-            client.ingest().getPipelineAsync(request, listener); // <1>
+            client.ingest().getPipelineAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -229,7 +230,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-pipeline-request-masterTimeout
 
             // tag::delete-pipeline-execute
-            WritePipelineResponse response = client.ingest().deletePipeline(request); // <1>
+            WritePipelineResponse response = client.ingest().deletePipeline(request, RequestOptions.DEFAULT); // <1>
             // end::delete-pipeline-execute
 
             // tag::delete-pipeline-response
@@ -269,7 +270,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::delete-pipeline-execute-async
-            client.ingest().deletePipelineAsync(request, listener); // <1>
+            client.ingest().deletePipelineAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::delete-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

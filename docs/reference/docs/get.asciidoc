@@ -167,7 +167,7 @@ The result of the above get operation is:
 // TESTRESPONSE
 
 
-Field values fetched from the document it self are always returned as an array.
+Field values fetched from the document itself are always returned as an array.
 Since the `counter` field is not stored the get request simply ignores it when trying to get the `stored_fields.`
 
 It is also possible to retrieve metadata fields like the `_routing` field:

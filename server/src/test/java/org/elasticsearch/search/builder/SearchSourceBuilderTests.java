@@ -20,7 +20,6 @@
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

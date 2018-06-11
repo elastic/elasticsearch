@@ -58,7 +58,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     /**
      * Set the current doc ID.
      */
-    public abstract void setNextDocId(int docId) throws IOException;
+    public abstract boolean setNextDocId(int docId) throws IOException;
 
     /**
      * Return a copy of the list of the values for the current document.
@@ -106,8 +106,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
+        public boolean setNextDocId(int docId) throws IOException {
+            boolean docHasValues = in.advanceExact(docId);
+            if (docHasValues) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     values[i] = in.nextValue();
@@ -115,6 +116,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else {
                 resize(0);
             }
+            return docHasValues;
         }
 
         /**
@@ -131,6 +133,37 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return 0L;
             }
             return values[0];
+        }
+
+        public long getMin() {
+            if (count == 0) {
+                return 0L;
+            };
+            return values[0];
+        }
+
+        public long getMax() {
+            if (count == 0) {
+                return 0L;
+            };
+            return values[count - 1];
+        }
+
+        public long getSum() {
+            if (count == 0) {
+                return 0L;
+            };
+            long sum = 0L;
+            for (int i = 0; i < count; i++)
+                sum += values[i];
+            return sum;
+        }
+
+        public double getAvg() {
+            if (count == 0) {
+                return 0d;
+            };
+            return getSum() * 1.0/count;
         }
 
         @Override
@@ -191,13 +224,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
+        public boolean setNextDocId(int docId) throws IOException {
+            boolean docHasValues = in.advanceExact(docId);
+            if (docHasValues) {
                 count = in.docValueCount();
             } else {
                 count = 0;
             }
             refreshArray();
+            return docHasValues;
         }
 
         /**
@@ -245,8 +280,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
+        public boolean setNextDocId(int docId) throws IOException {
+            boolean docHasValues = in.advanceExact(docId);
+            if (docHasValues) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     values[i] = in.nextValue();
@@ -254,6 +290,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else {
                 resize(0);
             }
+            return docHasValues;
         }
 
         /**
@@ -275,6 +312,38 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             return values[0];
         }
+
+        public double getMin() {
+            if (count == 0) {
+                return 0d;
+            };
+            return values[0];
+        }
+
+        public double getMax() {
+            if (count == 0) {
+                return 0d;
+            };
+            return values[count - 1];
+        }
+
+        public double getSum() {
+            if (count == 0) {
+                return 0d;
+            };
+            double sum = 0d;
+            for (int i = 0; i < count; i++)
+                sum += values[i];
+            return sum;
+        }
+
+        public double getAvg() {
+            if (count == 0) {
+                return 0d;
+            };
+            return getSum() / count;
+        }
+
 
         @Override
         public Double get(int index) {
@@ -298,8 +367,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
+        public boolean setNextDocId(int docId) throws IOException {
+            boolean docHasValues = in.advanceExact(docId);
+            if (docHasValues) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     GeoPoint point = in.nextValue();
@@ -308,6 +378,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else {
                 resize(0);
             }
+            return docHasValues;
         }
 
         /**
@@ -418,8 +489,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
+        public boolean setNextDocId(int docId) throws IOException {
+            boolean docHasValues = in.advanceExact(docId);
+            if (docHasValues) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     values[i] = in.nextValue() == 1;
@@ -427,6 +499,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else {
                 resize(0);
             }
+            return docHasValues;
         }
 
         /**
@@ -474,8 +547,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
+        public boolean setNextDocId(int docId) throws IOException {
+            boolean docHasValues = in.advanceExact(docId);
+            if (docHasValues) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
@@ -486,6 +560,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else {
                 resize(0);
             }
+            return docHasValues;
         }
 
         /**

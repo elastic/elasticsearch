@@ -252,14 +252,16 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void setNextDocId(int docId) throws IOException {
+            public boolean setNextDocId(int docId) throws IOException {
                 count = 0;
-                if (in.advanceExact(docId)) {
+                boolean docHasValues = in.advanceExact(docId);
+                if (docHasValues) {
                     for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
                         ords = ArrayUtil.grow(ords, count + 1);
                         ords[count++] = ord;
                     }
                 }
+                return docHasValues;
             }
 
             public String getValue() {

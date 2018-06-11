@@ -25,6 +25,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.ScriptModule;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -91,7 +92,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             localCacheFieldData.put(fieldName, scriptValues);
         }
         try {
-            scriptValues.setNextDocId(docId);
+            boolean docHasValues = scriptValues.setNextDocId(docId);
+            if ((docHasValues == false) && ScriptModule.NULL_FOR_MISSING_VALUE) return null;
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

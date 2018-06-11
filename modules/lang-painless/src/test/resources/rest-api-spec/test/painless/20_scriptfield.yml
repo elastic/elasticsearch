@@ -95,7 +95,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            source: "(doc['missing'].value?.length() ?: 0) + params.x;"
+                            source: "(doc['missing']?.value?.length() ?: 0) + params.x;"
                             params:
                                 x: 5
 

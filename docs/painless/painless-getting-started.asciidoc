@@ -68,6 +68,7 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
+
 Alternatively, you could do the same thing using a script field instead of a function score:
 
 [source,js]
@@ -118,6 +119,27 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 // CONSOLE
+
+
+[float]
+===== Missing values
+
+If you request the value from a field `field` that isn’t in
+the document, `doc['field'].value` for this document returns:
+
+- `0` if a `field` has a numeric datatype (long, double etc.)
+- `false` is a `field` has a boolean datatype
+- epoch date if a `field` has a date datatype
+- `null` if a `field` has a string datatype
+- `null` if a `field` has a geo datatype
+- `""` if a `field` has a binary datatype
+
+IMPORTANT: Starting in 7.0, `doc['field']` returns a value of null if
+the field is missing in a document. To enable this behavior now,
+set a <<jvm-options,`jvm.option`>>
+`-Des.script.null_for_missing_value=true` on a node. If you do not enable
+this behavior, a deprecation warning is logged on start up.
+
 
 [float]
 ==== Updating Fields with Painless
@@ -356,6 +378,16 @@ Note: all of the `_update_by_query` examples above could really do with a
 {ref}/query-dsl-script-query.html[script query] it wouldn't be as efficient
 as using any other query because script queries aren't able to use the inverted
 index to limit the documents that they have to check.
+
+[[multi-value-field-operations]]
+=== Multi-value field operations
+
+Painless supports the following operations for multi-value numeric fields:
+
+- `doc['field'].min` - gets the minimum value
+- `doc['field'].max` - gets the maximum value
+- `doc['field'].sum` - gets the sum of the values
+- `doc['field'].avg` - gets the average of the values
 
 [[modules-scripting-painless-dispatch]]
 === How painless dispatches functions

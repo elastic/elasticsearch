@@ -335,7 +335,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         private final String uri;
         private HashMap<String, List<String>> headers = new HashMap<>();
 
-        public TestRequest(HttpVersion version, RestRequest.Method method, String uri) {
+        private TestRequest(HttpVersion version, RestRequest.Method method, String uri) {
 
             this.version = version;
             this.method = method;

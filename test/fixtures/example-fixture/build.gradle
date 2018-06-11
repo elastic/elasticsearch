@@ -22,3 +22,5 @@ test.enabled = false
 // Not published so no need to assemble
 tasks.remove(assemble)
 build.dependsOn.remove('assemble')
+
+dependenciesInfo.enabled = false

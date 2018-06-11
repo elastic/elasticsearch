@@ -343,7 +343,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             @Override
                             public BytesRef binaryValue() {
                                 final Object run = leafScript.run();
-                                CollectionUtils.ensureNoSelfReferences(run);
+                                CollectionUtils.ensureNoSelfReferences(run, "ScriptSortBuilder leaf script");
                                 spare.copyChars(run.toString());
                                 return spare.get();
                             }

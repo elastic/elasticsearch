@@ -3,8 +3,12 @@
 
 Use an identifier as a named token to specify a
 <<painless-variables, variable>>, <<painless-types, type>>,
-<<dot-operator, field>>, <<dot-operator, method>>, or function.
-<<painless-keywords, Keywords>> cannot be used as identifiers.
+<<field-access-operator, field>>, <<method-call-operator, method>>, or
+<<painless-functions, function>>.
+
+*Errors*
+
+If a <<painless-keywords, keyword>> is used as an identifier.
 
 *Grammar*
 [source,ANTLR4]

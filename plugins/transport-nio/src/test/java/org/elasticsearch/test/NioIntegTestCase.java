@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch;
+package org.elasticsearch.test;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.nio.NioHttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.nio.NioTransport;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
-public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
+public abstract class NioIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {
@@ -43,30 +43,31 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        // randomize netty settings
+        // randomize nio settings
         if (randomBoolean()) {
-            builder.put(Netty4Transport.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
+            builder.put(NioTransport.NIO_WORKER_COUNT.getKey(), random().nextInt(3) + 1);
+            builder.put(NioHttpServerTransport.NIO_HTTP_WORKER_COUNT.getKey(), random().nextInt(3) + 1);
         }
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME);
-        builder.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NioTransportPlugin.NIO_TRANSPORT_NAME);
+        builder.put(NetworkModule.HTTP_TYPE_KEY, NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME);
         return builder.build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME);
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NioTransportPlugin.NIO_TRANSPORT_NAME);
         return  builder.build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(Netty4Plugin.class);
+        return Collections.singletonList(NioTransportPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(Netty4Plugin.class);
+        return Collections.singletonList(NioTransportPlugin.class);
     }
 
 }

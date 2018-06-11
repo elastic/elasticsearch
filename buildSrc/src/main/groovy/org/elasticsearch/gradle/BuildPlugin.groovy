@@ -348,7 +348,10 @@ class BuildPlugin implements Plugin<Project> {
                 // just a self contained test-fixture configuration, likely transitive and hellacious
                 return
             }
-            configuration.resolutionStrategy.failOnVersionConflict()
+            configuration.resolutionStrategy { 
+                failOnVersionConflict()
+                preferProjectModules()
+            }
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself

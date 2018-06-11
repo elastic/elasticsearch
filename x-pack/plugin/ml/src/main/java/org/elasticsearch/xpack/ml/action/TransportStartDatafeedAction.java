@@ -150,7 +150,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         createDataExtractor(job, datafeed, params, waitForTaskListener);
                                     }
                                 },
-                                e -> listener.onFailure(createUnknownLicenseError(datafeed.getId(), datafeed.getRemoteIndices(), e))
+                                e -> listener.onFailure(createUnknownLicenseError(datafeed.getId(),
+                                        MlRemoteLicenseChecker.remoteIndices(datafeed.getIndices()), e))
                         ));
             } else {
                 createDataExtractor(job, datafeed, params, waitForTaskListener);
@@ -244,7 +245,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 + " indices on a remote cluster " + remoteIndices
                 + " but the license type could not be verified";
 
-        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, new Exception(cause.getMessage()));
     }
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<StartDatafeedAction.DatafeedParams> {

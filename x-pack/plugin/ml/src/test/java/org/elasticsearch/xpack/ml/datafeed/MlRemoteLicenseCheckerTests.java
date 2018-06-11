@@ -16,15 +16,19 @@ import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.same;
@@ -41,6 +45,13 @@ public class MlRemoteLicenseCheckerTests extends ESTestCase {
         assertFalse(MlRemoteLicenseChecker.containsRemoteIndex(indices));
         indices = Arrays.asList("local-index1", "remote-cluster:remote-index2");
         assertTrue(MlRemoteLicenseChecker.containsRemoteIndex(indices));
+    }
+
+    public void testRemoteIndices() {
+        List<String> indices = Collections.singletonList("local-index");
+        assertThat(MlRemoteLicenseChecker.remoteIndices(indices), is(empty()));
+        indices = Arrays.asList("local-index", "remote-cluster:index1", "local-index2", "remote-cluster2:index1");
+        assertThat(MlRemoteLicenseChecker.remoteIndices(indices), containsInAnyOrder("remote-cluster:index1", "remote-cluster2:index1"));
     }
 
     public void testRemoteClusterNames() {

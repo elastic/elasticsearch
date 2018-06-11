@@ -12,9 +12,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoRequest;
 
@@ -27,15 +27,15 @@ import java.util.stream.Collectors;
 /**
  * ML datafeeds can use cross cluster search to access data in a remote cluster.
  * The remote cluster should be licenced for ML this class performs that check
- * using the _xpack endpoint.
+ * using the _xpack (info) endpoint.
  */
 public class MlRemoteLicenseChecker {
 
     private final Client client;
 
     public static class RemoteClusterLicenseInfo {
-        private String clusterName;
-        private XPackInfoResponse.LicenseInfo licenseInfo;
+        private final String clusterName;
+        private final XPackInfoResponse.LicenseInfo licenseInfo;
 
         RemoteClusterLicenseInfo(String clusterName, XPackInfoResponse.LicenseInfo licenseInfo) {
             this.clusterName = clusterName;
@@ -73,8 +73,8 @@ public class MlRemoteLicenseChecker {
 
     /**
      * Check each cluster is licensed for ML.
-     * This function terminates early when the first cluster that is not licensed
-     * is found or an error occurs.
+     * This function evaluates lazily and will terminate when the first cluster
+     * that is not licensed is found or an error occurs.
      *
      * @param clusterNames List of remote cluster names
      * @param listener Response listener
@@ -108,7 +108,7 @@ public class MlRemoteLicenseChecker {
             @Override
             public void onFailure(Exception e) {
                 String message = "Could not determine the X-Pack licence type for cluster [" + clusterName.get() + "]";
-                if (e instanceof InvalidIndexNameException) {
+                if (e instanceof ActionNotFoundTransportException) {
                     // This is likely to be because x-pack is not installed in the target cluster
                     message += ". Is X-Pack installed on the target cluster?";
                 }
@@ -139,12 +139,21 @@ public class MlRemoteLicenseChecker {
                 (mode == License.OperationMode.PLATINUM || mode == License.OperationMode.TRIAL);
     }
 
-    private static boolean isRemoteIndex(String index) {
+    public static boolean isRemoteIndex(String index) {
         return index.indexOf(':') != -1;
     }
 
     public static boolean containsRemoteIndex(List<String> indices) {
         return indices.stream().anyMatch(MlRemoteLicenseChecker::isRemoteIndex);
+    }
+
+    /**
+     * Get any remote indices used in cross cluster search.
+     * Remote indices are of the form {@code cluster_name:index_name}
+     * @return List of remote cluster indices
+     */
+    public static List<String> remoteIndices(List<String> indices) {
+        return indices.stream().filter(index -> index.indexOf(':') != -1).collect(Collectors.toList());
     }
 
     /**

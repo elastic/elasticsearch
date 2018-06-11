@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * Datafeed configuration options. Describes where to proactively pull input
@@ -220,15 +219,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public List<String> getIndices() {
         return indices;
-    }
-
-    /**
-     * Get any indices used for cross cluster search
-     * that are on a remote cluster.
-     * @return List of remote cluster indices
-     */
-    public List<String> getRemoteIndices() {
-        return indices.stream().filter(index -> index.indexOf(':') != -1).collect(Collectors.toList());
     }
 
     public List<String> getTypes() {

@@ -493,18 +493,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
     }
 
-    public void testGetRemoteIndices() {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Collections.singletonList("local-index"));
-
-        DatafeedConfig config = builder.build();
-        assertThat(config.getRemoteIndices(), is(empty()));
-
-        builder.setIndices(Arrays.asList("local-index", "remote-cluster:index1", "local-index2", "remote-cluster2:index1"));
-        config = builder.build();
-        assertThat(config.getRemoteIndices(), containsInAnyOrder("remote-cluster:index1", "remote-cluster2:index1"));
-    }
-
     public static String randomValidDatafeedId() {
         CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);

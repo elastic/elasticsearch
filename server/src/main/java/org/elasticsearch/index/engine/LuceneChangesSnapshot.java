@@ -119,7 +119,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public int overriddenOperations() {
+    public int skippedOperations() {
         return skippedOperations;
     }
 

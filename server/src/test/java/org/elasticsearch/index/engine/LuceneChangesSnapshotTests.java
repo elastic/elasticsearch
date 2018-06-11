@@ -178,7 +178,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
             }
-            assertThat(snapshot.overriddenOperations(), equalTo(totalOps - latestOperations.size()));
+            assertThat(snapshot.skippedOperations(), equalTo(totalOps - latestOperations.size()));
         }
     }
 

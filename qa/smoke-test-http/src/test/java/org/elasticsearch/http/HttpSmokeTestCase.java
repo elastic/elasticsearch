@@ -18,10 +18,13 @@
  */
 package org.elasticsearch.http;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
@@ -31,7 +34,18 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.Collection;
 
+@ThreadLeakFilters(filters = {HttpSmokeTestCase.ObjectCleanerThreadThreadFilter.class})
 public abstract class HttpSmokeTestCase extends ESIntegTestCase {
+
+    public static class ObjectCleanerThreadThreadFilter implements ThreadFilter {
+
+        @Override
+        public boolean reject(final Thread t) {
+            // TODO: replace with constant from Netty when https://github.com/netty/netty/pull/8014 is integrated
+            return "ObjectCleanerThread".equals(t.getName());
+        }
+
+    }
 
     private static String nodeTransportTypeKey;
     private static String nodeHttpTypeKey;

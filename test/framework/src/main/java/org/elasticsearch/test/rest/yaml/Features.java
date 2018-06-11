@@ -40,6 +40,7 @@ public final class Features {
             "default_shards",
             "embedded_stash_key",
             "headers",
+            "node_selector",
             "stash_in_key",
             "stash_in_path",
             "stash_path_replace",

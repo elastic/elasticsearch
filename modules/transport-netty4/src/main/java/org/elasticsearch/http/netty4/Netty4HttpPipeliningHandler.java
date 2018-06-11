@@ -27,10 +27,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipeliningAggregator;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.Collections;
 import java.util.List;
 
 /**

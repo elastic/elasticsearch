@@ -30,6 +30,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -64,10 +66,12 @@ import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -249,4 +253,9 @@ public class IndicesModule extends AbstractModule {
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
     }
+
+    public Collection<Function<IndexSettings, Optional<EngineFactory>>> getEngineFactories() {
+        return Collections.emptyList();
+    }
+
 }

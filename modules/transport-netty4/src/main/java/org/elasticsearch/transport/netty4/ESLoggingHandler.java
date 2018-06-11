@@ -23,7 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.util.internal.StringUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -35,7 +34,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportStatus;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 final class ESLoggingHandler extends LoggingHandler {
 

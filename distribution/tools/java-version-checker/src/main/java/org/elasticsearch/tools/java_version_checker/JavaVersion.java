@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.tools.java_version_checker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +25,8 @@ import java.util.Objects;
 
 public class JavaVersion {
 
-    static final List<Integer> CURRENT = parse(System.getProperty("java.specification.version"));
-    static final List<Integer> JAVA_8 = parse("1.8");
+    public static final List<Integer> CURRENT = parse(System.getProperty("java.specification.version"));
+    public static final List<Integer> JAVA_8 = parse("1.8");
 
     static List<Integer> parse(final String value) {
         if (!value.matches("^0*[0-9]+(\\.[0-9]+)*$")) {
@@ -41,7 +41,7 @@ public class JavaVersion {
         return version;
     }
 
-    static int majorVersion(final List<Integer> javaVersion) {
+    public static int majorVersion(final List<Integer> javaVersion) {
         Objects.requireNonNull(javaVersion);
         if (javaVersion.get(0) > 1) {
             return javaVersion.get(0);

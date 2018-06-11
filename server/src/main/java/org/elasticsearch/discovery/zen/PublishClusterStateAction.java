@@ -373,14 +373,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     protected void handleIncomingClusterStateRequest(BytesTransportRequest request, TransportChannel channel) throws IOException {
         Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
-        try {
-            if (compressor != null) {
-                in = compressor.streamInput(in);
-            }
-            in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
-            in.setVersion(request.version());
-            synchronized (lastSeenClusterStateMutex) {
-                final ClusterState incomingState;
+        final ClusterState incomingState;
+        synchronized (lastSeenClusterStateMutex) {
+            try {
+                if (compressor != null) {
+                    in = compressor.streamInput(in);
+                }
+                in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+                in.setVersion(request.version());
                 // If true we received full cluster state - otherwise diffs
                 if (in.readBoolean()) {
                     incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
@@ -397,17 +397,17 @@ public class PublishClusterStateAction extends AbstractComponent {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }
-                incomingClusterStateListener.onIncomingClusterState(incomingState);
-                lastSeenClusterState = incomingState;
+            } catch (IncompatibleClusterStateVersionException e) {
+                incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+                throw e;
+            } catch (Exception e) {
+                logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                throw e;
+            } finally {
+                IOUtils.close(in);
             }
-        } catch (IncompatibleClusterStateVersionException e) {
-            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-            throw e;
-        } catch (Exception e) {
-            logger.warn("unexpected error while deserializing an incoming cluster state", e);
-            throw e;
-        } finally {
-            IOUtils.close(in);
+            incomingClusterStateListener.onIncomingClusterState(incomingState);
+            lastSeenClusterState = incomingState;
         }
         channel.sendResponse(TransportResponse.Empty.INSTANCE);
     }

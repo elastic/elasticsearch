@@ -45,6 +45,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
 
     private List<TokenFilterFactory> filters;
     private List<String> filterNames;
+    private final boolean preserveOriginal;
 
     private static final TokenFilterFactory IDENTITY_FACTORY = new TokenFilterFactory() {
         @Override
@@ -61,6 +62,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
     public MultiplexingTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
         this.filterNames = settings.getAsList("filters");
+        this.preserveOriginal = settings.getAsBoolean("preserveOriginal", true);
     }
 
     @Override
@@ -75,6 +77,9 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
     @Override
     public void setReferences(Map<String, TokenFilterFactory> factories) {
         filters = new ArrayList<>();
+        if (preserveOriginal) {
+            filters.add(IDENTITY_FACTORY);
+        }
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
@@ -108,10 +113,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
     }
 
     private TokenFilterFactory resolveFilterFactory(Map<String, TokenFilterFactory> factories, String name) {
-        if ("identity".equals(name)) {
-            return IDENTITY_FACTORY;
-        }
-        else if (factories.containsKey(name) == false) {
+        if (factories.containsKey(name) == false) {
             throw new IllegalArgumentException("Multiplexing filter [" + name() + "] refers to undefined tokenfilter [" + name + "]");
         }
         else {
@@ -143,6 +145,7 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
             }
             this.source = source;
             this.filterCount = filters.size();
+            this.selector = filterCount - 1;
         }
 
         @Override

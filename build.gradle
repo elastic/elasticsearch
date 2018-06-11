@@ -575,3 +575,12 @@ gradle.projectsEvaluated {
     }
   }
 }
+
+apply plugin: 'compare-gradle-builds'
+
+compareGradleBuilds {
+    targetBuild { 
+        gradleVersion = "4.7"
+        tasks = [ "assemble" ]
+    }
+}

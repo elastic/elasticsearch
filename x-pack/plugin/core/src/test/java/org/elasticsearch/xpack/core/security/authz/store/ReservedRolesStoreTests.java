@@ -189,8 +189,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME), is(false));
         assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME), is(true));
         assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME), is(true));
-
-
+        
         // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 

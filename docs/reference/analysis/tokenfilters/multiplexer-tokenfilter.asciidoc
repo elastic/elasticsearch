@@ -4,15 +4,19 @@
 A token filter of type `multiplexer` will emit multiple tokens at the same position,
 each version of the token having been run through a different filter.
 
+Note that the child filters will in effect be passed a mock tokenstream consisting
+of a single token, so filters that read ahead in the tokenstream like shingles or
+multi-word synonyms will not work properly
 
 [float]
 === Options
 [horizontal]
 filters:: a list of token filters to apply to incoming tokens.  These can be any
-  token filters defined elsewhere in the index mappings, or the special `identity`
-  filter that will emit the token unchanged.  Filters can be chained
+  token filters defined elsewhere in the index mappings.  Filters can be chained
   using a comma-delimited string, so for example `"lowercase, porter_stem"` would
   apply the `lowercase` filter and then the `porter_stem` filter to a single token
+preserve_original:: if `true` (the default) then emit the original token in
+  addition to the filtered tokens
 
 [float]
 === Settings example
@@ -34,7 +38,7 @@ PUT /multiplexer_example
             "filter" : {
                 "my_multiplexer" : {
                     "type" : "multiplexer",
-                    "filters" : [ "identity", "lowercase", "lowercase, porter_stem" ]
+                    "filters" : [ "lowercase", "lowercase, porter_stem" ]
                 }
             }
         }

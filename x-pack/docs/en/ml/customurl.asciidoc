@@ -6,9 +6,9 @@ When you create an advanced job or edit any job in {kib}, you can optionally
 attach one or more custom URLs. 
 
 The custom URLs provide links from the anomalies table in the *Anomaly Explorer*
-or *Single Metric Viewer* window in {kib} to custom dashboards or external
-websites. For example, you can define a custom URL that provides a way for users
-to drill down to the source data from the results set.
+or *Single Metric Viewer* window in {kib} to {kib} dashboards, the *Discovery* 
+page, or external websites. For example, you can define a custom URL that 
+provides a way for users to drill down to the source data from the results set.
 
 When you edit a job in {kib}, it simplifies the creation of the custom URLs for  
 {kib} dashboards and the *Discover* page and it enables you to test your URLs. 
@@ -32,7 +32,7 @@ interested in the following anomaly, for example:
 [role="screenshot"]
 image::images/ml-customurl.jpg["An example of the custom URL links in the Anomaly Explorer anomalies table"]
 
-...clicking `My Link 1` opens the *Discover* page and show results for the 
+...clicking `My Link 1` opens the *Discover* page and shows results for the 
 service and date that were identified in the anomaly:
 
 [role="screenshot"]

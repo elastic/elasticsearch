@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;

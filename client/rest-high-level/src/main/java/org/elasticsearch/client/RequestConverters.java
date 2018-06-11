@@ -55,6 +55,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -827,6 +828,16 @@ final class RequestConverters {
             params.putParam("cause", putIndexTemplateRequest.cause());
         }
         request.setEntity(createEntity(putIndexTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) throws IOException {
+        String[] names = getIndexTemplatesRequest.names();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addCommaSeparatedPathParts(names).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withLocal(getIndexTemplatesRequest.local());
+        params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
         return request;
     }
 

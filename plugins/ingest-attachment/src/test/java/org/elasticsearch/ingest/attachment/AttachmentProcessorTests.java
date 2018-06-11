@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -212,6 +213,10 @@ public class AttachmentProcessorTests extends ESTestCase {
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content_type", "content", "content_length"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+    }
+
+    public void testZipFileDoesNotHang() throws Exception {
+        expectThrows(Exception.class, () -> parseDocument("bad_tika.zip", processor));
     }
 
     public void testParseAsBytesArray() throws Exception {

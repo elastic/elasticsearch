@@ -68,7 +68,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
             throw new IllegalStateException("resync replication request serialization is broken in 6.0.0");
         }
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             trimAboveSeqNo = in.readZLong();
         } else {
             trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -79,7 +79,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeZLong(trimAboveSeqNo);
         }
         out.writeArray(Translog.Operation::writeOperation, operations);

@@ -22,7 +22,9 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -63,5 +65,14 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.field(NAME, value.getStringRep());
+    }
+
+    public static MaxAgeCondition fromXContent(XContentParser parser) throws IOException {
+        parser.nextToken();
+        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return new MaxAgeCondition(TimeValue.parseTimeValue(parser.text(), NAME));
+        } else {
+            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+        }
     }
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.tools.java_version_checker;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -45,10 +45,30 @@ final class JavaVersionChecker {
                     Locale.ROOT,
                     "the minimum required Java version is 8; your Java version from [%s] does not meet this requirement",
                     System.getProperty("java.home"));
-            Launchers.errPrintln(message);
-            Launchers.exit(1);
+            errPrintln(message);
+            exit(1);
         }
-        Launchers.exit(0);
+        exit(0);
+    }
+
+    /**
+     * Prints a string and terminates the line on standard error.
+     *
+     * @param message the message to print
+     */
+    @SuppressForbidden(reason = "System#err")
+    static void errPrintln(final String message) {
+        System.err.println(message);
+    }
+
+    /**
+     * Exit the VM with the specified status.
+     *
+     * @param status the status
+     */
+    @SuppressForbidden(reason = "System#exit")
+    static void exit(final int status) {
+        System.exit(status);
     }
 
 }

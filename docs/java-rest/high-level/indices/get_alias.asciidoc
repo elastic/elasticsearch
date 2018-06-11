@@ -33,7 +33,8 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-request-
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
-how wildcard expressions are expanded
+how wildcard expressions are expanded when looking for aliases that belong to
+specified indices.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

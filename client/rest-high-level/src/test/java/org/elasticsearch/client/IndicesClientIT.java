@@ -983,7 +983,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.getErrorMessage(),
+            assertThat(getAliasesResponse.getException().getMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         }
         {
@@ -991,7 +991,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.getErrorMessage(), equalTo("alias [" + alias + "] missing"));
+            assertThat(getAliasesResponse.getError(), equalTo("alias [" + alias + "] missing"));
         }
         createIndex(index, Settings.EMPTY);
         client().performRequest(HttpPut.METHOD_NAME, index + "/_alias/" + alias);
@@ -1000,7 +1000,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.getErrorMessage(),
+            assertThat(getAliasesResponse.getException().getMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         }
         {
@@ -1008,7 +1008,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.getErrorMessage(),
+            assertThat(getAliasesResponse.getException().getMessage(),
                     equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         }
         {

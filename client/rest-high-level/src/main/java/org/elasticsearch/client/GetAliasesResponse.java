@@ -30,24 +30,43 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Response obtained from the get aliases API.
+ * The format is pretty horrible as it holds aliases, but at the same time errors can come back through the status and error fields.
+ * Such errors are mostly 404 - NOT FOUND for aliases that were specified but not found. In such case the client won't throw exception
+ * so it allows to retrieve the returned aliases, while at the same time checking if errors were returned.
+ * There's also the case where an exception is returned, like for instance an {@link org.elasticsearch.index.IndexNotFoundException}.
+ * We would usually throw such exception, but we configure the client to not throw for 404 to support the case above, hence we also not
+ * throw in case an index is not found, although it is a hard error that doesn't come back with aliases.
+ */
 public class GetAliasesResponse extends ActionResponse implements StatusToXContentObject {
 
     private final RestStatus status;
-    private final String errorMessage;
+    private final String error;
+    private final ElasticsearchException exception;
+
     private final Map<String, Set<AliasMetaData>> aliases;
 
-    public GetAliasesResponse(RestStatus status, String errorMessage, Map<String, Set<AliasMetaData>> aliases) {
+    GetAliasesResponse(RestStatus status, String error, Map<String, Set<AliasMetaData>> aliases) {
         this.status = status;
-        this.errorMessage = errorMessage;
+        this.error = error;
         this.aliases = aliases;
+        this.exception = null;
+    }
+
+    private GetAliasesResponse(RestStatus status, ElasticsearchException exception) {
+        this.status = status;
+        this.error = null;
+        this.aliases = Collections.emptyMap();
+        this.exception = exception;
     }
 
     @Override
@@ -55,31 +74,25 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         return status;
     }
 
-    public String getErrorMessage() {
-        return errorMessage;
+    /**
+     * Return the possibly returned error, null otherwise
+     */
+    public String getError() {
+        return error;
     }
 
+    /**
+     * Return the exception that may have been returned
+     */
+    public ElasticsearchException getException() {
+        return exception;
+    }
+
+    /**
+     * Return the requested aliases
+     */
     public Map<String, Set<AliasMetaData>> getAliases() {
         return aliases;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetAliasesResponse that = (GetAliasesResponse) o;
-        return status == that.status &&
-                Objects.equals(errorMessage, that.errorMessage) &&
-                Objects.equals(aliases, that.aliases);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(status, errorMessage, aliases);
     }
 
     @Override
@@ -87,7 +100,7 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         builder.startObject();
         {
             if (status != RestStatus.OK) {
-                builder.field("error", errorMessage);
+                builder.field("error", error);
                 builder.field("status", status.getStatus());
             }
 
@@ -109,6 +122,9 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         return builder;
     }
 
+    /**
+     * Parse the get aliases response
+     */
     public static GetAliasesResponse fromXContent(XContentParser parser) throws IOException {
         if (parser.currentToken() == null) {
             parser.nextToken();
@@ -118,7 +134,8 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
 
         String currentFieldName;
         Token token;
-        String exceptionMessage = null;
+        String error = null;
+        ElasticsearchException exception = null;
         RestStatus status = RestStatus.OK;
 
         while (parser.nextToken() != Token.END_OBJECT) {
@@ -131,13 +148,14 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                         status = RestStatus.fromCode(parser.intValue());
                     }
                 } else if ("error".equals(currentFieldName)) {
-                    if ((token = parser.nextToken()) != Token.FIELD_NAME) {
-                        if (token == Token.VALUE_STRING) {
-                            exceptionMessage = parser.text();
-                        } else if (token == Token.START_OBJECT) {
-                            parser.nextToken();
-                            exceptionMessage = ElasticsearchException.innerFromXContent(parser, true).getMessage();
-                        }
+                    token = parser.nextToken();
+                    if (token == Token.VALUE_STRING) {
+                        error = parser.text();
+                    } else if (token == Token.START_OBJECT) {
+                        parser.nextToken();
+                        exception = ElasticsearchException.innerFromXContent(parser, true);
+                    } else if (token == Token.START_ARRAY) {
+                        parser.skipChildren();
                     }
                 } else {
                     String indexName = parser.currentName();
@@ -148,7 +166,12 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 }
             }
         }
-        return new GetAliasesResponse(status, exceptionMessage, aliases);
+        if (exception != null) {
+            assert error == null;
+            assert aliases.isEmpty();
+            return new GetAliasesResponse(status, exception);
+        }
+        return new GetAliasesResponse(status, error, aliases);
     }
 
     private static Set<AliasMetaData> parseAliases(XContentParser parser) throws IOException {

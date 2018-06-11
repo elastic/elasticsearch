@@ -75,8 +75,10 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -435,10 +437,15 @@ public class InternalEngine extends Engine {
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, engineConfig.getPrimaryTermSupplier());
     }
 
-    @Override
+    // Package private for testing purposes only
     Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public boolean isTranslogSyncNeeded() {
+        return getTranslog().syncNeeded();
     }
 
     @Override
@@ -454,6 +461,31 @@ public class InternalEngine extends Engine {
     public void syncTranslog() throws IOException {
         translog.sync();
         revisitIndexDeletionPolicyOnTranslogSynced();
+    }
+
+    @Override
+    public Closeable acquireTranslogRetentionLock() {
+        return getTranslog().acquireRetentionLock();
+    }
+
+    @Override
+    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
+    }
+
+    @Override
+    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
+    }
+
+    @Override
+    public TranslogStats getTranslogStats() {
+        return getTranslog().stats();
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return getTranslog().getLastWriteLocation();
     }
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
@@ -1620,6 +1652,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean shouldRollTranslogGeneration() {
+        return getTranslog().shouldRollGeneration();
+    }
+
+    @Override
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -2238,6 +2275,11 @@ public class InternalEngine extends Engine {
     // Used only for testing! Package private to prevent anyone else from using it
     LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
+    }
+
+    @Override
+    public long getLastSyncedGlobalCheckpoint() {
+        return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
     @Override

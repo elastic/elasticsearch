@@ -19,8 +19,10 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import java.io.IOException;
+import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -32,17 +34,18 @@ import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Lazy;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
-    private volatile AmazonEc2Reference clientReference;
-    private volatile Ec2ClientSettings clientSettings;
+    private final AtomicReference<LazyAmazonEc2Reference> lazyClientReference = new AtomicReference<>();
 
     AwsEc2ServiceImpl(Settings settings) {
         super(settings);
@@ -109,55 +112,62 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
     @Override
     public AmazonEc2Reference client() {
-        if ((clientReference != null) && clientReference.tryIncRef()) {
-            return clientReference;
+        final LazyAmazonEc2Reference clientReference = this.lazyClientReference.get();
+        if (clientReference == null) {
+            throw new IllegalStateException("Missing ec2 client configs");
         }
-        synchronized (this) {
-            if ((clientReference != null) && clientReference.tryIncRef()) {
-                return clientReference;
-            }
-            if (clientSettings == null) {
-                throw new IllegalArgumentException("Missing ec2 client configs.");
-            }
-            final AmazonEc2Reference clientReference = new AmazonEc2Reference(buildClient(clientSettings));
-            clientReference.incRef();
-            this.clientReference = clientReference;
-            return clientReference;
-        }
+        return clientReference.getOrCompute();
     }
 
-
     /**
-     * Refreshes the settings for the AmazonEC2 client. New clients will be build
-     * using these new settings. Old client is usable until released. On release it
+     * Refreshes the settings for the AmazonEC2 client. The new client will be build
+     * using these new settings. The old client is usable until released. On release it
      * will be destroyed instead of being returned to the cache.
      */
     @Override
-    public synchronized Ec2ClientSettings refreshAndClearCache(Ec2ClientSettings clientSettings) {
-        // shutdown all unused clients
-        // others will shutdown on their respective release
-        releaseCachedClient();
-        final Ec2ClientSettings prevSettings = this.clientSettings;
-        this.clientSettings = clientSettings;
-        return prevSettings;
+    public void refreshAndClearCache(Ec2ClientSettings clientSettings) {
+        final LazyAmazonEc2Reference newClient = new LazyAmazonEc2Reference(() -> buildClient(clientSettings));
+        final LazyAmazonEc2Reference oldClient = this.lazyClientReference.getAndSet(newClient);
+        if (oldClient != null) {
+            oldClient.clear();
+        }
     }
 
     @Override
     public void close() {
-        releaseCachedClient();
-    }
-
-    private synchronized void releaseCachedClient() {
-        if (this.clientReference == null) {
-            return;
+        final LazyAmazonEc2Reference clientReference = this.lazyClientReference.getAndSet(null);
+        if (clientReference != null) {
+            clientReference.clear();
         }
-        // the client will shutdown when it will not be used anymore
-        this.clientReference.decRef();
-        // clear the cached client, it will be build lazily
-        this.clientReference = null;
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();
+    }
+
+    private static class LazyAmazonEc2Reference extends Lazy<AmazonEc2Reference, Exception> {
+
+        LazyAmazonEc2Reference(Supplier<AmazonEC2> supplier) {
+            super(() -> {
+                final AmazonEC2 client = Objects.requireNonNull(supplier.get());
+                // wrap supplier result in a reference counted object with initial count set to 1
+                final AmazonEc2Reference clientReference = new AmazonEc2Reference(client);
+                clientReference.incRef();
+                return clientReference;
+            }, clientReference -> clientReference.decRef());
+        }
+
+        @Override
+        public AmazonEc2Reference getOrCompute() {
+            AmazonEc2Reference result;
+            try {
+                result = super.getOrCompute();
+            } catch (final Exception e) {
+                throw new ElasticsearchException("This is unexpected", e);
+            }
+            // the count will be decreased by {@codee AmazonEc2Reference#close}
+            result.incRef();
+            return result;
+        }
     }
 
 }

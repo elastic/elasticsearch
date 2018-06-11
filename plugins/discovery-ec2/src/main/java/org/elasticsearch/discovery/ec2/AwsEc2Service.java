@@ -93,8 +93,7 @@ interface AwsEc2Service extends Closeable {
      * client.
      *
      * @param clientSettings the new refreshed settings
-     * @return the old stale settings
      */
-    Ec2ClientSettings refreshAndClearCache(Ec2ClientSettings clientSettings);
+    void refreshAndClearCache(Ec2ClientSettings clientSettings);
 
 }

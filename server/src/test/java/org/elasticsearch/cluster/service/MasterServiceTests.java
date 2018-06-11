@@ -210,13 +210,6 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                    assertTrue(threadPool.getThreadContext().isSystemContext());
-                    assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
-                    latch.countDown();
-                }
-
-                @Override
                 protected Void newResponse(boolean acknowledged) {
                     return null;
                 }

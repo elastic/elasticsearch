@@ -62,6 +62,12 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
      */
     public abstract void onFailure(String source, Exception e);
 
+    @Override
+    public final void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+        // final, empty implementation here as this method should only be defined in combination
+        // with a batching executor as it will always be executed within the system context.
+    }
+
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call
      * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).

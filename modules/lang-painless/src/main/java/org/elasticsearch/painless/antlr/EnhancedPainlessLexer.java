@@ -20,12 +20,9 @@
 package org.elasticsearch.painless.antlr;
 
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.LexerNoViableAltException;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.misc.Interval;
-import org.antlr.v4.runtime.misc.Pair;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 

@@ -76,11 +76,7 @@ public abstract class TransportWriteAction<
             // check if any transient write operation failures should be bubbled up
             Exception failure = operationResult.getFailure();
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-            if (!TransportActions.isShardNotAvailableException(failure)) {
-                throw failure;
-            } else {
-                location = currentLocation;
-            }
+            throw failure;
         } else {
             location = locationToSync(currentLocation, operationResult.getTranslogLocation());
         }

@@ -24,11 +24,17 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
+import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.apache.lucene.analysis.bn.BengaliNormalizationFilter;
+import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
+import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
+import org.apache.lucene.analysis.cjk.CJKAnalyzer;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
@@ -40,14 +46,22 @@ import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
+import org.apache.lucene.analysis.da.DanishAnalyzer;
+import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.de.GermanNormalizationFilter;
 import org.apache.lucene.analysis.de.GermanStemFilter;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
+import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
+import org.apache.lucene.analysis.fi.FinnishAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
+import org.apache.lucene.analysis.gl.GalicianAnalyzer;
 import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
+import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.in.IndicNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
@@ -64,6 +78,7 @@ import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
+import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
@@ -73,6 +88,7 @@ import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.apache.lucene.analysis.standard.ClassicTokenizer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
@@ -113,6 +129,24 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
         analyzers.put("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.put("pattern", PatternAnalyzerProvider::new);
+        analyzers.put("snowball", SnowballAnalyzerProvider::new);
+        analyzers.put("arabic", ArabicAnalyzerProvider::new);
+        analyzers.put("armenian", ArmenianAnalyzerProvider::new);
+        analyzers.put("basque", BasqueAnalyzerProvider::new);
+        analyzers.put("bengali", BengaliAnalyzerProvider::new);
+        analyzers.put("brazilian", BrazilianAnalyzerProvider::new);
+        analyzers.put("bulgarian", BulgarianAnalyzerProvider::new);
+        analyzers.put("catalan", CatalanAnalyzerProvider::new);
+        analyzers.put("chinese", ChineseAnalyzerProvider::new);
+        analyzers.put("cjk", CjkAnalyzerProvider::new);
+        analyzers.put("czech", CzechAnalyzerProvider::new);
+        analyzers.put("danish", DanishAnalyzerProvider::new);
+        analyzers.put("dutch", DutchAnalyzerProvider::new);
+        analyzers.put("english", EnglishAnalyzerProvider::new);
+        analyzers.put("finnish", FinnishAnalyzerProvider::new);
+        analyzers.put("french", FrenchAnalyzerProvider::new);
+        analyzers.put("galician", GalicianAnalyzerProvider::new);
+        analyzers.put("german", GermanAnalyzerProvider::new);
         return analyzers;
     }
 
@@ -213,10 +247,108 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.LUCENE,
-            version -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH, version ->
-            new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET)));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH, version -> {
+            Analyzer a = new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true,
+                CharArraySet.EMPTY_SET);
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("snowball", CachingStrategy.LUCENE, version -> {
+            Analyzer a =  new SnowballAnalyzer("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("arabic", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new ArabicAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("armenian", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new ArmenianAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("basque", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new BasqueAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("bengali", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new BengaliAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("brazilian", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new BrazilianAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("bulgarian", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new BulgarianAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("catalan", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new CatalanAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.LUCENE, version -> {
+            // only for old indices, best effort
+            Analyzer a = new StandardAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("cjk", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new CJKAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("czech", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new CzechAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("danish", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new DanishAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("dutch", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new DutchAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("english", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new EnglishAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("finnish", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new FinnishAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("french", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new FrenchAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("galician", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new GalicianAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("german", CachingStrategy.LUCENE, version -> {
+            Analyzer a = new GermanAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }));
         return analyzers;
     }
 

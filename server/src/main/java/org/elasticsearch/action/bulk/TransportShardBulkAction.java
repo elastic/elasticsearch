@@ -486,32 +486,24 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkItemRequest item = request.items()[i];
             final Engine.Result operationResult;
             DocWriteRequest docWriteRequest = item.request();
-            try {
-                switch (replicaItemExecutionMode(item, i)) {
-                    case NORMAL:
-                        final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
-                        operationResult = performOpOnReplica(primaryResponse, docWriteRequest, replica);
-                        assert operationResult != null : "operation result must never be null when primary response has no failure";
-                        location = syncOperationResultOrThrow(operationResult, location);
-                        break;
-                    case NOOP:
-                        break;
-                    case FAILURE:
-                        final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
-                        assert failure.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "seq no must be assigned";
-                        operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), failure.getMessage());
-                        assert operationResult != null : "operation result must never be null when primary response has no failure";
-                        location = syncOperationResultOrThrow(operationResult, location);
-                        break;
-                    default:
-                        throw new IllegalStateException("illegal replica item execution mode for: " + docWriteRequest);
-               }
-            } catch (Exception e) {
-                // if its not an ignore replica failure, we need to make sure to bubble up the failure
-                // so we will fail the shard
-                if (!TransportActions.isShardNotAvailableException(e)) {
-                    throw e;
-                }
+            switch (replicaItemExecutionMode(item, i)) {
+                case NORMAL:
+                    final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
+                    operationResult = performOpOnReplica(primaryResponse, docWriteRequest, replica);
+                    assert operationResult != null : "operation result must never be null when primary response has no failure";
+                    location = syncOperationResultOrThrow(operationResult, location);
+                    break;
+                case NOOP:
+                    break;
+                case FAILURE:
+                    final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
+                    assert failure.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "seq no must be assigned";
+                    operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), failure.getMessage());
+                    assert operationResult != null : "operation result must never be null when primary response has no failure";
+                    location = syncOperationResultOrThrow(operationResult, location);
+                    break;
+                default:
+                    throw new IllegalStateException("illegal replica item execution mode for: " + docWriteRequest);
             }
         }
         return location;

@@ -16,9 +16,11 @@ Could look like:
 [source,txt]
 --------------------------------------------------
 node    host      ip        attr     value
-EK_AsJb 127.0.0.1 127.0.0.1 testattr test
+...
+node-0 127.0.0.1 127.0.0.1 testattr test
+...
 --------------------------------------------------
-// TESTRESPONSE[s/EK_AsJb/(.+ml\\..+\n)*.+/ s/\n$/\n(.+xpack\\.installed true\n)?\n/ _cat]
+// TESTRESPONSE[s/\.\.\.\n$/\n(.+ xpack\\.installed true\n)?\n/ s/\.\.\.\n/(.+ ml\\..+\n)*/ _cat]
 
 The first few columns (`node`, `host`, `ip`) give you basic info per node
 and the `attr` and `value` columns give you the custom node attributes,

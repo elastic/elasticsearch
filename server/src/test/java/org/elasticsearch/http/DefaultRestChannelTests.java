@@ -59,7 +59,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -86,8 +85,8 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     public void testResponse() {
-        final RestResponse response = executeRequest(Settings.EMPTY, "request-host");
-        assertThat(response.content(), equalTo(new TestResponse().content()));
+        final TestResponse response = executeRequest(Settings.EMPTY, "request-host");
+        assertThat(response.content(), equalTo(new TestRestResponse().content()));
     }
 
     // TODO: Enable these Cors tests when the Cors logic lives in :server
@@ -187,19 +186,19 @@ public class DefaultRestChannelTests extends ESTestCase {
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request, bigArrays, handlingSettings,
+        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
             threadPool.getThreadContext());
-        TestResponse resp = new TestResponse();
+        TestRestResponse resp = new TestRestResponse();
         final String customHeader = "custom-header";
         final String customHeaderValue = "xyz";
         resp.addHeader(customHeader, customHeaderValue);
         channel.sendResponse(resp);
 
         // inspect what was written
-        ArgumentCaptor<RestResponse> responseCaptor = ArgumentCaptor.forClass(RestResponse.class);
+        ArgumentCaptor<TestResponse> responseCaptor = ArgumentCaptor.forClass(TestResponse.class);
         verify(httpChannel).sendResponse(responseCaptor.capture(), any());
-        RestResponse nioResponse = responseCaptor.getValue();
-        Map<String, List<String>> headers = nioResponse.getHeaders();
+        TestResponse httpResponse = responseCaptor.getValue();
+        Map<String, List<String>> headers = httpResponse.headers;
         assertNull(headers.get("non-existent-header"));
         assertEquals(customHeaderValue, headers.get(customHeader).get(0));
         assertEquals("abc", headers.get(DefaultRestChannel.X_OPAQUE_ID).get(0));
@@ -215,15 +214,15 @@ public class DefaultRestChannelTests extends ESTestCase {
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request, bigArrays, handlingSettings,
+        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
             threadPool.getThreadContext());
-        channel.sendResponse(new TestResponse());
+        channel.sendResponse(new TestRestResponse());
 
         // inspect what was written
-        ArgumentCaptor<RestResponse> responseCaptor = ArgumentCaptor.forClass(RestResponse.class);
+        ArgumentCaptor<TestResponse> responseCaptor = ArgumentCaptor.forClass(TestResponse.class);
         verify(httpChannel).sendResponse(responseCaptor.capture(), any());
-        RestResponse nioResponse = responseCaptor.getValue();
-        Map<String, List<String>> headers = nioResponse.getHeaders();
+        TestResponse nioResponse = responseCaptor.getValue();
+        Map<String, List<String>> headers = nioResponse.headers;
         assertThat(headers.get(DefaultRestChannel.SET_COOKIE), hasItem("cookie"));
         assertThat(headers.get(DefaultRestChannel.SET_COOKIE), hasItem("cookie2"));
     }
@@ -235,7 +234,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final RestRequest request = NewRestRequest.request(xContentRegistry(), httpRequest);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request, bigArrays, handlingSettings,
+        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
             threadPool.getThreadContext());
         final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
             JsonXContent.contentBuilder().startObject().endObject());
@@ -285,10 +284,9 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request, bigArrays, handlingSettings,
+        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
             threadPool.getThreadContext());
-        final TestResponse resp = new TestResponse();
-        channel.sendResponse(resp);
+        channel.sendResponse(new TestRestResponse());
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
         ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
         verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
@@ -305,11 +303,11 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
     }
 
-    private RestResponse executeRequest(final Settings settings, final String host) {
+    private TestResponse executeRequest(final Settings settings, final String host) {
         return executeRequest(settings, null, host);
     }
 
-    private RestResponse executeRequest(final Settings settings, final String originValue, final String host) {
+    private TestResponse executeRequest(final Settings settings, final String originValue, final String host) {
         LLHttpRequest httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         // TODO: These exist for the Cors tests
 //        if (originValue != null) {
@@ -319,11 +317,12 @@ public class DefaultRestChannelTests extends ESTestCase {
         final RestRequest request = NewRestRequest.request(xContentRegistry(), httpRequest);
 
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
-        RestChannel channel = new DefaultRestChannel(httpChannel, request, bigArrays, httpHandlingSettings, threadPool.getThreadContext());
-        channel.sendResponse(new TestResponse());
+        RestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, httpHandlingSettings,
+            threadPool.getThreadContext());
+        channel.sendResponse(new TestRestResponse());
 
         // get the response
-        ArgumentCaptor<RestResponse> responseCaptor = ArgumentCaptor.forClass(RestResponse.class);
+        ArgumentCaptor<TestResponse> responseCaptor = ArgumentCaptor.forClass(TestResponse.class);
         verify(httpChannel, atLeastOnce()).sendResponse(responseCaptor.capture(), any());
         return responseCaptor.getValue();
     }
@@ -376,30 +375,71 @@ public class DefaultRestChannelTests extends ESTestCase {
         public LLHttpRequest removeHeader(String header) {
             throw new UnsupportedOperationException("Do not support removing header on test request.");
         }
-    }
-
-    private static class TestResponse extends RestResponse {
-
-        private final BytesReference reference;
-
-        TestResponse() {
-            reference = new BytesArray("content".getBytes(StandardCharsets.UTF_8));
-        }
 
         @Override
+        public LLHttpResponse createResponse(RestStatus status, BytesReference content) {
+            return new TestResponse(status, content);
+        }
+    }
+
+    private static class TestResponse implements LLHttpResponse {
+
+        private final RestStatus status;
+        private final BytesReference content;
+        private final Map<String, List<String>> headers = new HashMap<>();
+
+        TestResponse(RestStatus status, BytesReference content) {
+            this.status = status;
+            this.content = content;
+        }
+
         public String contentType() {
             return "text";
         }
 
-        @Override
         public BytesReference content() {
-            return reference;
+            return content;
+        }
+
+        public RestStatus status() {
+            return status;
         }
 
         @Override
+        public void addHeader(String name, String value) {
+            if (headers.containsKey(name) == false) {
+                ArrayList<String> values = new ArrayList<>();
+                values.add(value);
+                headers.put(name, values);
+            } else {
+                headers.get(name).add(value);
+            }
+        }
+
+        @Override
+        public boolean containsHeader(String name) {
+            return headers.containsKey(name);
+        }
+    }
+
+    private static class TestRestResponse extends RestResponse {
+
+        private final BytesReference content;
+
+        TestRestResponse() {
+            content = new BytesArray("content".getBytes(StandardCharsets.UTF_8));
+        }
+
+        public String contentType() {
+            return "text";
+        }
+
+        public BytesReference content() {
+            return content;
+        }
+
         public RestStatus status() {
             return RestStatus.OK;
         }
-
     }
 }

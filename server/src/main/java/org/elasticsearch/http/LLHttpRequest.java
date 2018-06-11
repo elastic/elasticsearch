@@ -53,8 +53,6 @@ public interface LLHttpRequest {
 
     LLHttpRequest removeHeader(String header);
 
-    default LLHttpResponse createResponse(RestStatus status, BytesReference content) {
-        return null;
-    }
+    LLHttpResponse createResponse(RestStatus status, BytesReference content);
 
 }

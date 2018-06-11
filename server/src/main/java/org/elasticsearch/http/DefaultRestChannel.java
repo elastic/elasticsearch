@@ -79,6 +79,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         }
 
         // Add all custom headers
+        addCustomHeaders(httpResponse, restResponse.getHeaders());
         addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
         ArrayList<Releasable> toClose = new ArrayList<>(3);

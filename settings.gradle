@@ -28,6 +28,7 @@ List projects = [
   'distribution:bwc:staged-minor-snapshot',
   'distribution:bwc:next-bugfix-snapshot',
   'distribution:bwc:maintenance-bugfix-snapshot',
+  'distribution:tools:java-version-checker',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'server',

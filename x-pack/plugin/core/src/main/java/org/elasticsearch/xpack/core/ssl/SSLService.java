@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -290,7 +289,8 @@ public class SSLService extends AbstractComponent {
      * @throws IllegalArgumentException if not found
      */
     SSLContextHolder sslContextHolder(SSLConfiguration sslConfiguration) {
-        SSLContextHolder holder = sslContexts.get(Objects.requireNonNull(sslConfiguration, "SSL Configuration cannot be null"));
+        Objects.requireNonNull(sslConfiguration, "SSL Configuration cannot be null");
+        SSLContextHolder holder = sslContexts.get(sslConfiguration);
         if (holder == null) {
             throw new IllegalArgumentException("did not find a SSLContext for [" + sslConfiguration.toString() + "]");
         }

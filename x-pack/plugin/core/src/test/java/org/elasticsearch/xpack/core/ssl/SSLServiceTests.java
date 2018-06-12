@@ -114,8 +114,8 @@ public class SSLServiceTests extends ESTestCase {
         SSLEngine sslEngineWithTruststore = sslService.createSSLEngine(configuration, null, -1);
         assertThat(sslEngineWithTruststore, is(not(nullValue())));
 
-        SSLConfiguration configuration1 = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
-        SSLEngine sslEngine = sslService.createSSLEngine(configuration1, null, -1);
+        SSLConfiguration globalConfig = globalConfiguration(sslService);
+        SSLEngine sslEngine = sslService.createSSLEngine(globalConfig, null, -1);
         assertThat(sslEngineWithTruststore, is(not(sameInstance(sslEngine))));
 
         final SSLConfiguration profileConfiguration = sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl");

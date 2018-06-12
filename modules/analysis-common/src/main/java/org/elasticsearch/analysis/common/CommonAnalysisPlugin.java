@@ -194,6 +194,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
         filters.put("porter_stem", PorterStemTokenFilterFactory::new);
+        filters.put("remove_duplicates", RemoveDuplicatesTokenFilterFactory::new);
         filters.put("reverse", ReverseTokenFilterFactory::new);
         filters.put("russian_stem", RussianStemTokenFilterFactory::new);
         filters.put("scandinavian_folding", ScandinavianFoldingFilterFactory::new);

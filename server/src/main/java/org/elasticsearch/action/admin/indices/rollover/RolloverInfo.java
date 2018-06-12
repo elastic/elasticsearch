@@ -48,7 +48,8 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public static ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>("rollover_info", false,
         (a, alias) -> new RolloverInfo(alias, (List<Condition>) a[0], (Long) a[1]));
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> p.namedObject(Condition.class, n, c), CONDITION_FIELD);
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> p.namedObject(Condition.class, n, c), CONDITION_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_FIELD);
     }
 

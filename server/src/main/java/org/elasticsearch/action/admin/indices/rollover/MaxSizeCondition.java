@@ -73,8 +73,7 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
     }
 
     public static MaxSizeCondition fromXContent(XContentParser parser) throws IOException {
-        parser.nextToken();
-        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+        if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
             return new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
         } else {
             throw new IllegalArgumentException("invalid token: " + parser.currentToken());

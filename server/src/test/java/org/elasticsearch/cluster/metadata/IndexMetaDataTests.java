@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -40,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 
@@ -78,7 +82,9 @@ public class IndexMetaDataTests extends ESTestCase {
             .setRoutingNumShards(32)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
-                    Collections.singletonList(new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong()))),
+                    Arrays.asList(new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                        new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                        new MaxDocsCondition(randomNonNegativeLong())),
                     randomNonNegativeLong())).build();
 
         final XContentBuilder builder = JsonXContent.contentBuilder();

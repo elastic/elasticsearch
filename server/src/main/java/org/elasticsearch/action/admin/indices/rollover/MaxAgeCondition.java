@@ -68,8 +68,7 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     }
 
     public static MaxAgeCondition fromXContent(XContentParser parser) throws IOException {
-        parser.nextToken();
-        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+        if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
             return new MaxAgeCondition(TimeValue.parseTimeValue(parser.text(), NAME));
         } else {
             throw new IllegalArgumentException("invalid token: " + parser.currentToken());

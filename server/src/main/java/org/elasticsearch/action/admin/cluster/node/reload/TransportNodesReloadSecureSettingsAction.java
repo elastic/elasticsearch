@@ -90,7 +90,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                         new IllegalStateException("Keystore is missing"));
             }
             // decrypt the keystore using the password from the request
-            keystore.decrypt(request.secureSettingsPassword().toCharArray());
+            keystore.decrypt(request.secureSettingsPassword().getChars());
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder()
                     .put(environment.settings(), false)

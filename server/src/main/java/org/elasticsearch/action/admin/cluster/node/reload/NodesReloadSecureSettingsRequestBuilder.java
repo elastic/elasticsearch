@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.settings.SecureString;
 
 /**
  * Builder for the reload secure settings nodes request
@@ -32,7 +33,7 @@ public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationReque
         super(client, action, new NodesReloadSecureSettingsRequest());
     }
 
-    public NodesReloadSecureSettingsRequestBuilder setSecureStorePassword(String secureStorePassword) {
+    public NodesReloadSecureSettingsRequestBuilder setSecureStorePassword(SecureString secureStorePassword) {
         request.secureStorePassword(secureStorePassword);
         return this;
     }

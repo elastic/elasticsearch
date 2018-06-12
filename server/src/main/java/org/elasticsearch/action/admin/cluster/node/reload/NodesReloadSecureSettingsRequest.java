@@ -23,7 +23,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.SecureString;
+
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -38,7 +44,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
      * of the node's keystore (backing the implementation of
      * {@code SecureSettings}).
      */
-    private String secureSettingsPassword;
+    private SecureString secureSettingsPassword;
 
     public NodesReloadSecureSettingsRequest() {
     }
@@ -62,11 +68,11 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
         return validationException;
     }
 
-    public String secureSettingsPassword() {
+    public SecureString secureSettingsPassword() {
         return secureSettingsPassword;
     }
 
-    public NodesReloadSecureSettingsRequest secureStorePassword(String secureStorePassword) {
+    public NodesReloadSecureSettingsRequest secureStorePassword(SecureString secureStorePassword) {
         this.secureSettingsPassword = secureStorePassword;
         return this;
     }
@@ -74,12 +80,48 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        secureSettingsPassword = in.readString();
+        final byte[] passwordBytes = in.readByteArray();
+        try {
+            this.secureSettingsPassword = new SecureString(utf8BytesToChars(passwordBytes));
+        } finally {
+            Arrays.fill(passwordBytes, (byte) 0);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(secureSettingsPassword);
+        final byte[] passwordBytes = toUtf8Bytes(this.secureSettingsPassword.getChars());
+        try {
+            out.writeByteArray(passwordBytes);
+        } finally {
+            Arrays.fill(passwordBytes, (byte) 0);
+        }
+    }
+
+    /**
+     * Encodes the provided char[] to a UTF-8 byte[]. The provided char[] is not
+     * modified by this method, so the caller needs to take care of clearing the
+     * value if it is sensitive.
+     */
+    private static byte[] toUtf8Bytes(char[] chars) {
+        final CharBuffer charBuffer = CharBuffer.wrap(chars);
+        final ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(charBuffer);
+        final byte[] bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
+        Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
+        return bytes;
+    }
+
+    /**
+     * Decodes the provided byte[] to a UTF-8 char[]. The provided byte[] is not
+     * modified by this method, so the caller needs to take care of clearing the
+     * value if it is sensitive.
+     */
+    public static char[] utf8BytesToChars(byte[] utf8Bytes) {
+        final ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes);
+        final CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
+        final char[] chars = Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit());
+        Arrays.fill(charBuffer.array(), (char) 0); // clear sensitive data
+        return chars;
     }
 }

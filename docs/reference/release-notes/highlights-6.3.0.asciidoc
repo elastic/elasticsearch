@@ -6,4 +6,18 @@
 
 coming[6.3.0]
 
-See also <<release-notes-6.3.0,{es} 6.3.0 release notes>>. 
+Each release of {es} brings new features and product improvements. Here are the 
+highlights of the features that were added in 6.3 and how the user experience 
+improved.
+
+Refer to the <<release-notes-6.3.0, {es} 6.3 Release Notes>> for a list bug 
+fixes and other changes.
+
+[float]
+=== Improvements to trend modeling and periodicity testing for forecasting
+
+{stack-ov}/ml-overview.html#ml-forecasting[Forecasting] is now more reliable and 
+has greatly improved confidence intervals--particularly for longer time ranges. 
+These improvements also affect trend and seasonality modeling during anomaly 
+detection. 
+

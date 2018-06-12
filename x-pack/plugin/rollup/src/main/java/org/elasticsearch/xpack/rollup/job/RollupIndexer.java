@@ -405,7 +405,8 @@ public abstract class RollupIndexer {
     }
 
     /**
-     * Creates the range query that limits the search to documents that appear before the maximum allowed time (see {@link this#maxBoundary}
+     * Creates the range query that limits the search to documents that appear before the maximum allowed time
+     * (see {@link #maxBoundary}
      * and on or after the last processed time.
      * @param position The current position of the pagination
      * @return The range query to execute

@@ -579,8 +579,19 @@ gradle.projectsEvaluated {
 apply plugin: 'compare-gradle-builds'
 
 compareGradleBuilds {
-    targetBuild { 
-        gradleVersion = "4.7"
-        tasks = [ "assemble" ]
+  ext.referenceProject = "../elasticsearch_build_reference"
+  doFirst {
+    if (file(referenceProject).exists() == false) {
+      throw new GradleException(
+              "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
+      )
     }
+  }
+  sourceBuild {
+    projectDir = referenceProject
+    tasks = [ "clean", "assemble" ]
+  }
+  targetBuild {
+    tasks = [ "clean", "assemble" ]
+  }
 }

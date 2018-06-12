@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -83,8 +84,10 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -125,6 +128,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -1526,6 +1530,85 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
+    public void testClusterHealth() {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomLocal(healthRequest, expectedParams);
+        String timeoutType = randomFrom("timeout", "masterTimeout", "both", "none");
+        String timeout = randomTimeValue();
+        String masterTimeout = randomTimeValue();
+        switch (timeoutType) {
+            case "timeout":
+                healthRequest.timeout(timeout);
+                expectedParams.put("timeout", timeout);
+                // If Master Timeout wasn't set it uses the same value as Timeout
+                expectedParams.put("master_timeout", timeout);
+                break;
+            case "masterTimeout":
+                expectedParams.put("timeout", "30s");
+                healthRequest.masterNodeTimeout(masterTimeout);
+                expectedParams.put("master_timeout", masterTimeout);
+                break;
+            case "both":
+                healthRequest.timeout(timeout);
+                expectedParams.put("timeout", timeout);
+                healthRequest.masterNodeTimeout(timeout);
+                expectedParams.put("master_timeout", timeout);
+                break;
+            case "none":
+                expectedParams.put("timeout", "30s");
+                expectedParams.put("master_timeout", "30s");
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, expectedParams, "0");
+        if (randomBoolean()) {
+            ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
+            healthRequest.level(level);
+            expectedParams.put("level", level.name().toLowerCase(Locale.ROOT));
+        } else {
+            expectedParams.put("level", "shards");
+        }
+        if (randomBoolean()) {
+            Priority priority = randomFrom(Priority.values());
+            healthRequest.waitForEvents(priority);
+            expectedParams.put("wait_for_events", priority.name().toLowerCase(Locale.ROOT));
+        }
+        if (randomBoolean()) {
+            ClusterHealthStatus status = randomFrom(ClusterHealthStatus.values());
+            healthRequest.waitForStatus(status);
+            expectedParams.put("wait_for_status", status.name().toLowerCase(Locale.ROOT));
+        }
+        if (randomBoolean()) {
+            boolean waitForNoInitializingShards = randomBoolean();
+            healthRequest.waitForNoInitializingShards(waitForNoInitializingShards);
+            if (waitForNoInitializingShards) {
+                expectedParams.put("wait_for_no_initializing_shards", Boolean.TRUE.toString());
+            }
+        }
+        if (randomBoolean()) {
+            boolean waitForNoRelocatingShards = randomBoolean();
+            healthRequest.waitForNoRelocatingShards(waitForNoRelocatingShards);
+            if (waitForNoRelocatingShards) {
+                expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
+            }
+        }
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        healthRequest.indices(indices);
+
+        Request request = RequestConverters.clusterHealth(healthRequest);
+        assertThat(request, CoreMatchers.notNullValue());
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
+        if (indices != null && indices.length > 0) {
+            assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
+        } else {
+            assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
+        }
+        assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -2104,6 +2187,11 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
+        setRandomWaitForActiveShards(setter, expectedParams, null);
+    }
+
+    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter,Map<String, String> expectedParams,
+            String defaultValue) {
         if (randomBoolean()) {
             String waitForActiveShardsString;
             int waitForActiveShards = randomIntBetween(-1, 5);
@@ -2114,6 +2202,8 @@ public class RequestConvertersTests extends ESTestCase {
             }
             setter.accept(ActiveShardCount.parseString(waitForActiveShardsString));
             expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
+        } else if (defaultValue != null) {
+            expectedParams.put("wait_for_active_shards", defaultValue);
         }
     }
 

@@ -1029,10 +1029,37 @@ Whether query or indexing performance dominates the runtime depends on the
 documents being reindexed and cluster resources.
 
 [float]
+=== Reindexing many indices
+If you have many indices to reindex it is generally better to reindex them
+one at a time rather than using a glob pattern to pick up many indices. That
+way you can resume the process if there are any errors by removing the
+partially completed index and starting over at that index. It also makes
+parallelizing the process fairly simple: split the list of indices to reindex
+and run each list in parallel.
+
+One off bash scripts seem to work nicely for this:
+
+[source,bash]
+----------------------------------------------------------------
+for index in i1 i2 i3 i4 i5; do
+  curl -HContent-Type:application/json -XPOST localhost:9200/_reindex?pretty -d'{
+    "source": {
+      "index": "'$index'"
+    },
+    "dest": {
+      "index": "'$index'-reindexed"
+    }
+  }'
+done
+----------------------------------------------------------------
+// NOTCONSOLE
+
+[float]
 === Reindex daily indices
 
-You can use `_reindex` in combination with <<modules-scripting-painless, Painless>>
-to reindex daily indices to apply a new template to the existing documents.
+Notwithstanding the above advice, you can use `_reindex` in combination with
+<<modules-scripting-painless, Painless>> to reindex daily indices to apply
+a new template to the existing documents.
 
 Assuming you have indices consisting of documents as follows:
 

@@ -119,7 +119,7 @@ NOTE: These settings apply to the local audit indices, as well as to the
 does *not* have {security} installed, or the {es} versions are different.
 If the remote cluster has {security} installed, and the versions coincide, the
 settings for the audit indices there will take precedence,
-even if they are unspecified (ie. left to defaults).
+even if they are unspecified (i.e. left to defaults).
 --
 
 [[remote-audit-settings]]

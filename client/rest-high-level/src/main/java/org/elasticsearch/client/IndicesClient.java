@@ -58,11 +58,13 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
@@ -976,6 +978,33 @@ public final class IndicesClient {
     public void rolloverAsync(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, RequestConverters::rollover, RolloverResponse::fromXContent,
                 listener, emptySet(), headers);
+    }
+
+    /**
+     * Gets one or more aliases using the Get Index Aliases API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
+     * elastic.co</a>
+     * @param getAliasesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetAliasesResponse getAlias(GetAliasesRequest getAliasesRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getAliasesRequest, RequestConverters::getAlias, options,
+                GetAliasesResponse::fromXContent, singleton(RestStatus.NOT_FOUND.getStatus()));
+    }
+
+    /**
+     * Asynchronously gets one or more aliases using the Get Index Aliases API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
+     * elastic.co</a>
+     * @param getAliasesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<GetAliasesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getAliasesRequest, RequestConverters::getAlias, options,
+                GetAliasesResponse::fromXContent, listener, singleton(RestStatus.NOT_FOUND.getStatus()));
     }
 
     /**

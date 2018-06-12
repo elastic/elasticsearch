@@ -852,6 +852,17 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getAlias(GetAliasesRequest getAliasesRequest) {
+        String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
+        String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
+        String endpoint = endpoint(indices, "_alias", aliases);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withIndicesOptions(getAliasesRequest.indicesOptions());
+        params.withLocal(getAliasesRequest.local());
+        return request;
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));

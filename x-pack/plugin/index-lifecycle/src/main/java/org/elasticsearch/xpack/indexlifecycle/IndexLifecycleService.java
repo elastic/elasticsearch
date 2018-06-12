@@ -195,6 +195,8 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(idxMeta.getSettings());
                 if (OperationMode.MAINTENANCE_REQUESTED.equals(currentMode)
                         && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
+                    logger.info("skipping policy [" + policyName + "] for index [" + idxMeta.getIndex().getName()
+                        + "]. maintenance mode requested");
                     continue;
                 }
                 lifecycleRunner.runPolicy(policyName, idxMeta, clusterState, fromClusterStateChange);

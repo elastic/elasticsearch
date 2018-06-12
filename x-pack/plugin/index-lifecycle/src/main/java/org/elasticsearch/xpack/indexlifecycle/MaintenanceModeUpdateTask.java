@@ -21,13 +21,17 @@ public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
         this.mode = mode;
     }
 
+    OperationMode getOperationMode() {
+        return mode;
+    }
+
     @Override
     public ClusterState execute(ClusterState currentState) {
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
 
         boolean maintenanceModeToChange = currentMetadata.getMaintenanceMode().equals(mode) == false;
         boolean maintenanceModeRequested = OperationMode.MAINTENANCE_REQUESTED.equals(mode);
-        boolean inMaintenanceMode = OperationMode.IN.equals(currentMetadata.getMaintenanceMode());
+        boolean inMaintenanceMode = OperationMode.MAINTENANCE.equals(currentMetadata.getMaintenanceMode());
         if ((inMaintenanceMode && maintenanceModeRequested) || maintenanceModeToChange == false) {
             return currentState;
         }

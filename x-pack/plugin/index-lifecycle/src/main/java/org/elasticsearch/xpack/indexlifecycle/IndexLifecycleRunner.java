@@ -56,11 +56,6 @@ public class IndexLifecycleRunner {
             return;
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
-//        if (maintenanceModeRequested && currentStep != null && ShrinkAction.NAME.equals(currentStep.getKey().getAction()) == false) {
-//            logger.info("skipping policy [" + policy + "] for index [" + indexMetaData.getIndex().getName()
-//                + "]. maintenance mode requested");
-//            return;
-//        }
         logger.debug("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
             logger.debug("policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] complete, skipping execution");

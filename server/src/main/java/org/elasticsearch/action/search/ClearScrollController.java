@@ -134,8 +134,9 @@ final class ClearScrollController implements Runnable {
     private void onFailedFreedContext(Throwable e, DiscoveryNode node) {
         logger.warn(() -> new ParameterizedMessage("Clear SC failed on node[{}]", node), e);
         /*
-         * We have to set the failure marker before we count down otherwise we can expose a racing thread to count down to zero before we
-         * have set the failure marker. This would lead to that thread responding that the clear scroll succeeded.
+         * We have to set the failure marker before we count down otherwise we can expose a racing thread successfully freeing a context
+         * to count down to zero before we have set the failure marker. This would lead to that thread responding that the clear scroll
+         * succeeded.
          */
         hasFailed.set(true);
         if (expectedOps.countDown()) {

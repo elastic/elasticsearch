@@ -20,14 +20,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collection;
-import java.util.Collections;
 
 public final class Uid {
 

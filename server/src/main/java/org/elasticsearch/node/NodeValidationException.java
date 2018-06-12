@@ -19,7 +19,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 
 import java.util.List;

@@ -62,7 +62,8 @@ public class SamlRealmSettings {
             Setting.simpleString("signing.keystore.alias", Setting.Property.NodeScope);
     public static final Setting<List<String>> SIGNING_MESSAGE_TYPES = Setting.listSetting("signing.saml_messages",
             Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope);
-
+    public static final Setting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.listSetting("req_authn_context_class_ref",
+        Collections.emptyList(), Function.identity(),Setting.Property.NodeScope);
     public static final Setting<TimeValue> CLOCK_SKEW = Setting.positiveTimeSetting("allowed_clock_skew", TimeValue.timeValueMinutes(3),
             Setting.Property.NodeScope);
 
@@ -79,7 +80,7 @@ public class SamlRealmSettings {
                 SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
                 NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
                 POPULATE_USER_METADATA, CLOCK_SKEW,
-                ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES);
+            ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES, REQUESTED_AUTHN_CONTEXT_CLASS_REF);
         set.addAll(ENCRYPTION_SETTINGS.getAllSettings());
         set.addAll(SIGNING_SETTINGS.getAllSettings());
         set.addAll(SSLConfigurationSettings.withPrefix(SSL_PREFIX).getAllSettings());

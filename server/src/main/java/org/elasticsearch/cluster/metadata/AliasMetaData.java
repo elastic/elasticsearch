@@ -386,5 +386,4 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             return builder.build();
         }
     }
-
 }

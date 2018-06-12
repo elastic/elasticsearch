@@ -420,7 +420,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return innerFromXContent(parser, false);
     }
 
-    private static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
+    public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 

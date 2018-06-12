@@ -141,7 +141,7 @@ public class SamlRealmTests extends SamlTestCase {
         final Boolean populateUserMetadata = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final EntityDescriptor idp = mockIdp();
-        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null);
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
 
@@ -240,7 +240,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
         final EntityDescriptor idp = mockIdp();
-        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null);
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
 
         final SettingsException settingsException = expectThrows(SettingsException.class,
                 () -> new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp));
@@ -256,7 +256,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
         final EntityDescriptor idp = mockIdp();
-        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null);
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
 
         final SettingsException settingsException = expectThrows(SettingsException.class,
                 () -> new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp));
@@ -266,7 +266,7 @@ public class SamlRealmTests extends SamlTestCase {
     public void testNonMatchingPrincipalPatternThrowsSamlException() throws Exception {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final EntityDescriptor idp = mockIdp();
-        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null);
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
 
@@ -516,7 +516,7 @@ public class SamlRealmTests extends SamlTestCase {
         slo.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
         slo.setLocation("https://logout.saml/");
 
-        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null);
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
 

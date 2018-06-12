@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.da.DanishAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 
-public class DanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<DanishAnalyzer> {
+/**
+ * Only for old indexes
+ */
+public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
-    private final DanishAnalyzer analyzer;
+    private final StandardAnalyzer analyzer;
 
-    public DanishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    ChineseAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new DanishAnalyzer(
-            Analysis.parseStopWords(env, settings, DanishAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        // old index: best effort
+        analyzer = new StandardAnalyzer();
         analyzer.setVersion(version);
+
     }
 
     @Override
-    public DanishAnalyzer get() {
+    public StandardAnalyzer get() {
         return this.analyzer;
     }
 }

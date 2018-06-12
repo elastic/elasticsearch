@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.gl.GalicianAnalyzer;
+import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class GalicianAnalyzerProvider extends AbstractIndexAnalyzerProvider<GalicianAnalyzer> {
+public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAnalyzer> {
 
-    private final GalicianAnalyzer analyzer;
+    private final CzechAnalyzer analyzer;
 
-    public GalicianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    CzechAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new GalicianAnalyzer(
-            Analysis.parseStopWords(env, settings, GalicianAnalyzer.getDefaultStopSet()),
+        analyzer = new CzechAnalyzer(
+            Analysis.parseStopWords(env, settings, CzechAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public GalicianAnalyzer get() {
+    public CzechAnalyzer get() {
         return this.analyzer;
     }
 }

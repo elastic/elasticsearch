@@ -59,7 +59,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
+        FieldMapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(BinaryFieldMapper.class));
         assertThat(fieldMapper.fieldType().stored(), equalTo(false));
     }
@@ -94,7 +94,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
                     XContentType.JSON));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
-            FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
+            FieldMapper fieldMapper = mapper.mappers().getMapper("field");
             Object originalValue = fieldMapper.fieldType().valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }

@@ -40,7 +40,7 @@ public class Response {
 
     Response(RequestLine requestLine, HttpHost host, HttpResponse response) {
         Objects.requireNonNull(requestLine, "requestLine cannot be null");
-        Objects.requireNonNull(host, "node cannot be null");
+        Objects.requireNonNull(host, "host cannot be null");
         Objects.requireNonNull(response, "response cannot be null");
         this.requestLine = requestLine;
         this.host = host;

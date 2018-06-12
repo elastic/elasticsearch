@@ -693,8 +693,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 });
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
-            rolloverInfos = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RolloverInfo::new,
-                RolloverInfo::readDiffFrom);
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                rolloverInfos = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RolloverInfo::new,
+                    RolloverInfo::readDiffFrom);
+            } else {
+                ImmutableOpenMap<String, RolloverInfo> emptyMap = ImmutableOpenMap.of();
+                rolloverInfos = DiffableUtils.diff(emptyMap, emptyMap, DiffableUtils.getStringKeySerializer());
+            }
         }
 
         @Override
@@ -795,9 +800,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             out.writeVInt(cursor.key);
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
-        out.writeVInt(rolloverInfos.size());
-        for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
-            cursor.value.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVInt(rolloverInfos.size());
+            for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
+                cursor.value.writeTo(out);
+            }
         }
     }
 

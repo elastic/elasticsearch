@@ -106,7 +106,6 @@ GradleVersion logVersion = GradleVersion.current() > GradleVersion.version('4.3'
 
 dependencies {
   compileOnly "org.gradle:gradle-logging:${logVersion.getVersion()}"
-  compile 'ru.vyarus:gradle-animalsniffer-plugin:1.4.3'
 }
 
 /*****************************************************************************

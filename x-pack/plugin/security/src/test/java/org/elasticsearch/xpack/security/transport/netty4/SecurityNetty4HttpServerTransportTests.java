@@ -22,6 +22,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
+import org.elasticsearch.xpack.core.test.XPackTestCase;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
@@ -38,7 +40,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
-public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
+public class SecurityNetty4HttpServerTransportTests extends XPackTestCase {
 
     private SSLService sslService;
     private Environment env;

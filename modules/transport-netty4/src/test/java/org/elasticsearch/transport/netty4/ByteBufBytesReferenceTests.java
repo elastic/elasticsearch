@@ -18,17 +18,18 @@
  */
 package org.elasticsearch.transport.netty4;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.test.ObjectCleanerThreadThreadFilter;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 
-import javax.net.ssl.SSLEngine;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class ByteBufBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
     @Override

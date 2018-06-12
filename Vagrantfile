@@ -31,6 +31,9 @@ Vagrant.configure(2) do |config|
     # Give the box more memory and cpu because our tests are beasts!
     vbox.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
     vbox.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+
+    # see https://github.com/hashicorp/vagrant/issues/9524
+    vbox.customize ["modifyvm", :id, "--audio", "none"]
   end
 
   # Switch the default share for the project root from /vagrant to

@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.Collection;

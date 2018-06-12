@@ -19,24 +19,59 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Request to perform a search ranking evaluation.
  */
-public class RankEvalRequest extends ActionRequest {
+public class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    private RankEvalSpec rankingEvaluation;
+    private RankEvalSpec rankingEvaluationSpec;
+
+    private IndicesOptions indicesOptions  = SearchRequest.DEFAULT_INDICES_OPTIONS;
+    private String[] indices = Strings.EMPTY_ARRAY;
+
+    public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
+        this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
+        indices(indices);
+    }
+
+    RankEvalRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        rankingEvaluationSpec = new RankEvalSpec(in);
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            // readStringArray uses readVInt for size, we used readInt in 6.2
+            int indicesSize = in.readInt();
+            String[] indices = new String[indicesSize];
+            for (int i = 0; i < indicesSize; i++) {
+                indices[i] = in.readString();
+            }
+            // no indices options yet
+        }
+    }
+
+    RankEvalRequest() {
+    }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = null;
-        if (rankingEvaluation == null) {
+        if (rankingEvaluationSpec == null) {
             e = new ActionRequestValidationException();
             e.addValidationError("missing ranking evaluation specification");
         }
@@ -47,26 +82,84 @@ public class RankEvalRequest extends ActionRequest {
      * Returns the specification of the ranking evaluation.
      */
     public RankEvalSpec getRankEvalSpec() {
-        return rankingEvaluation;
+        return rankingEvaluationSpec;
     }
 
     /**
      * Set the the specification of the ranking evaluation.
      */
     public void setRankEvalSpec(RankEvalSpec task) {
-        this.rankingEvaluation = task;
+        this.rankingEvaluationSpec = task;
+    }
+
+    /**
+     * Sets the indices the search will be executed on.
+     */
+    @Override
+    public RankEvalRequest indices(String... indices) {
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (String index : indices) {
+            Objects.requireNonNull(index, "index must not be null");
+        }
+        this.indices = indices;
+        return this;
+    }
+
+    /**
+     * @return the indices for this request
+     */
+    @Override
+    public String[] indices() {
+        return indices;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public void indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        rankingEvaluation = new RankEvalSpec(in);
-
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        rankingEvaluation.writeTo(out);
+        rankingEvaluationSpec.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
+        } else {
+            // writeStringArray uses writeVInt for size, we used writeInt in 6.2
+            out.writeInt(indices.length);
+            for (String index : indices) {
+                out.writeString(index);
+            }
+            // no indices options yet
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RankEvalRequest that = (RankEvalRequest) o;
+        return Objects.equals(indicesOptions, that.indicesOptions) &&
+                Arrays.equals(indices, that.indices) &&
+                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indicesOptions, Arrays.hashCode(indices), rankingEvaluationSpec);
     }
 }

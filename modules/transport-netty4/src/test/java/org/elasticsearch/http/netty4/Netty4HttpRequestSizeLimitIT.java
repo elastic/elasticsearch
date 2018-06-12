@@ -22,7 +22,6 @@ package org.elasticsearch.http.netty4;
 import io.netty.handler.codec.http.FullHttpResponse;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -51,10 +50,14 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
             .build();
     }

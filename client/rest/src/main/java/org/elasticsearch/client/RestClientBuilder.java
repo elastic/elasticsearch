@@ -43,7 +43,6 @@ public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
-    public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
@@ -196,8 +195,7 @@ public final class RestClientBuilder {
         //default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
                 .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
-                .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS);
+                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
@@ -206,7 +204,8 @@ public final class RestClientBuilder {
             HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
-                .setSSLContext(SSLContext.getDefault());
+                .setSSLContext(SSLContext.getDefault())
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }

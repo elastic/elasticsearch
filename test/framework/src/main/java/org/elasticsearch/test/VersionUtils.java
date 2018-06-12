@@ -20,22 +20,21 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.singletonList;
-import static java.util.Collections.unmodifiableList;
+import java.util.stream.Stream;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
+
     /**
      * Sort versions that have backwards compatibility guarantees from
      * those that don't. Doesn't actually check whether or not the versions
@@ -47,69 +46,65 @@ public class VersionUtils {
      * guarantees in v1 and versions without the guranteees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
-        List<Version> versions = Version.getDeclaredVersions(versionClass);
+        // group versions into major version
+        Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass).stream()
+            .collect(Collectors.groupingBy(v -> (int)v.major));
+        // this breaks b/c 5.x is still in version list but master doesn't care about it!
+        //assert majorVersions.size() == 2;
+        // TODO: remove oldVersions, we should only ever have 2 majors in Version
+        List<Version> oldVersions = majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList());
+        List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));
+        List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
 
-        if (!Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            return Tuple.tuple(versions, Collections.emptyList());
+        List<Version> unreleasedVersions = new ArrayList<>();
+        final List<List<Version>> stableVersions;
+        if (currentMajor.size() == 1) {
+            // on master branch
+            stableVersions = previousMajor;
+            // remove current
+            moveLastToUnreleased(currentMajor, unreleasedVersions);
+        } else {
+            // on a stable or release branch, ie N.x
+            stableVersions = currentMajor;
+            // remove the next maintenance bugfix
+            moveLastToUnreleased(previousMajor, unreleasedVersions);
         }
 
-        Version last = versions.remove(versions.size() - 1);
-        assert last.equals(current) : "The highest version must be the current one "
-            + "but was [" + last + "] and current was [" + current + "]";
-
-        /* In the 5.x series prior to 5.6, unreleased version constants had an
-         * `_UNRELEASED` suffix, and when making the first release on a minor release
-         * branch the last, unreleased, version constant from the previous minor branch
-         * was dropped. After 5.6, there is no `_UNRELEASED` suffix on version constants'
-         * names and, additionally, they are not dropped when a new minor release branch
-         * starts.
-         *
-         * This means that in 6.x and later series the last release _in each
-         * minor branch_ is unreleased, whereas in 5.x it's more complicated: There were
-         * (sometimes, and sometimes multiple) minor branches containing no releases, each
-         * of which contains a single version constant of the form 5.n.0, and these
-         * branches always followed a branch that _did_ contain a version of the
-         * form 5.m.p (p>0). All versions strictly before the last 5.m version are released,
-         * and all other 5.* versions are unreleased.
-         */
-
-        if (current.major == 5 && current.revision != 0) {
-            /* The current (i.e. latest) version is 5.a.b, b nonzero, which
-             * means that all other versions are released. */
-            return new Tuple<>(unmodifiableList(versions), singletonList(current));
-        }
-
-        final List<Version> unreleased = new ArrayList<>();
-        unreleased.add(current);
-        Version prevConsideredVersion = current;
-
-        for (int i = versions.size() - 1; i >= 0; i--) {
-            Version currConsideredVersion = versions.get(i);
-            if (currConsideredVersion.major == 5) {
-                unreleased.add(currConsideredVersion);
-                versions.remove(i);
-                if (currConsideredVersion.revision != 0) {
-                    /* Currently considering the latest version in the 5.x series,
-                     * which is (a) unreleased and (b) the only such. So we're done. */
-                    break;
-                }
-                /* ... else we're on a version of the form 5.n.0, and have not yet
-                 * considered a version of the form 5.n.m (m>0), so this entire branch
-                 * is unreleased, so carry on looking for a branch containing releases.
-                 */
-            } else if (currConsideredVersion.major != prevConsideredVersion.major
-                || currConsideredVersion.minor != prevConsideredVersion.minor) {
-                /* Have moved to the end of a new minor branch, so this is
-                 * an unreleased version. */
-                unreleased.add(currConsideredVersion);
-                versions.remove(i);
+        // remove next minor
+        Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+        if (lastMinor.revision == 0) {
+            if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
+                // a minor is being staged, which is also unreleased
+                moveLastToUnreleased(stableVersions, unreleasedVersions);
             }
-            prevConsideredVersion = currConsideredVersion;
-
+            // remove the next bugfix
+            moveLastToUnreleased(stableVersions, unreleasedVersions);
         }
 
-        Collections.reverse(unreleased);
-        return new Tuple<>(unmodifiableList(versions), unmodifiableList(unreleased));
+        List<Version> releasedVersions = Stream.concat(oldVersions.stream(),
+            Stream.concat(previousMajor.stream(), currentMajor.stream()).flatMap(List::stream))
+            .collect(Collectors.toList());
+        Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here
+        return new Tuple<>(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));
+    }
+
+    // split the given versions into sub lists grouped by minor version
+    private static List<List<Version>> splitByMinor(List<Version> versions) {
+        Map<Integer, List<Version>> byMinor = versions.stream().collect(Collectors.groupingBy(v -> (int)v.minor));
+        return byMinor.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList());
+    }
+
+    // move the last version of the last minor in versions to the unreleased versions
+    private static Version moveLastToUnreleased(List<List<Version>> versions, List<Version> unreleasedVersions) {
+        List<Version> lastMinor = new ArrayList<>(versions.get(versions.size() - 1));
+        Version lastVersion = lastMinor.remove(lastMinor.size() - 1);
+        if (lastMinor.isEmpty()) {
+            versions.remove(versions.size() - 1);
+        } else {
+            versions.set(versions.size() - 1, lastMinor);
+        }
+        unreleasedVersions.add(lastVersion);
+        return lastVersion;
     }
 
     private static final List<Version> RELEASED_VERSIONS;
@@ -124,7 +119,7 @@ public class VersionUtils {
         allVersions.addAll(RELEASED_VERSIONS);
         allVersions.addAll(UNRELEASED_VERSIONS);
         Collections.sort(allVersions);
-        ALL_VERSIONS = unmodifiableList(allVersions);
+        ALL_VERSIONS = Collections.unmodifiableList(allVersions);
     }
 
     /**
@@ -230,6 +225,13 @@ public class VersionUtils {
         return opt.get();
     }
 
+    /** returns the first future compatible version */
+    public static Version compatibleFutureVersion(Version version) {
+        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
+        assert opt.isPresent() : "no future compatible version for " + version;
+        return opt.get();
+    }
+
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
         final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)
@@ -237,5 +239,4 @@ public class VersionUtils {
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
     }
-
 }

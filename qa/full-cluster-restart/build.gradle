@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
@@ -30,7 +31,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+for (Version version : bwcVersions.indexCompatible) {
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -44,7 +45,6 @@ for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
 
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    distribution = 'zip'
     bwcVersion = version
     numBwcNodes = 2
     numNodes = 2
@@ -70,7 +70,6 @@ for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
     dependsOn oldClusterTest,
         "${baseName}#oldClusterTestCluster#node0.stop",
         "${baseName}#oldClusterTestCluster#node1.stop"
-    distribution = 'zip'
     clusterName = 'full-cluster-restart'
 
     // some tests rely on the translog not being flushed
@@ -105,10 +104,11 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : versionCollection.basicIntegrationTestVersions) {
+    for (final def version : bwcVersions.snapshotsIndexCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }
 }
 
 check.dependsOn(integTest)
+

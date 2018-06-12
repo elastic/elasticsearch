@@ -30,22 +30,18 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 public class Netty4Utils {
 
@@ -172,7 +168,8 @@ public class Netty4Utils {
      * @param cause the throwable to test
      */
     public static void maybeDie(final Throwable cause) {
-        final Optional<Error> maybeError = maybeError(cause);
+        final Logger logger = ESLoggerFactory.getLogger(Netty4Utils.class);
+        final Optional<Error> maybeError = ExceptionsHelper.maybeError(cause, logger);
         if (maybeError.isPresent()) {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
@@ -182,9 +179,7 @@ public class Netty4Utils {
              */
             try {
                 // try to log the current stack trace
-                final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-                final String formatted = Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
-                final Logger logger = ESLoggerFactory.getLogger(Netty4Utils.class);
+                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
                 logger.error("fatal error on the network layer\n{}", formatted);
             } finally {
                 new Thread(
@@ -194,42 +189,6 @@ public class Netty4Utils {
                         .start();
             }
         }
-    }
-
-    static final int MAX_ITERATIONS = 1024;
-
-    /**
-     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
-     *
-     * @param cause the root throwable
-     *
-     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
-     */
-    static Optional<Error> maybeError(final Throwable cause) {
-        // early terminate if the cause is already an error
-        if (cause instanceof Error) {
-            return Optional.of((Error) cause);
-        }
-
-        final Queue<Throwable> queue = new LinkedList<>();
-        queue.add(cause);
-        int iterations = 0;
-        while (!queue.isEmpty()) {
-            iterations++;
-            if (iterations > MAX_ITERATIONS) {
-                ESLoggerFactory.getLogger(Netty4Utils.class).warn("giving up looking for fatal errors on the network layer", cause);
-                break;
-            }
-            final Throwable current = queue.remove();
-            if (current instanceof Error) {
-                return Optional.of((Error) current);
-            }
-            Collections.addAll(queue, current.getSuppressed());
-            if (current.getCause() != null) {
-                queue.add(current.getCause());
-            }
-        }
-        return Optional.empty();
     }
 
 }

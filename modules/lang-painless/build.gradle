@@ -31,6 +31,7 @@ integTestCluster {
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.3'
   compile 'org.ow2.asm:asm-debug-all:5.1'
+  compile project('spi')
 }
 
 dependencyLicenses {

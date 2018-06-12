@@ -19,7 +19,6 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -60,17 +59,27 @@ public class ClientYamlTestClient {
     private final ClientYamlSuiteRestSpec restSpec;
     protected final RestClient restClient;
     private final Version esVersion;
+    private final Version masterVersion;
 
-    public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
-                                Version esVersion) throws IOException {
+    public ClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClient = restClient;
         this.esVersion = esVersion;
+        this.masterVersion = masterVersion;
     }
 
     public Version getEsVersion() {
         return esVersion;
+    }
+
+    public Version getMasterVersion() {
+        return masterVersion;
     }
 
     /**
@@ -85,9 +94,9 @@ public class ClientYamlTestClient {
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
 
-        Set<String> apiRequiredPathParts = restApi.getPathParts().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+        Set<String> apiRequiredPathParts = restApi.getPathParts().entrySet().stream().filter(Entry::getValue).map(Entry::getKey)
                 .collect(Collectors.toSet());
-        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(Entry::getValue).map(Entry::getKey)
                 .collect(Collectors.toSet());
 
         for (Map.Entry<String, String> entry : params.entrySet()) {
@@ -122,7 +131,7 @@ public class ClientYamlTestClient {
             }
             String contentType = entity.getContentType().getValue();
             //randomly test the GET with source param instead of GET/POST with body
-            if (sendBodyAsSourceParam(supportedMethods, contentType)) {
+            if (sendBodyAsSourceParam(supportedMethods, contentType, entity.getContentLength())) {
                 logger.debug("sending the request body as source param with GET method");
                 queryStringParams.put("source", EntityUtils.toString(entity));
                 queryStringParams.put("source_content_type", contentType);
@@ -151,7 +160,7 @@ public class ClientYamlTestClient {
             for (String pathPart : restPath.getPathParts()) {
                 try {
                     finalPath.append('/');
-                    // We append "/" to the path part to handle parts that start with - or other invalid characters
+                    // We prepend "/" to the path part to handle parts that start with - or other invalid characters
                     URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
                     //manually escape any slash that each part may contain
                     finalPath.append(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
@@ -165,7 +174,7 @@ public class ClientYamlTestClient {
         Header[] requestHeaders = new Header[headers.size()];
         int index = 0;
         for (Map.Entry<String, String> header : headers.entrySet()) {
-            logger.info("Adding header {} with value {}", header.getKey(), header.getValue());
+            logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
             requestHeaders[index++] = new BasicHeader(header.getKey(), header.getValue());
         }
 
@@ -178,14 +187,25 @@ public class ClientYamlTestClient {
         }
     }
 
-    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType) {
-        if (supportedMethods.contains(HttpGet.METHOD_NAME)) {
-            if (contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType()) ||
-                    contentType.startsWith(YAML_CONTENT_TYPE.getMimeType())) {
-                return RandomizedTest.rarely();
-            }
+    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, long contentLength) {
+        if (false == supportedMethods.contains(HttpGet.METHOD_NAME)) {
+            // The API doesn't claim to support GET anyway
+            return false;
         }
-        return false;
+        if (contentLength < 0) {
+            // Negative length means "unknown" or "huge" in this case. Either way we can't send it as a parameter
+            return false;
+        }
+        if (contentLength > 2000) {
+            // Long bodies won't fit in the parameter and will cause a too_long_frame_exception
+            return false;
+        }
+        if (false == contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType())
+                && false == contentType.startsWith(YAML_CONTENT_TYPE.getMimeType())) {
+            // We can only encode JSON or YAML this way.
+            return false;
+        }
+        return RandomizedTest.rarely();
     }
 
     private ClientYamlSuiteRestApi restApi(String apiName) {

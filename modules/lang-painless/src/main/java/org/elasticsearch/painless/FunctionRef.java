@@ -20,8 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.api.Augmentation;
+import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
@@ -63,9 +62,9 @@ public class FunctionRef {
     /** factory method type descriptor */
     public final String factoryDescriptor;
     /** functional interface method as type */
-    public final org.objectweb.asm.Type interfaceType;
+    public final Type interfaceType;
     /** delegate method type method as type */
-    public final org.objectweb.asm.Type delegateType;
+    public final Type delegateType;
 
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
@@ -75,8 +74,9 @@ public class FunctionRef {
      * @param call the right hand side of a method reference expression
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(Definition definition, Type expected, String type, String call, int numCaptures) {
-        this(expected, expected.struct.getFunctionalMethod(), lookup(definition, expected, type, call, numCaptures > 0), numCaptures);
+    public FunctionRef(Definition definition, Class<?> expected, String type, String call, int numCaptures) {
+        this(expected, definition.ClassToType(expected).struct.functionalMethod,
+                lookup(definition, expected, type, call, numCaptures > 0), numCaptures);
     }
 
     /**
@@ -86,11 +86,11 @@ public class FunctionRef {
      * @param delegateMethod implementation method
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(Type expected, Method interfaceMethod, Method delegateMethod, int numCaptures) {
+    public FunctionRef(Class<?> expected, Method interfaceMethod, Method delegateMethod, int numCaptures) {
         MethodType delegateMethodType = delegateMethod.getMethodType();
 
         interfaceMethodName = interfaceMethod.name;
-        factoryMethodType = MethodType.methodType(expected.clazz,
+        factoryMethodType = MethodType.methodType(expected,
                 delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
         interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
 
@@ -120,17 +120,18 @@ public class FunctionRef {
         this.delegateMethod = delegateMethod;
 
         factoryDescriptor = factoryMethodType.toMethodDescriptorString();
-        interfaceType = org.objectweb.asm.Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
-        delegateType = org.objectweb.asm.Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
+        interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
+        delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
     }
 
     /**
      * Creates a new FunctionRef (low level).
      * It is for runtime use only.
      */
-    public FunctionRef(Type expected, Method interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
+    public FunctionRef(Class<?> expected,
+                       Method interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
         interfaceMethodName = interfaceMethod.name;
-        factoryMethodType = MethodType.methodType(expected.clazz,
+        factoryMethodType = MethodType.methodType(expected,
             delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
         interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
 
@@ -150,14 +151,14 @@ public class FunctionRef {
     /**
      * Looks up {@code type::call} from the whitelist, and returns a matching method.
      */
-    private static Definition.Method lookup(Definition definition, Definition.Type expected,
+    private static Definition.Method lookup(Definition definition, Class<?> expected,
                                             String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
-        Method method = expected.struct.getFunctionalMethod();
+        Method method = definition.ClassToType(expected).struct.functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                               "to [" + expected.name + "], not a functional interface");
+                                               "to [" + Definition.ClassToName(expected) + "], not a functional interface");
         }
 
         // lookup requested method

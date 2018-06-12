@@ -35,7 +35,6 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.List;
 import java.util.Random;
 import java.util.Set;
 

@@ -36,7 +36,7 @@ PUT _snapshot/my_s3_repository
 
 The client used to connect to S3 has a number of settings available. Client setting names are of
 the form `s3.client.CLIENT_NAME.SETTING_NAME` and specified inside `elasticsearch.yml`.  The
-default client name looked up by an s3 repository is called `default`, but can be customized
+default client name looked up by a `s3` repository is called `default`, but can be customized
 with the repository setting `client`. For example:
 
 [source,js]

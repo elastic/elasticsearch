@@ -16,6 +16,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "string",
+          "description" : "Whether to add the type name to the response"
+        },
         "analyzer": {
           "type" : "string",
           "description" : "The analyzer to use for the query string"
@@ -147,6 +151,11 @@
           "type" : "boolean",
           "description": "Indicate if the number of documents that match the query should be tracked"
         },
+        "allow_partial_search_results": {
+          "type" : "boolean",
+          "default" : true,
+          "description": "Indicate if an error should be returned if there is a partial search failure or timeout"
+        },
         "typed_keys": {
           "type" : "boolean",
           "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
@@ -166,8 +175,8 @@
         },
         "max_concurrent_shard_requests" : {
           "type" : "number",
-          "description" : "The number of concurrent shard requests this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
-          "default" : "The default grows with the number of nodes in the cluster but is at most 256."
+          "description" : "The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+          "default" : "The default is 5."
         },
         "pre_filter_shard_size" : {
           "type" : "number",

@@ -107,6 +107,14 @@ public class ReindexFailureTests extends ReindexTestCase {
                 response.get();
                 logger.info("Didn't trigger a reindex failure on the {} attempt", attempt);
                 attempt++;
+                /*
+                 * In the past we've seen the delete of the source index
+                 * actually take effect *during* the `indexDocs` call in
+                 * the next step. This breaks things pretty disasterously
+                 * so we *try* and wait for the delete to be fully
+                 * complete here.
+                 */
+                assertBusy(() -> assertFalse(client().admin().indices().prepareExists("source").get().isExists()));
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(e.getMessage(),

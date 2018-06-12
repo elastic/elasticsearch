@@ -3,8 +3,7 @@
 
 Some settings are sensitive, and relying on filesystem permissions to protect
 their values is not sufficient. For this use case, Elasticsearch provides a
-keystore, which may be password protected, and the `elasticsearch-keystore`
-tool to manage the settings in the keystore.
+keystore and the `elasticsearch-keystore` tool to manage the settings in the keystore.
 
 NOTE: All commands here should be run as the user which will run Elasticsearch.
 
@@ -13,6 +12,9 @@ documentation for each setting to see if it is supported as part of the keystore
 
 NOTE: All the modifications to the keystore take affect only after restarting
 Elasticsearch.
+
+NOTE: The elasticsearch keystore currently only provides obfuscation. In the future,
+password protection will be added.
 
 [float]
 [[creating-keystore]]

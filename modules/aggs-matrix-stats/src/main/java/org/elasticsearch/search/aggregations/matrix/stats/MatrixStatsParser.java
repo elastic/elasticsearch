@@ -39,7 +39,7 @@ public class MatrixStatsParser extends NumericValuesSourceParser {
     @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
                             Map<ParseField, Object> otherOptions) throws IOException {
-        if (MULTIVALUE_MODE_FIELD.match(currentFieldName)) {
+        if (MULTIVALUE_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
             if (token == XContentParser.Token.VALUE_STRING) {
                 otherOptions.put(MULTIVALUE_MODE_FIELD, parser.text());
                 return true;

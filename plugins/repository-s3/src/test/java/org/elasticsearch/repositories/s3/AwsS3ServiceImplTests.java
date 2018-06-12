@@ -24,8 +24,6 @@ import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -95,7 +93,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3,
+        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3,
             ClientConfiguration.DEFAULT_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
@@ -110,7 +108,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.proxy.port", 8080)
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
+        launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
             "aws_proxy_password", 3, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 10000);
     }
 
@@ -118,7 +116,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("s3.client.default.max_retries", 5)
             .build();
-        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
+        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null,
             null, 5, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 50000);
     }
 
@@ -126,22 +124,21 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         final boolean throttling = randomBoolean();
 
         Settings settings = Settings.builder().put("s3.client.default.use_throttle_retries", throttling).build();
-        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, throttling, 50000);
+        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null, null, 3, throttling, 50000);
     }
 
     private void launchAWSConfigurationTest(Settings settings,
-                                              Settings singleRepositorySettings,
-                                              Protocol expectedProtocol,
-                                              String expectedProxyHost,
-                                              int expectedProxyPort,
-                                              String expectedProxyUsername,
-                                              String expectedProxyPassword,
-                                              Integer expectedMaxRetries,
-                                              boolean expectedUseThrottleRetries,
-                                              int expectedReadTimeout) {
+                                            Protocol expectedProtocol,
+                                            String expectedProxyHost,
+                                            int expectedProxyPort,
+                                            String expectedProxyUsername,
+                                            String expectedProxyPassword,
+                                            Integer expectedMaxRetries,
+                                            boolean expectedUseThrottleRetries,
+                                            int expectedReadTimeout) {
 
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(clientSettings, singleRepositorySettings);
+        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(clientSettings);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

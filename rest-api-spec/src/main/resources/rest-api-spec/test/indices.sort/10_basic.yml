@@ -1,17 +1,13 @@
 ---
 "Index Sort":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new feature that has been added in 6.0.0
-
   - do:
       indices.create:
         index: test
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 1
+            number_of_replicas: 0
             index.sort.field: rank
           mappings:
             test:
@@ -93,7 +89,6 @@
   - do:
       search:
         index: test
-        type: test
         body:
           sort: ["rank"]
           size: 1
@@ -105,7 +100,6 @@
   - do:
       search:
         index: test
-        type: test
         body:
           sort: ["rank"]
           query: {"range": { "rank": { "from": 0 } } }
@@ -128,7 +122,6 @@
   - do:
       search:
         index: test
-        type: test
         body:
           sort: _doc
 
@@ -146,7 +139,6 @@
   - do:
       search:
         index: test
-        type: test
         body:
           sort: ["rank"]
           query: {"range": { "rank": { "from": 0 } } }
@@ -163,7 +155,6 @@
       catch:      /disabling \[track_total_hits\] is not allowed in a scroll context/
       search:
         index: test
-        type: test
         scroll: 1m
         body:
           sort: ["rank"]

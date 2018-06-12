@@ -1,94 +1,125 @@
-[[literals]]
+[[painless-literals]]
 === Literals
 
-Literals are values that you can specify directly in Painless scripts.
+Use a literal to specify a value directly in an
+<<painless-operators, operation>>.
 
-[[integers]]
+[[integer-literals]]
 ==== Integers
 
-Specify integer literals in decimal, octal, or hex notation. Use the following
-single letter designations to specify the primitive type: `l` for `long`, `f`
-for `float`, and `d` for `double`.  If not specified, the type defaults to
-`int` (with the exception of certain assignments described later).
+Use an integer literal to specify an integer type value in decimal, octal, or
+hex notation of a <<primitive-types, primitive type>> `int`, `long`, `float`,
+or `double`. Use the following single letter designations to specify the
+primitive type: `l` or `L` for `long`, `f` or `F` for `float`, and `d` or `D`
+for `double`. If not specified, the type defaults to `int`.  Use `0` as a prefix
+to specify an integer literal as octal, and use `0x` or `0X` as a prefix to
+specify an integer literal as hex.
 
-*Grammar:*
+*Grammar*
+
 [source,ANTLR4]
 ----
 INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
-OCTAL: '-'? '0' [0-7]+ [lL]?;
-HEX: '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
+OCTAL:   '-'? '0' [0-7]+ [lL]?;
+HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Integer literals.
++
+[source,Painless]
 ----
-0     // integer literal of 0
-0D    // double literal of 0.0
-1234L // long literal of 1234
--90F  // float literal of -90.0
--022  // integer literal of -18 specified in octal
-0xF2A // integer literal of 3882
+<1> 0
+<2> 0D
+<3> 1234L
+<4> -90f
+<5> -022
+<6> 0xF2A
 ----
++
+<1> `int 0`
+<2> `double 0.0`
+<3> `long 1234`
+<4> `float -90.0`
+<5> `int -18` in octal
+<6> `int 3882` in hex
 
-[[floating-point-values]]
-==== Floating Point Values
+[[float-literals]]
+==== Floats
 
-Specify floating point literals using the following single letter designations
-for the primitive type: `f` for `float` and `d` for `double`.
-If not specified, the type defaults to `double`.
+Use a floating point literal to specify a floating point type value of a
+<<primitive-types, primitive type>> `float` or `double`. Use the following
+single letter designations to specify the primitive type: `f` or `F` for `float`
+and `d` or `D` for `double`. If not specified, the type defaults to `double`.
 
-*Grammar:*
+*Grammar*
+
 [source,ANTLR4]
 ----
-DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
+DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? EXPONENT? [fFdD]?;
+EXPONENT: ( [eE] [+\-]? [0-9]+ );
 ----
 
-*Examples:*
-[source,Java]
-----
-0.0      // double value of 0.0
-1E6      // double value of 1000000
-0.977777 // double value of 0.97777
--126.34  // double value of -126.34
-89.9F    // float value of 89.9
-----
+*Examples*
 
-[[strings]]
+* Floating point literals.
++
+[source,Painless]
+----
+<1> 0.0
+<2> 1E6
+<3> 0.977777
+<4> -126.34
+<5> 89.9F
+----
++
+<1> `double 0.0`
+<2> `double 1000000.0` in exponent notation
+<3> `double 0.977777`
+<4> `double -126.34`
+<5> `float 89.9`
+
+[[string-literals]]
 ==== Strings
 
-Specify literal string with either single or double quotes. In double-quoted
-literal strings, you can escape double-quotes with a backslash to include them
-in the string. Similarly, you escape single quotes with a backslash in
-single-quoted literal strings. Backslashes themselves also need to be
-escaped with a backslash.
+Use a string literal to specify a <<string-type, `String` type>> value with
+either single-quotes or double-quotes. Use a `\"` token to include a
+double-quote as part of a double-quoted string literal. Use a `\'` token to
+include a single-quote as part of a single-quoted string literal.  Use a `\\`
+token to include a backslash as part of any string literal.
 
-*Grammar:*
+*Grammar*
+
 [source,ANTLR4]
 ----
-STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
+STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
+      | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
 ----
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* String literals using single-quotes.
++
+[source,Painless]
 ----
-"double-quoted String literal"
-'single-quoted String literal'
-"\"double-quoted String with escaped double-quotes\" and backslash: \\"
-'\'single-quoted String with escaped single-quotes\' and backslash \\'
-"double-quoted String with non-escaped 'single-quotes'"
-'single-quoted String with non-escaped "double-quotes"'
+'single-quoted string literal'
+'\'single-quoted with escaped single-quotes\' and backslash \\'
+'single-quoted with non-escaped "double-quotes"'
+----
++
+* String literals using double-quotes.
++
+[source,Painless]
+----
+"double-quoted string literal"
+"\"double-quoted with escaped double-quotes\" and backslash: \\"
+"double-quoted with non-escaped 'single-quotes'"
 ----
 
-[[char]]
-===== Char
+[[character-literals]]
+==== Characters
 
-You cannot directly specify character literals in Painless. However, you can
-cast single-character strings to char. Attempting to cast a multi-character
-string to a char throws an error.
-
-*Examples:*
-[source,Java]
-----
-(char)"C"
-(char)'c'
-----
+Character literals are not specified directly. Instead, use the
+<<string-character-casting, cast operator>> to convert a `String` type value
+into a `char` type value.

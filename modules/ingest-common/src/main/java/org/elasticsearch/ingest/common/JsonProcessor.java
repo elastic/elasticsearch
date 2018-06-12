@@ -19,24 +19,19 @@
 
 package org.elasticsearch.ingest.common;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -76,7 +71,9 @@ public final class JsonProcessor extends AbstractProcessor {
     public void execute(IngestDocument document) throws Exception {
         Object fieldValue = document.getFieldValue(field, Object.class);
         BytesReference bytesRef = (fieldValue == null) ? new BytesArray("null") : new BytesArray(fieldValue.toString());
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, bytesRef)) {
+        try (InputStream stream = bytesRef.streamInput();
+             XContentParser parser = JsonXContent.jsonXContent
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
             XContentParser.Token token = parser.nextToken();
             Object value = null;
             if (token == XContentParser.Token.VALUE_NULL) {

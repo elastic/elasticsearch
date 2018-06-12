@@ -19,6 +19,8 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
@@ -38,7 +40,7 @@ import java.util.TreeSet;
  * Supports a setup section and multiple test sections.
  */
 public class ClientYamlTestSuite {
-    public static ClientYamlTestSuite parse(String api, Path file) throws IOException {
+    public static ClientYamlTestSuite parse(NamedXContentRegistry executeableSectionRegistry, String api, Path file) throws IOException {
         if (!Files.isRegularFile(file)) {
             throw new IllegalArgumentException(file.toAbsolutePath() + " is not a file");
         }
@@ -62,8 +64,8 @@ public class ClientYamlTestSuite {
             }
         }
 
-        try (XContentParser parser = YamlXContent.yamlXContent.createParser(ExecutableSection.XCONTENT_REGISTRY,
-                Files.newInputStream(file))) {
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(executeableSectionRegistry,
+            LoggingDeprecationHandler.INSTANCE, Files.newInputStream(file))) {
             return parse(api, filename, parser);
         } catch(Exception e) {
             throw new IOException("Error parsing " + api + "/" + filename, e);

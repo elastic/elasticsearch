@@ -23,17 +23,8 @@ esplugin {
 }
 
 dependencies {
-    compile 'org.jruby.joni:joni:2.1.6'
-    // joni dependencies:
-    compile 'org.jruby.jcodings:jcodings:1.0.12'
+    compile project(':libs:grok')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
-
-thirdPartyAudit.excludes = [
-        // joni has AsmCompilerSupport, but that isn't being used:
-        'org.objectweb.asm.ClassWriter',
-        'org.objectweb.asm.MethodVisitor',
-        'org.objectweb.asm.Opcodes',
-]

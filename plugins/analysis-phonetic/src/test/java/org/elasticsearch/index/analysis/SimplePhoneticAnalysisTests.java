@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -72,4 +73,14 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
                 "rmba", "rmbalt", "rmbo", "rmbolt", "rmbu", "rmbult" };
         BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
     }
+
+    public void testPhoneticTokenFilterDaitchMotokoff() throws IOException {
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("daitch_mokotoff");
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader("chauptman"));
+        String[] expected = new String[] { "473660", "573660" };
+        assertThat(filterFactory.create(tokenizer), instanceOf(DaitchMokotoffSoundexFilter.class));
+        BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
+    }
+
 }

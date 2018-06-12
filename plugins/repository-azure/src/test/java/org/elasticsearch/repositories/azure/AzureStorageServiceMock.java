@@ -25,15 +25,18 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketPermission;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.security.AccessController;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,6 +67,8 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
 
     @Override
     public void deleteFiles(String account, LocationMode mode, String container, String path) {
+        final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, mode, container, path, null);
+        blobs.keySet().forEach(key -> deleteBlob(account, mode, container, key));
     }
 
     @Override
@@ -81,7 +86,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
         if (!blobExists(account, mode, container, blob)) {
             throw new NoSuchFileException("missing blob [" + blob + "]");
         }
-        return new ByteArrayInputStream(blobs.get(blob).toByteArray());
+        return AzureStorageService.giveSocketPermissionsToStream(new PermissionRequiringInputStream(blobs.get(blob).toByteArray()));
     }
 
     @Override
@@ -103,20 +108,11 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob)
-        throws URISyntaxException, StorageException {
-        for (String blobName : blobs.keySet()) {
-            if (endsWithIgnoreCase(blobName, sourceBlob)) {
-                ByteArrayOutputStream outputStream = blobs.get(blobName);
-                blobs.put(blobName.replace(sourceBlob, targetBlob), outputStream);
-                blobs.remove(blobName);
-            }
-        }
-    }
-
-    @Override
     public void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize)
-        throws URISyntaxException, StorageException {
+        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+        if (blobs.containsKey(blobName)) {
+            throw new FileAlreadyExistsException(blobName);
+        }
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             blobs.put(blobName, outputStream);
             Streams.copy(inputStream, outputStream);
@@ -133,7 +129,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
      * @param prefix the prefix to look for
      * @see java.lang.String#startsWith
      */
-    public static boolean startsWithIgnoreCase(String str, String prefix) {
+    private static boolean startsWithIgnoreCase(String str, String prefix) {
         if (str == null || prefix == null) {
             return false;
         }
@@ -148,26 +144,28 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
         return lcStr.equals(lcPrefix);
     }
 
-    /**
-     * Test if the given String ends with the specified suffix,
-     * ignoring upper/lower case.
-     *
-     * @param str    the String to check
-     * @param suffix the suffix to look for
-     * @see java.lang.String#startsWith
-     */
-    public static boolean endsWithIgnoreCase(String str, String suffix) {
-        if (str == null || suffix == null) {
-            return false;
+    private static class PermissionRequiringInputStream extends ByteArrayInputStream {
+
+        private PermissionRequiringInputStream(byte[] buf) {
+            super(buf);
         }
-        if (str.endsWith(suffix)) {
-            return true;
+
+        @Override
+        public synchronized int read() {
+            AccessController.checkPermission(new SocketPermission("*", "connect"));
+            return super.read();
         }
-        if (str.length() < suffix.length()) {
-            return false;
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            AccessController.checkPermission(new SocketPermission("*", "connect"));
+            return super.read(b);
         }
-        String lcStr = str.substring(0, suffix.length()).toLowerCase(Locale.ROOT);
-        String lcPrefix = suffix.toLowerCase(Locale.ROOT);
-        return lcStr.equals(lcPrefix);
+
+        @Override
+        public synchronized int read(byte[] b, int off, int len) {
+            AccessController.checkPermission(new SocketPermission("*", "connect"));
+            return super.read(b, off, len);
+        }
     }
 }

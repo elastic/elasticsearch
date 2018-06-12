@@ -1,0 +1,84 @@
+[[java-rest-high-refresh]]
+=== Refresh API
+
+[[java-rest-high-refresh-request]]
+==== Refresh Request
+
+A `RefreshRequest` can be applied to one or more indices, or even on `_all` the indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-request]
+--------------------------------------------------
+<1> Refresh one index
+<2> Refresh multiple indices
+<3> Refresh all the indices
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+[[java-rest-high-refresh-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-execute]
+--------------------------------------------------
+
+[[java-rest-high-refresh-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a refresh request requires both the `RefreshRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-execute-async]
+--------------------------------------------------
+<1> The `RefreshRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `RefreshResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-refresh-response]]
+==== Refresh Response
+
+The returned `RefreshResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-response]
+--------------------------------------------------
+<1> Total number of shards hit by the refresh request
+<2> Number of shards where the refresh has succeeded
+<3> Number of shards where the refresh has failed
+<4> A list of failures if the operation failed on one or more shards
+
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-notfound]
+--------------------------------------------------
+<1> Do something if the indices to be refreshed were not found

@@ -28,10 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.URISyntaxException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 
 /**
  * <p>Resolves certain GCE related 'meta' hostnames into an actual hostname

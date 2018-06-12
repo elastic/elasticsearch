@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument.MetaData;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -122,10 +123,10 @@ public class AppendProcessorTests extends ESTestCase {
         }
     }
 
-    public void testAppendMetadata() throws Exception {
-        //here any metadata field value becomes a list, which won't make sense in most of the cases,
+    public void testAppendMetadataExceptVersion() throws Exception {
+        // here any metadata field value becomes a list, which won't make sense in most of the cases,
         // but support for append is streamlined like for set so we test it
-        IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.values());
+        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.TYPE, MetaData.ID, MetaData.ROUTING);
         List<String> values = new ArrayList<>();
         Processor appendProcessor;
         if (randomBoolean()) {

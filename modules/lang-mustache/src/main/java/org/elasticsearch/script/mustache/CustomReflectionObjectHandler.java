@@ -20,6 +20,7 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.iterable.Iterables;
 
 import java.lang.reflect.Array;
@@ -154,4 +155,9 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         }
     }
 
+    @Override
+    public String stringify(Object object) {
+        CollectionUtils.ensureNoSelfReferences(object, "CustomReflectionObjectHandler stringify");
+        return super.stringify(object);
+    }
 }

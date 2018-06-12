@@ -26,6 +26,7 @@ import java.util.function.Function;
 public class FeatureTest {
     private int x;
     private int y;
+    public int z;
 
     /** empty ctor */
     public FeatureTest() {

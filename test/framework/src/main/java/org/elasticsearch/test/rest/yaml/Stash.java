@@ -22,7 +22,6 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -185,10 +184,10 @@ public class Stash implements ToXContentFragment {
         StringBuilder pathBuilder = new StringBuilder();
         Iterator<Object> element = path.iterator();
         if (element.hasNext()) {
-            pathBuilder.append(element.next());
+            pathBuilder.append(element.next().toString().replace(".", "\\."));
             while (element.hasNext()) {
                 pathBuilder.append('.');
-                pathBuilder.append(element.next());
+                pathBuilder.append(element.next().toString().replace(".", "\\."));
             }
         }
         String builtPath = Matcher.quoteReplacement(pathBuilder.toString());

@@ -36,6 +36,44 @@ queries hundreds of times slower. So if the same questions can be answered witho
 joins by denormalizing documents, significant speedups can be expected.
 
 [float]
+=== Search as few fields as possible
+
+The more fields a <<query-dsl-query-string-query,`query_string`>> or
+<<query-dsl-multi-match-query,`multi_match`>> query targets, the slower it is.
+A common technique to improve search speed over multiple fields is to copy
+their values into a single field at index time, and then use this field at
+search time. This can be automated with the <<copy-to,`copy-to`>> directive of
+mappings without having to change the source of documents. Here is an example
+of an index containing movies that optimizes queries that search over both the
+name and the plot of the movie by indexing both values into the `name_and_plot`
+field.
+
+[source,js]
+--------------------------------------------------
+PUT movies
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "name_and_plot": {
+          "type": "text"
+        },
+        "name": {
+          "type": "text",
+          "copy_to": "name_and_plot"
+        },
+        "plot": {
+          "type": "text",
+          "copy_to": "name_and_plot"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
 === Pre-index data
 
 You should leverage patterns in your queries to optimize the way data is indexed.

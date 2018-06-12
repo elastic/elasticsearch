@@ -28,14 +28,22 @@ GET /_search
     "query": {
         "query_string" : {
             "default_field" : "content",
-            "query" : "field:new york AND city"
+            "query" : "(new york city) OR (big apple)"
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 
-... will be splitted in `new`, `york` and `city` and each part is analyzed independently.
+... will be split into `new york city` and `big apple` and each part is then
+analyzed independently by the analyzer configured for the field.
+
+WARNING: Whitespaces are not considered operators, this means that `new york city`
+will be passed "as is" to the analyzer configured for the field. If the field is a `keyword`
+field the analyzer will create a single term `new york city` and the query builder will
+use this term in the query. If you want to query each term separately you need to add explicit
+operators around the terms (e.g. `new AND york AND city`).
+
 When multiple fields are provided it is also possible to modify how the different
 field queries are combined inside each textual part using the `type` parameter.
 The possible modes are described <<multi-match-types, here>> and the default is `best_fields`.
@@ -91,8 +99,6 @@ phrase matches are required. Default value is `0`.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 
-|`auto_generate_phrase_queries` |Defaults to `false`.
-
 |`analyze_wildcard` |By default, wildcards terms in a query string are
 not analyzed. By setting this value to `true`, a best effort will be
 made to analyze those as well.
@@ -120,10 +126,6 @@ comprehensive example.
 
 |`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated for multi terms synonyms.
 Defaults to `true`.
-
-|`all_fields` | deprecated[6.0.0, set `default_field` to `*` instead]
-Perform the query on all fields detected in the mapping that can
-be queried.
 
 |=======================================================================
 
@@ -310,7 +312,7 @@ GET /_search
 
 The example above creates a boolean query:
 
-`(ny OR (new AND york)) city)`
+`(ny OR (new AND york)) city`
 
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.

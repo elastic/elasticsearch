@@ -20,7 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * Implementations of {@link EvaluationMetric} need to provide a way to compute the quality metric for
  * a result list returned by some search (@link {@link SearchHits}) and a list of rated documents.
  */
-public interface EvaluationMetric extends ToXContent, NamedWriteable {
+public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
 
     /**
      * Returns a single metric representing the ranking quality of a set of returned

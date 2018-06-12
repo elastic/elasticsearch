@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockHttpTransport;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,10 +42,10 @@ public class MockNodeTests extends ESTestCase {
         Settings settings = Settings.builder() // All these are required or MockNode will fail to build.
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("transport.type", getTestTransportType())
-                .put("http.enabled", false)
                 .build();
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.add(getTestTransportPlugin());
+        plugins.add(MockHttpTransport.TestPlugin.class);
         boolean useMockBigArrays = randomBoolean();
         boolean useMockSearchService = randomBoolean();
         if (useMockBigArrays) {

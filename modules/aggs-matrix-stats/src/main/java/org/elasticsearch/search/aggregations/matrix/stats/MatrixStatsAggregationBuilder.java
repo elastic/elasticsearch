@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
@@ -44,6 +45,17 @@ public class MatrixStatsAggregationBuilder
 
     public MatrixStatsAggregationBuilder(String name) {
         super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone,
+                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.multiValueMode = clone.multiValueMode;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

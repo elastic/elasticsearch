@@ -32,7 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -86,8 +86,8 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
         String transportKey;
         Class<? extends Plugin> transportPlugin;
         if (usNio) {
-            transportKey = NioTransportPlugin.NIO_TRANSPORT_NAME;
-            transportPlugin = NioTransportPlugin.class;
+            transportKey = MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
+            transportPlugin = MockNioTransportPlugin.class;
         } else {
             transportKey = MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
             transportPlugin = MockTcpTransportPlugin.class;

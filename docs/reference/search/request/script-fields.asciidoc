@@ -15,13 +15,13 @@ GET /_search
         "test1" : {
             "script" : {
                 "lang": "painless",
-                "source": "doc['my_field_name'].value * 2"
+                "source": "doc['price'].value * 2"
             }
         },
         "test2" : {
             "script" : {
                 "lang": "painless",
-                "source": "doc['my_field_name'].value * factor",
+                "source": "doc['price'].value * params.factor",
                 "params" : {
                     "factor"  : 2.0
                 }
@@ -31,7 +31,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-
+// TEST[setup:sales]
 
 Script fields can work on fields that are not stored (`my_field_name` in
 the above case), and allow to return custom values to be returned (the
@@ -65,8 +65,8 @@ It's important to understand the difference between
 using the doc keyword, will cause the terms for that field to be loaded to
 memory (cached), which will result in faster execution, but more memory
 consumption. Also, the `doc[...]` notation only allows for simple valued
-fields (can't return a json object from it) and make sense only on
-non-analyzed or single term based fields.  However, using `doc` is
+fields (you can't return a json object from it) and makes sense only for
+non-analyzed or single term based fields. However, using `doc` is
 still the recommended way to access values from the document, if at all
 possible, because `_source` must be loaded and parsed every time it's used.
 Using `_source` is very slow.

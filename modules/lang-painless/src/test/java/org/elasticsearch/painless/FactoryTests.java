@@ -19,21 +19,23 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.TemplateScript;
 
-import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public class FactoryTests extends ScriptTestCase {
 
-    protected Collection<ScriptContext<?>> scriptContexts() {
-        Collection<ScriptContext<?>> contexts = super.scriptContexts();
-        contexts.add(StatefulFactoryTestScript.CONTEXT);
-        contexts.add(FactoryTestScript.CONTEXT);
-        contexts.add(EmptyTestScript.CONTEXT);
-        contexts.add(TemplateScript.CONTEXT);
+    @Override
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+        contexts.put(StatefulFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(FactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
 
         return contexts;
     }

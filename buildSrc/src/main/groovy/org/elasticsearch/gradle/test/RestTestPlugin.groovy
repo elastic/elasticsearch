@@ -46,7 +46,6 @@ public class RestTestPlugin implements Plugin<Project> {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.description = 'Runs rest tests against an elasticsearch cluster.'
         integTest.group = JavaBasePlugin.VERIFICATION_GROUP
-        integTest.clusterConfig.distribution = 'zip' // rest tests should run with the real zip
         integTest.mustRunAfter(project.precommit)
         project.check.dependsOn(integTest)
     }

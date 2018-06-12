@@ -56,6 +56,14 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             super(name, valuesSourceType, targetValueType);
         }
 
+        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+            super(clone, factoriesBuilder, metaData);
+            if (factoriesBuilder.count() > 0) {
+                throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
+                    + getType() + "] cannot accept sub-aggregations");
+            }
+        }
+
         /**
          * Read from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
@@ -93,6 +101,18 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         }
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
+    }
+
+    protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<VS, AB> clone,
+                                                  Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.valuesSourceType = clone.valuesSourceType;
+        this.targetValueType = clone.targetValueType;
+        this.fields = new ArrayList<>(clone.fields);
+        this.valueType = clone.valueType;
+        this.format = clone.format;
+        this.missingMap = new HashMap<>(clone.missingMap);
+        this.missing = clone.missing;
     }
 
     protected MultiValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)

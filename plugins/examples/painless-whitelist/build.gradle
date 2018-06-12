@@ -26,6 +26,10 @@ esplugin {
   extendedPlugins = ['lang-painless']
 }
 
+dependencies {
+  compileOnly project(':modules:lang-painless')
+}
+
 integTestCluster {
   distribution = 'zip'
 }

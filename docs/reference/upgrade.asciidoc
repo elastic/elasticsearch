@@ -44,7 +44,7 @@ required.
 |5.6            |6.x            |<<rolling-upgrades,Rolling upgrade>> footnoteref:[reindexfn, You must delete or reindex any indices created in 2.x before upgrading.]
 |5.0-5.5        |6.x            |<<restart-upgrade,Full cluster restart>> footnoteref:[reindexfn]
 |<5.x           |6.x            |<<reindex-upgrade,Reindex to upgrade>>
-|6.x           |6.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`) footnote:[Upgrading from a 6.0.0 pre GA version requires a full cluster restart.]
+|6.x            |6.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`) 
 |=======================================================================
 
 [IMPORTANT]

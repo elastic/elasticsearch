@@ -53,13 +53,13 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
    "aggregations": {
       "load_time_outlier": {
          "values" : {
-            "1.0": 9.9,
-            "5.0": 29.500000000000004,
-            "25.0": 167.5,
+            "1.0": 5.0,
+            "5.0": 25.0,
+            "25.0": 165.0,
             "50.0": 445.0,
-            "75.0": 722.5,
-            "95.0": 940.5,
-            "99.0": 980.1000000000001
+            "75.0": 725.0,
+            "95.0": 945.0,
+            "99.0": 985.0
          }
       }
    }
@@ -69,8 +69,8 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
 
 As you can see, the aggregation will return a calculated value for each percentile
 in the default range.  If we assume response times are in milliseconds, it is
-immediately obvious that the webpage normally loads in 15-30ms, but occasionally
-spikes to 60-150ms.
+immediately obvious that the webpage normally loads in 10-723ms, but occasionally
+spikes to 941-980ms.
 
 Often, administrators are only interested in outliers -- the extreme percentiles.
 We can specify just the percents we are interested in (requested percentiles
@@ -129,15 +129,15 @@ Response:
             "values": [
                 {
                     "key": 1.0,
-                    "value": 9.9
+                    "value": 5.0
                 },
                 {
                     "key": 5.0,
-                    "value": 29.500000000000004
+                    "value": 25.0
                 },
                 {
                     "key": 25.0,
-                    "value": 167.5
+                    "value": 165.0
                 },
                 {
                     "key": 50.0,
@@ -145,15 +145,15 @@ Response:
                 },
                 {
                     "key": 75.0,
-                    "value": 722.5
+                    "value": 725.0
                 },
                 {
                     "key": 95.0,
-                    "value": 940.5
+                    "value": 945.0
                 },
                 {
                     "key": 99.0,
-                    "value": 980.1000000000001
+                    "value": 985.0
                 }
             ]
         }

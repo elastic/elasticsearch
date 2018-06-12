@@ -19,10 +19,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 
 import java.io.IOException;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -65,7 +64,7 @@ public final class SIfElse extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        condition.expected = locals.getDefinition().booleanType;
+        condition.expected = boolean.class;
         condition.analyze(locals);
         condition = condition.cast(locals);
 

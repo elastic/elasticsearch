@@ -50,3 +50,6 @@ GET my_index/_search
 
 IMPORTANT: The `null_value` needs to be the same datatype as the field.  For
 instance, a `long` field cannot have a string `null_value`.
+
+NOTE: The `null_value` only influences how data is indexed, it doesn't modify
+the `_source` document.

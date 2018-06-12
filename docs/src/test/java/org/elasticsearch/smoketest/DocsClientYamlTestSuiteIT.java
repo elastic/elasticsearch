@@ -21,11 +21,9 @@ package org.elasticsearch.smoketest;
 
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TimeUnits;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
@@ -57,7 +55,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

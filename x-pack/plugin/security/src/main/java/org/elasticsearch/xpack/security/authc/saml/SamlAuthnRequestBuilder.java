@@ -28,14 +28,12 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
     private final String idpBinding;
     private Boolean forceAuthn;
     private NameIDPolicySettings nameIdSettings;
-    private List<String> reqAuthnCtxClassRef;
 
     SamlAuthnRequestBuilder(SpConfiguration spConfig, String spBinding, EntityDescriptor idpDescriptor, String idBinding, Clock clock) {
         super(idpDescriptor, spConfig, clock);
         this.spBinding = spBinding;
         this.idpBinding = idBinding;
         this.nameIdSettings = new NameIDPolicySettings(NameID.TRANSIENT, false, null);
-        this.reqAuthnCtxClassRef = spConfig.getReqAuthnCtxClassRef();
     }
 
     SamlAuthnRequestBuilder forceAuthn(Boolean forceAuthn) {
@@ -61,7 +59,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
         if (nameIdSettings != null) {
             request.setNameIDPolicy(buildNameIDPolicy());
         }
-        if (reqAuthnCtxClassRef.isEmpty() == false) {
+        if (super.serviceProvider.getReqAuthnCtxClassRef().isEmpty() == false) {
             request.setRequestedAuthnContext(buildRequestedAuthnContext());
         }
         request.setForceAuthn(forceAuthn);
@@ -71,7 +69,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
     private RequestedAuthnContext buildRequestedAuthnContext() {
         RequestedAuthnContext requestedAuthnContext = SamlUtils.buildObject(RequestedAuthnContext.class, RequestedAuthnContext
             .DEFAULT_ELEMENT_NAME);
-        for (String authnCtxClass : reqAuthnCtxClassRef) {
+        for (String authnCtxClass : super.serviceProvider.getReqAuthnCtxClassRef()) {
             AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(AuthnContextClassRef.class, AuthnContextClassRef
                 .DEFAULT_ELEMENT_NAME);
             authnContextClassRef.setAuthnContextClassRef(authnCtxClass);

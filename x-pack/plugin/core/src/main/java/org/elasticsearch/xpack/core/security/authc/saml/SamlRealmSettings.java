@@ -62,7 +62,7 @@ public class SamlRealmSettings {
             Setting.simpleString("signing.keystore.alias", Setting.Property.NodeScope);
     public static final Setting<List<String>> SIGNING_MESSAGE_TYPES = Setting.listSetting("signing.saml_messages",
             Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope);
-    public static final Setting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.listSetting("sp.req_authn_context_class_ref",
+    public static final Setting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.listSetting("req_authn_context_class_ref",
         Collections.emptyList(), Function.identity(),Setting.Property.NodeScope);
     public static final Setting<TimeValue> CLOCK_SKEW = Setting.positiveTimeSetting("allowed_clock_skew", TimeValue.timeValueMinutes(3),
             Setting.Property.NodeScope);

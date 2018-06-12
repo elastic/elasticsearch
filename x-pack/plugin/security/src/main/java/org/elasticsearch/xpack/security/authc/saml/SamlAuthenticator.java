@@ -240,28 +240,27 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private void checkAuthnStatement(List<AuthnStatement> authnStatements) {
         if (authnStatements.size() != 1) {
-            throw samlException("SAML Assertion subject contains {} Authn Statements while exactly one was expected.", authnStatements
-                .size());
+            throw samlException("SAML Assertion subject contains {} Authn Statements while exactly one was expected.",
+                authnStatements.size());
         }
-        for (AuthnStatement authnStatement : authnStatements) {
-            // "past now" that is now - the maximum skew we will tolerate. Essentially "if our clock is 2min fast, what time is it now?"
-            final Instant now = now();
-            final Instant pastNow = now.minusMillis(maxSkewInMillis());
-            if (authnStatement.getSessionNotOnOrAfter() != null &&
-                pastNow.isBefore(toInstant(authnStatement.getSessionNotOnOrAfter())) == false) {
-                throw samlException("Rejecting SAML assertion's Authentication Statement because [{}] is on/after [{}]", pastNow,
-                    authnStatement.getSessionNotOnOrAfter());
+        final AuthnStatement authnStatement = authnStatements.get(0);
+        // "past now" that is now - the maximum skew we will tolerate. Essentially "if our clock is 2min fast, what time is it now?"
+        final Instant now = now();
+        final Instant pastNow = now.minusMillis(maxSkewInMillis());
+        if (authnStatement.getSessionNotOnOrAfter() != null &&
+            pastNow.isBefore(toInstant(authnStatement.getSessionNotOnOrAfter())) == false) {
+            throw samlException("Rejecting SAML assertion's Authentication Statement because [{}] is on/after [{}]", pastNow,
+                authnStatement.getSessionNotOnOrAfter());
+        }
+        List<String> reqAuthnCtxClassRef = this.getSpConfiguration().getReqAuthnCtxClassRef();
+        if (reqAuthnCtxClassRef.isEmpty() == false) {
+            String authnCtxClassRefValue = null;
+            if (authnStatement.getAuthnContext() != null && authnStatement.getAuthnContext().getAuthnContextClassRef() != null) {
+                authnCtxClassRefValue = authnStatement.getAuthnContext().getAuthnContextClassRef().getAuthnContextClassRef();
             }
-            List<String> reqAuthnCtxClassRef = this.getSpConfiguration().getReqAuthnCtxClassRef();
-            if (reqAuthnCtxClassRef.isEmpty() == false) {
-                String authnCtxClassRefValue = null;
-                if (authnStatement.getAuthnContext() != null && authnStatement.getAuthnContext().getAuthnContextClassRef() != null) {
-                    authnCtxClassRefValue = authnStatement.getAuthnContext().getAuthnContextClassRef().getAuthnContextClassRef();
-                }
-                if (Strings.isNullOrEmpty(authnCtxClassRefValue) || reqAuthnCtxClassRef.contains(authnCtxClassRefValue) == false) {
-                    throw samlException("Rejecting SAML assertion as the AuthnContextClassRef {} is not one of the ({}) that were " +
-                        "requested in the corresponding AuthnRequest", authnCtxClassRefValue, reqAuthnCtxClassRef);
-                }
+            if (Strings.isNullOrEmpty(authnCtxClassRefValue) || reqAuthnCtxClassRef.contains(authnCtxClassRefValue) == false) {
+                throw samlException("Rejecting SAML assertion as the AuthnContextClassRef [{}] is not one of the ({}) that were " +
+                    "requested in the corresponding AuthnRequest", authnCtxClassRefValue, reqAuthnCtxClassRef);
             }
         }
     }

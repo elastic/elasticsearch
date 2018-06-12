@@ -370,6 +370,27 @@ public class DoSection implements ExecutableSection {
 
     private static NodeSelector buildNodeSelector(XContentLocation location, String name, String value) {
         switch (name) {
+        case "name":
+            return new NodeSelector() {
+                @Override
+                public void select(Iterable<Node> nodes) {
+                    for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                        Node node = itr.next();
+                        if (node.getName() == null) {
+                            throw new IllegalStateException("expected [name] metadata to be set but got "
+                                    + node);
+                        }
+                        if (false == value.equals(node.getName())) {
+                            itr.remove();
+                        }
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "name is [" + value + "]";
+                }
+            };
         case "version":
             Version[] range = SkipSection.parseVersionRange(value);
             return new NodeSelector() {

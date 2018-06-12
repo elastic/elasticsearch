@@ -17,7 +17,7 @@ us know what you’d like to see next and any problems you encounter.
 This experimental feature enables users who are familiar with SQL to
 use SQL statements to query {es} indices. In addition to querying
 through the SQL API, you can use the Translate API to see how SQL queries
-are translated to native ELasticsearch queries.
+are translated to native Elasticsearch queries.
 
 The included SQL CLI provides a simple way to submit SQL queries to {es}.
 Similarly, the {es} JDBC driver enables you to connect your favorite

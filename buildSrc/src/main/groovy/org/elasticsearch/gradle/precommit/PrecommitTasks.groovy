@@ -140,7 +140,7 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
-            toolVersion = 7.5
+            toolVersion = '8.10.1'
         }
 
         project.tasks.withType(Checkstyle) { task ->

@@ -25,9 +25,11 @@ public class SqlPainlessExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         Map<ScriptContext<?>, List<Whitelist>> whitelist = new LinkedHashMap<>();
-        whitelist.put(FilterScript.CONTEXT, singletonList(WHITELIST));
-        whitelist.put(SearchScript.CONTEXT, singletonList(WHITELIST));
-        whitelist.put(SearchScript.AGGS_CONTEXT, singletonList(WHITELIST));
+        List<Whitelist> list = singletonList(WHITELIST);
+        whitelist.put(FilterScript.CONTEXT, list);
+        whitelist.put(SearchScript.AGGS_CONTEXT, list);
+        whitelist.put(SearchScript.CONTEXT, list);
+        whitelist.put(SearchScript.SCRIPT_SORT_CONTEXT, list);
         return whitelist;
     }
 }

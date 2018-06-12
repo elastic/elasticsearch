@@ -212,7 +212,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final long globalCheckPoint = filteredShardStats.get().getSeqNoStats().getGlobalCheckpoint();
                 handler.accept(globalCheckPoint);
             } else {
-                if (attempt <= 5) {
+                if (attempt <= PROCESSOR_RETRY_LIMIT) {
                     retry(() -> fetchGlobalCheckpoint(client, shardId, handler, errorHandler, attempt + 1), errorHandler);
                 } else {
                     errorHandler.accept(new IllegalArgumentException("Cannot find shard stats for shard " + shardId));
@@ -344,6 +344,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     static class ChunkProcessor {
 
+        private static final Logger LOGGER = Loggers.getLogger(ChunkProcessor.class);
+
         private final Client leaderClient;
         private final Client followerClient;
         private final Queue<long[]> chunks;
@@ -394,17 +396,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 @Override
                 public void onFailure(Exception e) {
-                    assert e != null;
-                    if (shouldRetry(e)) {
-                        if (canRetry()) {
-                            scheduler.accept(() -> start(from, to, maxTranslogsBytes));
-                        } else {
-                            handler.accept(new ElasticsearchException("retrying failed [" + retryCounter.get() +
-                                    "] times, aborting...", e));
-                        }
-                    } else {
-                        handler.accept(e);
-                    }
+                    retryOrFail(e, () -> start(from, to, maxTranslogsBytes));
                 }
             });
         }
@@ -429,45 +421,40 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 protected void doRun() throws Exception {
                     indexVersionChecker.accept(response.getIndexMetadataVersion(), e -> {
                         if (e != null) {
-                            if (shouldRetry(e)) {
-                                if (canRetry()) {
-                                    scheduler.accept(() -> handleResponse(to, response));
-                                } else {
-                                    handler.accept(new ElasticsearchException("retrying failed [" + retryCounter.get() +
-                                        "] times, aborting...", e));
-                                }
-                            } else {
-                                handler.accept(e);
-                            }
+                            retryOrFail(e, () -> handleResponse(to, response));
                             return;
                         }
                         final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
                         followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
                             new ActionListener<BulkShardOperationsResponse>() {
-                            @Override
-                            public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
-                                handler.accept(null);
-                            }
+                                @Override
+                                public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
+                                    handler.accept(null);
+                                }
 
                                 @Override
                                 public void onFailure(final Exception e) {
-                                    assert e != null;
-                                    if (shouldRetry(e)) {
-                                        if (canRetry()) {
-                                            scheduler.accept(() -> handleResponse(to, response));
-                                        } else {
-                                            handler.accept(new ElasticsearchException("retrying failed [" + retryCounter.get() +
-                                                "] times, aborting...", e));
-                                        }
-                                    } else {
-                                        handler.accept(e);
-                                    }
+                                    retryOrFail(e, () -> handleResponse(to, response));
                                 }
                             }
                         );
                     });
                 }
             });
+        }
+
+        void retryOrFail(Exception e, Runnable retryAction) {
+            assert e != null;
+            if (shouldRetry(e)) {
+                if (canRetry()) {
+                    LOGGER.debug(() -> new ParameterizedMessage("{} Retrying [{}]...", leaderShard, retryCounter.get()), e);
+                    scheduler.accept(retryAction);
+                } else {
+                    handler.accept(new ElasticsearchException("retrying failed [" + retryCounter.get() + "] times, aborting...", e));
+                }
+            } else {
+                handler.accept(e);
+            }
         }
 
         boolean shouldRetry(Exception e) {
@@ -537,7 +524,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
         public void accept(Long minimumRequiredIndexMetadataVersion, Consumer<Exception> handler) {
             if (currentIndexMetadataVersion.get() >= minimumRequiredIndexMetadataVersion) {
-                LOGGER.debug("Current index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
+                LOGGER.trace("Current index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
                     currentIndexMetadataVersion.get(), minimumRequiredIndexMetadataVersion);
                 handler.accept(null);
             } else {

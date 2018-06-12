@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -60,20 +59,6 @@ public final class ClusterClient {
     }
 
     /**
-     * Updates cluster wide specific settings using the Cluster Update Settings API.
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
-     * API on elastic.co</a>
-     * @deprecated Prefer {@link #putSettings(ClusterUpdateSettingsRequest, RequestOptions)}
-     */
-    @Deprecated
-    public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
-                ClusterUpdateSettingsResponse::fromXContent, emptySet(), headers);
-    }
-
-    /**
      * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
@@ -85,19 +70,6 @@ public final class ClusterClient {
                                  ActionListener<ClusterUpdateSettingsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 options, ClusterUpdateSettingsResponse::fromXContent, listener, emptySet());
-    }
-    /**
-     * Asynchronously updates cluster wide specific settings using the Cluster Update Settings API.
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
-     * API on elastic.co</a>
-     * @deprecated Prefer {@link #putSettingsAsync(ClusterUpdateSettingsRequest, RequestOptions, ActionListener)}
-     */
-    @Deprecated
-    public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
-            ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
-                ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**

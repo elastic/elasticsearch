@@ -63,7 +63,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         setRequest.persistentSettings(map);
 
         ClusterUpdateSettingsResponse setResponse = execute(setRequest, highLevelClient().cluster()::putSettings,
-                highLevelClient().cluster()::putSettingsAsync, highLevelClient().cluster()::putSettings,
                 highLevelClient().cluster()::putSettingsAsync);
 
         assertAcked(setResponse);
@@ -86,7 +85,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
 
         ClusterUpdateSettingsResponse resetResponse = execute(resetRequest, highLevelClient().cluster()::putSettings,
-                highLevelClient().cluster()::putSettingsAsync, highLevelClient().cluster()::putSettings,
                 highLevelClient().cluster()::putSettingsAsync);
 
         assertThat(resetResponse.getTransientSettings().get(transientSettingKey), equalTo(null));
@@ -108,7 +106,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         clusterUpdateSettingsRequest.transientSettings(Settings.builder().put(setting, value).build());
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(clusterUpdateSettingsRequest,
-                highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync,
                 highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(

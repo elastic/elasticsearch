@@ -154,7 +154,8 @@ public interface AliasOrIndex {
         }
 
         public void computeAndValidateWriteIndex() {
-            List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream().filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName)))
+            List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream()
+                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .collect(Collectors.toList());
             if (writeIndices.size() == 1) {
                 writeIndex.set(writeIndices.get(0));

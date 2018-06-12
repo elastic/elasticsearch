@@ -81,7 +81,7 @@
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: { is_write_index: true }}
+  - is_false: test_index.aliases.test_alias.is_write_index
   - match: {test_index.aliases.test_blias.search_routing: b}
   - match: {test_index.aliases.test_blias.index_routing: b}
   - is_false: test_index.aliases.test_blias.filter

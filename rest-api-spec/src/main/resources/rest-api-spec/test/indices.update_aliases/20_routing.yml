@@ -19,7 +19,7 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {'index_routing': 'routing', 'search_routing': 'routing', 'is_write_index': true }}
+  - match: {test_index.aliases.test_alias: {'index_routing': 'routing', 'search_routing': 'routing'}}
 
 ---
 "Index Routing":
@@ -37,7 +37,7 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing', 'is_write_index': true }}
+  - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing'}}
 
 ---
 "Search Routing":
@@ -55,7 +55,7 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {'search_routing': 'search_routing', 'is_write_index': true }}
+  - match: {test_index.aliases.test_alias: {'search_routing': 'search_routing'}}
 
 ---
 "Index, Default Routing":
@@ -74,7 +74,7 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing', 'search_routing': 'routing', 'is_write_index': true }}
+  - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing', 'search_routing': 'routing'}}
 
 ---
 "Search, Default Routing":
@@ -93,7 +93,7 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {'index_routing': 'routing', 'search_routing': 'search_routing', 'is_write_index': true }}
+  - match: {test_index.aliases.test_alias: {'index_routing': 'routing', 'search_routing': 'search_routing'}}
 
 ---
 "Index, Search, Default Routing":
@@ -113,7 +113,7 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing', 'search_routing': 'search_routing', 'is_write_index': true }}
+  - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing', 'search_routing': 'search_routing'}}
 
 ---
 "Numeric Routing":
@@ -131,5 +131,5 @@ setup:
       indices.get_alias:
         index: test_index
 
-  - match: {test_index.aliases.test_alias: {'index_routing': '5', 'search_routing': '5', 'is_write_index': true }}
+  - match: {test_index.aliases.test_alias: {'index_routing': '5', 'search_routing': '5'}}
 

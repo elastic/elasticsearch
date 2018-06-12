@@ -27,9 +27,9 @@ setup:
       indices.get_alias:
         name: alias
 
-  - match: {test_index1.aliases.alias: { is_write_index: true }}
+  - match: {test_index1.aliases.alias: {}}
 
-  - match: {test_index2.aliases.alias: { is_write_index: false }}
+  - match: {test_index2.aliases.alias: {}}
 
   - is_false: foo
 
@@ -45,9 +45,9 @@ setup:
       indices.get_alias:
         name: alias
 
-  - match: {test_index1.aliases.alias: { is_write_index: false }}
-  - match: {test_index2.aliases.alias: { is_write_index: false }}
-  - match: {foo.aliases.alias: { is_write_index: false }}
+  - match: {test_index1.aliases.alias: {}}
+  - match: {test_index2.aliases.alias: {}}
+  - match: {foo.aliases.alias: {}}
 
 ---
 "put alias in * index":
@@ -62,9 +62,9 @@ setup:
       indices.get_alias:
         name: alias
 
-  - match: {test_index1.aliases.alias: { is_write_index: false }}
-  - match: {test_index2.aliases.alias: { is_write_index: false }}
-  - match: {foo.aliases.alias: { is_write_index: false }}
+  - match: {test_index1.aliases.alias: {}}
+  - match: {test_index2.aliases.alias: {}}
+  - match: {foo.aliases.alias: {}}
 
 ---
 "put alias prefix* index":
@@ -77,8 +77,8 @@ setup:
       indices.get_alias:
         name: alias
 
-  - match: {test_index1.aliases.alias: { is_write_index: false }}
-  - match: {test_index2.aliases.alias: { is_write_index: false }}
+  - match: {test_index1.aliases.alias: {}}
+  - match: {test_index2.aliases.alias: {}}
   - is_false: foo
 
 ---
@@ -92,8 +92,8 @@ setup:
       indices.get_alias:
         name: alias
 
-  - match: {test_index1.aliases.alias: { is_write_index: false }}
-  - match: {test_index2.aliases.alias: { is_write_index: false }}
+  - match: {test_index1.aliases.alias: {}}
+  - match: {test_index2.aliases.alias: {}}
   - is_false: foo
 
 ---

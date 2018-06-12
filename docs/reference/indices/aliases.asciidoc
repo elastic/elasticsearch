@@ -326,7 +326,10 @@ POST /_aliases
 
 [IMPORTANT]
 =====================================
-`is_write_index` will default to `true` for an index that only has one alias which did not explicitly specify a value.
+Aliases that do not explicitly set `is_write_index: true` for an index, and
+only reference one index, will have that referenced index behave as if it is the write index
+until an additional index is referenced. At that point, there will be no write index and
+writes will be rejected.
 =====================================
 
 [float]

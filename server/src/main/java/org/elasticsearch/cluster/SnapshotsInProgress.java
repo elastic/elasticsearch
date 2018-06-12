@@ -235,6 +235,21 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return true;
     }
 
+    /**
+     * Checks if all shards in the list have completed successfully
+     *
+     * @param shards list of shard statuses
+     * @return true if any shard has failed, false otherwise
+     */
+    public static boolean partiallyCompleted(ObjectContainer<ShardSnapshotStatus> shards) {
+        for (ObjectCursor<ShardSnapshotStatus> status : shards) {
+            if (status.value.state().failed() == true) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     public static class ShardSnapshotStatus {
         private final State state;
@@ -316,7 +331,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         FAILED((byte) 3, true, true),
         ABORTED((byte) 4, false, true),
         MISSING((byte) 5, true, true),
-        WAITING((byte) 6, false, false);
+        WAITING((byte) 6, false, false),
+        PARTIAL((byte) 7, false, false);
 
         private byte value;
 
@@ -358,6 +374,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     return MISSING;
                 case 6:
                     return WAITING;
+                case 7:
+                    return PARTIAL;
                 default:
                     throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
             }

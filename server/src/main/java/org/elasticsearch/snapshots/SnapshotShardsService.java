@@ -84,6 +84,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+import static org.elasticsearch.cluster.SnapshotsInProgress.partiallyCompleted;
 import static org.elasticsearch.transport.EmptyTransportResponseHandler.INSTANCE_SAME;
 
 /**
@@ -588,9 +589,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         if (completed(shards.values()) == false) {
                             entries.add(new SnapshotsInProgress.Entry(entry, shards.build()));
                         } else {
-                            // Snapshot is finished - mark it as done
-                            // TODO: Add PARTIAL_SUCCESS status?
-                            SnapshotsInProgress.Entry updatedEntry = new SnapshotsInProgress.Entry(entry, State.SUCCESS, shards.build());
+                            SnapshotsInProgress.Entry updatedEntry;
+                            if (partiallyCompleted(shards.values()) == true) {
+                                // Snapshot partially completed
+                                updatedEntry = new SnapshotsInProgress.Entry(entry, State.PARTIAL, shards.build());
+                            } else {
+                                // Snapshot is finished - mark it as done
+                                updatedEntry = new SnapshotsInProgress.Entry(entry, State.SUCCESS, shards.build());
+                            }
                             entries.add(updatedEntry);
                             // Finalize snapshot in the repository
                             snapshotsService.endSnapshot(updatedEntry);

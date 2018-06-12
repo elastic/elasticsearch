@@ -35,9 +35,9 @@ public class NioHttpResponse extends DefaultFullHttpResponse implements LLHttpRe
 
     private final int sequence;
 
-    NioHttpResponse(HttpVersion version, RestStatus status, int sequence, BytesReference content) {
-        super(version, getStatus(status), ByteBufUtils.toByteBuf(content));
-        this.sequence = sequence;
+    NioHttpResponse(LLNioHttpRequest request, RestStatus status, BytesReference content) {
+        super(request.nettyRequest().protocolVersion(), getStatus(status), ByteBufUtils.toByteBuf(content));
+        this.sequence = request.sequence();
     }
 
     @Override

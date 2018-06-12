@@ -146,6 +146,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(embeddedChannel.isOpen());
     }
 
+    // TODO: This does not make sense because we should have a full http request after the aggregator
     public void testThatPipeliningWorksWithChunkedRequests() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel =
@@ -225,8 +226,9 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
         for (int i = 1; i < requests.size(); ++i) {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
-            int sequence = requests.get(i).getSequence();
-            NioHttpResponse resp = new NioHttpResponse(HTTP_1_1, RestStatus.OK, sequence, BytesArray.EMPTY);
+            HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = requests.get(i);
+            LLNioHttpRequest nioHttpRequest = new LLNioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
+            NioHttpResponse resp = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -263,10 +265,10 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
     }
 
-    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<LastHttpContent>> {
+    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
 
         @Override
-        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest<LastHttpContent> pipelinedRequest) {
+        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> pipelinedRequest) {
             LastHttpContent request = pipelinedRequest.getRequest();
             final QueryStringDecoder decoder;
             if (request instanceof FullHttpRequest) {
@@ -277,7 +279,8 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
             final String uri = decoder.path().replace("/", "");
             final BytesReference content = new BytesArray(uri.getBytes(StandardCharsets.UTF_8));
-            final NioHttpResponse httpResponse = new NioHttpResponse(HTTP_1_1, RestStatus.OK, pipelinedRequest.getSequence(), content);
+            LLNioHttpRequest nioHttpRequest = new LLNioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
+            NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, content);
             httpResponse.addHeader(CONTENT_LENGTH.toString(), Integer.toString(content.length()));
 
             final CountDownLatch waitingLatch = new CountDownLatch(1);

@@ -152,8 +152,16 @@ public class LLNioHttpRequest implements LLHttpRequest {
     }
 
     @Override
-    public LLHttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new NioHttpResponse(request.protocolVersion(), status, sequence, content);
+    public NioHttpResponse createResponse(RestStatus status, BytesReference content) {
+        return new NioHttpResponse(this, status, content);
+    }
+
+    public FullHttpRequest nettyRequest() {
+        return request;
+    }
+
+    public int sequence() {
+        return sequence;
     }
 
     /**

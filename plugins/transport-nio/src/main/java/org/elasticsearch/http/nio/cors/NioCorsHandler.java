@@ -22,6 +22,7 @@ package org.elasticsearch.http.nio.cors;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -29,7 +30,9 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.cors.CorsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.http.nio.NioHttpResponse;
 
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -74,6 +77,14 @@ public class NioCorsHandler extends ChannelDuplexHandler {
             }
         }
         ctx.fireChannelRead(msg);
+    }
+
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        assert msg instanceof NioHttpResponse : "Message must be type: " + NioHttpResponse.class;
+        NioHttpResponse response = (NioHttpResponse) msg;
+        NioCorsHandler.setCorsResponseHeaders(null, response, config);
+        super.write(ctx, msg, promise);
     }
 
     public static void setCorsResponseHeaders(HttpRequest request, HttpResponse resp, NioCorsConfig config) {

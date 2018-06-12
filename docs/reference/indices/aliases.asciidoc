@@ -506,8 +506,7 @@ Response:
          "term" : {
            "year" : 2016
          }
-       },
-       "is_write_index": false
+       }
      }
    }
  }
@@ -536,8 +535,7 @@ Response:
           "term" : {
             "year" : 2016
           }
-        },
-        "is_write_index": false
+        }
       }
     }
   }
@@ -566,8 +564,7 @@ Response:
           "term" : {
             "year" : 2016
           }
-        },
-        "is_write_index": false
+        }
       }
     }
   }

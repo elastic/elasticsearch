@@ -62,7 +62,7 @@ public class SysParserTests extends ESTestCase {
 
         cmd.execute(null, ActionListener.wrap(r -> {
             assertEquals(19, r.columnCount());
-            assertEquals(19, r.size());
+            assertEquals(names.size(), r.size());
             assertFalse(r.schema().types().contains(DataType.NULL));
             // test numeric as signed
             assertFalse(r.column(9, Boolean.class));

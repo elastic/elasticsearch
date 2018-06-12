@@ -97,11 +97,11 @@ final class NoopEngine extends Engine {
             final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(-1, -1);
 
             // The translog is opened and closed to validate that the translog UUID from lucene is the same as the one in the translog
-            Translog translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
-            if (translog.totalOperations() != 0) {
-                throw new IllegalArgumentException("expected 0 translog operations but there were " + translog.totalOperations());
+            try (Translog translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier())) {
+                if (translog.totalOperations() != 0) {
+                    throw new IllegalArgumentException("expected 0 translog operations but there were " + translog.totalOperations());
+                }
             }
-            translog.close();
 
             success = true;
         } catch (IOException | TranslogCorruptedException e) {

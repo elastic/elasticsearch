@@ -158,7 +158,7 @@ public class CertParsingUtils {
 
     private static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
             throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
-        KeyStore keyStore = KeyStore.getInstance("jks");
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);
         // password must be non-null for keystore...
         keyStore.setKeyEntry("key", privateKey, password, certificateChain);
@@ -242,7 +242,7 @@ public class CertParsingUtils {
     static KeyStore trustStore(Certificate[] certificates)
             throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         assert certificates != null : "Cannot create trust store with null certificates";
-        KeyStore store = KeyStore.getInstance("jks");
+        KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
         store.load(null, null);
         int counter = 0;
         for (Certificate certificate : certificates) {

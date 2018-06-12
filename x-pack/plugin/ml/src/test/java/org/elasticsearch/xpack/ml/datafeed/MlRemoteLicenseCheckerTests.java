@@ -161,7 +161,8 @@ public class MlRemoteLicenseCheckerTests extends ESTestCase {
 
     public void testBuildErrorMessage() {
         XPackInfoResponse.LicenseInfo platinumLicence = createPlatinumLicenseResponse();
-        MlRemoteLicenseChecker.RemoteClusterLicenseInfo info = new MlRemoteLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
+        MlRemoteLicenseChecker.RemoteClusterLicenseInfo info =
+                new MlRemoteLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
         assertEquals(Strings.toString(platinumLicence), MlRemoteLicenseChecker.buildErrorMessage(info));
 
         XPackInfoResponse.LicenseInfo basicLicense = createBasicLicenseResponse();

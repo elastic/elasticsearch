@@ -117,7 +117,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
                         @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>
+                                                       persistentTask) {
                             waitForDatafeedStarted(persistentTask.getId(), params, listener);
                         }
 
@@ -185,7 +186,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, params.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>
+                                                   persistentTask) {
                         if (predicate.exception != null) {
                             // We want to return to the caller without leaving an unassigned persistent task, to match
                             // what would have happened if the error had been detected in the "fast fail" validation

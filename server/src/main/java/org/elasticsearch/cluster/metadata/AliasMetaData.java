@@ -337,7 +337,9 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
                 builder.field("search_routing", aliasMetaData.searchRouting());
             }
 
-            builder.field("is_write_index", Boolean.TRUE.equals(aliasMetaData.writeIndex()));
+            if (aliasMetaData.writeIndex() != null) {
+                builder.field("is_write_index", aliasMetaData.writeIndex());
+            }
 
             builder.endObject();
         }

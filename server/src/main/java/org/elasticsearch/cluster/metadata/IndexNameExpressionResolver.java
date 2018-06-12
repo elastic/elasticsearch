@@ -702,8 +702,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (context.getOptions().ignoreAliases()) {
                     return metaData.getAliasAndIndexLookup().entrySet().stream()
                             .filter(e -> e.getValue().isAlias() == false)
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
-                                (v1, v2) -> {throw new IllegalStateException("no duplicate indices should exist");}, TreeMap::new));
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 } else {
                     return metaData.getAliasAndIndexLookup();
                 }

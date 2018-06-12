@@ -324,10 +324,6 @@ POST /_aliases
 // CONSOLE
 // TEST[s/^/PUT test\nPUT test2\n/]
 
-It is important to note that the order of these actions is important. The original write index
-must be unset, so that `test2` can be set as the write index.
-
-
 [IMPORTANT]
 =====================================
 `is_write_index` will default to `true` for an index that only has one alias which did not explicitly specify a value.

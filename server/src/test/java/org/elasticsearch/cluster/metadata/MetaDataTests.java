@@ -428,23 +428,6 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
-    public void testMetaDataGetWriteIndex() {
-        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("index")
-            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0);
-        boolean hasAlias = randomBoolean();
-        Boolean isWriteIndex = randomBoolean() ? null : randomBoolean();
-        if (hasAlias) {
-            indexMetaDataBuilder.putAlias(AliasMetaData.builder("alias").writeIndex(isWriteIndex));
-        }
-        MetaData metaData = MetaData.builder().put(indexMetaDataBuilder).build();
-        Index writeIndex = metaData.getWriteIndex("alias");
-        if (hasAlias && Boolean.TRUE.equals(isWriteIndex)) {
-            assertThat(writeIndex.getName(), equalTo("index"));
-        } else {
-            assertNull(writeIndex);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
                                                     String index) {

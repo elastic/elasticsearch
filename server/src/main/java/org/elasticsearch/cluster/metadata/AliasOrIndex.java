@@ -20,12 +20,14 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates the  {@link IndexMetaData} instances of a concrete index or indices an alias is pointing to.

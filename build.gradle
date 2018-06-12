@@ -588,10 +588,14 @@ compareGradleBuilds {
     }
   }
   sourceBuild {
+    gradleVersion = "4.7" // does not default to gradle weapper of project dir, but current version
     projectDir = referenceProject
     tasks = [ "clean", "assemble" ]
+    arguments = ["-Dbuild.compare_friendly=true"]
   }
   targetBuild {
     tasks = [ "clean", "assemble" ]
+    // use -Dorg.gradle.java.home= to alter jdk versions
+    arguments = ["-Dbuild.compare_friendly=true"]
   }
 }

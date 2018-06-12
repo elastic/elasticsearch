@@ -71,8 +71,6 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
         PARSER.declareString(optionalConstructorArg(), new ParseField(ERROR_FIELD));
     }
 
-
-
     private String index;
 
     private int shard = RANDOM_SHARD;
@@ -181,25 +179,11 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryExplanation other = (QueryExplanation) o;
-        boolean result;
-        if (getIndex() == null) {
-            result = other.getIndex() == null;
-        } else {
-            result = getIndex().equals(other.getIndex());
-        }
-        result &= this.getShard() == other.getShard();
-        result &= isValid() == other.isValid();
-        if (getError() == null) {
-            result &= other.getError() == null;
-        } else {
-            result &= getError().equals(other.getError());
-        }
-        if (getExplanation() == null) {
-            result &= other.getExplanation() == null;
-        } else {
-            result &= getExplanation().equals(other.getExplanation());
-        }
-        return result;
+        return Objects.equals(getIndex(), other.getIndex()) &&
+            Objects.equals(getShard(), other.getShard()) &&
+            Objects.equals(isValid(), other.isValid()) &&
+            Objects.equals(getError(), other.getError()) &&
+            Objects.equals(getExplanation(), other.getExplanation());
     }
 
     @Override

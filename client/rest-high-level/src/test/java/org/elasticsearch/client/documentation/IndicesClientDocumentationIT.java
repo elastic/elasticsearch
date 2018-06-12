@@ -2004,6 +2004,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             .boolQuery() // <1>
             .must(QueryBuilders.queryStringQuery("*:*"))
             .filter(QueryBuilders.termQuery("user", "kimchy"));
+        request.query(builder); // <2>
         // end::validate-query-request-query
 
         // tag::validate-query-request-explain

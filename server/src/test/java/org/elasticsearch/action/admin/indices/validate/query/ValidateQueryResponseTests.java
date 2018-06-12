@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +34,7 @@ import java.util.Set;
 
 public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCase<ValidateQueryResponse> {
 
-    protected static ValidateQueryResponse createRandomValidateQueryResponse(
+    private static ValidateQueryResponse createRandomValidateQueryResponse(
         int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> failures) {
         boolean valid = failedShards == 0;
         List<QueryExplanation> queryExplanations = new ArrayList<>(totalShards);
@@ -51,7 +50,7 @@ public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCas
         );
     }
 
-    protected static ValidateQueryResponse createRandomValidateQueryResponse() {
+    private static ValidateQueryResponse createRandomValidateQueryResponse() {
         int totalShards = randomIntBetween(1, 10);
         int successfulShards = randomIntBetween(0, totalShards);
         int failedShards = totalShards - successfulShards;
@@ -74,7 +73,6 @@ public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCas
             queryExplanations.add(queryExplanation);
         }
         Collections.shuffle(queryExplanations, random());
-        Collections.shuffle(shardFailures, random());
         return new ValidateQueryResponse(valid, queryExplanations, totalShards, successfulShards, failedShards, shardFailures);
     }
 

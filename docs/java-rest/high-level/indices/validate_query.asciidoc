@@ -21,6 +21,7 @@ The following code snippet builds a sample boolean query.
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[validate-query-request-query]
 --------------------------------------------------
 <1> Build the desired query.
+<2> Set it to the request.
 
 ==== Optional arguments
 The following arguments can optionally be provided:

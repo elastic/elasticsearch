@@ -1067,6 +1067,10 @@ public final class IndicesClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
      * on elastic.co</a>
+     * @param validateQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ValidateQueryResponse validateQuery(ValidateQueryRequest validateQueryRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(validateQueryRequest, RequestConverters::validateQuery, options,
@@ -1078,6 +1082,9 @@ public final class IndicesClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
      * on elastic.co</a>
+     * @param validateQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void validateQueryAsync(ValidateQueryRequest validateQueryRequest, RequestOptions options,
                                    ActionListener<ValidateQueryResponse> listener) {

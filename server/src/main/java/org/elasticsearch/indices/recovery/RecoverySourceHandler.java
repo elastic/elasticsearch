@@ -615,9 +615,9 @@ public class RecoverySourceHandler {
             cancellableThreads.executeIO(sendBatch);
         }
 
-        assert expectedTotalOps == snapshot.overriddenOperations() + skippedOps + totalSentOps
+        assert expectedTotalOps == snapshot.skippedOperations() + skippedOps + totalSentOps
             : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
-            expectedTotalOps, snapshot.overriddenOperations(), skippedOps, totalSentOps);
+            expectedTotalOps, snapshot.skippedOperations(), skippedOps, totalSentOps);
 
         if (requiredOpsTracker.getCheckpoint() < endingSeqNo) {
             throw new IllegalStateException("translog replay failed to cover required sequence numbers" +

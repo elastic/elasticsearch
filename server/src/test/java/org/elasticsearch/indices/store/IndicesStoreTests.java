@@ -35,7 +35,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 
 public class IndicesStoreTests extends ESTestCase {
     private static final ShardRoutingState[] NOT_STARTED_STATES;

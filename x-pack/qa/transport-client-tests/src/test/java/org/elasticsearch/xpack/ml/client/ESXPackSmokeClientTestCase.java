@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.client;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.test.ObjectCleanerThreadThreadFilter;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * test.
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
 
     /**

@@ -14,17 +14,17 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::{xes-repo-dir}/setup/setup-xes.asciidoc[]
+include::setup/setup-xes.asciidoc[]
 
 include::{xes-repo-dir}/monitoring/configuring-monitoring.asciidoc[]
 
 include::{xes-repo-dir}/security/configuring-es.asciidoc[]
 
-include::{xes-repo-dir}/setup/setup-xclient.asciidoc[]
+include::setup/setup-xclient.asciidoc[]
 
-include::{xes-repo-dir}/settings/configuring-xes.asciidoc[]
+include::settings/configuring-xes.asciidoc[]
 
-include::{xes-repo-dir}/setup/bootstrap-checks-xes.asciidoc[]
+include::setup/bootstrap-checks-xes.asciidoc[]
 
 :edit_url:
 include::upgrade.asciidoc[]
@@ -63,9 +63,9 @@ include::{xes-repo-dir}/monitoring/index.asciidoc[]
 
 include::{xes-repo-dir}/rollup/index.asciidoc[]
 
-include::{xes-repo-dir}/rest-api/index.asciidoc[]
+include::rest-api/index.asciidoc[]
 
-include::{xes-repo-dir}/commands/index.asciidoc[]
+include::commands/index.asciidoc[]
 
 :edit_url:
 include::how-to.asciidoc[]

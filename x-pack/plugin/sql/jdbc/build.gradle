@@ -1,74 +1,40 @@
+
+buildscript {
+    repositories {
+        maven {
+            url 'https://plugins.gradle.org/m2/'
+        }
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.2'
+    }
+}
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
+archivesBaseName = "x-pack-sql-jdbc"
 
 forbiddenApisMain {
     // does not depend on core, so only jdk and http signatures should be checked
     signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
 }
 
-/*
- * Bundle as many of our dependencies as we can get away with into the jar.
- * We can't currently bundle *all* dependencies into the jar, but we'd like
- * to avoid publishing the sql shared libraries if possible. This allows that.
- *
- * It is possible to use configure this bundling in a bunch of different ways
- * but this particular way generates a pom that doesn't declare the bundled
- * dependencies as dependencies. Which is a good thing because we don't publish
- * them and we don't want consumers to get two copies of them.
- *
- * We'd *like* to shade these dependencies, at least ones like jackson which we
- * know that we can't remove entirely. But for now something like this is
- * simpler.
- */
-configurations {
-    bundled
-}
-sourceSets {
-    main {
-        compileClasspath += configurations.bundled
-    }
-    test {
-        compileClasspath += configurations.bundled
-    }
-}
-javadoc {
-    classpath += configurations.bundled
-}
-jar {
-    from({configurations.bundled.collect { it.isDirectory() ? it : zipTree(it) }}) {
-        // We don't need the META-INF from the things we bundle. For now.
-        exclude 'META-INF/*'
-    }
-}
-
 dependencies {
-    
-    // Eclipse doesn't know how to deal with these bundled deependencies so make them compile 
-    // dependencies if we are running in Eclipse
-    if (isEclipse) {
-        compile (xpackProject('plugin:sql:sql-shared-client')) {
-            transitive = false
-        }
-        compile (xpackProject('plugin:sql:sql-shared-proto')) {
-            transitive = false
-        }
-    } else {
-        bundled (xpackProject('plugin:sql:sql-shared-client')) {
-            transitive = false
-        }
-        bundled (xpackProject('plugin:sql:sql-shared-proto')) {
-            transitive = false
-        }
+    compile (xpackProject('plugin:sql:sql-shared-client')) {
+        transitive = false
+    }
+    compile (xpackProject('plugin:sql:sql-shared-proto')) {
+        transitive = false
     }
     compile (project(':libs:x-content')) {
         transitive = false
     }
-    compile project(':libs:elasticsearch-core')
+    compile project(':libs:core')
     runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-
     testCompile "org.elasticsearch.test:framework:${version}"
 }
 
@@ -82,23 +48,48 @@ dependencyLicenses {
     ignoreSha 'elasticsearch'
 }
 
-/*
- * Temporary zip file to make the jdbc driver more usable during the 6.3
- * release. We'd like to remove this in future releases when the jdbc driver
- * bundles or shades all of its dependencies. But for now this should help
- * non-maven jdbc users, specifically those folks using BI tools.
- */
-task zipWithDependencies(type: Zip) {
-    from configurations.runtime
-    from configurations.runtime.artifacts.files
-    baseName 'elasticsearch-jdbc-with-dependencies'
-    into "elasticsearch-jdbc-with-dependencies-$version"
+shadowJar {
+    classifier = null
+    relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
-assemble.dependsOn zipWithDependencies
+
+// We don't need normal jar, we use shadow jar instead
+jar.enabled = false
+
+// We need a no-depenencies jar though for qa testing so it doesn't conflict with cli
+configurations {
+    nodeps
+}
+
+task nodepsJar(type: Jar) {
+    appendix 'nodeps'
+    from sourceSets.main.output
+}
+
+artifacts  {
+    nodeps nodepsJar
+    archives shadowJar
+}
+
+publishing {
+    publications {
+        nebula(MavenPublication) {
+            artifact shadowJar
+            pom.withXml {
+                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
+                asNode().remove(asNode().dependencies)
+            }
+        }
+    }
+}
+
+assemble.dependsOn shadowJar
 
 // Use the jar for testing so the tests are more "real"
 test {
     classpath -= compileJava.outputs.files
-    classpath += jar.outputs.files
-    dependsOn jar
+    classpath -= configurations.compile
+    classpath -= configurations.runtime
+    classpath += shadowJar.outputs.files
+    dependsOn shadowJar
 }

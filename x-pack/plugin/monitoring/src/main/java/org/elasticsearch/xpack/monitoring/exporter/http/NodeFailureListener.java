@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.common.Nullable;
@@ -76,7 +77,8 @@ class NodeFailureListener extends RestClient.FailureListener {
     }
 
     @Override
-    public void onFailure(final HttpHost host) {
+    public void onFailure(final Node node) {
+        HttpHost host = node.getHost();
         logger.warn("connection failed to node at [{}://{}:{}]", host.getSchemeName(), host.getHostName(), host.getPort());
 
         final HttpResource resource = this.resource.get();

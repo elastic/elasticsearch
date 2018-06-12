@@ -21,8 +21,6 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.nio.AcceptingSelector;
-import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.transport.TcpChannel;
 

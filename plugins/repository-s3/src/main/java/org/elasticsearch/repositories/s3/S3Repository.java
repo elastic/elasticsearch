@@ -35,7 +35,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.io.IOException;
 
 /**
  * Shared file system implementation of the BlobStoreRepository

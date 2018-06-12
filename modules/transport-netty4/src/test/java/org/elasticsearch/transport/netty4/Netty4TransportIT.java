@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.test.Netty4IntegTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class Netty4TransportIT extends ESNetty4IntegTestCase {
+public class Netty4TransportIT extends Netty4IntegTestCase {
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;
 

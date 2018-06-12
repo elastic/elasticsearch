@@ -146,7 +146,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
             realmUsage.put("key2", Arrays.asList(i));
             realmUsage.put("key3", Arrays.asList(i % 2 == 0));
         }
-        when(realms.usageStats()).thenReturn(realmsUsageStats);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            listener.onResponse(realmsUsageStats);
+            return Void.TYPE;
+        }).when(realms).usageStats(any(ActionListener.class));
 
         final boolean anonymousEnabled = randomBoolean();
         if (anonymousEnabled) {

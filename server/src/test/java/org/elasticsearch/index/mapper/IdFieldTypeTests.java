@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;

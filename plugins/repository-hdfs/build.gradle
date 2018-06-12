@@ -116,6 +116,11 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     dependsOn project.configurations.hdfsFixture
     executable = new File(project.runtimeJavaHome, 'bin/java')
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+    waitCondition = { fixture, ant ->
+      // the hdfs.MiniHDFS fixture writes the ports file when
+      // it's ready, so we can just wait for the file to exist
+      return fixture.portsFile.exists()
+    }
 
     final List<String> miniHDFSArgs = []
 

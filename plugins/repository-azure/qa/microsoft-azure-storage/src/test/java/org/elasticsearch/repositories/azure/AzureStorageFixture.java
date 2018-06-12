@@ -24,6 +24,8 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.repositories.azure.AzureStorageTestServer.Response;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -39,6 +41,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 
@@ -121,7 +125,16 @@ public class AzureStorageFixture {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(exchange.getRequestBody(), out);
 
-            final AzureStorageTestServer.Response response = server.handle(method, path, query, headers, out.toByteArray());
+            Response response = null;
+
+            final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
+            if (userAgent != null && userAgent.startsWith("Apache Ant")) {
+                // This is a request made by the AntFixture, just reply "OK"
+                response = new Response(RestStatus.OK, emptyMap(), "text/plain; charset=utf-8", "OK".getBytes(UTF_8));
+            } else {
+                // Otherwise simulate a S3 response
+                response = server.handle(method, path, query, headers, out.toByteArray());
+            }
 
             Map<String, List<String>> responseHeaders = exchange.getResponseHeaders();
             responseHeaders.put("Content-Type", singletonList(response.contentType));

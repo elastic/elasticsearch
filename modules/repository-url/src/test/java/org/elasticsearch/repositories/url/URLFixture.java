@@ -39,6 +39,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -67,7 +68,6 @@ public class URLFixture {
             writeFile(workingDirectory, "ports", addressAndPort);
 
             // Exposes the repository over HTTP
-            final String url = "http://" + addressAndPort;
             httpServer.createContext("/", new ResponseHandler(dir(args[1])));
             httpServer.start();
 
@@ -110,7 +110,13 @@ public class URLFixture {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             Response response;
-            if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+
+            final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
+            if (userAgent != null && userAgent.startsWith("Apache Ant")) {
+                // This is a request made by the AntFixture, just reply "OK"
+                response = new Response(RestStatus.OK, emptyMap(), "text/plain; charset=utf-8", "OK".getBytes(UTF_8));
+
+            } else if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 String path = exchange.getRequestURI().toString();
                 if (path.length() > 0 && path.charAt(0) == '/') {
                     path = path.substring(1);
@@ -125,13 +131,13 @@ public class URLFixture {
                         Map<String, String> headers = singletonMap("Content-Length", String.valueOf(content.length));
                         response = new Response(RestStatus.OK, headers, "application/octet-stream", content);
                     } else {
-                        response = new Response(RestStatus.NOT_FOUND, emptyMap(), "text/plain", new byte[0]);
+                        response = new Response(RestStatus.NOT_FOUND, emptyMap(), "text/plain; charset=utf-8", new byte[0]);
                     }
                 } else {
-                    response = new Response(RestStatus.FORBIDDEN, emptyMap(), "text/plain", new byte[0]);
+                    response = new Response(RestStatus.FORBIDDEN, emptyMap(), "text/plain; charset=utf-8", new byte[0]);
                 }
             } else {
-                response = new Response(RestStatus.INTERNAL_SERVER_ERROR, emptyMap(), "text/plain",
+                response = new Response(RestStatus.INTERNAL_SERVER_ERROR, emptyMap(), "text/plain; charset=utf-8",
                     "Unsupported HTTP method".getBytes(StandardCharsets.UTF_8));
             }
             exchange.sendResponseHeaders(response.status.getStatus(), response.body.length);

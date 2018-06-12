@@ -9,6 +9,7 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }
 

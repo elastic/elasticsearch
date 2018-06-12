@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -47,7 +46,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NioHttpTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -56,6 +55,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
@@ -69,7 +69,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class HttpReadWriteHandlerTests extends ESTestCase {
+public class HttpReadWriteHandlerTests extends NioHttpTestCase {
 
     private HttpReadWriteHandler handler;
     private NioSocketChannel nioSocketChannel;
@@ -94,7 +94,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             SETTING_HTTP_COMPRESSION.getDefault(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.getDefault(settings),
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings),
-            SETTING_PIPELINING_MAX_EVENTS.getDefault(settings));
+            SETTING_PIPELINING_MAX_EVENTS.getDefault(settings),
+            SETTING_CORS_ENABLED.getDefault(settings));
         ThreadContext threadContext = new ThreadContext(settings);
         nioSocketChannel = mock(NioSocketChannel.class);
         handler = new HttpReadWriteHandler(nioSocketChannel, transport, httpHandlingSettings, NamedXContentRegistry.EMPTY,

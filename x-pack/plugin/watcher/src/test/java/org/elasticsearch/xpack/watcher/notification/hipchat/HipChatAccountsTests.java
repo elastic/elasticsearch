@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 

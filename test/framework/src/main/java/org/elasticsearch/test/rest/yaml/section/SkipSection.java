@@ -153,7 +153,7 @@ public class SkipSection {
         return EMPTY.equals(this);
     }
 
-    private Version[] parseVersionRange(String versionRange) {
+    static Version[] parseVersionRange(String versionRange) {
         if (versionRange == null) {
             return new Version[] { null, null };
         }

@@ -115,7 +115,7 @@ PUT my_index/_doc/1
 [[match-unmatch]]
 ==== `match` and `unmatch`
 
-The `match` parameter uses a pattern to match on the fieldname, while
+The `match` parameter uses a pattern to match on the field name, while
 `unmatch` uses a pattern to exclude fields matched by `match`.
 
 The following example matches all `string` fields whose name starts with
@@ -259,7 +259,7 @@ PUT my_index/_doc/1
 --------------------------------------------------
 // CONSOLE
 <1> The `english` field is mapped as a `string` field with the `english` analyzer.
-<2> The `count` field is mapped as a `long` field with `doc_values` disabled
+<2> The `count` field is mapped as a `long` field with `doc_values` disabled.
 
 [[template-examples]]
 ==== Template examples

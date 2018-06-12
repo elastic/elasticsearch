@@ -61,10 +61,10 @@ public class SnifferBuilderTests extends RestClientTestCase {
 
 
             try {
-                Sniffer.builder(client).setHostsSniffer(null);
+                Sniffer.builder(client).setNodesSniffer(null);
                 fail("should have failed");
             } catch(NullPointerException e) {
-                assertEquals("hostsSniffer cannot be null", e.getMessage());
+                assertEquals("nodesSniffer cannot be null", e.getMessage());
             }
 
 
@@ -80,7 +80,7 @@ public class SnifferBuilderTests extends RestClientTestCase {
                 builder.setSniffAfterFailureDelayMillis(RandomNumbers.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
             if (getRandom().nextBoolean()) {
-                builder.setHostsSniffer(new MockHostsSniffer());
+                builder.setNodesSniffer(new MockNodesSniffer());
             }
 
             try (Sniffer sniffer = builder.build()) {

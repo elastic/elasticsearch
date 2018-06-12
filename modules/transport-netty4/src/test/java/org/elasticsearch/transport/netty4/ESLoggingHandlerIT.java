@@ -20,7 +20,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.test.Netty4IntegTestCase;
+import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,7 +29,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
 @TestLogging(value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace")
-public class ESLoggingHandlerIT extends Netty4IntegTestCase {
+public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;
 

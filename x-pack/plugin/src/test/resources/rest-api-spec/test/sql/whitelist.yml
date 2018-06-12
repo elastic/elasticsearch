@@ -20,7 +20,7 @@
                     sNum1:
                         script:
                             source: "return 
-                            InternalSqlScripts.dateTimeChrono(doc['int'].value, 'UTC', 'YEAR')"
+                            InternalSqlScriptUtils.dateTimeChrono(doc['int'].value, 'UTC', 'YEAR')"
                             lang: painless
 
     - match: { hits.total: 1 }

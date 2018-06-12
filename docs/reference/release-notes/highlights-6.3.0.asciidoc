@@ -4,12 +4,12 @@
 <titleabbrev>6.3.0</titleabbrev>
 ++++
 
-Here are the highlights of features that were added in Elasticsaerch 6.3.0.
+Here are the highlights of features that were added in ELasticsearch 6.3.0.
 
 Refer to the <<release-notes-6.3.0,{es} 6.3.0 release notes>> for the full list
 of changes in this release.
 
-NOTE: We want your feedback on the experiemental features in this release! Let
+NOTE: We want your feedback on the experimental features in this release! Let
 us know what you’d like to see next and any problems you encounter.
 
 === SQL
@@ -36,7 +36,7 @@ stored so that the average can be recomputed at query time. This enables you to
 query both rolled up data and “live” data simultaneously using the standard
 query DSL.
 
-For more information, see <<xpack-sql, SQL Access>>.
+For more information, see <<xpack-rollup, Rolling up historical data>>.
 
 === Java 10 Support
 Java 9 was a short-term release that reached EOL in March 2018. 6.3.0 introduces

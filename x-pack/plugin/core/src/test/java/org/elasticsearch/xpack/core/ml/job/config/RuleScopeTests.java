@@ -63,7 +63,7 @@ public class RuleScopeTests extends AbstractWireSerializingTestCase<RuleScope> {
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> scope.validate(Sets.newHashSet("foo", "foobar")));
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: scope key 'bar' is invalid; select from [foo, foobar]"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: scope field 'bar' is invalid; select from [foo, foobar]"));
     }
 
     public void testGetReferencedFilters_GivenEmpty() {

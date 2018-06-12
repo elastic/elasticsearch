@@ -33,7 +33,6 @@ import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 
 /** custom policy for union of static and dynamic permissions */

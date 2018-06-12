@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 final class DeadHostState implements Comparable<DeadHostState> {
 
     private static final long MIN_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(1);
-    private static final long MAX_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(30);
+    static final long MAX_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(30);
 
     private final int failedAttempts;
     private final long deadUntilNanos;
@@ -55,12 +55,12 @@ final class DeadHostState implements Comparable<DeadHostState> {
      *
      * @param previousDeadHostState the previous state of the host which allows us to increase the wait till the next retry attempt
      */
-    DeadHostState(DeadHostState previousDeadHostState, TimeSupplier timeSupplier) {
+    DeadHostState(DeadHostState previousDeadHostState) {
         long timeoutNanos = (long)Math.min(MIN_CONNECTION_TIMEOUT_NANOS * 2 * Math.pow(2, previousDeadHostState.failedAttempts * 0.5 - 1),
                 MAX_CONNECTION_TIMEOUT_NANOS);
-        this.deadUntilNanos = timeSupplier.nanoTime() + timeoutNanos;
+        this.deadUntilNanos = previousDeadHostState.timeSupplier.nanoTime() + timeoutNanos;
         this.failedAttempts = previousDeadHostState.failedAttempts + 1;
-        this.timeSupplier = timeSupplier;
+        this.timeSupplier = previousDeadHostState.timeSupplier;
     }
 
     /**
@@ -86,6 +86,10 @@ final class DeadHostState implements Comparable<DeadHostState> {
 
     @Override
     public int compareTo(DeadHostState other) {
+        if (timeSupplier != other.timeSupplier) {
+            throw new IllegalArgumentException("can't compare DeadHostStates with different clocks ["
+                    + timeSupplier + " != " + other.timeSupplier + "]");
+        }
         return Long.compare(deadUntilNanos, other.deadUntilNanos);
     }
 
@@ -94,6 +98,7 @@ final class DeadHostState implements Comparable<DeadHostState> {
         return "DeadHostState{" +
                 "failedAttempts=" + failedAttempts +
                 ", deadUntilNanos=" + deadUntilNanos +
+                ", timeSupplier=" + timeSupplier +
                 '}';
     }
 
@@ -101,11 +106,15 @@ final class DeadHostState implements Comparable<DeadHostState> {
      * Time supplier that makes timing aspects pluggable to ease testing
      */
     interface TimeSupplier {
-
         TimeSupplier DEFAULT = new TimeSupplier() {
             @Override
             public long nanoTime() {
                 return System.nanoTime();
+            }
+
+            @Override
+            public String toString() {
+                return "nanoTime";
             }
         };
 

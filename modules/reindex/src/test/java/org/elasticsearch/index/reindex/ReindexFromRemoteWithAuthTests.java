@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.reindex.test.ObjectCleanerThreadThreadFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -64,6 +66,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.containsString;
 
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     private TransportAddress address;
 

@@ -1040,7 +1040,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
-            computeAndValidateWriteIndex();
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
 
 
@@ -1054,54 +1053,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
                                 customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
-        }
-
-        private void computeAndValidateWriteIndex() {
-            // create alias lookup table
-            Map<String, Map<Index, AliasMetaData>> aliasLookup = new HashMap<>();
-            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                IndexMetaData indexMetaData = cursor.value;
-                for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
-                    AliasMetaData aliasMetaData = aliasCursor.value;
-                    aliasLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
-                        if (alias == null) {
-                            return new HashMap<>(Collections.singletonMap(indexMetaData.getIndex(), aliasMetaData));
-                        } else {
-                            alias.put(indexMetaData.getIndex(), aliasMetaData);
-                            return alias;
-                        }
-                    });
-                }
-            }
-
-            for (Map.Entry<String, Map<Index, AliasMetaData>> entry : aliasLookup.entrySet()) {
-                int numIndicesForAlias = entry.getValue().size();
-                // validate `is_write_index` configuration for aliases
-                List<String> writeIndices = entry.getValue().entrySet().stream()
-                    .filter(e -> Boolean.TRUE.equals(e.getValue().writeIndex()))
-                    .map(e -> e.getKey().getName()).collect(Collectors.toList());
-                if (writeIndices.size() > 1) {
-                    throw new IllegalStateException("alias [" + entry.getKey() + "] has more than one write index [" +
-                        Strings.collectionToCommaDelimitedString(writeIndices) + "]");
-                }
-
-                // update the original IndexMetaDatas with explicitly set values for `write_index`
-                for (Map.Entry<Index, AliasMetaData> aliasMetaDataEntry : entry.getValue().entrySet()) {
-                    String indexName = aliasMetaDataEntry.getKey().getName();
-                    AliasMetaData aliasMetaData = aliasMetaDataEntry.getValue();
-                    if (aliasMetaData.writeIndex() == null) {
-                        AliasMetaData updatedAliasMetaData = AliasMetaData.builder(aliasMetaData.alias())
-                            .filter(aliasMetaData.filter())
-                            .searchRouting(aliasMetaData.searchRouting())
-                            .indexRouting(aliasMetaData.getIndexRouting())
-                            // if the alias only points to one index, set as the write-index -- true, otherwise -- false
-                            .writeIndex(numIndicesForAlias == 1).build();
-                        IndexMetaData origIndexMetaDataSrc = indices.get(indexName);
-                        IndexMetaData newIndexMetaData = IndexMetaData.builder(origIndexMetaDataSrc).putAlias(updatedAliasMetaData).build();
-                        indices.put(indexName, newIndexMetaData);
-                    }
-                }
-            }
         }
 
         private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {
@@ -1118,12 +1069,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                             return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
                         } else {
                             assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
-                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData, aliasMetaData.writeIndex());
+                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
                             return alias;
                         }
                     });
                 }
             }
+            aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
+                .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateWriteIndex();
             return aliasAndIndexLookup;
         }
 

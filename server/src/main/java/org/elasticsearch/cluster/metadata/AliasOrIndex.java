@@ -88,10 +88,6 @@ public interface AliasOrIndex {
             this.aliasName = aliasMetaData.getAlias();
             this.referenceIndexMetaDatas = new ArrayList<>();
             this.referenceIndexMetaDatas.add(indexMetaData);
-            if (Boolean.TRUE.equals(aliasMetaData.writeIndex())) {
-                this.writeIndex.set(indexMetaData);
-            }
-
         }
 
         @Override
@@ -153,12 +149,19 @@ public interface AliasOrIndex {
             return referenceIndexMetaDatas.get(0).getAliases().get(aliasName);
         }
 
-        void addIndex(IndexMetaData indexMetaData, @Nullable Boolean isWriteIndex) {
+        void addIndex(IndexMetaData indexMetaData) {
             this.referenceIndexMetaDatas.add(indexMetaData);
-            if (Boolean.TRUE.equals(isWriteIndex)) {
-                this.writeIndex.set(indexMetaData);
-            }
         }
 
+        public void computeAndValidateWriteIndex() {
+            List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream().filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName)))
+                .collect(Collectors.toList());
+            if (writeIndices.size() == 1) {
+                writeIndex.set(writeIndices.get(0));
+            } else if (writeIndices.size() > 1) {
+                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
+                    Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+            }
+        }
     }
 }

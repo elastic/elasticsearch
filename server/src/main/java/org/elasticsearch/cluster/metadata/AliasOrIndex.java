@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -81,14 +82,15 @@ public interface AliasOrIndex {
 
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;
-        @Nullable
-        private IndexMetaData writeIndex;
+        private SetOnce<IndexMetaData> writeIndex = new SetOnce<>();
 
         public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
             this.aliasName = aliasMetaData.getAlias();
             this.referenceIndexMetaDatas = new ArrayList<>();
             this.referenceIndexMetaDatas.add(indexMetaData);
-            this.writeIndex = Boolean.TRUE.equals(aliasMetaData.writeIndex()) ? indexMetaData : null;
+            if (Boolean.TRUE.equals(aliasMetaData.writeIndex())) {
+                this.writeIndex.set(indexMetaData);
+            }
 
         }
 
@@ -109,7 +111,7 @@ public interface AliasOrIndex {
 
         @Nullable
         public IndexMetaData getWriteIndex() {
-            return writeIndex;
+            return writeIndex.get();
         }
 
         /**
@@ -154,7 +156,7 @@ public interface AliasOrIndex {
         void addIndex(IndexMetaData indexMetaData, @Nullable Boolean isWriteIndex) {
             this.referenceIndexMetaDatas.add(indexMetaData);
             if (Boolean.TRUE.equals(isWriteIndex)) {
-                this.writeIndex = indexMetaData;
+                this.writeIndex.set(indexMetaData);
             }
         }
 

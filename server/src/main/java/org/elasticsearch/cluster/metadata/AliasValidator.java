@@ -148,29 +148,6 @@ public class AliasValidator extends AbstractComponent {
         }
     }
 
-    /**
-     * Validates that there is only one write index per alias
-     *
-     * @param aliasAndIndexLookup The current state of aliases and indices in the cluster state
-     * @throws IllegalStateException if any alias has more than one write index
-     */
-    public static void validateAliasWriteOnly(Map<String, AliasOrIndex> aliasAndIndexLookup) {
-        aliasAndIndexLookup.forEach((aliasName, aliasOrIndex) -> {
-            if (aliasOrIndex.isAlias()) {
-                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-                if (alias.getIndices().size() > 1) {
-                    List<String> writeIndices = alias.getIndices().stream()
-                        .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                        .map(idxMeta -> idxMeta.getIndex().getName()).collect(Collectors.toList());
-                    if (writeIndices.size() > 1) {
-                        throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
-                            Strings.collectionToCommaDelimitedString(writeIndices) + "]");
-                    }
-                }
-            }
-        });
-    }
-
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext, true);

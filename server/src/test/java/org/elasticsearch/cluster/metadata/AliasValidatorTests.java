@@ -46,41 +46,5 @@ public class AliasValidatorTests extends ESTestCase {
         validator.validateAliasStandalone("CAT", null);
     }
 
-    public void testValidateAliasWriteOnly() {
-        String alias = randomAlphaOfLength(5);
-        String indexA = randomAlphaOfLength(6);
-        String indexB = randomAlphaOfLength(7);
-        Boolean aWriteIndex = randomBoolean() ? null : randomBoolean();
-        Boolean bWriteIndex;
-        if (Boolean.TRUE.equals(aWriteIndex)) {
-            bWriteIndex = randomFrom(Boolean.FALSE, null);
-        } else {
-            bWriteIndex = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
-        }
-        // when only one index/alias pair exist
-        MetaData metaData = MetaData.builder().put(buildIndexMetaData(indexA, alias, aWriteIndex)).build();
-        AliasValidator.validateAliasWriteOnly(metaData.getAliasAndIndexLookup());
 
-        // when alias points to two indices, but valid
-        // one of the following combinations: [(null, null), (null, true), (null, false), (false, false)]
-        metaData = MetaData.builder(metaData).put(buildIndexMetaData(indexB, alias, bWriteIndex)).build();
-        AliasValidator.validateAliasWriteOnly(metaData.getAliasAndIndexLookup());
-
-
-        // when too many write indices
-        Exception exception = expectThrows(IllegalStateException.class,
-            () -> {
-                IndexMetaData.Builder metaA = buildIndexMetaData(indexA, alias, true);
-                IndexMetaData.Builder metaB = buildIndexMetaData(indexB, alias, true);
-                AliasValidator.validateAliasWriteOnly(MetaData.builder().put(metaA).put(metaB).build().getAliasAndIndexLookup());
-            });
-        assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
-    }
-
-    private IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
-        return IndexMetaData.builder(name)
-            .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
-            .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
-            .numberOfShards(1).numberOfReplicas(0);
-    }
 }

@@ -83,7 +83,7 @@ collection after the upgrade to use monitoring. Set
 `xpack.monitoring.collection.enabled` to `true` with the `_cluster/settings`
 API:
 
-[source,json]
+[source,js]
 ----------------------------------------------------------
 PUT /_cluster/settings
 {
@@ -97,7 +97,7 @@ PUT /_cluster/settings
 To take all of the {xpack} features for a spin, you can start a 30-day trial
 from Kibana, or with the Start Trial API:
 
-[source,json]
+[source,js]
 ----------------------------------------------------------
 POST _xpack/license/start_trial
 ----------------------------------------------------------

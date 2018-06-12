@@ -1568,7 +1568,7 @@ public class RequestConvertersTests extends ESTestCase {
             healthRequest.level(level);
             expectedParams.put("level", level.name().toLowerCase(Locale.ROOT));
         } else {
-            expectedParams.put("level", "shards");
+            expectedParams.put("level", "cluster");
         }
         if (randomBoolean()) {
             Priority priority = randomFrom(Priority.values());

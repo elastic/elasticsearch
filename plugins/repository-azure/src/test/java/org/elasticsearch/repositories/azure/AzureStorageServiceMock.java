@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.util.Locale;
@@ -114,7 +115,10 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
 
     @Override
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
-        throws URISyntaxException, StorageException {
+        throws URISyntaxException, StorageException, FileAlreadyExistsExceeption {
+        if (blobs.containsKey(blobName)) {
+            throw new FileAlreadyExistsException(blobName);
+        }
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             blobs.put(blobName, outputStream);
             Streams.copy(inputStream, outputStream);

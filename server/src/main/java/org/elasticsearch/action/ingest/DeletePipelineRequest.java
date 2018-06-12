@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineRequest> {
 

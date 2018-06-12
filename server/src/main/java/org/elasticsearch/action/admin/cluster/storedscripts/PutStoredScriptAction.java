@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 
 public class PutStoredScriptAction extends Action<PutStoredScriptRequest, PutStoredScriptResponse> {

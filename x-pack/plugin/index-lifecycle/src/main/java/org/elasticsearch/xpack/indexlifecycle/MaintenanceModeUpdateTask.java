@@ -10,13 +10,24 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = ESLoggerFactory.getLogger(MaintenanceModeUpdateTask.class);
     private final OperationMode mode;
+    private static final Map<OperationMode, Set<OperationMode>> VALID_MODE_CHANGES = new HashMap<>();
 
+    static {
+        VALID_MODE_CHANGES.put(OperationMode.NORMAL, Sets.newHashSet(OperationMode.MAINTENANCE_REQUESTED));
+        VALID_MODE_CHANGES.put(OperationMode.MAINTENANCE_REQUESTED, Sets.newHashSet(OperationMode.NORMAL, OperationMode.MAINTENANCE));
+        VALID_MODE_CHANGES.put(OperationMode.MAINTENANCE, Sets.newHashSet(OperationMode.NORMAL));
+    }
     public MaintenanceModeUpdateTask(OperationMode mode) {
         this.mode = mode;
     }
@@ -29,10 +40,8 @@ public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
     public ClusterState execute(ClusterState currentState) {
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
 
-        boolean maintenanceModeToChange = currentMetadata.getMaintenanceMode().equals(mode) == false;
-        boolean maintenanceModeRequested = OperationMode.MAINTENANCE_REQUESTED.equals(mode);
-        boolean inMaintenanceMode = OperationMode.MAINTENANCE.equals(currentMetadata.getMaintenanceMode());
-        if ((inMaintenanceMode && maintenanceModeRequested) || maintenanceModeToChange == false) {
+
+        if (VALID_MODE_CHANGES.get(currentMetadata.getMaintenanceMode()).contains(mode) == false) {
             return currentState;
         }
 
@@ -47,11 +56,5 @@ public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
     @Override
     public void onFailure(String source, Exception e) {
         logger.error("unable to update lifecycle metadata with new mode [" + mode + "]", e);
-    }
-
-
-    @FunctionalInterface
-    public interface Listener {
-        void onSafeToEnterMaintenanceMode();
     }
 }

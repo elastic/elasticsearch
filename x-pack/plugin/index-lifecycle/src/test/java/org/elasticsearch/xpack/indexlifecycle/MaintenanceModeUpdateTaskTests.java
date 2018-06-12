@@ -21,27 +21,24 @@ import static org.hamcrest.Matchers.equalTo;
 public class MaintenanceModeUpdateTaskTests extends ESTestCase {
 
     public void testExecute() {
-        // assert can change out of OUT
-        OperationMode currentMode = OperationMode.NORMAL;
-        OperationMode requestedMode = randomValueOtherThan(currentMode, () -> randomFrom(OperationMode.values()));
+        assertMove(OperationMode.NORMAL, randomFrom(OperationMode.MAINTENANCE_REQUESTED));
+        assertMove(OperationMode.MAINTENANCE_REQUESTED, randomFrom(OperationMode.NORMAL, OperationMode.MAINTENANCE));
+        assertMove(OperationMode.MAINTENANCE, randomFrom(OperationMode.NORMAL));
+
+        OperationMode mode = randomFrom(OperationMode.values());
+        assertNoMove(mode, mode);
+        assertNoMove(OperationMode.MAINTENANCE, randomFrom(OperationMode.MAINTENANCE_REQUESTED));
+        assertNoMove(OperationMode.NORMAL, randomFrom(OperationMode.MAINTENANCE));
+    }
+
+    private void assertMove(OperationMode currentMode, OperationMode requestedMode) {
         OperationMode newMode = executeUpdate(currentMode, requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
+    }
 
-        currentMode = OperationMode.MAINTENANCE_REQUESTED;
-        requestedMode = randomValueOtherThan(currentMode, () -> randomFrom(OperationMode.values()));
-        newMode = executeUpdate(currentMode, requestedMode, false);
-        assertThat(newMode, equalTo(requestedMode));
-
-        // assert no change when changing to the same mode
-        currentMode = randomFrom(OperationMode.values());
-        requestedMode = currentMode;
-        newMode = executeUpdate(currentMode, currentMode, true);
-        assertThat(newMode, equalTo(requestedMode));
-
-
-        // assert no change when requesting to be put in maintenance-mode, but already in it
-        newMode = executeUpdate(OperationMode.MAINTENANCE, OperationMode.MAINTENANCE_REQUESTED, true);
-        assertThat(newMode, equalTo(OperationMode.MAINTENANCE));
+    private void assertNoMove(OperationMode currentMode, OperationMode requestedMode) {
+        OperationMode newMode = executeUpdate(currentMode, requestedMode, true);
+        assertThat(newMode, equalTo(currentMode));
     }
 
     private OperationMode executeUpdate(OperationMode currentMode, OperationMode requestMode, boolean assertSameClusterState) {

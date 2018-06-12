@@ -193,7 +193,7 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(idxMeta.getSettings());
-                if (OperationMode.MAINTENANCE_REQUESTED.equals(currentMode)
+                if (OperationMode.MAINTENANCE_REQUESTED == currentMode
                         && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
                     logger.info("skipping policy [" + policyName + "] for index [" + idxMeta.getIndex().getName()
                         + "]. maintenance mode requested");
@@ -203,7 +203,7 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
                 safeToEnterMaintenanceMode = false; // proven false!
             }
         }
-        if (safeToEnterMaintenanceMode && OperationMode.MAINTENANCE_REQUESTED.equals(currentMode)) {
+        if (safeToEnterMaintenanceMode && OperationMode.MAINTENANCE_REQUESTED == currentMode) {
             submitMaintenanceModeUpdate(OperationMode.MAINTENANCE);
         }
     }

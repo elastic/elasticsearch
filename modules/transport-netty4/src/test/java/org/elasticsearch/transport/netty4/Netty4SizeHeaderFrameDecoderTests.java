@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import org.elasticsearch.test.Netty4TestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.junit.After;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.is;
  * This test checks, if a HTTP look-alike request (starting with a HTTP method and a space)
  * actually returns text response instead of just dropping the connection
  */
-public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
+public class Netty4SizeHeaderFrameDecoderTests extends Netty4TestCase {
 
     private final Settings settings = Settings.builder()
         .put("node.name", "NettySizeHeaderFrameDecoderTests")

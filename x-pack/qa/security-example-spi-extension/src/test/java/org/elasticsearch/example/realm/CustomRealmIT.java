@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.example.realm;
 
 import org.apache.http.message.BasicHeader;
@@ -19,9 +20,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration test to test authentication with the custom realm
  */
-public class CustomRealmIT extends ESIntegTestCase {
+public class CustomRealmIT extends XPackIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {

@@ -51,7 +51,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NioHttpTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the {@link NioHttpServerTransport} class.
  */
-public class NioHttpServerTransportTests extends ESTestCase {
+public class NioHttpServerTransportTests extends NioHttpTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;

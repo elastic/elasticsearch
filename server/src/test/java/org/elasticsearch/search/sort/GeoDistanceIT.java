@@ -49,6 +49,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 
 public class GeoDistanceIT extends ESIntegTestCase {
@@ -404,6 +405,59 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .actionGet();
 
         assertHitCount(result, 1);
+    }
+
+    public void testDistanceSortingWithUnmappedField() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+            .startObject("locations").field("type", "geo_point");
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test1").addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test2"));
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", "1")
+            .setSource(jsonBuilder().startObject().array("names", "Times Square", "Tribeca").startArray("locations")
+                // to NY: 5.286 km
+                .startObject().field("lat", 40.759011).field("lon", -73.9844722).endObject()
+                // to NY: 0.4621 km
+                .startObject().field("lat", 40.718266).field("lon", -74.007819).endObject().endArray().endObject())
+            .execute().actionGet();
+
+        client().prepareIndex("test2", "type1", "2")
+            .setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject())
+            .execute().actionGet();
+
+        refresh();
+
+        // Order: Asc
+        SearchResponse searchResponse = client().prepareSearch("test1", "test2").setQuery(matchAllQuery())
+            .addSort(SortBuilders.geoDistanceSort("locations", 40.7143528, -74.0059731).ignoreUnmapped(true).order(SortOrder.ASC)).execute()
+            .actionGet();
+
+        assertHitCount(searchResponse, 2);
+        assertOrderedSearchHits(searchResponse, "1", "2");
+        assertThat(((Number) searchResponse.getHits().getAt(0).getSortValues()[0]).doubleValue(), closeTo(462.1d, 10d));
+        assertThat(((Number) searchResponse.getHits().getAt(1).getSortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+
+        // Order: Desc
+        searchResponse = client().prepareSearch("test1", "test2").setQuery(matchAllQuery())
+            .addSort(
+                SortBuilders.geoDistanceSort("locations", 40.7143528, -74.0059731).ignoreUnmapped(true).order(SortOrder.DESC)
+            ).execute()
+            .actionGet();
+
+        // Doc with missing geo point is first, is consistent with 0.20.x
+        assertHitCount(searchResponse, 2);
+        assertOrderedSearchHits(searchResponse, "2", "1");
+        assertThat(((Number) searchResponse.getHits().getAt(0).getSortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(((Number) searchResponse.getHits().getAt(1).getSortValues()[0]).doubleValue(), closeTo(5286d, 10d));
+
+        // Make sure that by default the unmapped fields continue to fail
+        searchResponse = client().prepareSearch("test1", "test2").setQuery(matchAllQuery())
+            .addSort( SortBuilders.geoDistanceSort("locations", 40.7143528, -74.0059731).order(SortOrder.DESC)).execute()
+            .actionGet();
+        assertThat(searchResponse.getFailedShards(), greaterThan(0));
+        assertHitCount(searchResponse, 1);
     }
 
 }

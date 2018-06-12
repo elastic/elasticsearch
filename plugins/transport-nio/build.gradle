@@ -22,8 +22,6 @@ esplugin {
     classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
 }
 
-dependencyLicenses.enabled = false
-
 compileJava.options.compilerArgs << "-Xlint:-try"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
@@ -31,13 +29,17 @@ dependencies {
     compile "org.elasticsearch:elasticsearch-nio:${version}"
 
     // network stack
-    compile "io.netty:netty-buffer:4.1.16.Final"
-    compile "io.netty:netty-codec:4.1.16.Final"
-    compile "io.netty:netty-codec-http:4.1.16.Final"
-    compile "io.netty:netty-common:4.1.16.Final"
-    compile "io.netty:netty-handler:4.1.16.Final"
-    compile "io.netty:netty-resolver:4.1.16.Final"
-    compile "io.netty:netty-transport:4.1.16.Final"
+    compile "io.netty:netty-buffer:4.1.25.Final"
+    compile "io.netty:netty-codec:4.1.25.Final"
+    compile "io.netty:netty-codec-http:4.1.25.Final"
+    compile "io.netty:netty-common:4.1.25.Final"
+    compile "io.netty:netty-handler:4.1.25.Final"
+    compile "io.netty:netty-resolver:4.1.25.Final"
+    compile "io.netty:netty-transport:4.1.25.Final"
+}
+
+dependencyLicenses {
+    mapping from: /netty-.*/, to: 'netty'
 }
 
 thirdPartyAudit.excludes = [
@@ -138,6 +140,6 @@ thirdPartyAudit.excludes = [
 
         'org.conscrypt.AllocatedBuffer',
         'org.conscrypt.BufferAllocator',
-        'org.conscrypt.Conscrypt$Engines',
+        'org.conscrypt.Conscrypt',
         'org.conscrypt.HandshakeListener'
 ]

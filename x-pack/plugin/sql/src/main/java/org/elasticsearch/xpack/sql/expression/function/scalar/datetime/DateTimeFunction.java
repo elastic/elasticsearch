@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;

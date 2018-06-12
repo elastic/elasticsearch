@@ -198,7 +198,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * type then the fields will be returned with a type prefix.
      */
     public Collection<String> simpleMatchToIndexNames(String pattern) {
-        return mapperService.simpleMatchToIndexNames(pattern);
+        return mapperService.simpleMatchToFullName(pattern);
     }
 
     public MappedFieldType fieldMapper(String name) {

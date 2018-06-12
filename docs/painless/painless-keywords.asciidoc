@@ -1,9 +1,13 @@
 [[painless-keywords]]
 === Keywords
 
-Keywords are reserved tokens for built-in language features and cannot be used
-as <<painless-identifiers, identifiers>> within a script. The following are
-keywords:
+Keywords are reserved tokens for built-in language features.
+
+*Errors*
+
+If a keyword is used as an <<painless-identifiers, identifier>>.
+
+*Keywords*
 
 [cols="^1,^1,^1,^1,^1"]
 |====

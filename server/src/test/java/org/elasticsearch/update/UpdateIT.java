@@ -33,7 +33,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;

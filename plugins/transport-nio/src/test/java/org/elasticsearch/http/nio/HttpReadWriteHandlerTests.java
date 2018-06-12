@@ -46,7 +46,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.NioHttpTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -69,7 +69,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class HttpReadWriteHandlerTests extends NioHttpTestCase {
+public class HttpReadWriteHandlerTests extends ESTestCase {
 
     private HttpReadWriteHandler handler;
     private NioSocketChannel nioSocketChannel;

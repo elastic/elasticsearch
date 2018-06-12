@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.test.Netty4TestCase;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
@@ -37,7 +37,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
 
-public class NettyTransportMultiPortTests extends Netty4TestCase {
+public class NettyTransportMultiPortTests extends ESTestCase {
 
     private String host;
 

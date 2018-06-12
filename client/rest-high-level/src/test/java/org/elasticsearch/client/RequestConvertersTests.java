@@ -1562,7 +1562,7 @@ public class RequestConvertersTests extends ESTestCase {
             default:
                 throw new UnsupportedOperationException();
         }
-        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, expectedParams, "0");
+        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
         if (randomBoolean()) {
             ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
             healthRequest.level(level);
@@ -2187,23 +2187,24 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
-        setRandomWaitForActiveShards(setter, expectedParams, null);
+        setRandomWaitForActiveShards(setter, ActiveShardCount.DEFAULT, expectedParams);
     }
 
-    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter,Map<String, String> expectedParams,
-            String defaultValue) {
+    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
+                                                     Map<String, String> expectedParams) {
         if (randomBoolean()) {
+            int waitForActiveShardsInt = randomIntBetween(-1, 5);
             String waitForActiveShardsString;
-            int waitForActiveShards = randomIntBetween(-1, 5);
-            if (waitForActiveShards == -1) {
+            if (waitForActiveShardsInt == -1) {
                 waitForActiveShardsString = "all";
             } else {
-                waitForActiveShardsString = String.valueOf(waitForActiveShards);
+                waitForActiveShardsString = String.valueOf(waitForActiveShardsInt);
             }
-            setter.accept(ActiveShardCount.parseString(waitForActiveShardsString));
-            expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
-        } else if (defaultValue != null) {
-            expectedParams.put("wait_for_active_shards", defaultValue);
+            ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsString);
+            setter.accept(activeShardCount);
+            if (defaultActiveShardCount.equals(activeShardCount) == false) {
+                expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
+            }
         }
     }
 

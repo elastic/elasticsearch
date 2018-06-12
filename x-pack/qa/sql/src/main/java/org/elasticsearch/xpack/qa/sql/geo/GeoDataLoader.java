@@ -11,6 +11,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -37,26 +38,28 @@ public class GeoDataLoader {
 
     public static void main(String[] args) throws Exception {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            loadDatasetIntoEs(client);
+            loadOGCDatasetIntoEs(client, "ogc");
+            loadGeoDatasetIntoEs(client, "geo");
             Loggers.getLogger(GeoDataLoader.class).info("Geo data loaded");
         }
     }
 
-    protected static void loadDatasetIntoEs(RestClient client) throws Exception {
-        loadDatasetIntoEs(client, "ogc");
-        makeFilteredAlias(client, "lakes", "ogc", "\"term\" : { \"ogc_type\" : \"lakes\" }");
-        makeFilteredAlias(client, "road_segments", "ogc", "\"term\" : { \"ogc_type\" : \"road_segments\" }");
-        makeFilteredAlias(client, "divided_routes", "ogc", "\"term\" : { \"ogc_type\" : \"divided_routes\" }");
-        makeFilteredAlias(client, "forests", "ogc", "\"term\" : { \"ogc_type\" : \"forests\" }");
-        makeFilteredAlias(client, "bridges", "ogc", "\"term\" : { \"ogc_type\" : \"bridges\" }");
-        makeFilteredAlias(client, "streams", "ogc", "\"term\" : { \"ogc_type\" : \"streams\" }");
-        makeFilteredAlias(client, "buildings", "ogc", "\"term\" : { \"ogc_type\" : \"buildings\" }");
-        makeFilteredAlias(client, "ponds", "ogc", "\"term\" : { \"ogc_type\" : \"ponds\" }");
-        makeFilteredAlias(client, "named_places", "ogc", "\"term\" : { \"ogc_type\" : \"named_places\" }");
-        makeFilteredAlias(client, "map_neatlines", "ogc", "\"term\" : { \"ogc_type\" : \"map_neatlines\" }");
+    protected static void loadOGCDatasetIntoEs(RestClient client, String index) throws Exception {
+        createIndex(client, index, createOGCIndexRequest());
+        loadData(client, index, readResource("/ogc/ogc.json"));
+        makeFilteredAlias(client, "lakes", index, "\"term\" : { \"ogc_type\" : \"lakes\" }");
+        makeFilteredAlias(client, "road_segments", index, "\"term\" : { \"ogc_type\" : \"road_segments\" }");
+        makeFilteredAlias(client, "divided_routes", index, "\"term\" : { \"ogc_type\" : \"divided_routes\" }");
+        makeFilteredAlias(client, "forests", index, "\"term\" : { \"ogc_type\" : \"forests\" }");
+        makeFilteredAlias(client, "bridges", index, "\"term\" : { \"ogc_type\" : \"bridges\" }");
+        makeFilteredAlias(client, "streams", index, "\"term\" : { \"ogc_type\" : \"streams\" }");
+        makeFilteredAlias(client, "buildings", index, "\"term\" : { \"ogc_type\" : \"buildings\" }");
+        makeFilteredAlias(client, "ponds", index, "\"term\" : { \"ogc_type\" : \"ponds\" }");
+        makeFilteredAlias(client, "named_places", index, "\"term\" : { \"ogc_type\" : \"named_places\" }");
+        makeFilteredAlias(client, "map_neatlines", index, "\"term\" : { \"ogc_type\" : \"map_neatlines\" }");
     }
 
-    protected static void loadDatasetIntoEs(RestClient client, String index) throws Exception {
+    private static String createOGCIndexRequest() throws Exception {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
         {
@@ -101,12 +104,21 @@ public class GeoDataLoader {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
+        return Strings.toString(createIndex);
+    }
 
-        client.performRequest("PUT", "/" + index, emptyMap(), new StringEntity(Strings.toString(createIndex),
-                        ContentType.APPLICATION_JSON));
+    private static void createIndex(RestClient client, String index, String settingsMappings) throws IOException {
+        Request createIndexRequest = new Request("PUT", "/" + index);
+        createIndexRequest.setEntity(new StringEntity(settingsMappings, ContentType.APPLICATION_JSON));
+        client.performRequest(createIndexRequest);
+    }
 
-        String bulk = readResource("/ogc/ogc.json");
+    static void loadGeoDatasetIntoEs(RestClient client, String index) throws Exception {
+        createIndex(client, index, readResource("/geo/geosql.json"));
+        loadData(client, index, readResource("/geo/geosql-bulk.json"));
+    }
 
+    private static void loadData(RestClient client, String index, String bulk) throws IOException {
         Response response = client.performRequest("POST", "/" + index + "/doc/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk, ContentType.APPLICATION_JSON));
 

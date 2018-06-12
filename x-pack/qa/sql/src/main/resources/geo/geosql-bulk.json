@@ -1,0 +1,33 @@
+{"index":{"_id": "1"}}
+{"region": "Americas", "city": "Mountain View", "location": "37.386483,-122.083843"}
+{"index":{"_id": "2"}}
+{"region": "Americas", "city": "Chicago", "location": "41.888783,-87.637874"}
+{"index":{"_id": "3"}}
+{"region": "Americas", "city": "New York", "location": "40.745171,-73.990027"}
+{"index":{"_id": "4"}}
+{"region": "Americas", "city": "San Francisco", "location": "37.789541,-122.394228"}
+{"index":{"_id": "5"}}
+{"region": "Americas", "city": "Phoenix", "location": "33.376242,-111.973505"}
+{"index":{"_id": "6"}}
+{"region": "Europe", "city": "Amsterdam", "location": "52.347557,4.850312"}
+{"index":{"_id": "7"}}
+{"region": "Europe", "city": "Berlin", "location": "52.486701,13.390889"}
+{"index":{"_id": "8"}}
+{"region": "Europe", "city": "Munich", "location": "48.146321,11.537505"}
+{"index":{"_id": "9"}}
+{"region": "Europe", "city": "London", "location": "51.510871,-0.121672"}
+{"index":{"_id": "10"}}
+{"region": "Europe", "city": "Paris", "location": "48.845538,2.351773"}
+{"index":{"_id": "11"}}
+{"region": "Asia", "city": "Singapore", "location": "1.295868,103.855535"}
+{"index":{"_id": "12"}}
+{"region": "Asia", "city": "Hong Kong", "location": "22.281397,114.183925"}
+{"index":{"_id": "13"}}
+{"region": "Asia", "city": "Seoul", "location": "37.509132,127.060851"}
+{"index":{"_id": "14"}}
+{"region": "Asia", "city": "Tokyo", "location": "35.669616,139.76402225"}
+{"index":{"_id": "15"}}
+{"region": "Asia", "city": "Sydney", "location": "-33.863385,151.208629"}
+
+
+

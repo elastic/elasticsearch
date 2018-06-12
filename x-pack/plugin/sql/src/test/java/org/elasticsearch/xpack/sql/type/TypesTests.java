@@ -15,6 +15,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
@@ -39,13 +40,12 @@ public class TypesTests extends ESTestCase {
 
     public void testBasicMapping() {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        assertThat(mapping.size(), is(7));
+        assertThat(mapping.size(), is(6));
         assertThat(mapping.get("emp_no").getDataType(), is(INTEGER));
         assertThat(mapping.get("first_name"), instanceOf(TextEsField.class));
         assertThat(mapping.get("last_name").getDataType(), is(TEXT));
         assertThat(mapping.get("gender").getDataType(), is(KEYWORD));
         assertThat(mapping.get("salary").getDataType(), is(INTEGER));
-        assertThat(mapping.get("site").getDataType(), is(GEO_SHAPE));
     }
 
     public void testDefaultStringMapping() {
@@ -181,8 +181,11 @@ public class TypesTests extends ESTestCase {
 
     public void testGeoField() {
         Map<String, EsField> mapping = loadMapping("mapping-geo.json");
-        EsField dt = mapping.get("location");
-        assertThat(dt.getDataType().esType, is("unsupported"));
+        assertThat(mapping.size(), is(2));
+        EsField gp = mapping.get("location");
+        assertThat(gp.getDataType().esType, is("geo_point"));
+        EsField gs = mapping.get("site");
+        assertThat(gs.getDataType().esType, is("geo_shape"));
     }
 
     public void testUnsupportedTypes() {

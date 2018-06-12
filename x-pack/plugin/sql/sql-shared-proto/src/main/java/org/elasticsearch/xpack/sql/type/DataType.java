@@ -42,14 +42,16 @@ public enum DataType {
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
     DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24),
     // TODO: This should map to some Geography class instead of String
-    GEO_SHAPE(   JDBCType.OTHER,     String.class,    Integer.MAX_VALUE, Integer.MAX_VALUE, 0, false, false, false);
+    GEO_SHAPE(   JDBCType.OTHER,     String.class,    Integer.MAX_VALUE, Integer.MAX_VALUE, 0, false, false, false),
+    GEO_POINT(   JDBCType.OTHER,     String.class,    Double.BYTES*2,    Integer.MAX_VALUE, 0, false, false, false);
     // @formatter:on
 
     private static final Map<JDBCType, DataType> jdbcToEs;
 
     static {
         jdbcToEs = Arrays.stream(DataType.values())
-                .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT && dataType != GEO_SHAPE)
+                .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT && dataType != GEO_SHAPE &&
+                    dataType != GEO_POINT)
                 .collect(Collectors.toMap(dataType -> dataType.jdbcType, dataType -> dataType));
     }
 

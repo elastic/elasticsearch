@@ -1,0 +1,45 @@
+//
+// Commands on geo test data
+//
+
+showTables
+SHOW TABLES 'geo';
+
+ name:s        | type:s
+geo       |BASE TABLE
+;
+
+// DESCRIBE
+
+describe
+DESCRIBE "geo";
+
+       column:s      |   type:s
+city                 | VARCHAR
+location             | OTHER
+region               | VARCHAR
+;
+
+// SELECT ALL
+// TODO: For now we just get geopoint formatted as is and we also need to convert it to STRING to work with CSV
+
+selectAllPoints
+SELECT city, CAST(location AS STRING) location, region FROM "geo" ORDER BY "city";
+
+     city:s    |     location:s       |  region:s
+Amsterdam      |52.347557,4.850312    |Europe
+Berlin         |52.486701,13.390889   |Europe
+Chicago        |41.888783,-87.637874  |Americas
+Hong Kong      |22.281397,114.183925  |Asia
+London         |51.510871,-0.121672   |Europe
+Mountain View  |37.386483,-122.083843 |Americas
+Munich         |48.146321,11.537505   |Europe
+New York       |40.745171,-73.990027  |Americas
+Paris          |48.845538,2.351773    |Europe
+Phoenix        |33.376242,-111.973505 |Americas
+San Francisco  |37.789541,-122.394228 |Americas
+Seoul          |37.509132,127.060851  |Asia
+Singapore      |1.295868,103.855535   |Asia
+Sydney         |-33.863385,151.208629 |Asia
+Tokyo          |35.669616,139.76402225|Asia
+;

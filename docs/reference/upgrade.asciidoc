@@ -40,24 +40,25 @@ required.
 [cols="1<m,1<m,3",options="header",]
 |=======================================================================
 |Upgrade From   |Upgrade To     |Supported Upgrade Type
-|6.0-6.2        |{version}      |<<rolling-upgrades,Rolling upgrade>>
-|5.6            |{version}      |<<rolling-upgrades,Rolling upgrade>> footnoteref:[reindexfn, You must delete or reindex any indices created in 2.x before upgrading.]
-|5.0-5.5        |{version}      |<<restart-upgrade,Full cluster restart>> footnoteref:[reindexfn]
-|Pre-5.0        |{version}      |<<reindex-upgrade,Reindex to upgrade>>
+|5.x            |5.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`)
+|5.6            |6.x            |<<rolling-upgrades,Rolling upgrade>> footnoteref:[reindexfn, You must delete or reindex any indices created in 2.x before upgrading.]
+|5.0-5.5        |6.x            |<<restart-upgrade,Full cluster restart>> footnoteref:[reindexfn]
+|<5.x           |6.x            |<<reindex-upgrade,Reindex to upgrade>>
+|6.x            |6.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`) 
 |=======================================================================
 
 [IMPORTANT]
 ===============================================
 
 Elasticsearch can read indices created in the *previous major version*.
-Older indices must be reindexed or deleted. Elasticsearch 6.n
-can use indices created in Elasticsearch 5.n, but not those created in
-Elasticsearch 2.n or before. Elasticsearch 5.n can use indices created in
-Elasticsearch 2.n, but not those created in 1.n or before.
+Older indices must be reindexed or deleted. Elasticsearch 6.x
+can use indices created in Elasticsearch 5.x, but not those created in
+Elasticsearch 2.x or before. Elasticsearch 5.x can use indices created in
+Elasticsearch 2.x, but not those created in 1.x or before.
 
 This also applies to indices backed up with <<modules-snapshots,snapshot
-and restore>>. If an index was originally created in 2.n, it cannot be
-restored to a 6.n cluster even if the snapshot was created by a 5.n cluster.
+and restore>>. If an index was originally created in 2.x, it cannot be
+restored to a 6.x cluster even if the snapshot was created by a 5.x cluster.
 
 Elasticsearch nodes will fail to start if incompatible indices are present.
 
@@ -65,47 +66,6 @@ For information about how to upgrade old indices, see <<reindex-upgrade,
 Reindex to upgrade>>.
 
 ===============================================
-
-[float]
-[[elasticsearch-upgrade-6.3]]
-=== Upgrading to 6.3
-Starting in 6.3, the default distribution includes {xpack} with a free
-Basic license. If you already have a Basic license, once you upgrade to 6.3
-it will never expire or need to be renewed. If you have a license subscription,
-your license and settings are preserved when you upgrade.
-
-You can perform rolling upgrades to 6.3 from OSS-only clusters running 5.6
-or 6.0-6.2. {xpack} Basic features will be operational once the cluster is fully
-upgraded.
-
-If you are using {xpack} for the first time, you must explicitly enable data
-collection after the upgrade to use monitoring. Set
-`xpack.monitoring.collection.enabled` to `true` with the `_cluster/settings`
-API:
-
-[source,json]
-----------------------------------------------------------
-PUT /_cluster/settings
-{
-    "persistent" : {
-        "xpack.monitoring.collection.enabled" : "true"
-    }
-}
-----------------------------------------------------------
-// CONSOLE
-
-To take all of the {xpack} features for a spin, you can start a 30-day trial
-from Kibana, or with the Start Trial API:
-
-[source,json]
-----------------------------------------------------------
-POST _xpack/license/start_trial
-----------------------------------------------------------
-// CONSOLE
-
-The 30-day trial enables you to try out the full set of Platinum features,
-including security, machine learning, alerting, graph capabilities, and more.
-
 --
 
 include::upgrade/rolling_upgrade.asciidoc[]

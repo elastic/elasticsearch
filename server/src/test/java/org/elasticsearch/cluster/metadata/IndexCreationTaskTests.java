@@ -322,30 +322,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         assertThat(exception.getMessage(), startsWith("alias [alias1] has more than one write index ["));
     }
 
-    public void testWriteIndexDefaultToTrue() throws Exception {
-        setupRequestAlias(new Alias("alias1"));
-        setupRequestMapping("mapping1", createMapping());
-        setupRequestCustom("custom1", createCustom());
-        reqSettings.put("key1", "value1");
-        ClusterState result = executeTask();
-        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(true));
-
-    }
-
-    public void testWriteIndexDefaultToFalse() throws Exception {
-        setupRequestAlias(new Alias("alias1"));
-        setupRequestMapping("mapping1", createMapping());
-        setupRequestCustom("custom1", createCustom());
-        reqSettings.put("key1", "value1");
-        IndexMetaData existingWriteIndex = IndexMetaData.builder("test2")
-            .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
-            .numberOfShards(1).numberOfReplicas(0).build();
-        idxBuilder.put("test2", existingWriteIndex);
-        ClusterState result = executeTask();
-        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(false));
-        assertThat(result.metaData().index("test2").getAliases().get("alias1").writeIndex(), equalTo(true));
-    }
-
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
         final IndexRoutingTable idxRoutingTable = mock(IndexRoutingTable.class);
 

@@ -133,16 +133,19 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
         ClusterState after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, false)));
-        assertNull(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex());
+        assertFalse(after.metaData().index("test").getAliases().get("alias").writeIndex());
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test")));
 
         after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, null)));
-        assertTrue(after.metaData().index("test").getAliases().get("alias").writeIndex());
+        assertNull(after.metaData().index("test").getAliases().get("alias").writeIndex());
         assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
             equalTo(after.metaData().index("test")));
 
         after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, true)));
+        assertTrue(after.metaData().index("test").getAliases().get("alias").writeIndex());
         assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
             equalTo(after.metaData().index("test")));
     }
@@ -158,7 +161,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
         ClusterState after = service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, null)));
-        assertFalse(after.metaData().index("test").getAliases().get("alias").writeIndex());
+        assertNull(after.metaData().index("test").getAliases().get("alias").writeIndex());
         assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
             equalTo(after.metaData().index("test2")));
 

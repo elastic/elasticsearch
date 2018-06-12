@@ -157,11 +157,15 @@ public interface AliasOrIndex {
             List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .collect(Collectors.toList());
-            if (writeIndices.size() == 1) {
+            if (referenceIndexMetaDatas.size() == 1) {
+                writeIndex.set(referenceIndexMetaDatas.get(0));
+            } else if (writeIndices.size() == 1) {
                 writeIndex.set(writeIndices.get(0));
             } else if (writeIndices.size() > 1) {
+                List<String> writeIndicesStrings = writeIndices.stream()
+                    .map(i -> i.getIndex().getName()).collect(Collectors.toList());
                 throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
-                    Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
             }
         }
     }

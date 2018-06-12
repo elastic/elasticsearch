@@ -17,8 +17,6 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 
 import java.time.Clock;
-import java.util.List;
-
 /**
  * Generates a SAML {@link AuthnRequest} from a simplified set of parameters.
  */

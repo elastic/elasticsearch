@@ -632,10 +632,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
                 // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
                 if (System.properties.getProperty("build.compare_friendly", "false") == "true") {
-                    jarTask.manifest.attributes(
-                            'Gradle-Version': 'compare_friendly',
-                            'Build-Date': 'compare_friendly'
-                    )
+                    jarTask.manifest.getAttributes().clear()
                 }
             }
             // add license/notice files

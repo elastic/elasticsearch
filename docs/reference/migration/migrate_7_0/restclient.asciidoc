@@ -6,7 +6,7 @@
 All API methods accepting headers as a `Header` varargs argument, deprecated
 since 6.4, have been removed in favour of the newly introduced methods that
 accept instead a `RequestOptions` argument. In case you are not specifying any
-header, e.g. `client.index(indexRequest)`` becomes
+header, e.g. `client.index(indexRequest)` becomes
 `client.index(indexRequest, RequestOptions.DEFAULT)`.
 In case you are specifying headers
 e.g. `client.index(indexRequest, new Header("name" "value"))` becomes

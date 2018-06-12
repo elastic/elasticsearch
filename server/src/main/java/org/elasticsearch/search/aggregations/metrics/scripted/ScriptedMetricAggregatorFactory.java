@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -97,6 +98,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         final Script reduceScript = deepCopyScript(this.reduceScript, context);
         if (initScript != null) {
             initScript.execute();
+            CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs init script");
         }
         return new ScriptedMetricAggregator(name, mapScript,
                 combineScript, reduceScript, aggState, context, parent,

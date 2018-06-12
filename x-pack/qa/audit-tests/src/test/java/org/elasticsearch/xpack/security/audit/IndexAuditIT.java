@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.audit;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -24,8 +25,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.test.ObjectCleanerThreadThreadFilter;
+import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -38,6 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class IndexAuditIT extends ESIntegTestCase {
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";

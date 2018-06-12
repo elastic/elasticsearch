@@ -75,6 +75,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
                 leafMapScript.setDocument(doc);
                 leafMapScript.execute();
+                CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs map script");
             }
         };
     }
@@ -84,7 +85,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         Object aggregation;
         if (combineScript != null) {
             aggregation = combineScript.execute();
-            CollectionUtils.ensureNoSelfReferences(aggregation);
+            CollectionUtils.ensureNoSelfReferences(aggregation, "Scripted metric aggs combine script");
         } else {
             aggregation = aggState;
         }

@@ -17,25 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.fa.PersianAnalyzer;
+import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<PersianAnalyzer> {
+public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
 
-    private final PersianAnalyzer analyzer;
+    private final GreekAnalyzer analyzer;
 
-    public PersianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    GreekAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new PersianAnalyzer(Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet()));
+        analyzer = new GreekAnalyzer(
+            Analysis.parseStopWords(env, settings, GreekAnalyzer.getDefaultStopSet()));
         analyzer.setVersion(version);
     }
 
     @Override
-    public PersianAnalyzer get() {
+    public GreekAnalyzer get() {
         return this.analyzer;
     }
 }

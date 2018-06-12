@@ -17,32 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
+import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-/**
- * Provider for {@link SoraniAnalyzer}
- */
-public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<SoraniAnalyzer> {
+public class SwedishAnalyzerProvider extends AbstractIndexAnalyzerProvider<SwedishAnalyzer> {
 
-    private final SoraniAnalyzer analyzer;
+    private final SwedishAnalyzer analyzer;
 
-    public SoraniAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    SwedishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new SoraniAnalyzer(
-            Analysis.parseStopWords(env, settings, SoraniAnalyzer.getDefaultStopSet()),
+        analyzer = new SwedishAnalyzer(
+            Analysis.parseStopWords(env, settings, SwedishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public SoraniAnalyzer get() {
+    public SwedishAnalyzer get() {
         return this.analyzer;
     }
 }

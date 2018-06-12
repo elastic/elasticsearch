@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.es.SpanishAnalyzer;
+import org.apache.lucene.analysis.hu.HungarianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class SpanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<SpanishAnalyzer> {
+public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<HungarianAnalyzer> {
 
-    private final SpanishAnalyzer analyzer;
+    private final HungarianAnalyzer analyzer;
 
-    public SpanishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    HungarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new SpanishAnalyzer(
-            Analysis.parseStopWords(env, settings, SpanishAnalyzer.getDefaultStopSet()),
+        analyzer = new HungarianAnalyzer(
+            Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public SpanishAnalyzer get() {
+    public HungarianAnalyzer get() {
         return this.analyzer;
     }
 }

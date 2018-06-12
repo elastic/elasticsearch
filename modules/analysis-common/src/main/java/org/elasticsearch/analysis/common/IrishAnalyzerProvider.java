@@ -17,13 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ga.IrishAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
 /**
  * Provider for {@link IrishAnalyzer}
@@ -32,7 +34,7 @@ public class IrishAnalyzerProvider extends AbstractIndexAnalyzerProvider<IrishAn
 
     private final IrishAnalyzer analyzer;
 
-    public IrishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    IrishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new IrishAnalyzer(
             Analysis.parseStopWords(env, settings, IrishAnalyzer.getDefaultStopSet()),

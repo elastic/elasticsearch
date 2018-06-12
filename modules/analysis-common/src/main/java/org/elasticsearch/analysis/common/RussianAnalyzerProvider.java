@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.sv.SwedishAnalyzer;
+import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class SwedishAnalyzerProvider extends AbstractIndexAnalyzerProvider<SwedishAnalyzer> {
+public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<RussianAnalyzer> {
 
-    private final SwedishAnalyzer analyzer;
+    private final RussianAnalyzer analyzer;
 
-    public SwedishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    RussianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new SwedishAnalyzer(
-            Analysis.parseStopWords(env, settings, SwedishAnalyzer.getDefaultStopSet()),
+        analyzer = new RussianAnalyzer(
+            Analysis.parseStopWords(env, settings, RussianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public SwedishAnalyzer get() {
+    public RussianAnalyzer get() {
         return this.analyzer;
     }
 }

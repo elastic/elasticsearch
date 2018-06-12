@@ -20,7 +20,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.test.Netty4IntegTestCase;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.hasSize;
  * a single node "cluster". We also force test infrastructure to use the node client instead of the transport client for the same reason.
  */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1, transportClientRatio = 0)
-public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
+public class Netty4HttpRequestSizeLimitIT extends Netty4IntegTestCase {
 
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
 

@@ -22,7 +22,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 

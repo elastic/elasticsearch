@@ -17,8 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
-import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer.Scheme;
+import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -303,11 +302,12 @@ public class HttpExporter extends Exporter {
         if (sniffingEnabled) {
             final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
             // createHosts(config) ensures that all schemes are the same for all hosts!
-            final Scheme scheme = hosts.get(0).startsWith("https") ? Scheme.HTTPS : Scheme.HTTP;
-            final ElasticsearchHostsSniffer hostsSniffer =
-                    new ElasticsearchHostsSniffer(client, ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+            final ElasticsearchNodesSniffer.Scheme scheme = hosts.get(0).startsWith("https") ?
+                    ElasticsearchNodesSniffer.Scheme.HTTPS : ElasticsearchNodesSniffer.Scheme.HTTP;
+            final ElasticsearchNodesSniffer hostsSniffer =
+                    new ElasticsearchNodesSniffer(client, ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
 
-            sniffer = Sniffer.builder(client).setHostsSniffer(hostsSniffer).build();
+            sniffer = Sniffer.builder(client).setNodesSniffer(hostsSniffer).build();
 
             // inform the sniffer whenever there's a node failure
             listener.setSniffer(sniffer);

@@ -16,6 +16,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"

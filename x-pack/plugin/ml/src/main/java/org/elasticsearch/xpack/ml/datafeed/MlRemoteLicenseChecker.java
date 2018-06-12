@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoRequest;
 
@@ -140,7 +141,7 @@ public class MlRemoteLicenseChecker {
     }
 
     public static boolean isRemoteIndex(String index) {
-        return index.indexOf(':') != -1;
+        return index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) != -1;
     }
 
     public static boolean containsRemoteIndex(List<String> indices) {
@@ -153,7 +154,7 @@ public class MlRemoteLicenseChecker {
      * @return List of remote cluster indices
      */
     public static List<String> remoteIndices(List<String> indices) {
-        return indices.stream().filter(index -> index.indexOf(':') != -1).collect(Collectors.toList());
+        return indices.stream().filter(MlRemoteLicenseChecker::isRemoteIndex).collect(Collectors.toList());
     }
 
     /**
@@ -165,7 +166,7 @@ public class MlRemoteLicenseChecker {
     public static List<String> remoteClusterNames(List<String> indices) {
         return indices.stream()
                 .filter(MlRemoteLicenseChecker::isRemoteIndex)
-                .map(index -> index.substring(0, index.indexOf(':')))
+                .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
                 .distinct()
                 .collect(Collectors.toList());
     }

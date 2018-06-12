@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.painless.spi.Whitelist;
 
 import java.lang.invoke.MethodHandle;

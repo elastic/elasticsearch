@@ -30,7 +30,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.DocValueFormat;
@@ -271,7 +270,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 vs::globalOrdinalsValues,
                 config.format(),
                 config.missingBucket(),
-                config.missing(),
                 size,
                 reverseMul
             );
@@ -288,7 +286,6 @@ final class CompositeAggregator extends BucketsAggregator {
                     vs::bytesValues,
                     config.format(),
                     config.missingBucket(),
-                    config.missing(),
                     size,
                     reverseMul
                 );
@@ -304,7 +301,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 vs::bytesValues,
                 config.format(),
                 config.missingBucket(),
-                config.missing(),
                 size,
                 reverseMul
             );
@@ -318,7 +314,6 @@ final class CompositeAggregator extends BucketsAggregator {
                     vs::doubleValues,
                     config.format(),
                     config.missingBucket(),
-                    config.missing(),
                     size,
                     reverseMul
                 );
@@ -337,7 +332,6 @@ final class CompositeAggregator extends BucketsAggregator {
                     rounding,
                     config.format(),
                     config.missingBucket(),
-                    config.missing(),
                     size,
                     reverseMul
                 );

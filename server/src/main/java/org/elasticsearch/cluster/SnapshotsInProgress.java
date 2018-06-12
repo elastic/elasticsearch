@@ -395,6 +395,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return TYPE;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
+
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(Custom.class, TYPE, in);
     }

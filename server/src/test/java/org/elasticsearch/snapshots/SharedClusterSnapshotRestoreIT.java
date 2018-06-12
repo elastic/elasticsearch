@@ -77,6 +77,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -3103,7 +3104,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put("location", repoPath)
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
                     // test that we can take a snapshot after a failed one, even if a partial index-N was written
-                    .put("atomic_move", false)
+                    .put("allow_atomic_operations", false)
                     .put("random", randomAlphaOfLength(10))));
 
         logger.info("--> indexing some data");
@@ -3334,7 +3335,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final Index index = resolveIndex(indexName);
         final IndexShard primary = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(new ShardId(index, 0));
         // create a gap in the sequence numbers
-        getEngineFromShard(primary).getLocalCheckpointTracker().generateSeqNo();
+        EngineTestCase.generateNewSeqNo(getEngineFromShard(primary));
 
         for (int i = 5; i < 10; i++) {
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);

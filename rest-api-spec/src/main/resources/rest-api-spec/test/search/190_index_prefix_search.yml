@@ -1,8 +1,8 @@
----
-"search with index prefixes":
+setup:
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.2.99"
       reason: index_prefixes is only available as of 6.3.0
+
   - do:
       indices.create:
         index:  test
@@ -27,6 +27,11 @@
       indices.refresh:
         index: [test]
 
+---
+"search with index prefixes":
+  - skip:
+      version: " - 6.2.99"
+      reason: index_prefixes is only available as of 6.3.0
   - do:
       search:
         index: test
@@ -57,3 +62,23 @@
 
   - match: {hits.total: 1}
   - match: {hits.hits.0._score: 1}
+
+---
+"search index prefixes with span_multi":
+  - skip:
+      version: " - 6.99.99"
+      reason: span_multi throws an exception with prefix fields on < versions
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            span_near:
+              clauses: [
+                { "span_term": { "text": "short" } },
+                { "span_multi": { "match": { "prefix": { "text": "word" } } } }
+              ]
+
+  - match: {hits.total: 1}
+

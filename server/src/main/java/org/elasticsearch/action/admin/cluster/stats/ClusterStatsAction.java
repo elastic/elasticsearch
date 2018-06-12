@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class ClusterStatsAction extends Action<ClusterStatsRequest, ClusterStatsResponse, ClusterStatsRequestBuilder> {
+public class ClusterStatsAction extends Action<ClusterStatsRequest, ClusterStatsResponse> {
 
     public static final ClusterStatsAction INSTANCE = new ClusterStatsAction();
     public static final String NAME = "cluster:monitor/stats";
@@ -34,10 +33,5 @@ public class ClusterStatsAction extends Action<ClusterStatsRequest, ClusterStats
     @Override
     public ClusterStatsResponse newResponse() {
         return new ClusterStatsResponse();
-    }
-
-    @Override
-    public ClusterStatsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ClusterStatsRequestBuilder(client, this);
     }
 }

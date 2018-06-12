@@ -40,7 +40,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Iterator;
 
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
 

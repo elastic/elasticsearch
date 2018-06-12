@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.readBlobFully;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.writeRandomBlob;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -46,6 +45,13 @@ import static org.hamcrest.CoreMatchers.notNullValue;
  * These tests check basic blob store functionality.
  */
 public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
+
+    public void testReadNonExistingPath() throws IOException {
+        try(BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            expectThrows(NoSuchFileException.class, () -> container.readBlob("non-existing"));
+        }
+    }
 
     public void testWriteRead() throws IOException {
         try(BlobStore store = newBlobStore()) {
@@ -66,7 +72,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testMoveAndList() throws IOException {
+    public void testList() throws IOException {
         try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             assertThat(container.listBlobs().size(), equalTo(0));
@@ -102,15 +108,6 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             assertThat(container.listBlobsByPrefix("foo-").size(), equalTo(numberOfFooBlobs));
             assertThat(container.listBlobsByPrefix("bar-").size(), equalTo(numberOfBarBlobs));
             assertThat(container.listBlobsByPrefix("baz-").size(), equalTo(0));
-
-            String newName = "bar-new";
-            // Move to a new location
-            container.move(name, newName);
-            assertThat(container.listBlobsByPrefix(name).size(), equalTo(0));
-            blobs = container.listBlobsByPrefix(newName);
-            assertThat(blobs.size(), equalTo(1));
-            assertThat(blobs.get(newName).length(), equalTo(generatedBlobs.get(name)));
-            assertThat(data, equalTo(readBlobFully(container, newName, length)));
         }
     }
 
@@ -158,7 +155,11 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
     protected void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
-            container.writeBlob(blobName, stream, bytesArray.length());
+            if (randomBoolean()) {
+                container.writeBlob(blobName, stream, bytesArray.length());
+            } else {
+                container.writeBlobAtomic(blobName, stream, bytesArray.length());
+            }
         }
     }
 

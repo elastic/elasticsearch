@@ -19,17 +19,10 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 
 /**
- * Diff that also support NamedWriteable interface
+ * Diff that also support {@link VersionedNamedWriteable} interface
  */
-public interface NamedDiffable<T> extends Diffable<T>, NamedWriteable {
-    /**
-     * The minimal version of the recipient this custom object can be sent to
-     */
-    default Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
-    }
+public interface NamedDiffable<T> extends Diffable<T>, VersionedNamedWriteable {
 }

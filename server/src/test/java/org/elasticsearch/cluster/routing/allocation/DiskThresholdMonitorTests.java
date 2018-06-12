@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;

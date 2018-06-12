@@ -20,7 +20,7 @@ import java.util.TimeZone;
 /**
  * The builder to build sql request
  */
-public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest, SqlQueryResponse, SqlQueryRequestBuilder> {
+public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest, SqlQueryResponse> {
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
         this(client, action, "", Collections.emptyList(), null, Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,

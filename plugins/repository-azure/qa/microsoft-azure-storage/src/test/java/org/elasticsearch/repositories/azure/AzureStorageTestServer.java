@@ -33,7 +33,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
@@ -159,42 +158,16 @@ public class AzureStorageTestServer {
         objectsPaths("PUT " + endpoint + "/{container}").forEach(path ->
             handlers.insert(path, (params, headers, body, requestId) -> {
                 final String destContainerName = params.get("container");
+                final String destBlobName = objectName(params);
 
                 final Container destContainer =containers.get(destContainerName);
                 if (destContainer == null) {
                     return newContainerNotFoundError(requestId);
                 }
 
-                final String destBlobName = objectName(params);
-
-                // Request is a copy request
-                List<String> headerCopySource = headers.getOrDefault("x-ms-copy-source", emptyList());
-                if (headerCopySource.isEmpty() == false) {
-                    String srcBlobName = headerCopySource.get(0);
-
-                    Container srcContainer = null;
-                    for (Container container : containers.values()) {
-                        String prefix = endpoint + "/" + container.name + "/";
-                        if (srcBlobName.startsWith(prefix)) {
-                            srcBlobName = srcBlobName.replaceFirst(prefix, "");
-                            srcContainer = container;
-                            break;
-                        }
-                    }
-
-                    if (srcContainer == null || srcContainer.objects.containsKey(srcBlobName) == false) {
-                        return newBlobNotFoundError(requestId);
-                    }
-
-                    byte[] bytes = srcContainer.objects.get(srcBlobName);
-                    if (bytes != null) {
-                        destContainer.objects.put(destBlobName, bytes);
-                        return new Response(RestStatus.ACCEPTED, singletonMap("x-ms-copy-status", "success"), "text/plain", EMPTY_BYTE);
-                    } else {
-                        return newBlobNotFoundError(requestId);
-                    }
-                } else {
-                    destContainer.objects.put(destBlobName, body);
+                byte[] existingBytes = destContainer.objects.putIfAbsent(destBlobName, body);
+                if (existingBytes != null) {
+                    return newBlobAlreadyExistsError(requestId);
                 }
 
                 return new Response(RestStatus.CREATED, emptyMap(), "text/plain", EMPTY_BYTE);
@@ -393,6 +366,10 @@ public class AzureStorageTestServer {
 
     private static Response newBlobNotFoundError(final long requestId) {
         return newError(requestId, RestStatus.NOT_FOUND, "BlobNotFound", "The specified blob does not exist");
+    }
+
+    private static Response newBlobAlreadyExistsError(final long requestId) {
+        return newError(requestId, RestStatus.CONFLICT, "BlobAlreadyExists", "The specified blob already exists");
     }
 
     private static Response newInternalError(final long requestId) {

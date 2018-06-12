@@ -164,7 +164,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchMatchQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("num", 10)));
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
         assertNull(searchResponse.getSuggest());
@@ -190,7 +191,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1", ValueType.STRING).field("type.keyword"));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
@@ -216,7 +218,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             searchRequest.source(searchSourceBuilder);
 
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
-                    () -> execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync));
+                    () -> execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                            highLevelClient()::search, highLevelClient()::searchAsync));
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
         }
 
@@ -226,7 +229,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 .addRange("first", 0, 30).addRange("second", 31, 200));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
@@ -257,7 +261,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchSourceBuilder.aggregation(agg);
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
@@ -308,7 +313,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchSourceBuilder.aggregation(new MatrixStatsAggregationBuilder("agg1").fields(Arrays.asList("num", "num2")));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
@@ -397,7 +403,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(searchSourceBuilder);
 
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
@@ -437,7 +444,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
 
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
@@ -469,7 +477,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         {
             SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
                     .scriptField("result", new Script("null")));
-            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                    highLevelClient()::search, highLevelClient()::searchAsync);
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             List<Object> values = searchHit.getFields().get("result").getValues();
             assertNotNull(values);
@@ -479,7 +488,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         {
             SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
                     .scriptField("result", new Script("new HashMap()")));
-            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                    highLevelClient()::search, highLevelClient()::searchAsync);
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             List<Object> values = searchHit.getFields().get("result").getValues();
             assertNotNull(values);
@@ -491,7 +501,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         {
             SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
                     .scriptField("result", new Script("new String[]{}")));
-            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                    highLevelClient()::search, highLevelClient()::searchAsync);
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             List<Object> values = searchHit.getFields().get("result").getValues();
             assertNotNull(values);
@@ -513,7 +524,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(35).sort("field", SortOrder.ASC);
         SearchRequest searchRequest = new SearchRequest("test").scroll(TimeValue.timeValueMinutes(2)).source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync,
+                highLevelClient()::search, highLevelClient()::searchAsync);
 
         try {
             long counter = 0;
@@ -525,6 +537,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             }
 
             searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
+                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync,
                     highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
@@ -534,6 +547,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             }
 
             searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
+                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync,
                     highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
@@ -545,14 +559,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(searchResponse.getScrollId());
             ClearScrollResponse clearScrollResponse = execute(clearScrollRequest,
-                    // Not using a method reference to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=517951
-                    (request, headers) -> highLevelClient().clearScroll(request, headers),
-                    (request, listener, headers) -> highLevelClient().clearScrollAsync(request, listener, headers));
+                    highLevelClient()::clearScroll, highLevelClient()::clearScrollAsync,
+                    highLevelClient()::clearScroll, highLevelClient()::clearScrollAsync);
             assertThat(clearScrollResponse.getNumFreed(), greaterThan(0));
             assertTrue(clearScrollResponse.isSucceeded());
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2));
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> execute(scrollRequest,
+                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync,
                     highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
@@ -574,7 +588,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync,
+                        highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -616,7 +631,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync,
+                        highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -664,7 +680,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync,
+                        highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -727,7 +744,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest2);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync,
+                        highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(2));
 

@@ -26,18 +26,13 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response, FlushJobAction.RequestBuilder> {
+public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response> {
 
     public static final FlushJobAction INSTANCE = new FlushJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";
 
     private FlushJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -193,7 +188,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, FlushJobAction action) {
             super(client, action, new Request());

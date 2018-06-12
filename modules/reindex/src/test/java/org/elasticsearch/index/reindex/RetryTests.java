@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -28,11 +29,11 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.test.ObjectCleanerThreadThreadFilter;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Integration test for retry behavior. Useful because retrying relies on the way that the
  * rest of Elasticsearch throws exceptions and unit tests won't verify that.
  */
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class RetryTests extends ESIntegTestCase {
 
     private static final int DOC_COUNT = 20;
@@ -106,7 +108,7 @@ public class RetryTests extends ESIntegTestCase {
     public void testReindex() throws Exception {
         testCase(
                 ReindexAction.NAME,
-                client -> ReindexAction.INSTANCE.newRequestBuilder(client).source("source").destination("dest"),
+                client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest"),
                 matcher().created(DOC_COUNT));
     }
 
@@ -127,7 +129,7 @@ public class RetryTests extends ESIntegTestCase {
             TransportAddress address = masterNode.getHttp().getAddress().publishAddress();
             RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
                     null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
-            ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client).source("source").destination("dest")
+            ReindexRequestBuilder request = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest")
                     .setRemoteInfo(remote);
             return request;
         };
@@ -135,12 +137,12 @@ public class RetryTests extends ESIntegTestCase {
     }
 
     public void testUpdateByQuery() throws Exception {
-        testCase(UpdateByQueryAction.NAME, client -> UpdateByQueryAction.INSTANCE.newRequestBuilder(client).source("source"),
+        testCase(UpdateByQueryAction.NAME, client -> new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE).source("source"),
                 matcher().updated(DOC_COUNT));
     }
 
     public void testDeleteByQuery() throws Exception {
-        testCase(DeleteByQueryAction.NAME, client -> DeleteByQueryAction.INSTANCE.newRequestBuilder(client).source("source")
+        testCase(DeleteByQueryAction.NAME, client -> new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE).source("source")
                 .filter(QueryBuilders.matchAllQuery()), matcher().deleted(DOC_COUNT));
     }
 

@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
@@ -13,16 +14,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 
-public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCase {
+public abstract class AbstractLicensesIntegrationTestCase extends XPackIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

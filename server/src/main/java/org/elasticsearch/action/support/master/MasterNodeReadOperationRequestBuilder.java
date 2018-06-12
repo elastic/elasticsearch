@@ -29,7 +29,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public abstract class MasterNodeReadOperationRequestBuilder<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected MasterNodeReadOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+    protected MasterNodeReadOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
         super(client, action, request);
     }
 

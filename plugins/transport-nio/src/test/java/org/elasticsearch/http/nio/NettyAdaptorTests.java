@@ -27,14 +27,14 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NioHttpTestCase;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class NettyAdaptorTests extends ESTestCase {
+public class NettyAdaptorTests extends NioHttpTestCase {
 
     public void testBasicRead() {
         TenIntsToStringsHandler handler = new TenIntsToStringsHandler();

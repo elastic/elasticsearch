@@ -65,6 +65,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
@@ -94,7 +95,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private ExecutorService exec = Executors.newFixedThreadPool(1);
     private RestClient restClient;
     private Header[] defaultHeaders;
-    private HttpHost httpHost;
+    private Node node;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
 
@@ -108,7 +109,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                         HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
-                        assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                        assertThat(context.getAuthCache().get(node.getHost()), instanceOf(BasicScheme.class));
                         final FutureCallback<HttpResponse> futureCallback =
                             (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
@@ -146,9 +147,10 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 });
 
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
-        httpHost = new HttpHost("localhost", 9200);
+        node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
+        restClient = new RestClient(httpClient, 10000, defaultHeaders,
+                singletonList(node), null, failureListener);
     }
 
     /**
@@ -244,7 +246,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
                 } else {
-                    failureListener.assertCalled(httpHost);
+                    failureListener.assertCalled(singletonList(node));
                 }
             }
         }
@@ -259,14 +261,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(singletonList(node));
             try {
                 performRequest(method, "/soe");
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(singletonList(node));
         }
     }
 
@@ -362,9 +364,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Request request = new Request(method, "/" + statusCode);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             for (Header requestHeader : requestHeaders) {
-                request.addHeader(requestHeader.getName(), requestHeader.getValue());
+                options.addHeader(requestHeader.getName(), requestHeader.getValue());
             }
+            request.setOptions(options);
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(request);
@@ -438,11 +442,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
             Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             for (Header header : headers) {
-                request.addHeader(header.getName(), header.getValue());
-                expectedRequest.addHeader(new Request.ReqHeader(header.getName(), header.getValue()));
+                options.addHeader(header.getName(), header.getValue());
+                expectedRequest.addHeader(new RequestOptions.ReqHeader(header.getName(), header.getValue()));
                 uniqueNames.add(header.getName());
             }
+            request.setOptions(options);
         }
         for (Header defaultHeader : defaultHeaders) {
             // request level headers override default headers

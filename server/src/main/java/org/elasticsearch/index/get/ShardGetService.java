@@ -159,7 +159,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 get = indexShard.get(new Engine.Get(realtime, readFromTranslog, type, id, uidTerm)
                         .version(version).versionType(versionType));
                 if (get.exists() == false) {
-                    get.release();
+                    get.close();
                 }
             }
         }
@@ -172,7 +172,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
         } finally {
-            get.release();
+            get.close();
         }
     }
 
@@ -202,7 +202,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         if (gFields != null && gFields.length > 0) {
             for (String field : gFields) {
-                FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
+                FieldMapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.

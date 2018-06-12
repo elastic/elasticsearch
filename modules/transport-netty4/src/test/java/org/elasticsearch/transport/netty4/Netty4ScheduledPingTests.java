@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport.netty4;
 
+import org.elasticsearch.test.Netty4TestCase;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +47,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class Netty4ScheduledPingTests extends ESTestCase {
+public class Netty4ScheduledPingTests extends Netty4TestCase {
     public void testScheduledPing() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
 

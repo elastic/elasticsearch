@@ -1,12 +1,8 @@
 ---
-setup:
- - do:
-     cluster.health:
-        wait_for_status: yellow
-        wait_for_nodes: 2
-
----
 "Test get old cluster job":
+  - skip:
+      version: "all"
+      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/30982"
   - do:
       xpack.ml.get_jobs:
         job_id: old-cluster-job

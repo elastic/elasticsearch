@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostDataAction extends Action<PostDataAction.Request, PostDataAction.Response, PostDataAction.RequestBuilder> {
+public class PostDataAction extends Action<PostDataAction.Request, PostDataAction.Response> {
 
     public static final PostDataAction INSTANCE = new PostDataAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/data/post";
@@ -34,16 +34,11 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, PostDataAction action) {
             super(client, action, new Request());

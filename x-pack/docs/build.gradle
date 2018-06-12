@@ -16,9 +16,7 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/ml/functions/rare.asciidoc',
         'en/ml/functions/sum.asciidoc',
         'en/ml/functions/time.asciidoc',
-        'en/ml/aggregations.asciidoc',
         'en/ml/customurl.asciidoc',
-        'en/monitoring/indices.asciidoc',
         'en/rest-api/security/ssl.asciidoc',
         'en/rest-api/security/users.asciidoc',
         'en/rest-api/security/tokens.asciidoc',
@@ -81,7 +79,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/validate-job.asciidoc',
         'en/rest-api/security/authenticate.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
-        'en/security/authorization/managing-roles.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]
 
@@ -281,6 +278,58 @@ setups['library'] = '''
             {"index":{"_id": "The Moon is a Harsh Mistress"}}
             {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 
+'''
+setups['farequote_index'] = '''
+  - do:
+        indices.create:
+          index: farequote
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              metric:
+                properties:
+                  time:
+                    type: date
+                  responsetime:
+                    type: float
+                  airline:
+                     type: keyword   
+'''
+setups['farequote_data'] = setups['farequote_index'] + '''
+  - do:
+        bulk:
+          index: farequote
+          type: metric
+          refresh: true
+          body: |
+            {"index": {"_id":"1"}}
+            {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000"}
+            {"index": {"_id":"2"}}
+            {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000"}
+            {"index": {"_id":"3"}}            
+            {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000"}
+'''
+setups['farequote_job'] = setups['farequote_data'] + '''
+  - do:
+      xpack.ml.put_job:
+        job_id: "farequote"
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": "60m",
+              "detectors": [{
+                "function": "mean",
+                "field_name": "responsetime",
+                "by_field_name": "airline"
+              }],
+            "summary_count_field_name": "doc_count"
+            },
+            "data_description": {
+              "time_field": "time"
+            }
+          }
 '''
 setups['server_metrics_index'] = '''
   - do:

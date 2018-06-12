@@ -20,11 +20,11 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.NioHttpIntegTestCase;
 
 import java.util.Collection;
 import java.util.Locale;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class NioPipeliningIT extends NioIntegTestCase {
+public class NioPipeliningIT extends NioHttpIntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {

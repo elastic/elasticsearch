@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -13,8 +14,10 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.test.ObjectCleanerThreadThreadFilter;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -40,6 +43,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * then run JUnit. If you changed the default port, set "tests.cluster=localhost:PORT" when running
  * your test.
  */
+@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public abstract class MigrateToolTestCase extends LuceneTestCase {
 

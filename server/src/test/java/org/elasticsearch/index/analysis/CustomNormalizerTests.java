@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
+import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -52,6 +53,12 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         assertEquals("my_normalizer", normalizer.name());
         assertTokenStreamContents(normalizer.tokenStream("foo", "Cet été-là"), new String[] {"cet été-là"});
         assertEquals(new BytesRef("cet été-là"), normalizer.normalize("foo", "Cet été-là"));
+
+        normalizer = analysis.indexAnalyzers.getWhitespaceNormalizer("my_normalizer");
+        assertNotNull(normalizer);
+        assertEquals("my_normalizer", normalizer.name());
+        assertTokenStreamContents(normalizer.tokenStream("foo", "Cet été-là"), new String[] {"cet", "été-là"});
+        assertEquals(new BytesRef("cet été-là"), normalizer.normalize("foo", "Cet été-là"));
     }
 
     public void testUnknownType() {
@@ -71,7 +78,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings));
+                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN));
         assertEquals("Custom normalizer [my_normalizer] cannot configure a tokenizer", e.getMessage());
     }
 
@@ -86,7 +93,13 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("my_normalizer");
         assertNotNull(normalizer);
         assertEquals("my_normalizer", normalizer.name());
-        assertTokenStreamContents(normalizer.tokenStream("foo", "abc"), new String[] {"zbc"});
+        assertTokenStreamContents(normalizer.tokenStream("foo", "abc acd"), new String[] {"zbc zcd"});
+        assertEquals(new BytesRef("zbc"), normalizer.normalize("foo", "abc"));
+
+        normalizer = analysis.indexAnalyzers.getWhitespaceNormalizer("my_normalizer");
+        assertNotNull(normalizer);
+        assertEquals("my_normalizer", normalizer.name());
+        assertTokenStreamContents(normalizer.tokenStream("foo", "abc acd"), new String[] {"zbc", "zcd"});
         assertEquals(new BytesRef("zbc"), normalizer.normalize("foo", "abc"));
     }
 
@@ -135,7 +148,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                             @Override
                             public int read(char[] cbuf, int off, int len) throws IOException {
                                 int result = reader.read(cbuf, off, len);
-                                for (int i = off; i < result; i++) {
+                                for (int i = off; i < off + len; i++) {
                                     if (cbuf[i] == 'a') {
                                         cbuf[i] = 'z';
                                     }
@@ -156,6 +169,12 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                 }
                 return new Factory();
             });
+        }
+
+        @Override
+        public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            return singletonMap("keyword", (indexSettings, environment, name, settings) ->
+                () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
         }
     }
 }

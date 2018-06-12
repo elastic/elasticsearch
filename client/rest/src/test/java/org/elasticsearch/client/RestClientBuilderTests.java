@@ -39,21 +39,42 @@ public class RestClientBuilderTests extends RestClientTestCase {
         try {
             RestClient.builder((HttpHost[])null);
             fail("should have failed");
-        } catch(NullPointerException e) {
-            assertEquals("hosts must not be null", e.getMessage());
+        } catch(IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
         }
 
         try {
-            RestClient.builder();
+            RestClient.builder(new HttpHost[] {});
             fail("should have failed");
         } catch(IllegalArgumentException e) {
-            assertEquals("no hosts provided", e.getMessage());
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+
+        try {
+            RestClient.builder((Node[])null);
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("nodes must not be null or empty", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(new Node[] {});
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("nodes must not be null or empty", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(new Node(new HttpHost("localhost", 9200)), null);
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("node cannot be null", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost("localhost", 9200), null);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch(IllegalArgumentException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
 

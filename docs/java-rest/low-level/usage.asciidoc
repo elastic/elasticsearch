@@ -271,23 +271,50 @@ a `ContentType` of `application/json`.
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-body-shorter]
 --------------------------------------------------
 
-And you can add one or more headers to send with the request:
+[[java-rest-low-usage-request-options]]
+==== RequestOptions
+
+The `RequestOptions` class holds parts of the request that should be shared
+between many requests in the same application. You can make a singleton
+instance and share it between all requests:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-headers]
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-singleton]
 --------------------------------------------------
+<1> Add any headers needed by all requests.
+<2> Set a `NodeSelector`.
+<3> Customize the response consumer.
+
+`addHeader` is for headers that are required for authorization or to work with
+a proxy in front of Elasticsearch. There is no need to set the `Content-Type`
+header because the client will automatically set that from the `HttpEntity`
+attached to the request.
+
+You can set the `NodeSelector` which controls which nodes will receive
+requests. `NodeSelector.NOT_MASTER_ONLY` is a good choice.
 
 You can also customize the response consumer used to buffer the asynchronous
 responses. The default consumer will buffer up to 100MB of response on the
 JVM heap. If the response is larger then the request will fail. You could,
 for example, lower the maximum size which might be useful if you are running
-in a heap constrained environment:
+in a heap constrained environment like the exmaple above.
+
+Once you've created the singleton you can use it when making requests:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-response-consumer]
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-set-singleton]
 --------------------------------------------------
+
+You can also customize these options on a per request basis. For example, this
+adds an extra header:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-customize]
+--------------------------------------------------
+
 
 ==== Multiple parallel asynchronous actions
 

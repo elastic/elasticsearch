@@ -20,7 +20,6 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 public class UpdateAction extends Action<UpdateRequest, UpdateResponse> {
 

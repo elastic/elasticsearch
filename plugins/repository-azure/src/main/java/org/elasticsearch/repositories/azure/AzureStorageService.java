@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -79,7 +80,7 @@ public interface AzureStorageService {
             throws URISyntaxException, StorageException;
 
     void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
-            throws URISyntaxException, StorageException;
+            throws URISyntaxException, StorageException, FileAlreadyExistsException;
 
     static InputStream giveSocketPermissionsToStream(InputStream stream) {
         return new InputStream() {

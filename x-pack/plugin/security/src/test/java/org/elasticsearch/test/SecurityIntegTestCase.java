@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
@@ -41,8 +42,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -75,7 +76,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  *
  * @see SecuritySettingsSource
  */
-public abstract class SecurityIntegTestCase extends ESIntegTestCase {
+public abstract class SecurityIntegTestCase extends XPackIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
     protected static SecureString BOOTSTRAP_PASSWORD = null;

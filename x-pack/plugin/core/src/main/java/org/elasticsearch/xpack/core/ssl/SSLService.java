@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -30,6 +31,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -224,6 +226,7 @@ public class SSLService extends AbstractComponent {
      * @param sslConfiguration the configuration to check
      */
     public boolean isConfigurationValidForServerUsage(SSLConfiguration sslConfiguration) {
+        Objects.requireNonNull(sslConfiguration, "SSLConfiguration cannot be null");
         return sslConfiguration.keyConfig() != KeyConfig.NONE;
     }
 
@@ -253,6 +256,7 @@ public class SSLService extends AbstractComponent {
      * Indicates whether client authentication is enabled for a particular configuration
      */
     public boolean isSSLClientAuthEnabled(SSLConfiguration sslConfiguration) {
+        Objects.requireNonNull(sslConfiguration, "SSLConfiguration cannot be null");
         return sslConfiguration.sslClientAuth().enabled();
     }
 
@@ -634,7 +638,7 @@ public class SSLService extends AbstractComponent {
         for (Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix("xpack.security.ssl.");
             if (profileSettings.isEmpty() == false) {
-                sslSettings.put("transport.profiles." + entry.getKey() + "xpack.security.ssl", profileSettings);
+                sslSettings.put("transport.profiles." + entry.getKey() + ".xpack.security.ssl", profileSettings);
             }
         }
         return sslSettings;

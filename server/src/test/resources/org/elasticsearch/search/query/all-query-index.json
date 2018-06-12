@@ -11,6 +11,10 @@
         "f1": {"type": "text"},
         "f2": {"type": "keyword"},
         "f3": {"type": "text"},
+        "f3_alias": {
+          "type": "alias",
+          "path": "f3"
+        },
         "f4": {
           "type": "text",
           "index_options": "docs"

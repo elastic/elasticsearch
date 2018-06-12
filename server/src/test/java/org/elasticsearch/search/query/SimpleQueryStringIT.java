@@ -585,6 +585,26 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
     }
 
+    public void testFieldAlias() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("value").field("f3_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();

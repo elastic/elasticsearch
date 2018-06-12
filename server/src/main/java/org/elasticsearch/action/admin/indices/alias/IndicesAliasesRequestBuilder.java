@@ -131,6 +131,18 @@ public class IndicesAliasesRequestBuilder
     }
 
     /**
+     * Adds an alias to the index.
+     *
+     * @param index         The index
+     * @param alias         The alias
+     * @param writeIndex    write index flag
+     */
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, boolean writeIndex) {
+        request.addAliasAction(AliasActions.add().index(index).alias(alias).writeIndex(writeIndex));
+        return this;
+    }
+
+    /**
      * Removes an alias from the index.
      *
      * @param index The index

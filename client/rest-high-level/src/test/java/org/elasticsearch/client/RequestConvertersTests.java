@@ -94,6 +94,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1561,6 +1562,36 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertToXContentBody(rolloverRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testGetAlias() {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomLocal(getAliasesRequest, expectedParams);
+        setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions, expectedParams);
+
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
+        String[] aliases = randomBoolean() ? null : randomIndicesNames(0, 2);
+        getAliasesRequest.indices(indices);
+        getAliasesRequest.aliases(aliases);
+
+        Request request = RequestConverters.getAlias(getAliasesRequest);
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
+
+        if (false == CollectionUtils.isEmpty(indices)) {
+            expectedEndpoint.add(String.join(",", indices));
+        }
+        expectedEndpoint.add("_alias");
+
+        if (false == CollectionUtils.isEmpty(aliases)) {
+            expectedEndpoint.add(String.join(",", aliases));
+        }
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
     }
 
     public void testIndexPutSettings() throws IOException {

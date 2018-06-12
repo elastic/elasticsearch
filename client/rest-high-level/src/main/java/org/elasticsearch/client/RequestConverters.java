@@ -831,6 +831,17 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getAlias(GetAliasesRequest getAliasesRequest) {
+        String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
+        String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
+        String endpoint = endpoint(indices, "_alias", aliases);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withIndicesOptions(getAliasesRequest.indicesOptions());
+        params.withLocal(getAliasesRequest.local());
+        return request;
+    }
+
     static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) throws IOException {
         String[] names = getIndexTemplatesRequest.names();
         String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addCommaSeparatedPathParts(names).build();

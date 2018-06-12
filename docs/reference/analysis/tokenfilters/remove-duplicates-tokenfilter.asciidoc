@@ -2,4 +2,4 @@
 === Remove Duplicates Token Filter
 
 A token filter of type `remove_duplicates` that drops identical tokens at the
-same position
+same position.

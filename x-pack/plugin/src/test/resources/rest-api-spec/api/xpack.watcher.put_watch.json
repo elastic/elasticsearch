@@ -29,7 +29,7 @@
     },
     "body": {
       "description" : "The watch",
-      "required" : true
+      "required" : false
     }
   }
 }

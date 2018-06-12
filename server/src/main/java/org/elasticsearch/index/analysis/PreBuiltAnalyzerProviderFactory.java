@@ -22,41 +22,101 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> {
+public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisComponent<AnalyzerProvider<?>> implements Closeable {
 
-    private final PreBuiltAnalyzerProvider analyzerProvider;
+    private final Function<Version, Analyzer> create;
+    private final PreBuiltAnalyzerProvider current;
 
-    public PreBuiltAnalyzerProviderFactory(String name, AnalyzerScope scope, Analyzer analyzer) {
-        analyzerProvider = new PreBuiltAnalyzerProvider(name, scope, analyzer);
+    /**
+     * This constructor only exists to expose analyzers defined in {@link PreBuiltAnalyzers} as {@link PreBuiltAnalyzerProviderFactory}.
+     */
+    PreBuiltAnalyzerProviderFactory(String name, PreBuiltAnalyzers preBuiltAnalyzer) {
+        super(name, new PreBuiltAnalyzersDelegateCache(name, preBuiltAnalyzer));
+        this.create = preBuiltAnalyzer::getAnalyzer;
+        current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, preBuiltAnalyzer.getAnalyzer(Version.CURRENT));
     }
 
-    public AnalyzerProvider<?> create(String name, Settings settings) {
-        Version indexVersion = Version.indexCreated(settings);
-        if (!Version.CURRENT.equals(indexVersion)) {
-            PreBuiltAnalyzers preBuiltAnalyzers = PreBuiltAnalyzers.getOrDefault(name, null);
-            if (preBuiltAnalyzers != null) {
-                Analyzer analyzer = preBuiltAnalyzers.getAnalyzer(indexVersion);
-                return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
-            }
-        }
-
-        return analyzerProvider;
+    public PreBuiltAnalyzerProviderFactory(String name, PreBuiltCacheFactory.CachingStrategy cache, Function<Version, Analyzer> create) {
+        super(name, cache);
+        this.create = create;
+        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.apply(Version.CURRENT));
     }
 
     @Override
-    public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
-            throws IOException {
-        return create(name, settings);
+    public AnalyzerProvider<?> get(IndexSettings indexSettings,
+                                   Environment environment,
+                                   String name,
+                                   Settings settings) throws IOException {
+        Version versionCreated = Version.indexCreated(settings);
+        if (Version.CURRENT.equals(versionCreated) == false) {
+            return super.get(indexSettings, environment, name, settings);
+        } else {
+            return current;
+        }
     }
 
-    public Analyzer analyzer() {
-        return analyzerProvider.get();
+    @Override
+    protected AnalyzerProvider<?> create(Version version) {
+        assert Version.CURRENT.equals(version) == false;
+        return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, create.apply(version));
+    }
+
+    @Override
+    public void close() throws IOException {
+        List<Closeable> closeables = cache.values().stream()
+            .map(AnalyzerProvider::get)
+            .collect(Collectors.toList());
+        closeables.add(current.get());
+        IOUtils.close(closeables);
+    }
+
+    /**
+     *  A special cache that closes the gap between PreBuiltAnalyzers and PreBuiltAnalyzerProviderFactory.
+     *
+     *  This can be removed when all analyzers have been moved away from PreBuiltAnalyzers to
+     *  PreBuiltAnalyzerProviderFactory either in server or analysis-common.
+     */
+    static class PreBuiltAnalyzersDelegateCache implements PreBuiltCacheFactory.PreBuiltCache<AnalyzerProvider<?>> {
+
+        private final String name;
+        private final PreBuiltAnalyzers preBuiltAnalyzer;
+
+        private PreBuiltAnalyzersDelegateCache(String name, PreBuiltAnalyzers preBuiltAnalyzer) {
+            this.name = name;
+            this.preBuiltAnalyzer = preBuiltAnalyzer;
+        }
+
+        @Override
+        public AnalyzerProvider<?> get(Version version) {
+            return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, preBuiltAnalyzer.getAnalyzer(version));
+        }
+
+        @Override
+        public void put(Version version, AnalyzerProvider<?> analyzerProvider) {
+            // No need to put, because we delegate in get() directly to PreBuiltAnalyzers which already caches.
+        }
+
+        @Override
+        public Collection<AnalyzerProvider<?>> values() {
+            return preBuiltAnalyzer.getCache().values().stream()
+                // Wrap the analyzer instance in a PreBuiltAnalyzerProvider, this is what PreBuiltAnalyzerProviderFactory#close expects
+                // (other caches are not directly caching analyzers, but analyzer provider instead)
+                .map(analyzer -> new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer))
+                .collect(Collectors.toList());
+        }
+
     }
 }

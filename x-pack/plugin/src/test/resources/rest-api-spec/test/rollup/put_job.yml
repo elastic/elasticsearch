@@ -159,5 +159,32 @@ setup:
             ]
           }
 
+---
+"Validation failures":
 
+  - do:
+      catch: /Could not find a \[numeric\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      xpack.rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "field_doesnt_exist",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
 

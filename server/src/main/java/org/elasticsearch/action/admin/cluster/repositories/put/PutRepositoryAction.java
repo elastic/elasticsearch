@@ -20,12 +20,11 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Register repository action
  */
-public class PutRepositoryAction extends Action<PutRepositoryRequest, PutRepositoryResponse, PutRepositoryRequestBuilder> {
+public class PutRepositoryAction extends Action<PutRepositoryRequest, PutRepositoryResponse> {
 
     public static final PutRepositoryAction INSTANCE = new PutRepositoryAction();
     public static final String NAME = "cluster:admin/repository/put";
@@ -37,11 +36,6 @@ public class PutRepositoryAction extends Action<PutRepositoryRequest, PutReposit
     @Override
     public PutRepositoryResponse newResponse() {
         return new PutRepositoryResponse();
-    }
-
-    @Override
-    public PutRepositoryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PutRepositoryRequestBuilder(client, this);
     }
 }
 

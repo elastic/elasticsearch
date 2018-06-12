@@ -1,5 +1,4 @@
 [role="xpack"]
-[float]
 [[audit-log-output]]
 === Logfile audit output
 

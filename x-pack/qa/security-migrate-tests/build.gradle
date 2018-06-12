@@ -3,6 +3,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('security'), configuration: 'runtime')
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }

@@ -11,12 +11,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Properties;
 
-import static org.apache.logging.log4j.ThreadContext.containsKey;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;

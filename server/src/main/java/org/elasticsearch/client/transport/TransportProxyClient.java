@@ -53,7 +53,7 @@ final class TransportProxyClient {
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
-        ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final Action<Request, Response, RequestBuilder> action,
+        ActionRequestBuilder<Request, Response>> void execute(final Action<Request, Response> action,
                                                                               final Request request, ActionListener<Response> listener) {
         final TransportActionNodeProxy<Request, Response> proxy = proxies.get(action);
         assert proxy != null : "no proxy found for action: " + action;

@@ -10,5 +10,5 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.ESTestCase;
 
 @ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
-public class XPackTestCase extends ESTestCase {
+public abstract class XPackTestCase extends ESTestCase {
 }

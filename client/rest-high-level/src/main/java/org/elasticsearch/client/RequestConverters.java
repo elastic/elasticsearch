@@ -721,7 +721,7 @@ final class RequestConverters {
             .withWaitForStatus(healthRequest.waitForStatus())
             .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
             .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
-            .withWaitForActiveShards(healthRequest.waitForActiveShards())
+            .withWaitForActiveShards(healthRequest.waitForActiveShards(), ActiveShardCount.NONE)
             .withWaitForNodes(healthRequest.waitForNodes())
             .withWaitForEvents(healthRequest.waitForEvents())
             .withTimeout(healthRequest.timeout())
@@ -1047,7 +1047,11 @@ final class RequestConverters {
         }
 
         Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
-            if (activeShardCount != null && activeShardCount != ActiveShardCount.DEFAULT) {
+            return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
+        }
+
+        Params withWaitForActiveShards(ActiveShardCount activeShardCount, ActiveShardCount defaultActiveShardCount) {
+            if (activeShardCount != null && activeShardCount != defaultActiveShardCount) {
                 return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;

@@ -22,11 +22,11 @@ package org.elasticsearch.cluster.action.shard;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -52,10 +52,10 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -131,9 +131,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         tasks.addAll(failingTasks);
         tasks.addAll(nonExistentTasks);
         ClusterStateTaskExecutor.ClusterTasksResult<FailedShardEntry> result = failingExecutor.execute(currentState, tasks);
-        Map<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
-            failingTasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.failure(new RuntimeException("simulated applyFailedShards failure"))));
-        taskResultMap.putAll(nonExistentTasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.success())));
+        Map<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap = new IdentityHashMap<>();
+        for (FailedShardEntry failingTask : failingTasks) {
+            taskResultMap.put(failingTask,
+                ClusterStateTaskExecutor.TaskResult.failure(new RuntimeException("simulated applyFailedShards failure")));
+        }
+        for (FailedShardEntry nonExistentTask : nonExistentTasks) {
+            taskResultMap.put(nonExistentTask, ClusterStateTaskExecutor.TaskResult.success());
+        }
         assertTaskResults(taskResultMap, result, currentState, false);
     }
 
@@ -147,12 +152,13 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             tasks.add(new FailedShardEntry(failingTask.shardId, failingTask.allocationId,
                 randomIntBetween(1, (int) primaryTerm - 1), failingTask.message, failingTask.failure, randomBoolean()));
         }
-        Map<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
-            tasks.stream().collect(Collectors.toMap(
-                Function.identity(),
-                task -> ClusterStateTaskExecutor.TaskResult.failure(new ShardStateAction.NoLongerPrimaryShardException(task.shardId,
+        Map<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap = new IdentityHashMap<>();
+        for (FailedShardEntry task : tasks) {
+            taskResultMap.put(task,
+                ClusterStateTaskExecutor.TaskResult.failure(new ShardStateAction.NoLongerPrimaryShardException(task.shardId,
                     "primary term [" + task.primaryTerm + "] did not match current primary term [" +
-                        currentState.metaData().index(task.shardId.getIndex()).primaryTerm(task.shardId.id()) + "]"))));
+                        currentState.metaData().index(task.shardId.getIndex()).primaryTerm(task.shardId.id()) + "]")));
+        }
         ClusterStateTaskExecutor.ClusterTasksResult<FailedShardEntry> result = executor.execute(currentState, tasks);
         assertTaskResults(taskResultMap, result, currentState, false);
     }
@@ -251,8 +257,10 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         ClusterState clusterState,
         boolean clusterStateChanged
     ) {
-        Map<ShardStateAction.FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap =
-            tasks.stream().collect(Collectors.toMap(Function.identity(), task -> ClusterStateTaskExecutor.TaskResult.success()));
+        Map<ShardStateAction.FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap = new IdentityHashMap<>();
+        for (FailedShardEntry task : tasks) {
+            taskResultMap.put(task, ClusterStateTaskExecutor.TaskResult.success());
+        }
         assertTaskResults(taskResultMap, result, clusterState, clusterStateChanged);
     }
 

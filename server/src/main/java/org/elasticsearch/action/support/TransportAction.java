@@ -55,12 +55,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         this.taskManager = taskManager;
     }
 
-    public final ActionFuture<Response> execute(Request request) {
-        PlainActionFuture<Response> future = newFuture();
-        execute(request, future);
-        return future;
-    }
-
     /**
      * Use this method when the transport action call should result in creation of a new task associated with the call.
      *

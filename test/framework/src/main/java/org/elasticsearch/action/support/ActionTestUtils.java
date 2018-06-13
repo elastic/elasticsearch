@@ -17,16 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex.test;
+package org.elasticsearch.action.support;
 
-import com.carrotsearch.randomizedtesting.ThreadFilter;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 
-public class ObjectCleanerThreadThreadFilter implements ThreadFilter {
+import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
-    @Override
-    public boolean reject(final Thread t) {
-        // TODO: replace with constant from Netty when https://github.com/netty/netty/pull/8014 is integrated
-        return "ObjectCleanerThread".equals(t.getName());
+public class ActionTestUtils {
+
+    private ActionTestUtils() { /* no construction */ }
+
+    public static <Request extends ActionRequest, Response extends ActionResponse>
+    Response executeBlocking(TransportAction<Request, Response> action, Request request) {
+        PlainActionFuture<Response> future = newFuture();
+        action.execute(request, future);
+        return future.actionGet();
     }
-
 }

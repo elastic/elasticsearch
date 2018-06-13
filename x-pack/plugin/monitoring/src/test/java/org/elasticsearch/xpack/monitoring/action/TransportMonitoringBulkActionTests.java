@@ -7,10 +7,13 @@ package org.elasticsearch.xpack.monitoring.action;
 
 import java.util.concurrent.ExecutorService;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -49,7 +52,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.Version.CURRENT;
 import static org.hamcrest.Matchers.containsString;
@@ -119,7 +121,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                                                                                        monitoringService);
 
         final MonitoringBulkRequest request = randomRequest();
-        final ExecutionException e = expectThrows(ExecutionException.class, () -> action.execute(request).get());
+        final ClusterBlockException e = expectThrows(ClusterBlockException.class, () -> ActionTestUtils.executeBlocking(action, request));
 
         assertThat(e, hasToString(containsString("ClusterBlockException[blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
     }
@@ -138,7 +140,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
         request.add(doc);
 
-        final MonitoringBulkResponse response = action.execute(request).get();
+        final MonitoringBulkResponse response = ActionTestUtils.executeBlocking(action, request);
 
         assertThat(response.status(), is(RestStatus.OK));
         assertThat(response.isIgnored(), is(true));
@@ -155,13 +157,14 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                                                                                        monitoringService);
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
-        final ExecutionException e = expectThrows(ExecutionException.class, () -> action.execute(request).get());
+        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
+            () -> ActionTestUtils.executeBlocking(action, request));
 
         assertThat(e, hasToString(containsString("no monitoring documents added")));
     }
 
     @SuppressWarnings("unchecked")
-    public void testExecuteRequest() throws Exception {
+    public void testExecuteRequest() {
         when(monitoringService.isMonitoringActive()).thenReturn(true);
 
         final DiscoveryNode discoveryNode =  new DiscoveryNode("_id", new TransportAddress(TransportAddress.META_ADDRESS, 9300), CURRENT);
@@ -217,7 +220,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
                                                                                        transportService, filters, resolver, exporters,
                                                                                        monitoringService);
-        action.execute(request).get();
+        ActionTestUtils.executeBlocking(action, request);
 
         verify(threadPool).executor(ThreadPool.Names.GENERIC);
         verify(exporters).export(any(Collection.class), any(ActionListener.class));

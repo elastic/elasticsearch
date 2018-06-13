@@ -19,14 +19,12 @@
 
 package example;
 
+import com.sun.net.httpserver.HttpServer;
+
 import java.lang.management.ManagementFactory;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousServerSocketChannel;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.CompletionHandler;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,9 +39,9 @@ public class ExampleTestFixture {
             throw new IllegalArgumentException("ExampleTestFixture <logDirectory>");
         }
         Path dir = Paths.get(args[0]);
-        AsynchronousServerSocketChannel server = AsynchronousServerSocketChannel
-                .open()
-                .bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+
+        final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        final HttpServer httpServer = HttpServer.create(socketAddress, 0);
 
         // write pid file
         Path tmp = Files.createTempFile(dir, null, null);
@@ -53,7 +51,7 @@ public class ExampleTestFixture {
 
         // write port file
         tmp = Files.createTempFile(dir, null, null);
-        InetSocketAddress bound = (InetSocketAddress) server.getLocalAddress();
+        InetSocketAddress bound = httpServer.getAddress();
         if (bound.getAddress() instanceof Inet6Address) {
             Files.write(tmp, Collections.singleton("[" + bound.getHostString() + "]:" + bound.getPort()));
         } else {
@@ -61,21 +59,18 @@ public class ExampleTestFixture {
         }
         Files.move(tmp, dir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
 
-        // go time
-        server.accept(null, new CompletionHandler<AsynchronousSocketChannel,Void>() {
-            @Override
-            public void completed(AsynchronousSocketChannel socket, Void attachment) {
-                server.accept(null, this);
-                try (AsynchronousSocketChannel ch = socket) {
-                    ch.write(ByteBuffer.wrap("TEST\n".getBytes(StandardCharsets.UTF_8))).get();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
+        final byte[] response = "TEST\n".getBytes(StandardCharsets.UTF_8);
 
-            @Override
-            public void failed(Throwable exc, Void attachment) {}
+        // go time
+        httpServer.createContext("/", exchange -> {
+            try {
+                exchange.sendResponseHeaders(200, response.length);
+                exchange.getResponseBody().write(response);
+            } finally {
+                exchange.close();
+            }
         });
+        httpServer.start();
 
         // wait forever, until you kill me
         Thread.sleep(Long.MAX_VALUE);

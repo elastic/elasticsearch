@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.test.Netty4IntegTestCase;
+import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
-public class Netty4TransportMultiPortIntegrationIT extends Netty4IntegTestCase {
+public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase {
 
     private static int randomPort = -1;
     private static String randomPortRange;

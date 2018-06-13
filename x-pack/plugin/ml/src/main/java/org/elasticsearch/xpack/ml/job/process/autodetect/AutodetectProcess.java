@@ -117,7 +117,6 @@ public interface AutodetectProcess extends Closeable {
 
     /**
      * Ask the job to start persisting model state in the background
-     * @throws IOException
      */
     void persistJob() throws IOException;
 

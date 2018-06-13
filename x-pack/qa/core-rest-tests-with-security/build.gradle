@@ -15,8 +15,6 @@ integTestRunner {
     ['cat.aliases/10_basic/Empty cluster',
      'index/10_with_id/Index with ID',
      'indices.get_alias/10_basic/Get alias against closed indices',
-     'cat.templates/10_basic/Sort templates',
-     'cat.templates/10_basic/Multiple template',
     ].join(',')
 
   systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')

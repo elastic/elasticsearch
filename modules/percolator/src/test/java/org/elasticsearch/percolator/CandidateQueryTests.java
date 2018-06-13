@@ -870,8 +870,9 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        DocumentMapper d = mapperService.documentMapper("type");
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore,
-            Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT, d);
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
         assertEquals(2L, topDocs.totalHits);
         assertEquals(2, topDocs.scoreDocs.length);
@@ -1014,7 +1015,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "value1 value2 value3", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
+        DocumentMapper d = mapperService.documentMapper("type");
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v, d);
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
         assertEquals(2L, topDocs.totalHits);
         assertEquals(0, topDocs.scoreDocs[0].doc);
@@ -1041,6 +1043,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         directoryReader = DirectoryReader.open(directory);
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
+        DocumentMapper d = mapperService.documentMapper("type");
 
         Version v = Version.CURRENT;
         List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
@@ -1048,7 +1051,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "value1 value4 value5", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v, d);
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(0, topDocs.scoreDocs[0].doc);
@@ -1056,7 +1059,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "value1 value2", new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
-        query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
+        query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v, d);
         topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(0, topDocs.scoreDocs[0].doc);
@@ -1064,7 +1067,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "value3", new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
-        query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
+        query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v, d);
         topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(0, topDocs.scoreDocs[0].doc);
@@ -1099,7 +1102,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         document.add(new IntPoint("int_field", 7));
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
+        DocumentMapper d = mapperService.documentMapper("type");
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v, d);
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(0, topDocs.scoreDocs[0].doc);

@@ -527,7 +527,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
         // TODO: Fix LatLonBoundingBox.toString(...) so that the expected coordinates can be asserted here too:
         // (currently the min / max longitudes are incorrect due to a decoding bug)
-        assertThat(candidateQuery.clauses().get(0).getQuery().toString(), containsString(fieldName + ".bbox_field:<ranges:["));
+        assertThat(candidateQuery.clauses().get(0).getQuery().toString(), containsString(fieldName + ".bbox_field:<ranges:"));
 
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
         assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),

@@ -718,13 +718,13 @@ final class QueryAnalyzer {
 
             // Prefer range based extractions over bbox extractions:
             if (onlyBBoxBasedExtractions) {
-                for (QueryExtraction clause : extractions1) {
+                for (QueryExtraction clause : result1.extractions) {
                     if (clause.range != null) {
                         onlyBBoxBasedExtractions = false;
                         break;
                     }
                 }
-                for (QueryExtraction clause : extractions2) {
+                for (QueryExtraction clause : result2.extractions) {
                     if (clause.range != null) {
                         onlyBBoxBasedExtractions = false;
                         break;
@@ -733,17 +733,17 @@ final class QueryAnalyzer {
             }
 
             if (onlyBBoxBasedExtractions) {
-                BoundingBox smallestBBox1 = smallestBBox(extractions1);
-                BoundingBox smallestBBox2 = smallestBBox(extractions2);
+                BoundingBox smallestBBox1 = smallestBBox(result1.extractions);
+                BoundingBox smallestBBox2 = smallestBBox(result2.extractions);
                 if (smallestBBox1 == null) {
-                    return extractions2;
+                    return result2.unverify();
                 } else if (smallestBBox2 == null) {
-                    return extractions1;
+                    return result1.unverify();
                 }
                 if (Double.compare(smallestBBox1.diagonal, smallestBBox2.diagonal) <= 0) {
-                    return extractions1;
+                    return result1.unverify();
                 } else {
-                    return extractions2;
+                    return result2.unverify();
                 }
             } else if (onlyRangeBasedExtractions) {
                 BytesRef extraction1SmallestRange = smallestRange(result1.extractions);

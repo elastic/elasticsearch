@@ -31,6 +31,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.contains;
@@ -169,6 +170,28 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         Exception exception = expectThrows(IllegalStateException.class, () -> service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, true))));
         assertThat(exception.getMessage(), startsWith("alias [alias] has more than one write index ["));
+    }
+
+    public void testSwapWriteOnlyIndex() {
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test")
+            .putAlias(AliasMetaData.builder("alias").writeIndex(true).build())
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("test2")
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
+
+        Boolean unsetValue = randomBoolean() ? null : false;
+        List<AliasAction> swapActions = Arrays.asList(
+            new AliasAction.Add("test", "alias", null, null, null, unsetValue),
+            new AliasAction.Add("test2", "alias", null, null, null, true)
+        );
+        Collections.shuffle(swapActions, random());
+        ClusterState after = service.innerExecute(before, swapActions);
+        assertThat(after.metaData().index("test").getAliases().get("alias").writeIndex(), equalTo(unsetValue));
+        assertTrue(after.metaData().index("test2").getAliases().get("alias").writeIndex());
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test2")));
     }
 
     public void testAddWriteOnlyWithExistingNonWriteIndices() {

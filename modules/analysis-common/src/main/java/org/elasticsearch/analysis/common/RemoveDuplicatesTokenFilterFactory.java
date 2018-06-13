@@ -29,7 +29,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 /**
  * Filter factory for the lucene RemoveDuplicatesTokenFilter
  */
-public class RemoveDuplicatesTokenFilterFactory extends AbstractTokenFilterFactory {
+class RemoveDuplicatesTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public RemoveDuplicatesTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);

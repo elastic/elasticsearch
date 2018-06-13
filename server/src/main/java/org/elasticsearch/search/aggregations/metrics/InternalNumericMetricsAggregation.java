@@ -79,7 +79,12 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         public abstract double value(String name);
 
         public String valueAsString(String name) {
-            return format.format(value(name)).toString();
+            // Explicitly check for NaN, since it formats to "�" or "NaN" depending on JDK version
+            Double value = value(name);
+            if (value.isNaN()) {
+                return String.valueOf(Double.NaN);
+            }
+            return format.format(value).toString();
         }
 
         @Override

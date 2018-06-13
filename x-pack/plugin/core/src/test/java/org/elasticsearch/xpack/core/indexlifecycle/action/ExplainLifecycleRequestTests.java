@@ -12,6 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction.Request;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -19,7 +20,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
     protected Request createTestInstance() {
         Request request = new Request();
         if (randomBoolean()) {
-            request.indices(generateRandomStringArray(20, 20, false, false));
+            request.indices(generateRandomStringArray(20, 20, false, true));
         }
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
@@ -35,7 +36,8 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
         case 0:
-            indices = generateRandomStringArray(20, 10, false, false);
+            indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
+                    () -> generateRandomStringArray(20, 10, false, true));
             break;
         case 1:
             indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),

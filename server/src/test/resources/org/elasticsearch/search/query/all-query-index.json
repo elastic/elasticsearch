@@ -46,6 +46,10 @@
           "format": "yyyy/MM/dd||epoch_millis"
         },
         "f_bool": {"type": "boolean"},
+        "f_bool_alias": {
+          "type": "alias",
+          "path": "f_bool"
+        },
         "f_byte": {"type": "byte"},
         "f_short": {"type": "short"},
         "f_int": {"type": "integer"},

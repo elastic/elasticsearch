@@ -409,6 +409,38 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "3");
     }
 
+    public void testFieldAliasWithWildcardField() throws Exception {
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(client().prepareIndex("test", "_doc", "3").setSource("f3", "another value", "f2", "three"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("value").field("f3_*"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "2", "3");
+    }
+
+    public void testFieldAliasOnDisallowedFieldType() throws Exception {
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
+        indexRandom(true, false, indexRequests);
+
+        // The wildcard field matches aliases for both a text and boolean field.
+        // By default, the boolean field should be ignored when building the query.
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("text").field("f*_alias"))
+            .execute().actionGet();
+
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+    }
+
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();

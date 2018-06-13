@@ -59,7 +59,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.only;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -102,6 +102,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock,
             threadPool, () -> now);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
+        Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
 
     @After
@@ -120,8 +121,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
 
+        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
-        verify(clusterService, only()).addListener(any());
+        verify(clusterService, times(1)).addListener(any());
+        verify(clusterService, times(1)).addStateApplier(any());
+        Mockito.verifyNoMoreInteractions(clusterService);
         assertNull(indexLifecycleService.getScheduler());
     }
 
@@ -140,8 +144,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
 
+        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
-        verify(clusterService, only()).addListener(any());
+        verify(clusterService, times(1)).addListener(any());
+        verify(clusterService, times(1)).addStateApplier(any());
+        Mockito.verifyNoMoreInteractions(clusterService);
         assertNull(indexLifecycleService.getScheduler());
         assertNull(indexLifecycleService.getScheduledJob());
 
@@ -154,6 +161,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         // Check that when the node is first elected as master it sets up
         // the scheduler and job
+        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         Mockito.verifyZeroInteractions(clusterService);
         assertNotNull(indexLifecycleService.getScheduler());
@@ -168,6 +176,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         event = new ClusterChangedEvent("_source", state, state);
 
         // Check that when the node is un-elected as master it cancels the job
+        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         Mockito.verifyZeroInteractions(clusterService);
         assertNotNull(indexLifecycleService.getScheduler());
@@ -182,6 +191,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         event = new ClusterChangedEvent("_source", state, state);
 
         // Check that when the node is re-elected as master it cancels the job
+        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         Mockito.verifyZeroInteractions(clusterService);
         assertNotNull(indexLifecycleService.getScheduler());
@@ -209,10 +219,13 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
 
+        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
 
-        verify(clusterService).addListener(any());
+        verify(clusterService, times(1)).addListener(any());
+        verify(clusterService, times(1)).addStateApplier(any());
         verify(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        Mockito.verifyNoMoreInteractions(clusterService);
         assertNull(indexLifecycleService.getScheduler());
     }
 
@@ -234,19 +247,26 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, previousState);
 
-        indexLifecycleService.clusterChanged(new ClusterChangedEvent("_source", previousState, previousState));
+        ClusterChangedEvent noChangeEvent = new ClusterChangedEvent("_source", previousState, previousState);
+        indexLifecycleService.applyClusterState(noChangeEvent);
+        indexLifecycleService.clusterChanged(noChangeEvent);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(),
                 equalTo(TimeValue.timeValueSeconds(3)));
+        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(), equalTo(pollInterval));
-        indexLifecycleService.clusterChanged(new ClusterChangedEvent("_source", currentState, currentState));
+        noChangeEvent = new ClusterChangedEvent("_source", currentState, currentState);
+        indexLifecycleService.applyClusterState(noChangeEvent);
+        indexLifecycleService.clusterChanged(noChangeEvent);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(), equalTo(pollInterval));
 
-        verify(clusterService, only()).addListener(any());
+        verify(clusterService, times(1)).addListener(any());
+        verify(clusterService, times(1)).addStateApplier(any());
         verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testInstallMetadataFail() {
@@ -265,8 +285,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Exception exception = expectThrows(RuntimeException.class, () -> indexLifecycleService.clusterChanged(event));
         assertThat(exception.getMessage(), equalTo("error"));
 
-        verify(clusterService).addListener(any());
+        verify(clusterService, times(1)).addListener(any());
+        verify(clusterService, times(1)).addStateApplier(any());
         verify(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        Mockito.verifyNoMoreInteractions(clusterService);
         assertNull(indexLifecycleService.getScheduler());
     }
 

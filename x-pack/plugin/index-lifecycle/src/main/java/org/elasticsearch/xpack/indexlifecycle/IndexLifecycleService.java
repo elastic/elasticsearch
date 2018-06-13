@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -39,7 +40,8 @@ import java.util.function.LongSupplier;
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
-public class IndexLifecycleService extends AbstractComponent implements ClusterStateListener, SchedulerEngine.Listener, Closeable {
+public class IndexLifecycleService extends AbstractComponent
+        implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkAction.NAME);
 
@@ -64,6 +66,7 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry();
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
+        clusterService.addStateApplier(this);
         clusterService.addListener(this);
     }
 
@@ -103,11 +106,6 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
 
             boolean pollIntervalSettingChanged = !pollInterval.equals(previousPollInterval);
 
-            if (lifecycleMetadata != null && event.changedCustomMetaDataSet().contains(IndexLifecycleMetadata.TYPE)) {
-                // update policy steps registry
-                policyRegistry.update(event.state(), client, nowSupplier);
-            }
-
             if (lifecycleMetadata == null) { // no lifecycle metadata, install initial empty metadata state
                 lifecycleMetadata = new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.NORMAL);
                 installMetadata(lifecycleMetadata);
@@ -124,6 +122,18 @@ public class IndexLifecycleService extends AbstractComponent implements ClusterS
             triggerPolicies(event.state(), true);
         } else {
             cancelJob();
+        }
+    }
+
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
+        if (event.localNodeMaster()) { // only act if we are master, otherwise
+                                       // keep idle until elected
+            IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+            if (lifecycleMetadata != null && event.changedCustomMetaDataSet().contains(IndexLifecycleMetadata.TYPE)) {
+                // update policy steps registry
+                policyRegistry.update(event.state(), client, nowSupplier);
+            }
         }
     }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
@@ -31,9 +31,9 @@ import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.LLHttpRequest;
-import org.elasticsearch.http.LLHttpResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -43,19 +43,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class LLNioHttpRequest implements LLHttpRequest {
-
+public class LLNetty4HttpRequest implements LLHttpRequest {
     private final FullHttpRequest request;
     private final BytesReference content;
     private final HttpHeadersMap headers;
     private final int sequence;
 
-    LLNioHttpRequest(FullHttpRequest request, int sequence) {
+    LLNetty4HttpRequest(FullHttpRequest request, int sequence) {
         this.request = request;
         headers = new HttpHeadersMap(request.headers());
         this.sequence = sequence;
         if (request.content().isReadable()) {
-            this.content = ByteBufUtils.toBytesReference(request.content());
+            this.content = Netty4Utils.toBytesReference(request.content());
         } else {
             this.content = BytesArray.EMPTY;
         }
@@ -148,12 +147,12 @@ public class LLNioHttpRequest implements LLHttpRequest {
         trailingHeaders.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
             request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new LLNioHttpRequest(requestWithoutHeader, sequence);
+        return new LLNetty4HttpRequest(requestWithoutHeader, sequence);
     }
 
     @Override
-    public NioHttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new NioHttpResponse(this, status, content);
+    public LLNetty4HttpResponse createResponse(RestStatus status, BytesReference content) {
+        return new LLNetty4HttpResponse(this, status, content);
     }
 
     FullHttpRequest nettyRequest() {

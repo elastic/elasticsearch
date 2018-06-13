@@ -39,6 +39,7 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
@@ -388,6 +389,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpChannelHandler(this, handlingSettings, threadPool.getThreadContext());
     }
 
+    static final AttributeKey<NewNetty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
+
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
@@ -405,6 +408,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            NewNetty4HttpChannel nettyTcpChannel = new NewNetty4HttpChannel(ch);
+            ch.attr(HTTP_CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(

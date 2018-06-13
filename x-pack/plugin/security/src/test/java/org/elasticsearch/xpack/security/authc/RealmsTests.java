@@ -142,23 +142,6 @@ public class RealmsTests extends ESTestCase {
         }
     }
 
-    public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
-        Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.realm_1.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.realm_1.order", 0)
-                .put("xpack.security.authc.realms.realm_2.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.realm_2.order", 1)
-                .put("path.home", createTempDir())
-                .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        try {
-            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("multiple [file] realms are configured"));
-        }
-    }
-
     public void testWithEmptySettings() throws Exception {
         Realms realms = new Realms(Settings.EMPTY, TestEnvironment.newEnvironment(Settings.builder().put("path.home",
                 createTempDir()).build()), factories, licenseState, threadContext, reservedRealm);

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
@@ -33,6 +34,7 @@ public final class InternalRealmsSettings {
         map.put(LdapRealmSettings.LDAP_TYPE, LdapRealmSettings.getSettings(LdapRealmSettings.LDAP_TYPE));
         map.put(PkiRealmSettings.TYPE, PkiRealmSettings.getSettings());
         map.put(SamlRealmSettings.TYPE, SamlRealmSettings.getSettings());
+        map.put(KerberosRealmSettings.TYPE, KerberosRealmSettings.getSettings());
         return Collections.unmodifiableMap(map);
     }
 }

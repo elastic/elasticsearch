@@ -5,16 +5,17 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 
 public class UsernamePasswordToken implements AuthenticationToken {
 
@@ -94,19 +95,19 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         // if there is nothing after the prefix, the header is bad
         if (headerValue.length() == BASIC_AUTH_PREFIX.length()) {
-            throw authenticationError("invalid basic authentication header value");
+            throw unauthorized("invalid basic authentication header value", null);
         }
 
         char[] userpasswd;
         try {
             userpasswd = CharArrays.utf8BytesToChars(Base64.getDecoder().decode(headerValue.substring(BASIC_AUTH_PREFIX.length()).trim()));
         } catch (IllegalArgumentException e) {
-            throw authenticationError("invalid basic authentication header encoding", e);
+            throw unauthorized("invalid basic authentication header encoding", e);
         }
 
         int i = CharArrays.indexOf(userpasswd, ':');
         if (i < 0) {
-            throw authenticationError("invalid basic authentication header value");
+            throw unauthorized("invalid basic authentication header value", null);
         }
 
         return new UsernamePasswordToken(
@@ -118,4 +119,9 @@ public class UsernamePasswordToken implements AuthenticationToken {
         context.putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue(token.username, token.password));
     }
 
+    static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
+        ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
+        ese.addHeader("WWW-Authenticate", "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"");
+        return ese;
+    }
 }

@@ -110,7 +110,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         return Objects.equals(otherKerbToken.credentials(), credentials());
     }
 
-    private static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
+    static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
         ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER.trim());
         return ese;

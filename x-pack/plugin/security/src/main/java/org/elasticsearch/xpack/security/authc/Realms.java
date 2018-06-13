@@ -150,14 +150,10 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
     protected List<Realm> initRealms() throws Exception {
         Settings realmsSettings = RealmSettings.get(settings);
-        Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
-            if (type == null) {
-                throw new IllegalArgumentException("missing realm type for [" + name + "] realm");
-            }
             Realm.Factory factory = factories.get(type);
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + type + "] set for realm [" + name + "]");
@@ -168,15 +164,6 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
                     logger.debug("realm [{}/{}] is disabled", type, name);
                 }
                 continue;
-            }
-            if (FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type)) {
-                // this is an internal realm factory, let's make sure we didn't already registered one
-                // (there can only be one instance of an internal realm)
-                if (internalTypes.contains(type)) {
-                    throw new IllegalArgumentException("multiple [" + type + "] realms are configured. [" + type +
-                            "] is an internal realm and therefore there can only be one such realm configured");
-                }
-                internalTypes.add(type);
             }
             realms.add(factory.create(config));
         }

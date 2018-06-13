@@ -511,7 +511,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 "just one entry this time")));
     }
 
-    public void testNodeSelector() throws IOException {
+    public void testNodeSelectorByVersion() throws IOException {
         parser = createParser(YamlXContent.yamlXContent,
                 "node_selector:\n" +
                 "    version: 5.2.0-6.0.0\n" +
@@ -521,10 +521,10 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         DoSection doSection = DoSection.parse(parser);
         assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        Node v170 = nodeWithVersion("1.7.0");
-        Node v521 = nodeWithVersion("5.2.1");
-        Node v550 = nodeWithVersion("5.5.0");
-        Node v612 = nodeWithVersion("6.1.2");
+        Node v170 = new Node(new HttpHost("dummy"), null, null, "1.7.0", null);
+        Node v521 = new Node(new HttpHost("dummy"), null, null, "5.2.1", null);
+        Node v550 = new Node(new HttpHost("dummy"), null, null, "5.5.0", null);
+        Node v612 = new Node(new HttpHost("dummy"), null, null, "6.1.2", null);
         List<Node> nodes = new ArrayList<>();
         nodes.add(v170);
         nodes.add(v521);
@@ -541,8 +541,61 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
     }
 
-    private Node nodeWithVersion(String version) {
-        return new Node(new HttpHost("dummy"), null, null, version, null);
+    public void testNodeSelectorByName() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    name: cat\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node cat = new Node(new HttpHost("dummy"), null, "cat", null, null);
+        Node dog = new Node(new HttpHost("dummy"), null, "dog", null, null);
+        Node pig = new Node(new HttpHost("dummy"), null, "pig", null, null);
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(cat);
+        nodes.add(dog);
+        nodes.add(pig);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(Arrays.asList(cat), nodes);
+        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
+        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
+        when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector())).thenReturn(mockResponse);
+        doSection.execute(context);
+        verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
+    }
+
+    public void testNodeSelectorByTwoThings() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    name: cat\n" +
+                "    version: 5.2.0-6.0.0\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node cat = new Node(new HttpHost("dummy"), null, "cat", "5.2.1", null);
+        Node badName = new Node(new HttpHost("dummy"), null, "dog", "5.2.1", null);
+        Node badVersion = new Node(new HttpHost("dummy"), null, "cat", "6.1.2", null);
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(cat);
+        nodes.add(badName);
+        nodes.add(badVersion);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(Arrays.asList(cat), nodes);
+        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
+        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
+        when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector())).thenReturn(mockResponse);
+        doSection.execute(context);
+        verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
     }
 
     private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

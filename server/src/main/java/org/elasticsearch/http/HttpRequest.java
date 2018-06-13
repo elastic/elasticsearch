@@ -26,7 +26,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.List;
 import java.util.Map;
 
-public interface LLHttpRequest {
+public interface HttpRequest {
 
     enum HttpVersion {
         HTTP_1_0,
@@ -51,8 +51,8 @@ public interface LLHttpRequest {
 
     HttpVersion protocolVersion();
 
-    LLHttpRequest removeHeader(String header);
+    HttpRequest removeHeader(String header);
 
-    LLHttpResponse createResponse(RestStatus status, BytesReference content);
+    HttpResponse createResponse(RestStatus status, BytesReference content);
 
 }

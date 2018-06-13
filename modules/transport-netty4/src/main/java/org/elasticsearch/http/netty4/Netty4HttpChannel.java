@@ -22,11 +22,11 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.http.LLHttpChannel;
-import org.elasticsearch.http.LLHttpResponse;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
-public class Netty4HttpChannel implements LLHttpChannel {
+public class Netty4HttpChannel implements HttpChannel {
 
     private final Channel channel;
 
@@ -35,7 +35,7 @@ public class Netty4HttpChannel implements LLHttpChannel {
     }
 
     @Override
-    public void sendResponse(LLHttpResponse response, ActionListener<Void> listener) {
+    public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
         ChannelPromise writePromise = channel.newPromise();
         writePromise.addListener(f -> {
             if (f.isSuccess()) {

@@ -4,7 +4,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpPipelinedMessage;
-import org.elasticsearch.http.LLHttpResponse;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -12,11 +12,11 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
-public class LLNetty4HttpResponse extends DefaultFullHttpResponse implements LLHttpResponse, HttpPipelinedMessage {
+public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpResponse, HttpPipelinedMessage {
 
     private final int sequence;
 
-    LLNetty4HttpResponse(LLNetty4HttpRequest request, RestStatus status, BytesReference content) {
+    Netty4HttpResponse(Netty4HttpRequest request, RestStatus status, BytesReference content) {
         super(request.nettyRequest().protocolVersion(), getStatus(status), Netty4Utils.toByteBuf(content));
         this.sequence = request.sequence();
     }

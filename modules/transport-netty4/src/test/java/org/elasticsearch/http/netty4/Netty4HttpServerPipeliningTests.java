@@ -185,8 +185,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
             final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-            LLNetty4HttpRequest httpRequest = new LLNetty4HttpRequest(fullHttpRequest, pipelinedRequest.getSequence());
-            LLNetty4HttpResponse response = httpRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
+            Netty4HttpRequest httpRequest = new Netty4HttpRequest(fullHttpRequest, pipelinedRequest.getSequence());
+            Netty4HttpResponse response = httpRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
             response.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
 
             final boolean slow = uri.matches("/slow/\\d+");

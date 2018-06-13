@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.LLHttpChannel;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -52,7 +52,7 @@ public class SecurityRestFilter implements RestHandler {
         if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (extractClientCertificate) {
-                LLHttpChannel httpChannel = request.getHttpChannel();
+                HttpChannel httpChannel = request.getHttpChannel();
                 Channel nettyChannel = ((Netty4HttpChannel) httpChannel).getNettyChannel();
                 SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
                 assert handler != null;

@@ -30,7 +30,7 @@ import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.http.LLHttpRequest;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -43,13 +43,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class LLNetty4HttpRequest implements LLHttpRequest {
+public class Netty4HttpRequest implements HttpRequest {
     private final FullHttpRequest request;
     private final BytesReference content;
     private final HttpHeadersMap headers;
     private final int sequence;
 
-    LLNetty4HttpRequest(FullHttpRequest request, int sequence) {
+    Netty4HttpRequest(FullHttpRequest request, int sequence) {
         this.request = request;
         headers = new HttpHeadersMap(request.headers());
         this.sequence = sequence;
@@ -129,16 +129,16 @@ public class LLNetty4HttpRequest implements LLHttpRequest {
     @Override
     public HttpVersion protocolVersion() {
         if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
-            return LLHttpRequest.HttpVersion.HTTP_1_0;
+            return HttpRequest.HttpVersion.HTTP_1_0;
         } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
-            return LLHttpRequest.HttpVersion.HTTP_1_1;
+            return HttpRequest.HttpVersion.HTTP_1_1;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }
     }
 
     @Override
-    public LLHttpRequest removeHeader(String header) {
+    public HttpRequest removeHeader(String header) {
         HttpHeaders headersWithoutContentTypeHeader = new DefaultHttpHeaders();
         headersWithoutContentTypeHeader.add(request.headers());
         headersWithoutContentTypeHeader.remove(header);
@@ -147,12 +147,12 @@ public class LLNetty4HttpRequest implements LLHttpRequest {
         trailingHeaders.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
             request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new LLNetty4HttpRequest(requestWithoutHeader, sequence);
+        return new Netty4HttpRequest(requestWithoutHeader, sequence);
     }
 
     @Override
-    public LLNetty4HttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new LLNetty4HttpResponse(this, status, content);
+    public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
+        return new Netty4HttpResponse(this, status, content);
     }
 
     FullHttpRequest nettyRequest() {

@@ -53,7 +53,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
                     request.headers(),
                     request.trailingHeaders());
 
-            LLNetty4HttpRequest httpRequest = new LLNetty4HttpRequest(copiedRequest, msg.getSequence());
+            Netty4HttpRequest httpRequest = new Netty4HttpRequest(copiedRequest, msg.getSequence());
 
             if (request.decoderResult().isFailure()) {
                 Throwable cause = request.decoderResult().cause();

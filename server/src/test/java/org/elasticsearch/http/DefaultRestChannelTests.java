@@ -68,11 +68,11 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
-    private LLHttpChannel httpChannel;
+    private HttpChannel httpChannel;
 
     @Before
     public void setup() {
-        httpChannel = mock(LLHttpChannel.class);
+        httpChannel = mock(HttpChannel.class);
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
@@ -180,7 +180,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
-        final TestRequest httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(DefaultRestChannel.X_OPAQUE_ID, Collections.singletonList("abc"));
         final RestRequest request = NewRestRequest.request(xContentRegistry(), httpRequest);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
@@ -208,7 +208,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testCookiesSet() {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
-        final TestRequest httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(DefaultRestChannel.X_OPAQUE_ID, Collections.singletonList("abc"));
         final RestRequest request = NewRestRequest.request(xContentRegistry(), httpRequest);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
@@ -230,7 +230,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testReleaseInListener() throws IOException {
         final Settings settings = Settings.builder().build();
-        final TestRequest httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         final RestRequest request = NewRestRequest.request(xContentRegistry(), httpRequest);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
@@ -267,15 +267,15 @@ public class DefaultRestChannelTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testConnectionClose() throws Exception {
         final Settings settings = Settings.builder().build();
-        final LLHttpRequest httpRequest;
+        final HttpRequest httpRequest;
         final boolean close = randomBoolean();
         if (randomBoolean()) {
-            httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+            httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
             if (close) {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.CLOSE));
             }
         } else {
-            httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_0, RestRequest.Method.GET, "/");
+            httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_0, RestRequest.Method.GET, "/");
             if (!close) {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.KEEP_ALIVE));
             }
@@ -308,7 +308,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     private TestResponse executeRequest(final Settings settings, final String originValue, final String host) {
-        LLHttpRequest httpRequest = new TestRequest(LLHttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        HttpRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         // TODO: These exist for the Cors tests
 //        if (originValue != null) {
 //            httpRequest.headers().add(HttpHeaderNames.ORIGIN, originValue);
@@ -327,7 +327,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         return responseCaptor.getValue();
     }
 
-    private static class TestRequest implements LLHttpRequest {
+    private static class TestRequest implements HttpRequest {
 
         private final HttpVersion version;
         private final RestRequest.Method method;
@@ -372,17 +372,17 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         @Override
-        public LLHttpRequest removeHeader(String header) {
+        public HttpRequest removeHeader(String header) {
             throw new UnsupportedOperationException("Do not support removing header on test request.");
         }
 
         @Override
-        public LLHttpResponse createResponse(RestStatus status, BytesReference content) {
+        public HttpResponse createResponse(RestStatus status, BytesReference content) {
             return new TestResponse(status, content);
         }
     }
 
-    private static class TestResponse implements LLHttpResponse {
+    private static class TestResponse implements HttpResponse {
 
         private final RestStatus status;
         private final BytesReference content;

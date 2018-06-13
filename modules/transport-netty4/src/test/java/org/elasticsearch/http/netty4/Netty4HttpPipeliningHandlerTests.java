@@ -19,21 +19,16 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
@@ -60,7 +55,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;
 
@@ -199,8 +193,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
             HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = requests.get(i);
-            LLNetty4HttpRequest nioHttpRequest = new LLNetty4HttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
-            LLNetty4HttpResponse resp = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
+            Netty4HttpRequest nioHttpRequest = new Netty4HttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
+            Netty4HttpResponse resp = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -252,8 +246,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
             final String uri = decoder.path().replace("/", "");
             final BytesReference content = new BytesArray(uri.getBytes(StandardCharsets.UTF_8));
-            LLNetty4HttpRequest nioHttpRequest = new LLNetty4HttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
-            LLNetty4HttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, content);
+            Netty4HttpRequest nioHttpRequest = new Netty4HttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
+            Netty4HttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, content);
             httpResponse.addHeader(CONTENT_LENGTH.toString(), Integer.toString(content.length()));
 
             final CountDownLatch waitingLatch = new CountDownLatch(1);

@@ -19,15 +19,10 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.action.ActionListener;
+public interface HttpResponse {
 
-import java.io.Closeable;
+    void addHeader(String name, String value);
 
-public interface LLHttpChannel extends Closeable {
-
-    void sendResponse(LLHttpResponse response, ActionListener<Void> listener);
-
-    @Override
-    void close();
+    boolean containsHeader(String name);
 
 }

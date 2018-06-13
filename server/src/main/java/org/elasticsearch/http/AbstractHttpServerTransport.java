@@ -186,15 +186,15 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    public void incomingRequest(final LLHttpRequest httpRequest, final LLHttpChannel httpChannel) {
+    public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         incomingRequest0(httpRequest, httpChannel, null);
     }
 
-    public void incomingRequestError(final LLHttpRequest httpRequest, final LLHttpChannel httpChannel, final Exception exception) {
+    public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         incomingRequest0(httpRequest, httpChannel, exception);
     }
 
-    private void incomingRequest0(final LLHttpRequest httpRequest, final LLHttpChannel httpChannel, final Exception exception) {
+    private void incomingRequest0(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         Exception badRequestCause = exception;
 
         /*
@@ -208,13 +208,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                innerRestRequest = NewRestRequest.request(xContentRegistry, httpRequest);
+                innerRestRequest = NewRestRequest.request(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.ContentTypeHeaderException e) {
                 badRequestCause = getException(badRequestCause, e);
-                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, badRequestCause);
+                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = getException(badRequestCause, e);
-                innerRestRequest =  NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest);
+                innerRestRequest =  NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
         }
@@ -234,7 +234,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             } catch (final IllegalArgumentException e) {
                 badRequestCause = getException(badRequestCause, e);
                 // TODO: Should we rewrite the original request?
-                final RestRequest innerRequest = NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest);
+                final RestRequest innerRequest = NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
             }
             channel = innerChannel;
@@ -250,13 +250,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    private RestRequest requestWithoutContentTypeHeader(LLHttpRequest httpRequest, Exception badRequestCause) {
-        LLHttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
+    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
+        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
         try {
-            return NewRestRequest.request(xContentRegistry, httpRequestWithoutContentType);
+            return NewRestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType);
+            return NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         }
     }
 

@@ -21,21 +21,20 @@ package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpPipelinedMessage;
-import org.elasticsearch.http.LLHttpResponse;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
-public class NioHttpResponse extends DefaultFullHttpResponse implements LLHttpResponse, HttpPipelinedMessage {
+public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResponse, HttpPipelinedMessage {
 
     private final int sequence;
 
-    NioHttpResponse(LLNioHttpRequest request, RestStatus status, BytesReference content) {
+    NioHttpResponse(NioHttpRequest request, RestStatus status, BytesReference content) {
         super(request.nettyRequest().protocolVersion(), getStatus(status), ByteBufUtils.toByteBuf(content));
         this.sequence = request.sequence();
     }

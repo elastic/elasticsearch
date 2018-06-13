@@ -143,7 +143,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
         assertTrue(embeddedChannel.isOpen());
     }
-    
+
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),
@@ -192,7 +192,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
             HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = requests.get(i);
-            LLNioHttpRequest nioHttpRequest = new LLNioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
+            NioHttpRequest nioHttpRequest = new NioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
             NioHttpResponse resp = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
             embeddedChannel.writeAndFlush(resp, promise);
         }
@@ -244,7 +244,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
             final String uri = decoder.path().replace("/", "");
             final BytesReference content = new BytesArray(uri.getBytes(StandardCharsets.UTF_8));
-            LLNioHttpRequest nioHttpRequest = new LLNioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
+            NioHttpRequest nioHttpRequest = new NioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
             NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, content);
             httpResponse.addHeader(CONTENT_LENGTH.toString(), Integer.toString(content.length()));
 

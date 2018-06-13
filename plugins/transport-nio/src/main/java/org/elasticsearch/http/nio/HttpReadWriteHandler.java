@@ -134,7 +134,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
                     request.headers(),
                     request.trailingHeaders());
 
-            LLNioHttpRequest httpRequest = new LLNioHttpRequest(copiedRequest, pipelinedRequest.getSequence());
+            NioHttpRequest httpRequest = new NioHttpRequest(copiedRequest, pipelinedRequest.getSequence());
 
             if (request.decoderResult().isFailure()) {
                 Throwable cause = request.decoderResult().cause();

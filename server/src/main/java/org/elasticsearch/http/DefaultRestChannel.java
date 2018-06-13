@@ -46,13 +46,13 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String SET_COOKIE = "set-cookie";
     static final String X_OPAQUE_ID = "X-Opaque-Id";
 
-    private final LLHttpRequest httpRequest;
+    private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
     private final HttpHandlingSettings settings;
     private final ThreadContext threadContext;
-    private final LLHttpChannel httpChannel;
+    private final HttpChannel httpChannel;
 
-    DefaultRestChannel(LLHttpChannel httpChannel, LLHttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
+    DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
                        HttpHandlingSettings settings, ThreadContext threadContext) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
@@ -69,7 +69,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        LLHttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.content());
+        HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.content());
         // TODO: Ideally we should move the setting of Cors headers into :server
         // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 
@@ -117,17 +117,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     }
 
-    private void setHeaderField(LLHttpResponse response, String headerField, String value) {
+    private void setHeaderField(HttpResponse response, String headerField, String value) {
         setHeaderField(response, headerField, value, true);
     }
 
-    private void setHeaderField(LLHttpResponse response, String headerField, String value, boolean override) {
+    private void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
         if (override || !response.containsHeader(headerField)) {
             response.addHeader(headerField, value);
         }
     }
 
-    private void addCustomHeaders(LLHttpResponse response, Map<String, List<String>> customHeaders) {
+    private void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {
@@ -137,7 +137,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         }
     }
 
-    private void addCookies(LLHttpResponse response) {
+    private void addCookies(HttpResponse response) {
         if (settings.isResetCookies()) {
             List<String> cookies = request.getHttpRequest().strictCookies();
             if (cookies.isEmpty() == false) {
@@ -156,6 +156,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     // Determine if the request protocol version is HTTP 1.0
     private boolean isHttp10() {
-        return request.getHttpRequest().protocolVersion() == LLHttpRequest.HttpVersion.HTTP_1_0;
+        return request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
     }
 }

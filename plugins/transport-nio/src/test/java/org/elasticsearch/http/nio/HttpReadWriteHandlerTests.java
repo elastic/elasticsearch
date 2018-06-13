@@ -25,9 +25,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
-import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
@@ -36,11 +34,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.LLHttpChannel;
-import org.elasticsearch.http.LLHttpRequest;
-import org.elasticsearch.http.LLHttpResponse;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
@@ -113,7 +110,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {
         String uri = "localhost:9090/" + randomAlphaOfLength(8);
-        HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
+        io.netty.handler.codec.http.HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
 
         ByteBuf buf = requestEncoder.encode(httpRequest);
         int slicePoint = randomInt(buf.writerIndex() - 1);
@@ -122,21 +119,21 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         ByteBuf slicedBuf2 = buf.retainedSlice(slicePoint, buf.writerIndex());
         handler.consumeReads(toChannelBuffer(slicedBuf));
 
-        verify(transport, times(0)).incomingRequest(any(LLHttpRequest.class), any(NioLLHttpChannel.class));
+        verify(transport, times(0)).incomingRequest(any(HttpRequest.class), any(NioLLHttpChannel.class));
 
         handler.consumeReads(toChannelBuffer(slicedBuf2));
 
-        ArgumentCaptor<LLHttpRequest> requestCaptor = ArgumentCaptor.forClass(LLHttpRequest.class);
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         verify(transport).incomingRequest(requestCaptor.capture(), any(NioLLHttpChannel.class));
 
-        LLHttpRequest nioHttpRequest = requestCaptor.getValue();
-        assertEquals(LLHttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
+        HttpRequest nioHttpRequest = requestCaptor.getValue();
+        assertEquals(HttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
         assertEquals(RestRequest.Method.GET, nioHttpRequest.method());
     }
 
     public void testDecodeHttpRequestError() throws IOException {
         String uri = "localhost:9090/" + randomAlphaOfLength(8);
-        HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
+        io.netty.handler.codec.http.HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
 
         ByteBuf buf = requestEncoder.encode(httpRequest);
         buf.setByte(0, ' ');
@@ -146,14 +143,14 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         handler.consumeReads(toChannelBuffer(buf));
 
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
-        verify(transport).incomingRequestError(any(LLHttpRequest.class), any(NioLLHttpChannel.class), exceptionCaptor.capture());
+        verify(transport).incomingRequestError(any(HttpRequest.class), any(NioLLHttpChannel.class), exceptionCaptor.capture());
 
         assertTrue(exceptionCaptor.getValue() instanceof IllegalArgumentException);
     }
 
     public void testDecodeHttpRequestContentLengthToLongGeneratesOutboundMessage() throws IOException {
         String uri = "localhost:9090/" + randomAlphaOfLength(8);
-        HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, uri, false);
+        io.netty.handler.codec.http.HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, uri, false);
         HttpUtil.setContentLength(httpRequest, 1025);
         HttpUtil.setKeepAlive(httpRequest, false);
 
@@ -168,7 +165,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         assertFalse(flushOperations.isEmpty());
 
         FlushOperation flushOperation = flushOperations.get(0);
-        HttpResponse response = responseDecoder.decode(Unpooled.wrappedBuffer(flushOperation.getBuffersToWrite()));
+        io.netty.handler.codec.http.HttpResponse response = responseDecoder.decode(Unpooled.wrappedBuffer(flushOperation.getBuffersToWrite()));
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
         assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
 
@@ -183,14 +180,14 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         prepareHandlerForResponse(handler);
 
         DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-        LLNioHttpRequest nioHttpRequest = new LLNioHttpRequest(nettyRequest, 0);
+        NioHttpRequest nioHttpRequest = new NioHttpRequest(nettyRequest, 0);
         NioHttpResponse pipelinedResponse = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
 
         SocketChannelContext context = mock(SocketChannelContext.class);
         HttpWriteOperation writeOperation = new HttpWriteOperation(context, pipelinedResponse, mock(BiConsumer.class));
         List<FlushOperation> flushOperations = handler.writeToBytes(writeOperation);
 
-        HttpResponse response = responseDecoder.decode(Unpooled.wrappedBuffer(flushOperations.get(0).getBuffersToWrite()));
+        io.netty.handler.codec.http.HttpResponse response = responseDecoder.decode(Unpooled.wrappedBuffer(flushOperations.get(0).getBuffersToWrite()));
 
         assertEquals(HttpResponseStatus.OK, response.status());
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
@@ -201,7 +198,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
             .build();
-        HttpResponse response = executeCorsRequest(settings, "remote-host", "request-host");
+        io.netty.handler.codec.http.HttpResponse response = executeCorsRequest(settings, "remote-host", "request-host");
         // inspect response and validate
         assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
     }
@@ -213,7 +210,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
             .build();
-        HttpResponse response = executeCorsRequest(settings, originValue, "request-host");
+        io.netty.handler.codec.http.HttpResponse response = executeCorsRequest(settings, originValue, "request-host");
         // inspect response and validate
         assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
         String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
@@ -227,7 +224,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .build();
-        HttpResponse response = executeCorsRequest(settings, originValue, host);
+        io.netty.handler.codec.http.HttpResponse response = executeCorsRequest(settings, originValue, host);
         // inspect response and validate
         assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
         String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
@@ -261,7 +258,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
-        HttpResponse response = executeCorsRequest(settings, originValue, "request-host");
+        io.netty.handler.codec.http.HttpResponse response = executeCorsRequest(settings, originValue, "request-host");
         // inspect response and validate
         assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
         String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
@@ -275,7 +272,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
             .build();
-        HttpResponse response = executeCorsRequest(settings, originValue, "request-host");
+        io.netty.handler.codec.http.HttpResponse response = executeCorsRequest(settings, originValue, "request-host");
         // inspect response and validate
         assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
         String allowedOrigins = response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN);
@@ -283,7 +280,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         assertThat(response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS), nullValue());
     }
 
-    private HttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {
+    private io.netty.handler.codec.http.HttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         NioCorsConfig nioCorsConfig = NioHttpServerTransport.buildCorsConfig(settings);
         HttpReadWriteHandler handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, nioCorsConfig);
@@ -293,8 +290,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, originValue);
         }
         httpRequest.headers().add(HttpHeaderNames.HOST, host);
-        LLNioHttpRequest nioHttpRequest = new LLNioHttpRequest(httpRequest, 0);
-        LLHttpResponse response = nioHttpRequest.createResponse(RestStatus.OK, new BytesArray("content".getBytes(StandardCharsets.UTF_8)));
+        NioHttpRequest nioHttpRequest = new NioHttpRequest(httpRequest, 0);
+        HttpResponse response = nioHttpRequest.createResponse(RestStatus.OK, new BytesArray("content".getBytes(StandardCharsets.UTF_8)));
 
         SocketChannelContext context = mock(SocketChannelContext.class);
         List<FlushOperation> flushOperations = handler.writeToBytes(handler.createWriteOperation(context, response, (v, e) -> {}));
@@ -305,26 +302,26 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
 
 
-    private LLNioHttpRequest prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
+    private NioHttpRequest prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;
         HttpVersion version = randomBoolean() ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
 
-        HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
+        io.netty.handler.codec.http.HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
         ByteBuf buf = requestEncoder.encode(request);
 
         handler.consumeReads(toChannelBuffer(buf));
 
-        ArgumentCaptor<LLNioHttpRequest> requestCaptor = ArgumentCaptor.forClass(LLNioHttpRequest.class);
-        verify(transport).incomingRequest(requestCaptor.capture(), any(LLHttpChannel.class));
+        ArgumentCaptor<NioHttpRequest> requestCaptor = ArgumentCaptor.forClass(NioHttpRequest.class);
+        verify(transport).incomingRequest(requestCaptor.capture(), any(HttpChannel.class));
 
-        LLNioHttpRequest nioHttpRequest = requestCaptor.getValue();
+        NioHttpRequest nioHttpRequest = requestCaptor.getValue();
         assertNotNull(nioHttpRequest);
         assertEquals(method.name(), nioHttpRequest.method().name());
         if (version == HttpVersion.HTTP_1_1) {
-            assertEquals(LLHttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
+            assertEquals(HttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
         } else {
-            assertEquals(LLHttpRequest.HttpVersion.HTTP_1_0, nioHttpRequest.protocolVersion());
+            assertEquals(HttpRequest.HttpVersion.HTTP_1_0, nioHttpRequest.protocolVersion());
         }
         assertEquals(nioHttpRequest.uri(), uri);
         return nioHttpRequest;
@@ -351,7 +348,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         private final EmbeddedChannel requestEncoder = new EmbeddedChannel(new HttpRequestEncoder());
 
-        private ByteBuf encode(HttpRequest httpRequest) {
+        private ByteBuf encode(io.netty.handler.codec.http.HttpRequest httpRequest) {
             requestEncoder.writeOutbound(httpRequest);
             return requestEncoder.readOutbound();
         }
@@ -361,7 +358,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         private final EmbeddedChannel responseDecoder = new EmbeddedChannel(new HttpResponseDecoder());
 
-        private HttpResponse decode(ByteBuf response) {
+        private io.netty.handler.codec.http.HttpResponse decode(ByteBuf response) {
             responseDecoder.writeInbound(response);
             return responseDecoder.readInbound();
         }

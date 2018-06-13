@@ -19,24 +19,36 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
@@ -497,7 +509,40 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getExpectedWarningHeaders(), equalTo(singletonList(
                 "just one entry this time")));
+    }
 
+    public void testNodeSelector() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    version: 5.2.0-6.0.0\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node v170 = nodeWithVersion("1.7.0");
+        Node v521 = nodeWithVersion("5.2.1");
+        Node v550 = nodeWithVersion("5.5.0");
+        Node v612 = nodeWithVersion("6.1.2");
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(v170);
+        nodes.add(v521);
+        nodes.add(v550);
+        nodes.add(v612);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(Arrays.asList(v521, v550), nodes);
+        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
+        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
+        when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector())).thenReturn(mockResponse);
+        doSection.execute(context);
+        verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
+    }
+
+    private Node nodeWithVersion(String version) {
+        return new Node(new HttpHost("dummy"), null, null, version, null);
     }
 
     private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

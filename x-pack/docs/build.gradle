@@ -60,6 +60,11 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/preview-datafeed.asciidoc',
         'en/rest-api/ml/revert-snapshot.asciidoc',
         'en/rest-api/ml/update-snapshot.asciidoc',
+<<<<<<< HEAD
+=======
+        'en/rest-api/ml/validate-detector.asciidoc',
+        'en/rest-api/security/authenticate.asciidoc',
+>>>>>>> [DOCS] Test validate job API
         'en/rest-api/watcher/stats.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]

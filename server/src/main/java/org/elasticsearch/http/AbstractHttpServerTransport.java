@@ -52,14 +52,12 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
+    public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
-    // TODO: Should not be public at some point.
-    public final NamedXContentRegistry xContentRegistry;
     protected final Dispatcher dispatcher;
-    // TODO: Should not be public at some point.
-    public final HttpHandlingSettings handlingSettings;
+    private final NamedXContentRegistry xContentRegistry;
 
     protected final String[] bindHosts;
     protected final String[] publishHosts;
@@ -171,29 +169,26 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchRequest(request, channel, threadContext);
-        }
-    }
-
-    public void dispatchBadRequest(final RestRequest request, final RestChannel channel, final Throwable cause) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchBadRequest(request, channel, threadContext, cause);
-        }
-    }
-
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        incomingRequest0(httpRequest, httpChannel, null);
+        handleIncomingRequest(httpRequest, httpChannel, null);
     }
 
     public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
-        incomingRequest0(httpRequest, httpChannel, exception);
+        handleIncomingRequest(httpRequest, httpChannel, exception);
     }
 
-    private void incomingRequest0(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+    public void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            if (badRequestCause != null) {
+                dispatcher.dispatchBadRequest(restRequest, channel, threadContext, badRequestCause);
+            } else {
+                dispatcher.dispatchRequest(restRequest, channel, threadContext);
+            }
+        }
+    }
+
+    private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         Exception badRequestCause = exception;
 
         /*
@@ -232,21 +227,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = getException(badRequestCause, e);
-                // TODO: Should we rewrite the original request?
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
             }
             channel = innerChannel;
         }
 
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            if (badRequestCause != null) {
-                dispatcher.dispatchBadRequest(restRequest, channel, threadContext, badRequestCause);
-            } else {
-                dispatcher.dispatchRequest(restRequest, channel, threadContext);
-            }
-        }
+        dispatchRequest(restRequest, channel, badRequestCause);
     }
 
     private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {

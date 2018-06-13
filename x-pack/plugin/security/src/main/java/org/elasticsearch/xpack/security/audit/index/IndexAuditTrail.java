@@ -831,7 +831,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();
         if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(((InetSocketAddress) request.getRemoteAddress())
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(request.getRemoteAddress()
                     .getAddress()));
         } else {
             msg.builder.field(Field.ORIGIN_ADDRESS, address);
@@ -856,7 +856,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();
         if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(((InetSocketAddress) request.getRemoteAddress())
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(request.getRemoteAddress()
                     .getAddress()));
         } else {
             msg.builder.field(Field.ORIGIN_ADDRESS, address);

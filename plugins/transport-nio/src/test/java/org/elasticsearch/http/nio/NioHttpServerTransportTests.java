@@ -304,11 +304,11 @@ public class NioHttpServerTransportTests extends ESTestCase {
                  new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
 
-            transport.dispatchRequest(null, null);
+            transport.dispatchRequest(null, null, null);
             assertNull(threadPool.getThreadContext().getHeader("foo"));
             assertNull(threadPool.getThreadContext().getTransient("bar"));
 
-            transport.dispatchBadRequest(null, null, null);
+            transport.dispatchRequest(null, null, new Exception());
             assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
             assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
         }

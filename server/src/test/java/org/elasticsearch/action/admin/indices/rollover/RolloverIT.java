@@ -75,7 +75,7 @@ public class RolloverIT extends ESIntegTestCase {
     }
 
     public void testRollover() throws Exception {
-        long beforeTime = client().threadPool().absoluteTimeInMillis();
+        long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
         index("test_index-2", "type1", "1", "field", "value");
         flush("test_index-2");
@@ -94,7 +94,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getAlias(), equalTo("test_alias"));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getMetConditions(), is(empty()));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
-            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis()))));
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
     }
 
     public void testRolloverWithIndexSettings() throws Exception {
@@ -264,7 +264,7 @@ public class RolloverIT extends ESIntegTestCase {
         // A small max_size
         {
             ByteSizeValue maxSizeValue = new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
-            long beforeTime = client().threadPool().absoluteTimeInMillis();
+            long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
             final RolloverResponse response = client().admin().indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxIndexSizeCondition(maxSizeValue)
@@ -277,7 +277,7 @@ public class RolloverIT extends ESIntegTestCase {
             assertThat(metConditions.size(), equalTo(1));
             assertThat(metConditions.get(0).toString(), equalTo(new MaxSizeCondition(maxSizeValue).toString()));
             assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
-                is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis()))));
+                is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
         }
 
         // An empty index

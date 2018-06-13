@@ -56,7 +56,7 @@ public class MlFilter implements ToXContentObject, Writeable {
     private final String description;
     private final SortedSet<String> items;
 
-    public MlFilter(String id, String description, SortedSet<String> items) {
+    private MlFilter(String id, String description, SortedSet<String> items) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
         this.description = description;
         this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
@@ -160,6 +160,11 @@ public class MlFilter implements ToXContentObject, Writeable {
 
         public Builder setDescription(String description) {
             this.description = description;
+            return this;
+        }
+
+        public Builder setItems(SortedSet<String> items) {
+            this.items = items;
             return this;
         }
 

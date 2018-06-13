@@ -159,12 +159,11 @@ public class EventHandler {
     }
 
     /**
-     * This method is called after ready events (READ, ACCEPT, WRITE, CONNECT) have been handled for a
-     * channel.
+     * This method is called after events (READ, WRITE, CONNECT) have been handled for a channel.
      *
      * @param context that was handled
      */
-    protected void postHandling(SocketChannelContext context) {
+    protected void postSocketChannelHandling(SocketChannelContext context) {
         if (context.selectorShouldClose()) {
             handleClose(context);
         } else {

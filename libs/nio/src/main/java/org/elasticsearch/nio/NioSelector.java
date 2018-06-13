@@ -43,9 +43,6 @@ import java.util.stream.Collectors;
  * {@link #runLoop()}, the selector will run until {@link #close()} is called. This instance handles closing
  * of channels. Users should call {@link #queueChannelClose(NioChannel)} to schedule a channel for close by
  * this selector.
- * <p>
- * Children of this class should implement the specific {@link #processKey(SelectionKey)},
- * {@link #preSelect()}, and {@link #cleanup()} functionality.
  */
 public class NioSelector implements Closeable {
 
@@ -165,7 +162,7 @@ public class NioSelector implements Closeable {
     }
 
     void cleanupAndCloseChannels() {
-        cleanup();
+        cleanupPendingWrites();
         channelsToClose.addAll(channelsToRegister);
         channelsToRegister.clear();
         channelsToClose.addAll(selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).collect(Collectors.toList()));
@@ -219,7 +216,7 @@ public class NioSelector implements Closeable {
                     handleRead(channelContext);
                 }
             }
-            eventHandler.postHandling(channelContext);
+            eventHandler.postSocketChannelHandling(channelContext);
         }
 
     }
@@ -232,16 +229,6 @@ public class NioSelector implements Closeable {
     void preSelect() {
         setUpNewChannels();
         handleQueuedWrites();
-    }
-
-    /**
-     * Called once as the selector is being closed.
-     */
-    void cleanup() {
-        WriteOperation op;
-        while ((op = queuedWrites.poll()) != null) {
-            executeFailedListener(op.getListener(), new ClosedSelectorException());
-        }
     }
 
     /**
@@ -284,19 +271,28 @@ public class NioSelector implements Closeable {
     }
 
     /**
-     * Queues a write operation directly in a channel's buffer. Channel buffers are only safe to be accessed
-     * by the selector thread. As a result, this method should only be called by the selector thread.
+     * Queues a write operation directly in a channel's buffer. If this channel does not have pending writes
+     * already, the channel will be flushed. Channel buffers are only safe to be accessed by the selector
+     * thread. As a result, this method should only be called by the selector thread. If this channel does
+     * not have pending writes already, the channel will be flushed.
      *
      * @param writeOperation to be queued in a channel's buffer
      */
-    public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
+    public void writeToChannel(WriteOperation writeOperation) {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
+        boolean shouldFlush = context.readyForFlush() == false;
         try {
             SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
             context.queueWriteOperation(writeOperation);
         } catch (Exception e) {
+            shouldFlush = false;
             executeFailedListener(writeOperation.getListener(), e);
+        }
+
+        if (shouldFlush) {
+            handleWrite(context);
+            eventHandler.postSocketChannelHandling(context);
         }
     }
 
@@ -329,6 +325,13 @@ public class NioSelector implements Closeable {
             listener.accept(null, exception);
         } catch (Exception e) {
             eventHandler.listenerException(e);
+        }
+    }
+
+    private void cleanupPendingWrites() {
+        WriteOperation op;
+        while ((op = queuedWrites.poll()) != null) {
+            executeFailedListener(op.getListener(), new ClosedSelectorException());
         }
     }
 
@@ -394,7 +397,7 @@ public class NioSelector implements Closeable {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
             if (writeOperation.getChannel().isOpen()) {
-                queueWriteInChannelBuffer(writeOperation);
+                writeToChannel(writeOperation);
             } else {
                 executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
             }

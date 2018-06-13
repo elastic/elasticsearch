@@ -194,7 +194,7 @@ public class EventHandlerTests extends ESTestCase {
 
         when(channel.getContext()).thenReturn(context);
         when(context.selectorShouldClose()).thenReturn(true);
-        handler.postHandling(context);
+        handler.postSocketChannelHandling(context);
 
         verify(context).closeFromSelector();
     }
@@ -207,7 +207,7 @@ public class EventHandlerTests extends ESTestCase {
         NioSocketChannel channel = mock(NioSocketChannel.class);
         when(channel.getContext()).thenReturn(context);
 
-        handler.postHandling(context);
+        handler.postSocketChannelHandling(context);
 
         verify(context, times(0)).closeFromSelector();
     }
@@ -222,7 +222,7 @@ public class EventHandlerTests extends ESTestCase {
         when(channel.getContext()).thenReturn(context);
 
         assertEquals(SelectionKey.OP_READ, selectionKey.interestOps());
-        handler.postHandling(context);
+        handler.postSocketChannelHandling(context);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
     }
 
@@ -237,7 +237,7 @@ public class EventHandlerTests extends ESTestCase {
 
 
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, key.interestOps());
-        handler.postHandling(context);
+        handler.postSocketChannelHandling(context);
         assertEquals(SelectionKey.OP_READ, key.interestOps());
     }
 

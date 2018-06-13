@@ -23,8 +23,48 @@ package org.elasticsearch.painless;
 //TODO: NaN/Inf/overflow/...
 public class AdditionTests extends ScriptTestCase {
 
-    public void testBasics() throws Exception {
-        assertEquals(3.0, exec("double x = 1; byte y = 2; return x + y;"));
+    public void testBasics() {
+        assertEquals(15,
+        exec(   "String[] split(String s, char d) {" +
+                "    int count = 0;" +
+                "    for (char c : s.toCharArray()) {" +
+                "        if (c == d) {" +
+                "            ++count;" +
+                "        }" +
+                "    }" +
+                "    if (count == 0) {" +
+                "        return new String[] {s};" +
+                "    }" +
+                "    String[] r = new String[count + 1];" +
+                "    int i0 = 0, i1 = 0;" +
+                "    count = 0;" +
+                "    for (char c : s.toCharArray()) {" +
+                "        if (c == d) {" +
+                "            r[count++] = s.substring(i0, i1);" +
+                "            i0 = i1 + 1;" +
+                "        }" +
+                "        ++i1;" +
+                "    }" +
+                "    r[count] = s.substring(i0, i1);" +
+                "    return r;" +
+                "}" +
+                "def x = ['date': '2018-9-1', 'time': '3:00AM'];" +
+                "String dateSplit[] = split(x.date, '-');" +
+                "String year = dateSplit[0];" +
+                "String month = " +
+                "boolean pm = x.time.substring(x.time.length() - 2).equals('PM');" +
+                "String[] timeSplit = split(x.time.substring(0, x.time.length() - 2), (char)':');" +
+                "int hours = Integer.parseInt(timeSplit[0]);" +
+                "String minutes = timeSplit[1];" +
+                "if (pm) {" +
+                "    hours += 12;" +
+                "}" +
+                "String dts = year + '-' + month + '-' + day + " +
+                "'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + minutes + ':00+08:00';" +
+                "ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);" +
+                "return dt.getLong(ChronoField.INSTANT_SECONDS)*1000L"
+            )
+        );
     }
 
     public void testInt() throws Exception {

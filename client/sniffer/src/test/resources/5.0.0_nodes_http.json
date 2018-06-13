@@ -1,0 +1,169 @@
+{
+  "_nodes" : {
+    "total" : 8,
+    "successful" : 8,
+    "failed" : 0
+  },
+  "cluster_name" : "test",
+  "nodes" : {
+    "DXz_rhcdSF2xJ96qyjaLVw" : {
+      "name" : "m1",
+      "transport_address" : "127.0.0.1:9300",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "master",
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9200",
+          "127.0.0.1:9200"
+        ],
+        "publish_address" : "127.0.0.1:9200",
+        "max_content_length_in_bytes" : 104857600
+      }
+    },
+    "53Mi6jYdRgeR1cdyuoNfQQ" : {
+      "name" : "m2",
+      "transport_address" : "127.0.0.1:9301",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "master",
+        "data",
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9201",
+          "127.0.0.1:9201"
+        ],
+        "publish_address" : "127.0.0.1:9201",
+        "max_content_length_in_bytes" : 104857600
+      }
+    },
+    "XBIghcHiRlWP9c4vY6rETw" : {
+      "name" : "c2",
+      "transport_address" : "127.0.0.1:9307",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9207",
+          "127.0.0.1:9207"
+        ],
+        "publish_address" : "127.0.0.1:9207",
+        "max_content_length_in_bytes" : 104857600
+      }
+    },
+    "cFM30FlyS8K1njH_bovwwQ" : {
+      "name" : "d1",
+      "transport_address" : "127.0.0.1:9303",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "data",
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9203",
+          "127.0.0.1:9203"
+        ],
+        "publish_address" : "127.0.0.1:9203",
+        "max_content_length_in_bytes" : 104857600
+      }
+    },
+    "eoVUVRGNRDyyOapqIcrsIA" : {
+      "name" : "d2",
+      "transport_address" : "127.0.0.1:9304",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "data",
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9204",
+          "127.0.0.1:9204"
+        ],
+        "publish_address" : "127.0.0.1:9204",
+        "max_content_length_in_bytes" : 104857600
+      }
+    },
+    "xPN76uDcTP-DyXaRzPg2NQ" : {
+      "name" : "c1",
+      "transport_address" : "127.0.0.1:9306",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9206",
+          "127.0.0.1:9206"
+        ],
+        "publish_address" : "127.0.0.1:9206",
+        "max_content_length_in_bytes" : 104857600
+      }
+    },
+    "RY0oW2d7TISEqazk-U4Kcw" : {
+      "name" : "d3",
+      "transport_address" : "127.0.0.1:9305",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "data",
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9205",
+          "127.0.0.1:9205"
+        ],
+        "publish_address" : "127.0.0.1:9205",
+        "max_content_length_in_bytes" : 104857600
+      }
+    },
+    "tU0rXEZmQ9GsWfn2TQ4kow" : {
+      "name" : "m3",
+      "transport_address" : "127.0.0.1:9302",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1",
+      "version" : "5.0.0",
+      "build_hash" : "253032b",
+      "roles" : [
+        "master",
+        "ingest"
+      ],
+      "http" : {
+        "bound_address" : [
+          "[::1]:9202",
+          "127.0.0.1:9202"
+        ],
+        "publish_address" : "127.0.0.1:9202",
+        "max_content_length_in_bytes" : 104857600
+      }
+    }
+  }
+}

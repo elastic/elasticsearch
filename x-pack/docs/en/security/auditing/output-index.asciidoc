@@ -36,6 +36,13 @@ xpack.security.audit.index.settings:
     number_of_replicas: 1
 ----------------------------
 
+These settings apply to the local audit indices, as well as to the
+<<forwarding-audit-logfiles, remote audit indices>>, but only if the remote cluster
+does *not* have {security} installed, or the {es} versions are different.
+If the remote cluster has {security} installed, and the versions coincide, the
+settings for the audit indices there will take precedence,
+even if they are unspecified (i.e. left to defaults).
+
 NOTE: Audit events are batched for indexing so there is a lag before
 events appear in the index. You can control how frequently batches of
 events are pushed to the index by setting

@@ -566,17 +566,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the translog associated with this engine.
-     * Prefer to keep the translog package-private, so that an engine can control all accesses to the translog.
-     */
-    abstract Translog getTranslog();
-
-    /**
      * Checks if the underlying storage sync is required.
      */
-    public boolean isTranslogSyncNeeded() {
-        return getTranslog().syncNeeded();
-    }
+    public abstract boolean isTranslogSyncNeeded();
 
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
@@ -585,35 +577,25 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public Closeable acquireTranslogRetentionLock() {
-        return getTranslog().acquireRetentionLock();
-    }
+    public abstract Closeable acquireTranslogRetentionLock();
 
     /**
      * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
      * The caller has to close the returned snapshot after finishing the reading.
      */
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
-    }
+    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
 
     /**
      * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
      */
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
-        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
-    }
+    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
 
-    public TranslogStats getTranslogStats() {
-        return getTranslog().stats();
-    }
+    public abstract TranslogStats getTranslogStats();
 
     /**
      * Returns the last location that the translog of this engine has written into.
      */
-    public Translog.Location getTranslogLastWriteLocation() {
-        return getTranslog().getLastWriteLocation();
-    }
+    public abstract Translog.Location getTranslogLastWriteLocation();
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
@@ -661,9 +643,7 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
      */
-    public long getLastSyncedGlobalCheckpoint() {
-        return getTranslog().getLastSyncedGlobalCheckpoint();
-    }
+    public abstract long getLastSyncedGlobalCheckpoint();
 
     /**
      * Global stats on segments.
@@ -935,9 +915,7 @@ public abstract class Engine implements Closeable {
      *
      * @return {@code true} if the current generation should be rolled to a new generation
      */
-    public boolean shouldRollTranslogGeneration() {
-        return getTranslog().shouldRollGeneration();
-    }
+    public abstract boolean shouldRollTranslogGeneration();
 
     /**
      * Rolls the translog generation and cleans unneeded.

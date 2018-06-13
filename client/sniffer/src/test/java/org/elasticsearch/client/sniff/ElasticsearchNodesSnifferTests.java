@@ -30,6 +30,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -44,10 +45,10 @@ import java.io.StringWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,17 +60,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
+public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
 
     private int sniffRequestTimeout;
-    private ElasticsearchHostsSniffer.Scheme scheme;
+    private ElasticsearchNodesSniffer.Scheme scheme;
     private SniffResponse sniffResponse;
     private HttpServer httpServer;
 
     @Before
     public void startHttpServer() throws IOException {
         this.sniffRequestTimeout = RandomNumbers.randomIntBetween(getRandom(), 1000, 10000);
-        this.scheme = RandomPicks.randomFrom(getRandom(), ElasticsearchHostsSniffer.Scheme.values());
+        this.scheme = RandomPicks.randomFrom(getRandom(), ElasticsearchNodesSniffer.Scheme.values());
         if (rarely()) {
             this.sniffResponse = SniffResponse.buildFailure();
         } else {
@@ -86,7 +87,7 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
 
     public void testConstructorValidation() throws IOException {
         try {
-            new ElasticsearchHostsSniffer(null, 1, ElasticsearchHostsSniffer.Scheme.HTTP);
+            new ElasticsearchNodesSniffer(null, 1, ElasticsearchNodesSniffer.Scheme.HTTP);
             fail("should have failed");
         } catch(NullPointerException e) {
             assertEquals("restClient cannot be null", e.getMessage());
@@ -94,14 +95,14 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
             try {
-                new ElasticsearchHostsSniffer(restClient, 1, null);
+                new ElasticsearchNodesSniffer(restClient, 1, null);
                 fail("should have failed");
             } catch (NullPointerException e) {
                 assertEquals(e.getMessage(), "scheme cannot be null");
             }
             try {
-                new ElasticsearchHostsSniffer(restClient, RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
-                        ElasticsearchHostsSniffer.Scheme.HTTP);
+                new ElasticsearchNodesSniffer(restClient, RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
+                        ElasticsearchNodesSniffer.Scheme.HTTP);
                 fail("should have failed");
             } catch (IllegalArgumentException e) {
                 assertEquals(e.getMessage(), "sniffRequestTimeoutMillis must be greater than 0");
@@ -112,17 +113,13 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
     public void testSniffNodes() throws IOException {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
-            ElasticsearchHostsSniffer sniffer = new ElasticsearchHostsSniffer(restClient, sniffRequestTimeout, scheme);
+            ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(restClient, sniffRequestTimeout, scheme);
             try {
-                List<HttpHost> sniffedHosts = sniffer.sniffHosts();
+                List<Node> sniffedNodes = sniffer.sniff();
                 if (sniffResponse.isFailure) {
                     fail("sniffNodes should have failed");
                 }
-                assertThat(sniffedHosts.size(), equalTo(sniffResponse.hosts.size()));
-                Iterator<HttpHost> responseHostsIterator = sniffResponse.hosts.iterator();
-                for (HttpHost sniffedHost : sniffedHosts) {
-                    assertEquals(sniffedHost, responseHostsIterator.next());
-                }
+                assertEquals(sniffResponse.result, sniffedNodes);
             } catch(ResponseException e) {
                 Response response = e.getResponse();
                 if (sniffResponse.isFailure) {
@@ -173,9 +170,9 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         }
     }
 
-    private static SniffResponse buildSniffResponse(ElasticsearchHostsSniffer.Scheme scheme) throws IOException {
+    private static SniffResponse buildSniffResponse(ElasticsearchNodesSniffer.Scheme scheme) throws IOException {
         int numNodes = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
-        List<HttpHost> hosts = new ArrayList<>(numNodes);
+        List<Node> nodes = new ArrayList<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();
         StringWriter writer = new StringWriter();
         JsonGenerator generator = jsonFactory.createGenerator(writer);
@@ -190,6 +187,23 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         generator.writeObjectFieldStart("nodes");
         for (int i = 0; i < numNodes; i++) {
             String nodeId = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 5, 10);
+            String host = "host" + i;
+            int port = RandomNumbers.randomIntBetween(getRandom(), 9200, 9299);
+            HttpHost publishHost = new HttpHost(host, port, scheme.toString());
+            Set<HttpHost> boundHosts = new HashSet<>();
+            boundHosts.add(publishHost);
+
+            if (randomBoolean()) {
+                int bound = between(1, 5);
+                for (int b = 0; b < bound; b++) {
+                    boundHosts.add(new HttpHost(host + b, port, scheme.toString()));
+                }
+            }
+
+            Node node = new Node(publishHost, boundHosts, randomAsciiAlphanumOfLength(5),
+                    randomAsciiAlphanumOfLength(5),
+                    new Node.Roles(randomBoolean(), randomBoolean(), randomBoolean()));
+
             generator.writeObjectFieldStart(nodeId);
             if (getRandom().nextBoolean()) {
                 generator.writeObjectFieldStart("bogus_object");
@@ -203,44 +217,45 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
             }
             boolean isHttpEnabled = rarely() == false;
             if (isHttpEnabled) {
-                String host = "host" + i;
-                int port = RandomNumbers.randomIntBetween(getRandom(), 9200, 9299);
-                HttpHost httpHost = new HttpHost(host, port, scheme.toString());
-                hosts.add(httpHost);
+                nodes.add(node);
                 generator.writeObjectFieldStart("http");
-                if (getRandom().nextBoolean()) {
-                    generator.writeArrayFieldStart("bound_address");
-                    generator.writeString("[fe80::1]:" + port);
-                    generator.writeString("[::1]:" + port);
-                    generator.writeString("127.0.0.1:" + port);
-                    generator.writeEndArray();
+                generator.writeArrayFieldStart("bound_address");
+                for (HttpHost bound : boundHosts) {
+                    generator.writeString(bound.toHostString());
                 }
+                generator.writeEndArray();
                 if (getRandom().nextBoolean()) {
                     generator.writeObjectFieldStart("bogus_object");
                     generator.writeEndObject();
                 }
-                generator.writeStringField("publish_address", httpHost.toHostString());
+                generator.writeStringField("publish_address", publishHost.toHostString());
                 if (getRandom().nextBoolean()) {
                     generator.writeNumberField("max_content_length_in_bytes", 104857600);
                 }
                 generator.writeEndObject();
             }
-            if (getRandom().nextBoolean()) {
-                String[] roles = {"master", "data", "ingest"};
-                int numRoles = RandomNumbers.randomIntBetween(getRandom(), 0, 3);
-                Set<String> nodeRoles = new HashSet<>(numRoles);
-                for (int j = 0; j < numRoles; j++) {
-                    String role;
-                    do {
-                        role = RandomPicks.randomFrom(getRandom(), roles);
-                    } while(nodeRoles.add(role) == false);
+
+            List<String> roles = Arrays.asList(new String[] {"master", "data", "ingest"});
+            Collections.shuffle(roles, getRandom());
+            generator.writeArrayFieldStart("roles");
+            for (String role : roles) {
+                if ("master".equals(role) && node.getRoles().isMasterEligible()) {
+                    generator.writeString("master");
                 }
-                generator.writeArrayFieldStart("roles");
-                for (String nodeRole : nodeRoles) {
-                    generator.writeString(nodeRole);
+                if ("data".equals(role) && node.getRoles().isData()) {
+                    generator.writeString("data");
                 }
-                generator.writeEndArray();
+                if ("ingest".equals(role) && node.getRoles().isIngest()) {
+                    generator.writeString("ingest");
+                }
             }
+            generator.writeEndArray();
+
+            generator.writeFieldName("version");
+            generator.writeString(node.getVersion());
+            generator.writeFieldName("name");
+            generator.writeString(node.getName());
+
             int numAttributes = RandomNumbers.randomIntBetween(getRandom(), 0, 3);
             Map<String, String> attributes = new HashMap<>(numAttributes);
             for (int j = 0; j < numAttributes; j++) {
@@ -260,18 +275,18 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         generator.writeEndObject();
         generator.writeEndObject();
         generator.close();
-        return SniffResponse.buildResponse(writer.toString(), hosts);
+        return SniffResponse.buildResponse(writer.toString(), nodes);
     }
 
     private static class SniffResponse {
         private final String nodesInfoBody;
         private final int nodesInfoResponseCode;
-        private final List<HttpHost> hosts;
+        private final List<Node> result;
         private final boolean isFailure;
 
-        SniffResponse(String nodesInfoBody, List<HttpHost> hosts, boolean isFailure) {
+        SniffResponse(String nodesInfoBody, List<Node> result, boolean isFailure) {
             this.nodesInfoBody = nodesInfoBody;
-            this.hosts = hosts;
+            this.result = result;
             this.isFailure = isFailure;
             if (isFailure) {
                 this.nodesInfoResponseCode = randomErrorResponseCode();
@@ -281,11 +296,11 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         }
 
         static SniffResponse buildFailure() {
-            return new SniffResponse("", Collections.<HttpHost>emptyList(), true);
+            return new SniffResponse("", Collections.<Node>emptyList(), true);
         }
 
-        static SniffResponse buildResponse(String nodesInfoBody, List<HttpHost> hosts) {
-            return new SniffResponse(nodesInfoBody, hosts, false);
+        static SniffResponse buildResponse(String nodesInfoBody, List<Node> nodes) {
+            return new SniffResponse(nodesInfoBody, nodes, false);
         }
     }
 

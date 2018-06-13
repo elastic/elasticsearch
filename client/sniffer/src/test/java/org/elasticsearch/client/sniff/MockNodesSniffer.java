@@ -20,16 +20,17 @@
 package org.elasticsearch.client.sniff;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Mock implementation of {@link HostsSniffer}. Useful to prevent any connection attempt while testing builders etc.
+ * Mock implementation of {@link NodesSniffer}. Useful to prevent any connection attempt while testing builders etc.
  */
-class MockHostsSniffer implements HostsSniffer {
+class MockNodesSniffer implements NodesSniffer {
     @Override
-    public List<HttpHost> sniffHosts() {
-        return Collections.singletonList(new HttpHost("localhost", 9200));
+    public List<Node> sniff() {
+        return Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
     }
 }

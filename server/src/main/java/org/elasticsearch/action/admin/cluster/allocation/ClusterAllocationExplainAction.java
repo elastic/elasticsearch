@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for explaining shard allocation for a shard in the cluster

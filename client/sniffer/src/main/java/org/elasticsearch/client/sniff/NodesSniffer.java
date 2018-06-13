@@ -17,17 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.client.sniff;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import org.elasticsearch.client.Node;
+
+import java.io.IOException;
+import java.util.List;
+
 /**
- * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
+ * Responsible for sniffing the http hosts
  */
-@Retention(RetentionPolicy.CLASS)
-@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
-@interface SuppressForbidden {
-    String reason();
+public interface NodesSniffer {
+    /**
+     * Returns the sniffed Elasticsearch nodes.
+     */
+    List<Node> sniff() throws IOException;
 }

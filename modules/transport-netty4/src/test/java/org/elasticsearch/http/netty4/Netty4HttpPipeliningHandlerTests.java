@@ -36,9 +36,9 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
-import org.elasticsearch.test.Netty4TestCase;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;
@@ -61,7 +61,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;
 
-public class Netty4HttpPipeliningHandlerTests extends Netty4TestCase {
+public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     private final ExecutorService handlerService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
     private final ExecutorService eventLoopService = Executors.newFixedThreadPool(1);
@@ -143,38 +143,6 @@ public class Netty4HttpPipeliningHandlerTests extends Netty4TestCase {
 
         for (int i = 0; i < numberOfRequests; i++) {
             assertReadHttpMessageHasContent(embeddedChannel, String.valueOf(i));
-        }
-
-        assertTrue(embeddedChannel.isOpen());
-    }
-
-    public void testThatPipeliningWorksWithChunkedRequests() throws InterruptedException {
-        final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(
-                new AggregateUrisAndHeadersHandler(),
-                new Netty4HttpPipeliningHandler(logger, numberOfRequests),
-                new WorkEmulatorHandler());
-
-        for (int i = 0; i < numberOfRequests; i++) {
-            final DefaultHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/" + i);
-            embeddedChannel.writeInbound(request);
-            embeddedChannel.writeInbound(LastHttpContent.EMPTY_LAST_CONTENT);
-        }
-
-        final List<CountDownLatch> latches = new ArrayList<>();
-        for (int i = numberOfRequests - 1; i >= 0; i--) {
-            latches.add(finishRequest(Integer.toString(i)));
-        }
-
-        for (final CountDownLatch latch : latches) {
-            latch.await();
-        }
-
-        embeddedChannel.flush();
-
-        for (int i = 0; i < numberOfRequests; i++) {
-            assertReadHttpMessageHasContent(embeddedChannel, Integer.toString(i));
         }
 
         assertTrue(embeddedChannel.isOpen());

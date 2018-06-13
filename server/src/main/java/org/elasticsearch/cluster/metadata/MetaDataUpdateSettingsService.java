@@ -82,8 +82,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
 
-        indexScopedSettings.validate(normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false  /* don't validate wildcards */),
-            false); //don't validate dependencies here we check it below never allow to change the number of shards
+        indexScopedSettings.validate(
+                normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
+                false, // don't validate dependencies here we check it below never allow to change the number of shards
+                true); // validate internal index settings
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);

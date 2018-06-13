@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;

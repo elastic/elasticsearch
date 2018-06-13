@@ -17,8 +17,21 @@
  * under the License.
  */
 
-/**
- * Parses YAML test {@link org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite}s containing
- * {@link org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection}s.
- */
-package org.elasticsearch.test.rest.yaml.parser;
+package org.elasticsearch.action.support;
+
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+
+import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
+
+public class ActionTestUtils {
+
+    private ActionTestUtils() { /* no construction */ }
+
+    public static <Request extends ActionRequest, Response extends ActionResponse>
+    Response executeBlocking(TransportAction<Request, Response> action, Request request) {
+        PlainActionFuture<Response> future = newFuture();
+        action.execute(request, future);
+        return future.actionGet();
+    }
+}

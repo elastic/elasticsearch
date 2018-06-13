@@ -575,7 +575,7 @@ public class SlackMessageTests extends ESTestCase {
         HttpResponse response = new HttpResponse(500);
         String path = randomAlphaOfLength(20);
         HttpRequest request = HttpRequest.builder("localhost", 1234).path(path).build();
-        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text", null);
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text");
         SentMessages sentMessages = new SentMessages("foo",
                 Arrays.asList(SentMessages.SentMessage.responded("recipient", slackMessage, request, response)));
 
@@ -602,6 +602,14 @@ public class SlackMessageTests extends ESTestCase {
         }
     }
 
+    // Create template from null message or null attachment ok
+    // Can have message as null
+
+    public void canHaveNullTextAndAttachment()  throws Exception {
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon");
+        assertThat(slackMessage.getText(), is(null));
+        assertThat(slackMessage.getAttachments(), is(null));
+    }
     private static void writeFieldIfNotNull(XContentBuilder builder, String field, Object value) throws IOException {
         if (value != null) {
             builder.field(field, value);

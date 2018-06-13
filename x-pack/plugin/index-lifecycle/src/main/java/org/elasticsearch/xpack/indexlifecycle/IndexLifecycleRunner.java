@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -25,14 +26,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
@@ -273,5 +275,65 @@ public class IndexLifecycleRunner {
 
     private void setStepInfo(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
         clusterService.submitStateUpdateTask("ILM", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
+    }
+
+    public static ClusterState setPolicyForIndexes(final String newPolicyName, final Index[] indices, ClusterState currentState,
+            LifecyclePolicy newPolicy, List<String> failedIndexes) {
+        MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
+        boolean clusterStateChanged = false;
+        for (Index index : indices) {
+            IndexMetaData indexMetadata = currentState.getMetaData().index(index);
+            if (indexMetadata == null) {
+                // Index doesn't exist so fail it
+                failedIndexes.add(index.getName());
+            } else {
+                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.setPolicyForIndex(newPolicyName, newPolicy, failedIndexes,
+                        index, indexMetadata);
+                if (newIdxMetadata != null) {
+                    newMetadata.put(newIdxMetadata);
+                    clusterStateChanged = true;
+                }
+            }
+        }
+        if (clusterStateChanged) {
+            ClusterState.Builder newClusterState = ClusterState.builder(currentState);
+            newClusterState.metaData(newMetadata);
+            return newClusterState.build();
+        } else {
+            return currentState;
+        }
+    }
+    
+    private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicy newPolicy,
+            List<String> failedIndexes,
+            Index index, IndexMetaData indexMetadata) {
+        Settings idxSettings = indexMetadata.getSettings();
+        Settings.Builder newSettings = Settings.builder().put(idxSettings);
+        String currentPolicy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(idxSettings);
+
+        if (canSetPolicy(currentStepKey, currentPolicy, newPolicy)) {
+            newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);
+            // NORELEASE check if current step exists in new policy and if not move to next available step
+            return IndexMetaData.builder(indexMetadata).settings(newSettings);
+        } else {
+            failedIndexes.add(index.getName());
+            return null;
+        }
+    }
+    
+    private static boolean canSetPolicy(StepKey currentStepKey, String currentPolicyName, LifecyclePolicy newPolicy) {
+        if (Strings.hasLength(currentPolicyName)) {
+            if (ShrinkAction.NAME.equals(currentStepKey.getAction())) {
+                // Index is in the shrink action so fail it
+                // NORELEASE also need to check if the shrink action has changed between oldPolicy and newPolicy
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            // Index not previously managed by ILM so safe to change policy
+            return true;
+        }
     }
 }

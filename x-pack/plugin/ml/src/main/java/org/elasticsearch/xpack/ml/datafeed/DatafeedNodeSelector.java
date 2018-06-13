@@ -91,7 +91,7 @@ public class DatafeedNodeSelector {
         List<String> indices = datafeed.getIndices();
         for (String index : indices) {
 
-            if (isRemoteIndex(index)) {
+            if (MlRemoteLicenseChecker.isRemoteIndex(index)) {
                 // We cannot verify remote indices
                 continue;
             }
@@ -120,10 +120,6 @@ public class DatafeedNodeSelector {
             }
         }
         return null;
-    }
-
-    private boolean isRemoteIndex(String index) {
-        return index.indexOf(':') != -1;
     }
 
     private static class AssignmentFailure {

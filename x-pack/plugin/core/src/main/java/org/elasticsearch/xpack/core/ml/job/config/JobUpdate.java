@@ -496,7 +496,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (parser, parseFieldMatcher) ->
-                    DetectionRule.CONFIG_PARSER.apply(parser, parseFieldMatcher).build(), Detector.RULES_FIELD);
+                    DetectionRule.CONFIG_PARSER.apply(parser, parseFieldMatcher).build(), Detector.CUSTOM_RULES_FIELD);
         }
 
         private int detectorIndex;
@@ -550,7 +550,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 builder.field(Job.DESCRIPTION.getPreferredName(), description);
             }
             if (rules != null) {
-                builder.field(Detector.RULES_FIELD.getPreferredName(), rules);
+                builder.field(Detector.CUSTOM_RULES_FIELD.getPreferredName(), rules);
             }
             builder.endObject();
 

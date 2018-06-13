@@ -150,6 +150,7 @@ public class AntFixture extends AntTask implements Fixture {
 
         // the process is started (has a pid) and is bound to a network interface
         // so now evaluates if the waitCondition is successful
+        // TODO: change this to a loop?
         boolean success
         try {
             success = waitCondition(this, ant)

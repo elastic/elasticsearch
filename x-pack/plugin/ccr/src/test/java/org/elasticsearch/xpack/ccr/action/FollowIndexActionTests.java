@@ -27,15 +27,18 @@ public class FollowIndexActionTests extends ESTestCase {
         request.setFollowIndex("index2");
 
         {
+            // should fail, because leader index does not exist
             Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(request, null, null, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not exist"));
         }
         {
+            // should fail, because follow index does not exist
             IndexMetaData leaderIMD = createIMD("index1", 5);
             Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(request, leaderIMD, null, null));
             assertThat(e.getMessage(), equalTo("follow index [index2] does not exist"));
         }
         {
+            // should fail because leader index does not have soft deletes enabled
             IndexMetaData leaderIMD = createIMD("index1", 5);
             IndexMetaData followIMD = createIMD("index2", 5);
             Exception e = expectThrows(IllegalArgumentException.class,
@@ -43,6 +46,7 @@ public class FollowIndexActionTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
+            // should fail because the number of primary shards between leader and follow index are not equal
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 4);
             Exception e = expectThrows(IllegalArgumentException.class,
@@ -51,6 +55,7 @@ public class FollowIndexActionTests extends ESTestCase {
                 equalTo("leader index primary shards [5] does not match with the number of shards of the follow index [4]"));
         }
         {
+            // should fail, because leader index is closed
             IndexMetaData leaderIMD = createIMD("index1", State.CLOSE, "{}", 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{}", 5,
@@ -60,6 +65,7 @@ public class FollowIndexActionTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("leader and follow index must be open"));
         }
         {
+            // should fail, because leader has a field with the same name mapped as keyword and follower as text
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"keyword\"}}}", 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"text\"}}}", 5);
@@ -70,6 +76,7 @@ public class FollowIndexActionTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("mapper [field] of different type, current_type [text], merged_type [keyword]"));
         }
         {
+            // should fail because of non whitelisted settings not the same between leader and follow index
             String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, mapping, 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"),
@@ -83,6 +90,7 @@ public class FollowIndexActionTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("the leader and follower index settings must be identical"));
         }
         {
+            // should succeed
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", 5);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
@@ -90,6 +98,7 @@ public class FollowIndexActionTests extends ESTestCase {
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
         {
+            // should succeed, index settings are identical
             String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, mapping, 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"),
@@ -104,6 +113,7 @@ public class FollowIndexActionTests extends ESTestCase {
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
         {
+            // should succeed despite whitelisted settings being different
             String mapping = "{\"properties\": {\"field\": {\"type\": \"text\", \"analyzer\": \"my_analyzer\"}}}";
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, mapping, 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"),
@@ -124,7 +134,7 @@ public class FollowIndexActionTests extends ESTestCase {
     private static IndexMetaData createIMD(String index, int numShards, Tuple<?, ?>... settings) throws IOException {
         return createIMD(index, State.OPEN, "{\"properties\": {}}", numShards, settings);
     }
-    
+
     private static IndexMetaData createIMD(String index, State state, String mapping, int numShards,
                                            Tuple<?, ?>... settings) throws IOException {
         Settings.Builder settingsBuilder = settings(Version.CURRENT);

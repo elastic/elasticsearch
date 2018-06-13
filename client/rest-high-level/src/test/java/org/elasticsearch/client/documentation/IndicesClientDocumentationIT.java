@@ -248,17 +248,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::delete-index-execute-listener
             ActionListener<DeleteIndexResponse> listener =
-                new ActionListener<DeleteIndexResponse>() {
-                    @Override
-                    public void onResponse(DeleteIndexResponse deleteIndexResponse) {
-                        // <1>
-                    }
+                    new ActionListener<DeleteIndexResponse>() {
+                @Override
+                public void onResponse(DeleteIndexResponse deleteIndexResponse) {
+                    // <1>
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
             // end::delete-index-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -291,7 +291,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             {
                 // tag::create-index-request-mappings
                 request.mapping("tweet", // <1>
-                    "{\n" +
+                        "{\n" +
                         "  \"tweet\": {\n" +
                         "    \"properties\": {\n" +
                         "      \"message\": {\n" +
@@ -300,7 +300,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                         "    }\n" +
                         "  }\n" +
                         "}", // <2>
-                    XContentType.JSON);
+                        XContentType.JSON);
                 // end::create-index-request-mappings
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
                 assertTrue(createIndexResponse.isAcknowledged());
@@ -382,21 +382,21 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request = new CreateIndexRequest("twitter6");
             // tag::create-index-whole-source
             request.source("{\n" +
-                "    \"settings\" : {\n" +
-                "        \"number_of_shards\" : 1,\n" +
-                "        \"number_of_replicas\" : 0\n" +
-                "    },\n" +
-                "    \"mappings\" : {\n" +
-                "        \"tweet\" : {\n" +
-                "            \"properties\" : {\n" +
-                "                \"message\" : { \"type\" : \"text\" }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    },\n" +
-                "    \"aliases\" : {\n" +
-                "        \"twitter_alias\" : {}\n" +
-                "    }\n" +
-                "}", XContentType.JSON); // <1>
+                    "    \"settings\" : {\n" +
+                    "        \"number_of_shards\" : 1,\n" +
+                    "        \"number_of_replicas\" : 0\n" +
+                    "    },\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"tweet\" : {\n" +
+                    "            \"properties\" : {\n" +
+                    "                \"message\" : { \"type\" : \"text\" }\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    },\n" +
+                    "    \"aliases\" : {\n" +
+                    "        \"twitter_alias\" : {}\n" +
+                    "    }\n" +
+                    "}", XContentType.JSON); // <1>
             // end::create-index-whole-source
 
             // tag::create-index-execute
@@ -420,18 +420,18 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::create-index-execute-listener
             ActionListener<CreateIndexResponse> listener =
-                new ActionListener<CreateIndexResponse>() {
+                    new ActionListener<CreateIndexResponse>() {
 
-                    @Override
-                    public void onResponse(CreateIndexResponse createIndexResponse) {
-                        // <1>
-                    }
+                @Override
+                public void onResponse(CreateIndexResponse createIndexResponse) {
+                    // <1>
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
             // end::create-index-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -464,12 +464,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 // tag::put-mapping-request-source
                 request.source(
                     "{\n" +
-                        "  \"properties\": {\n" +
-                        "    \"message\": {\n" +
-                        "      \"type\": \"text\"\n" +
-                        "    }\n" +
-                        "  }\n" +
-                        "}", // <1>
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
                     XContentType.JSON);
                 // end::put-mapping-request-source
                 PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
@@ -746,17 +746,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::open-index-execute-listener
             ActionListener<OpenIndexResponse> listener =
-                new ActionListener<OpenIndexResponse>() {
-                    @Override
-                    public void onResponse(OpenIndexResponse openIndexResponse) {
-                        // <1>
-                    }
+                    new ActionListener<OpenIndexResponse>() {
+                @Override
+                public void onResponse(OpenIndexResponse openIndexResponse) {
+                    // <1>
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
             // end::open-index-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -1017,7 +1017,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             CreateIndexResponse createIndexResponse = client.indices().create(
-                new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
+                    new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1081,7 +1081,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             CreateIndexResponse createIndexResponse = client.indices().create(
-                new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
+                    new CreateIndexRequest("index", settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1320,17 +1320,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::close-index-execute-listener
             ActionListener<CloseIndexResponse> listener =
-                new ActionListener<CloseIndexResponse>() {
-                    @Override
-                    public void onResponse(CloseIndexResponse closeIndexResponse) {
-                        // <1>
-                    }
+                    new ActionListener<CloseIndexResponse>() {
+                @Override
+                public void onResponse(CloseIndexResponse closeIndexResponse) {
+                    // <1>
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
             // end::close-index-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -1350,7 +1350,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index")
-                .alias(new Alias("alias")), RequestOptions.DEFAULT);
+                    .alias(new Alias("alias")), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1359,7 +1359,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             GetAliasesRequest request = new GetAliasesRequest();
             GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
             GetAliasesRequest requestWithAliases =
-                new GetAliasesRequest(new String[]{"alias1", "alias2"});
+                    new GetAliasesRequest(new String[]{"alias1", "alias2"});
             // end::exists-alias-request
 
             // tag::exists-alias-request-alias
@@ -1426,7 +1426,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::update-aliases-request
             IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
             AliasActions aliasAction =
-                new AliasActions(AliasActions.Type.ADD)
+                    new AliasActions(AliasActions.Type.ADD)
                     .index("index1")
                     .alias("alias1"); // <2>
             request.addAliasAction(aliasAction); // <3>
@@ -1434,21 +1434,21 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::update-aliases-request2
             AliasActions addIndexAction =
-                new AliasActions(AliasActions.Type.ADD)
+                    new AliasActions(AliasActions.Type.ADD)
                     .index("index1")
                     .alias("alias1")
                     .filter("{\"term\":{\"year\":2016}}"); // <1>
             AliasActions addIndicesAction =
-                new AliasActions(AliasActions.Type.ADD)
+                    new AliasActions(AliasActions.Type.ADD)
                     .indices("index1", "index2")
                     .alias("alias2")
                     .routing("1"); // <2>
             AliasActions removeAction =
-                new AliasActions(AliasActions.Type.REMOVE)
+                    new AliasActions(AliasActions.Type.REMOVE)
                     .index("index3")
                     .alias("alias3"); // <3>
             AliasActions removeIndexAction =
-                new AliasActions(AliasActions.Type.REMOVE_INDEX)
+                    new AliasActions(AliasActions.Type.REMOVE_INDEX)
                     .index("index4"); // <4>
             // end::update-aliases-request2
 
@@ -1463,7 +1463,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::update-aliases-execute
             IndicesAliasesResponse indicesAliasesResponse =
-                client.indices().updateAliases(request, RequestOptions.DEFAULT);
+                    client.indices().updateAliases(request, RequestOptions.DEFAULT);
             // end::update-aliases-execute
 
             // tag::update-aliases-response
@@ -1479,17 +1479,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::update-aliases-execute-listener
             ActionListener<IndicesAliasesResponse> listener =
-                new ActionListener<IndicesAliasesResponse>() {
-                    @Override
-                    public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
-                        // <1>
-                    }
+                    new ActionListener<IndicesAliasesResponse>() {
+                @Override
+                public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
+                    // <1>
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
             // end::update-aliases-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -1513,7 +1513,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             String firstNode = ((Map<String, Object>) nodes.get("nodes")).keySet().iterator().next();
             createIndex("source_index", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
             updateIndexSettings("source_index", Settings.builder().put("index.routing.allocation.require._name", firstNode)
-                .put("index.blocks.write", true));
+                    .put("index.blocks.write", true));
         }
 
         // tag::shrink-index-request
@@ -1534,8 +1534,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::shrink-index-request-waitForActiveShards
         // tag::shrink-index-request-settings
         request.getTargetIndexRequest().settings(Settings.builder()
-            .put("index.number_of_shards", 2) // <1>
-            .putNull("index.routing.allocation.require._name")); // <2>
+                .put("index.number_of_shards", 2) // <1>
+                .putNull("index.routing.allocation.require._name")); // <2>
         // end::shrink-index-request-settings
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -1582,7 +1582,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             createIndex("source_index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)
-                .put("index.number_of_routing_shards", 4).build());
+                    .put("index.number_of_routing_shards", 4).build());
             updateIndexSettings("source_index", Settings.builder().put("index.blocks.write", true));
         }
 
@@ -1605,7 +1605,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::split-index-request-waitForActiveShards
         // tag::split-index-request-settings
         request.getTargetIndexRequest().settings(Settings.builder()
-            .put("index.number_of_shards", 4)); // <1>
+                .put("index.number_of_shards", 4)); // <1>
         // end::split-index-request-settings
         // tag::split-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -1678,7 +1678,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::rollover-request-waitForActiveShards
         // tag::rollover-request-settings
         request.getCreateIndexRequest().settings(Settings.builder()
-            .put("index.number_of_shards", 4)); // <1>
+                .put("index.number_of_shards", 4)); // <1>
         // end::rollover-request-settings
         // tag::rollover-request-mapping
         request.getCreateIndexRequest().mapping("type", "field", "type=keyword"); // <1>
@@ -1738,7 +1738,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index").alias(new Alias("alias")),
-                RequestOptions.DEFAULT);
+                    RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1747,7 +1747,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             GetAliasesRequest request = new GetAliasesRequest();
             GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
             GetAliasesRequest requestWithAliases =
-                new GetAliasesRequest(new String[]{"alias1", "alias2"});
+                    new GetAliasesRequest(new String[]{"alias1", "alias2"});
             // end::get-alias-request
 
             // tag::get-alias-request-alias
@@ -1778,17 +1778,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::get-alias-listener
             ActionListener<GetAliasesResponse> listener =
-                new ActionListener<GetAliasesResponse>() {
-                    @Override
-                    public void onResponse(GetAliasesResponse getAliasesResponse) {
-                        // <1>
-                    }
+                    new ActionListener<GetAliasesResponse>() {
+                        @Override
+                        public void onResponse(GetAliasesResponse getAliasesResponse) {
+                            // <1>
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+            };
             // end::get-alias-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -1814,7 +1814,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::put-settings-request
         UpdateSettingsRequest request = new UpdateSettingsRequest("index1"); // <1>
         UpdateSettingsRequest requestMultiple =
-            new UpdateSettingsRequest("index1", "index2"); // <2>
+                new UpdateSettingsRequest("index1", "index2"); // <2>
         UpdateSettingsRequest requestAll = new UpdateSettingsRequest(); // <3>
         // end::put-settings-request
 
@@ -1822,7 +1822,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         String settingKey = "index.number_of_replicas";
         int settingValue = 0;
         Settings settings =
-            Settings.builder()
+                Settings.builder()
                 .put(settingKey, settingValue)
                 .build(); // <1>
         // end::put-settings-create-settings
@@ -1833,7 +1833,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::put-settings-settings-builder
             Settings.Builder settingsBuilder =
-                Settings.builder()
+                    Settings.builder()
                     .put(settingKey, settingValue);
             request.settings(settingsBuilder); // <1>
             // end::put-settings-settings-builder
@@ -1848,8 +1848,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::put-settings-settings-source
             request.settings(
-                "{\"index.number_of_replicas\": \"2\"}"
-                , XContentType.JSON); // <1>
+                    "{\"index.number_of_replicas\": \"2\"}"
+                    , XContentType.JSON); // <1>
             // end::put-settings-settings-source
         }
 
@@ -1870,7 +1870,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::put-settings-execute
         UpdateSettingsResponse updateSettingsResponse =
-            client.indices().putSettings(request, RequestOptions.DEFAULT);
+                client.indices().putSettings(request, RequestOptions.DEFAULT);
         // end::put-settings-execute
 
         // tag::put-settings-response
@@ -1880,18 +1880,18 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::put-settings-execute-listener
         ActionListener<UpdateSettingsResponse> listener =
-            new ActionListener<UpdateSettingsResponse>() {
+                new ActionListener<UpdateSettingsResponse>() {
 
-                @Override
-                public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
-                    // <1>
-                }
+            @Override
+            public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
+                // <1>
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
         // end::put-settings-execute-listener
 
         // Replace the empty listener by a blocking listener in test
@@ -2073,7 +2073,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
             putRequest.mapping("tweet",
-                "{\n" +
+                    "{\n" +
                     "  \"tweet\": {\n" +
                     "    \"properties\": {\n" +
                     "      \"message\": {\n" +

@@ -713,8 +713,8 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = RequestConverters.flushSynced(syncedFlushRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
-            endpoint.add(String.join(",", indices));
-        }
+                endpoint.add(String.join(",", indices));
+            }
         endpoint.add("_flush/synced");
         assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         assertThat(request.getParameters(), equalTo(expectedParams));

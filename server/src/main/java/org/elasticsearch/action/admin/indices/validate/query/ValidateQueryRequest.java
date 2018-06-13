@@ -184,10 +184,9 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("query");
+        builder.startObject();
+        builder.field("query");
         query.toXContent(builder, params);
-        builder.endObject();
-        return builder;
+        return builder.endObject();
     }
 }

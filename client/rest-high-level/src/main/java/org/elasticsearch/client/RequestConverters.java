@@ -491,7 +491,7 @@ final class RequestConverters {
             XContentType upsertContentType = updateRequest.upsertRequest().getContentType();
             if ((xContentType != null) && (xContentType != upsertContentType)) {
                 throw new IllegalStateException("Update request cannot have different content types for doc [" + xContentType + "]" +
-                    " and upsert [" + upsertContentType + "] documents");
+                        " and upsert [" + upsertContentType + "] documents");
             } else {
                 xContentType = upsertContentType;
             }
@@ -580,7 +580,7 @@ final class RequestConverters {
 
     static Request existsAlias(GetAliasesRequest getAliasesRequest) {
         if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
-            (getAliasesRequest.aliases() == null || getAliasesRequest.aliases().length == 0)) {
+                (getAliasesRequest.aliases() == null || getAliasesRequest.aliases().length == 0)) {
             throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
         }
         String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
@@ -629,8 +629,8 @@ final class RequestConverters {
 
     private static Request resize(ResizeRequest resizeRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart(resizeRequest.getSourceIndex())
-            .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))
-            .addPathPart(resizeRequest.getTargetIndexRequest().index()).build();
+                .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))
+                .addPathPart(resizeRequest.getTargetIndexRequest().index()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
         Params params = new Params(request);
@@ -734,7 +734,7 @@ final class RequestConverters {
 
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
-            .addPathPart(rolloverRequest.getNewIndexName()).build();
+                .addPathPart(rolloverRequest.getNewIndexName()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         Params params = new Params(request);
@@ -871,7 +871,6 @@ final class RequestConverters {
         return request;
     }
 
-
     static Request getAlias(GetAliasesRequest getAliasesRequest) {
         String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
         String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
@@ -916,12 +915,12 @@ final class RequestConverters {
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addCommaSeparatedPathParts(types)
-            .addPathPartAsIs(endpoint).build();
+                .addPathPartAsIs(endpoint).build();
     }
 
     static String endpoint(String[] indices, String endpoint, String[] suffixes) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
-            .addCommaSeparatedPathParts(suffixes).build();
+                .addCommaSeparatedPathParts(suffixes).build();
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {
@@ -1217,14 +1216,14 @@ final class RequestConverters {
         XContentType requestContentType = indexRequest.getContentType();
         if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
             throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
-                + "], only JSON and SMILE are supported");
+                    + "], only JSON and SMILE are supported");
         }
         if (xContentType == null) {
             return requestContentType;
         }
         if (requestContentType != xContentType) {
             throw new IllegalArgumentException("Mismatching content-type found for request with content-type [" + requestContentType
-                + "], previous requests have content-type [" + xContentType + "]");
+                    + "], previous requests have content-type [" + xContentType + "]");
         }
         return xContentType;
     }

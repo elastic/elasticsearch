@@ -38,6 +38,7 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
         mappers.put(ScaledFloatFieldMapper.CONTENT_TYPE, new ScaledFloatFieldMapper.TypeParser());
         mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
         mappers.put(FeatureFieldMapper.CONTENT_TYPE, new FeatureFieldMapper.TypeParser());
+        mappers.put(FeatureVectorFieldMapper.CONTENT_TYPE, new FeatureVectorFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 

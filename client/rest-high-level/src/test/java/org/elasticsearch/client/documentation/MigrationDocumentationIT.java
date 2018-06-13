@@ -19,10 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpStatus;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -31,12 +27,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -44,11 +38,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 
 /**
  * This class is used to generate the documentation for the
@@ -98,14 +87,14 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::migration-request-ctor
 
             //tag::migration-request-ctor-execution
-            IndexResponse response = client.index(request);
+            IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             //end::migration-request-ctor-execution
             assertEquals(RestStatus.CREATED, response.status());
         }
         {
             //tag::migration-request-async-execution
             DeleteRequest request = new DeleteRequest("index", "doc", "id"); // <1>
-            client.deleteAsync(request, new ActionListener<DeleteResponse>() { // <2>
+            client.deleteAsync(request, RequestOptions.DEFAULT, new ActionListener<DeleteResponse>() { // <2>
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
                     // <3>
@@ -117,12 +106,12 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             });
             //end::migration-request-async-execution
-            assertBusy(() -> assertFalse(client.exists(new GetRequest("index", "doc", "id"))));
+            assertBusy(() -> assertFalse(client.exists(new GetRequest("index", "doc", "id"), RequestOptions.DEFAULT)));
         }
         {
             //tag::migration-request-sync-execution
             DeleteRequest request = new DeleteRequest("index", "doc", "id");
-            DeleteResponse response = client.delete(request); // <1>
+            DeleteResponse response = client.delete(request, RequestOptions.DEFAULT); // <1>
             //end::migration-request-sync-execution
             assertEquals(RestStatus.NOT_FOUND, response.status());
         }

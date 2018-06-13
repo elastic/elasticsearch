@@ -19,6 +19,9 @@ integTestRunner {
      'cat.templates/10_basic/Sort templates',
      'cat.templates/10_basic/Multiple template',
     ].join(',')
+
+  systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
+  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
 }
 
 integTestCluster {
@@ -29,7 +32,10 @@ integTestCluster {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/elasticsearch-users',
+               'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),
+               '-p', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password'),
+               '-r', 'superuser'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

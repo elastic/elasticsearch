@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.readBlobFully;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.writeRandomBlob;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -73,7 +72,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testMoveAndList() throws IOException {
+    public void testList() throws IOException {
         try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             assertThat(container.listBlobs().size(), equalTo(0));
@@ -109,15 +108,6 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             assertThat(container.listBlobsByPrefix("foo-").size(), equalTo(numberOfFooBlobs));
             assertThat(container.listBlobsByPrefix("bar-").size(), equalTo(numberOfBarBlobs));
             assertThat(container.listBlobsByPrefix("baz-").size(), equalTo(0));
-
-            String newName = "bar-new";
-            // Move to a new location
-            container.move(name, newName);
-            assertThat(container.listBlobsByPrefix(name).size(), equalTo(0));
-            blobs = container.listBlobsByPrefix(newName);
-            assertThat(blobs.size(), equalTo(1));
-            assertThat(blobs.get(newName).length(), equalTo(generatedBlobs.get(name)));
-            assertThat(data, equalTo(readBlobFully(container, newName, length)));
         }
     }
 

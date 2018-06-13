@@ -205,9 +205,9 @@ subprojects {
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
-    "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
-    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
+    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
@@ -543,7 +543,7 @@ subprojects { project ->
   }
 }
 
-/* Remove assemble on all qa projects because we don't need to publish
+/* Remove assemble/dependenciesInfo on all qa projects because we don't need to publish
  * artifacts for them. */
 gradle.projectsEvaluated {
   subprojects {
@@ -552,6 +552,11 @@ gradle.projectsEvaluated {
       if (assemble) {
         project.tasks.remove(assemble)
         project.build.dependsOn.remove('assemble')
+      }
+      Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+      if (dependenciesInfo) {
+        project.tasks.remove(dependenciesInfo)
+        project.precommit.dependsOn.remove('dependenciesInfo')
       }
     }
   }

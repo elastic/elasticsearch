@@ -63,13 +63,15 @@ for (Version version : bwcVersions.wireCompatible) {
             setting 'xpack.ml.enabled', 'false'
             setting 'xpack.watcher.enabled', 'false'
             setting 'xpack.license.self_generated.type', 'basic'
+            setting 'node.name', "upgraded-node-${stopNode}"
         }
     }
 
     Task oneThirdUpgradedTest = tasks.create(name: "${baseName}#oneThirdUpgradedTest", type: RestIntegTestTask)
 
-    configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner,
-        0, { oldClusterTest.nodes.get(1).transportUri() })
+    configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
+        // Use all running nodes as seed nodes so there is no race between pinging and the tests
+        { oldClusterTest.nodes.get(1).transportUri() + ',' + oldClusterTest.nodes.get(2).transportUri() })
 
     Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
     oneThirdUpgradedTestRunner.configure {
@@ -80,8 +82,9 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task twoThirdsUpgradedTest = tasks.create(name: "${baseName}#twoThirdsUpgradedTest", type: RestIntegTestTask)
 
-    configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner,
-        1, { oneThirdUpgradedTest.nodes.get(0).transportUri() })
+    configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
+        // Use all running nodes as seed nodes so there is no race between pinging and the tests
+        { oldClusterTest.nodes.get(2).transportUri() + ',' + oneThirdUpgradedTest.nodes.get(0).transportUri() })
 
     Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
     twoThirdsUpgradedTestRunner.configure {
@@ -92,8 +95,9 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
-    configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner,
-        2, { twoThirdsUpgradedTest.nodes.get(0).transportUri() })
+    configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
+        // Use all running nodes as seed nodes so there is no race between pinging and the tests
+        { oneThirdUpgradedTest.nodes.get(0).transportUri() + ',' + twoThirdsUpgradedTest.nodes.get(0).transportUri() })
 
     Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
     upgradedClusterTestRunner.configure {

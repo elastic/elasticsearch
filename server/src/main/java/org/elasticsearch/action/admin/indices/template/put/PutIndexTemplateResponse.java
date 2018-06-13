@@ -19,7 +19,6 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
@@ -34,13 +33,7 @@ public class PutIndexTemplateResponse extends AcknowledgedResponse {
         super(acknowledged);
     }
 
-    private static final ConstructingObjectParser<PutIndexTemplateResponse, Void> PARSER;
-    static {
-        PARSER = new ConstructingObjectParser<>("put_index_template", true, args -> new PutIndexTemplateResponse((boolean) args[0]));
-        declareAcknowledgedField(PARSER);
-    }
-
     public static PutIndexTemplateResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new PutIndexTemplateResponse(parseAcknowledged(parser));
     }
 }

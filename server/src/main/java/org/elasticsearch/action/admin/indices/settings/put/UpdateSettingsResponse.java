@@ -20,20 +20,12 @@
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * A response for an update index settings action
  */
 public class UpdateSettingsResponse extends AcknowledgedResponse {
-
-    private static final ConstructingObjectParser<UpdateSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "update_index_settings", true, args -> new UpdateSettingsResponse((boolean) args[0]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-    }
 
     UpdateSettingsResponse() {
     }
@@ -43,7 +35,6 @@ public class UpdateSettingsResponse extends AcknowledgedResponse {
     }
 
     public static UpdateSettingsResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new UpdateSettingsResponse(parseAcknowledged(parser));
     }
-
 }

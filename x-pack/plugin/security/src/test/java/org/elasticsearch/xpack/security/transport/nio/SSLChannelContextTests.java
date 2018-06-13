@@ -11,7 +11,7 @@ import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -40,7 +40,7 @@ public class SSLChannelContextTests extends ESTestCase {
     private SocketChannel rawChannel;
     private SSLChannelContext context;
     private InboundChannelBuffer channelBuffer;
-    private SocketSelector selector;
+    private NioSelector selector;
     private BiConsumer<Void, Exception> listener;
     private Consumer exceptionHandler;
     private SSLDriver sslDriver;
@@ -55,7 +55,7 @@ public class SSLChannelContextTests extends ESTestCase {
         TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
 
         messageLength = randomInt(96) + 20;
-        selector = mock(SocketSelector.class);
+        selector = mock(NioSelector.class);
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
         rawChannel = mock(SocketChannel.class);

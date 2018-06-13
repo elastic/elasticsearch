@@ -486,11 +486,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
-    public void testExtractReferencedLists() {
-        DetectionRule rule1 = new DetectionRule.Builder(Collections.singletonList(RuleCondition.createCategorical("foo",
-                "filter1"))).build();
-        DetectionRule rule2 = new DetectionRule.Builder(Collections.singletonList(RuleCondition.createCategorical("foo",
-                "filter2"))).build();
+    public void testExtractReferencedFilters() {
+        DetectionRule rule1 = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "filter1")).build();
+        DetectionRule rule2 = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "filter2")).build();
         Detector.Builder detector1 = new Detector.Builder("count", null);
         detector1.setByFieldName("foo");
         detector1.setRules(Collections.singletonList(rule1));

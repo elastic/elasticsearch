@@ -76,7 +76,7 @@
   - match: { watch_record.state: "executed" }
   - match: { watch_record.result.actions.0.status: "failure" }
   - match: { watch_record.result.actions.0.error.caused_by.caused_by.type: "illegal_argument_exception" }
-  - match: { watch_record.result.actions.0.error.caused_by.caused_by.reason: "Iterable object is self-referencing itself" }
+  - match: { watch_record.result.actions.0.error.caused_by.caused_by.reason: "Iterable object is self-referencing itself (CustomReflectionObjectHandler stringify)" }
 
   - do:
       catch: bad_request

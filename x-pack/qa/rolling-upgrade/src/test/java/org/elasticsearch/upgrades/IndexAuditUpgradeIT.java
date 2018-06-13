@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.hasSize;
 
@@ -27,7 +26,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         assertBusy(() -> {
             assertAuditDocsExist();
             assertNumUniqueNodeNameBuckets(expectedNumUniqueNodeNameBuckets());
-        }, 1, TimeUnit.HOURS);
+        });
     }
 
     private int expectedNumUniqueNodeNameBuckets() throws IOException {

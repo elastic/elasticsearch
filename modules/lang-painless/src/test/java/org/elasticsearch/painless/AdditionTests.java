@@ -51,7 +51,8 @@ public class AdditionTests extends ScriptTestCase {
                 "def x = ['date': '2018-9-1', 'time': '3:00AM'];" +
                 "String dateSplit[] = split(x.date, '-');" +
                 "String year = dateSplit[0];" +
-                "String month = " +
+                "String month = dateSplit[1]" +
+                "if (month.length() " +
                 "boolean pm = x.time.substring(x.time.length() - 2).equals('PM');" +
                 "String[] timeSplit = split(x.time.substring(0, x.time.length() - 2), (char)':');" +
                 "int hours = Integer.parseInt(timeSplit[0]);" +

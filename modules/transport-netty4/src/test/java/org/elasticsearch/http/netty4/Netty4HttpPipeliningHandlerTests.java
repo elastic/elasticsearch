@@ -148,38 +148,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(embeddedChannel.isOpen());
     }
 
-    public void testThatPipeliningWorksWithChunkedRequests() throws InterruptedException {
-        final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(
-                new AggregateUrisAndHeadersHandler(),
-                new Netty4HttpPipeliningHandler(logger, numberOfRequests),
-                new WorkEmulatorHandler());
-
-        for (int i = 0; i < numberOfRequests; i++) {
-            final DefaultHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/" + i);
-            embeddedChannel.writeInbound(request);
-            embeddedChannel.writeInbound(LastHttpContent.EMPTY_LAST_CONTENT);
-        }
-
-        final List<CountDownLatch> latches = new ArrayList<>();
-        for (int i = numberOfRequests - 1; i >= 0; i--) {
-            latches.add(finishRequest(Integer.toString(i)));
-        }
-
-        for (final CountDownLatch latch : latches) {
-            latch.await();
-        }
-
-        embeddedChannel.flush();
-
-        for (int i = 0; i < numberOfRequests; i++) {
-            assertReadHttpMessageHasContent(embeddedChannel, Integer.toString(i));
-        }
-
-        assertTrue(embeddedChannel.isOpen());
-    }
-
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests),

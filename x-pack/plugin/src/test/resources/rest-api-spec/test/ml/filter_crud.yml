@@ -152,15 +152,11 @@ setup:
             "analysis_config" : {
                 "bucket_span": "3600s",
                 "detectors" :[{"function":"mean","field_name":"responsetime", "by_field_name": "airline",
-                  "rules": [
+                  "custom_rules": [
                     {
-                      "conditions": [
-                        {
-                          "type": "categorical",
-                          "field_name": "airline",
-                          "filter_id": "filter-foo"
-                        }
-                      ]
+                      "scope": {
+                        "airline": {"filter_id": "filter-foo"}
+                      }
                     }
                   ]}]
             },

@@ -34,18 +34,21 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
+import org.elasticsearch.xpack.indexlifecycle.action.RestSetPolicyForIndexAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestRetryAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportSetPolicyForIndexAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifcycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportExplainLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportGetLifecycleAction;
@@ -147,6 +150,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestGetLifecycleAction(settings, restController),
                 new RestDeleteLifecycleAction(settings, restController),
                 new RestExplainLifecycleAction(settings, restController),
+                new RestSetPolicyForIndexAction(settings, restController),
                 new RestMoveToStepAction(settings, restController),
                 new RestRetryAction(settings, restController)
             );
@@ -162,6 +166,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
                 new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifcycleAction.class),
                 new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
+                new ActionHandler<>(SetPolicyForIndexAction.INSTANCE, TransportSetPolicyForIndexAction.class),
                 new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),
                 new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class));
     }

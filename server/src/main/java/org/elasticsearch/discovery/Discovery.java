@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -48,6 +49,7 @@ public interface Discovery extends LifecycleComponent {
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
 
     interface AckListener {
+        void onCommit(TimeValue commitTime);
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);
     }
 

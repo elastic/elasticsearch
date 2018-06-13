@@ -57,7 +57,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
-    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)(?<pathPrefix>(/.*)?)");
+    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)(?<pathPrefix>/.*)?");
 
     static {
         ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {

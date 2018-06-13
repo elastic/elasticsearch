@@ -3,7 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
@@ -23,7 +22,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.xpack.core.test.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -51,7 +49,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  * {@link SecurityIntegTestCase} due to simplicity and improved speed from not needing to start
  * multiple nodes and wait for the cluster to form.
  */
-public abstract class SecuritySingleNodeTestCase extends XPackSingleNodeTestCase {
+public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;

@@ -33,10 +33,12 @@ import java.util.Map;
 public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResponse, HttpPipelinedMessage {
 
     private final int sequence;
+    private final NioHttpRequest request;
 
     NioHttpResponse(NioHttpRequest request, RestStatus status, BytesReference content) {
         super(request.nettyRequest().protocolVersion(), getStatus(status), ByteBufUtils.toByteBuf(content));
         this.sequence = request.sequence();
+        this.request = request;
     }
 
     @Override
@@ -55,6 +57,10 @@ public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResp
     }
 
     private static Map<RestStatus, HttpResponseStatus> MAP;
+
+    public NioHttpRequest getRequest() {
+        return request;
+    }
 
     static {
         EnumMap<RestStatus, HttpResponseStatus> map = new EnumMap<>(RestStatus.class);
@@ -109,5 +115,4 @@ public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResp
     private static HttpResponseStatus getStatus(RestStatus status) {
         return MAP.getOrDefault(status, HttpResponseStatus.INTERNAL_SERVER_ERROR);
     }
-
 }

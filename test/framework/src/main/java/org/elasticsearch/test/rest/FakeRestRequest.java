@@ -19,16 +19,18 @@
 
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
-import java.net.SocketAddress;
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,43 +38,19 @@ import java.util.Map;
 
 public class FakeRestRequest extends RestRequest {
 
-    private final HttpRequest httpRequest;
-    private final SocketAddress remoteAddress;
-
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(), null);
+        this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(),
+            new FakeHttpChannel(null));
     }
 
     private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
-                            SocketAddress remoteAddress) {
-        super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders());
-        this.httpRequest = httpRequest;
-        this.remoteAddress = remoteAddress;
-    }
-
-    @Override
-    public Method method() {
-        return httpRequest.method();
-    }
-
-    @Override
-    public String uri() {
-        return rawPath();
+                            HttpChannel httpChannel) {
+        super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
     @Override
     public boolean hasContent() {
         return content() != null;
-    }
-
-    @Override
-    public BytesReference content() {
-        return httpRequest.content();
-    }
-
-    @Override
-    public SocketAddress getRemoteAddress() {
-        return remoteAddress;
     }
 
     private static class FakeHttpRequest implements HttpRequest {
@@ -142,6 +120,35 @@ public class FakeRestRequest extends RestRequest {
         }
     }
 
+    private static class FakeHttpChannel implements HttpChannel {
+
+        private final InetSocketAddress remoteAddress;
+
+        private FakeHttpChannel(InetSocketAddress remoteAddress) {
+            this.remoteAddress = remoteAddress;
+        }
+
+        @Override
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+
+        }
+
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return null;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return null;
+        }
+
+        @Override
+        public void close() {
+
+        }
+    }
+
     public static class Builder {
         private final NamedXContentRegistry xContentRegistry;
 
@@ -155,7 +162,7 @@ public class FakeRestRequest extends RestRequest {
 
         private Method method = Method.GET;
 
-        private SocketAddress address = null;
+        private InetSocketAddress address = null;
 
         public Builder(NamedXContentRegistry xContentRegistry) {
             this.xContentRegistry = xContentRegistry;
@@ -189,14 +196,14 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withRemoteAddress(SocketAddress address) {
+        public Builder withRemoteAddress(InetSocketAddress address) {
             this.address = address;
             return this;
         }
 
         public FakeRestRequest build() {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers);
-            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, address);
+            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address));
         }
     }
 }

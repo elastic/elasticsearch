@@ -155,7 +155,7 @@ public class Netty4HttpRequest implements HttpRequest {
         return new Netty4HttpResponse(this, status, content);
     }
 
-    FullHttpRequest nettyRequest() {
+    public FullHttpRequest nettyRequest() {
         return request;
     }
 

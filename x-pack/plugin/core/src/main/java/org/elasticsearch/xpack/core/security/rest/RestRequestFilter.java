@@ -35,45 +35,13 @@ public interface RestRequestFilter {
     default RestRequest getFilteredRequest(RestRequest restRequest) throws IOException {
         Set<String> fields = getFilteredFields();
         if (restRequest.hasContent() && fields.isEmpty() == false) {
-            return new RestRequest(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders()) {
+            return new RestRequest(restRequest) {
 
                 private BytesReference filteredBytes = null;
 
                 @Override
-                public Method method() {
-                    return restRequest.method();
-                }
-
-                @Override
-                public String uri() {
-                    return restRequest.uri();
-                }
-
-                @Override
                 public boolean hasContent() {
                     return true;
-                }
-
-                @Nullable
-                @Override
-                public SocketAddress getRemoteAddress() {
-                    return restRequest.getRemoteAddress();
-                }
-
-                @Nullable
-                @Override
-                public SocketAddress getLocalAddress() {
-                    return restRequest.getLocalAddress();
-                }
-
-                @Override
-                public HttpRequest getHttpRequest() {
-                    return restRequest.getHttpRequest();
-                }
-
-                @Override
-                public HttpChannel getHttpChannel() {
-                    return restRequest.getHttpChannel();
                 }
 
                 @Override

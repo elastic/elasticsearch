@@ -81,10 +81,10 @@ public class NioCorsHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        assert msg instanceof NioHttpResponse : "Message must be type: " + NioHttpResponse.class;
+        assert msg instanceof NioHttpResponse : "Invalid message type: " + msg.getClass();
         NioHttpResponse response = (NioHttpResponse) msg;
-        NioCorsHandler.setCorsResponseHeaders(null, response, config);
-        super.write(ctx, msg, promise);
+        setCorsResponseHeaders(response.getRequest().nettyRequest(), response, config);
+        ctx.write(response, promise);
     }
 
     public static void setCorsResponseHeaders(HttpRequest request, HttpResponse resp, NioCorsConfig config) {

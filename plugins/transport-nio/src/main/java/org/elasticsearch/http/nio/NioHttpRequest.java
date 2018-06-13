@@ -155,7 +155,7 @@ public class NioHttpRequest implements HttpRequest {
         return new NioHttpResponse(this, status, content);
     }
 
-    FullHttpRequest nettyRequest() {
+    public FullHttpRequest nettyRequest() {
         return request;
     }
 

@@ -15,10 +15,12 @@ import java.util.Map;
 public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpResponse, HttpPipelinedMessage {
 
     private final int sequence;
+    private final Netty4HttpRequest request;
 
     Netty4HttpResponse(Netty4HttpRequest request, RestStatus status, BytesReference content) {
         super(request.nettyRequest().protocolVersion(), getStatus(status), Netty4Utils.toByteBuf(content));
         this.sequence = request.sequence();
+        this.request = request;
     }
 
     @Override
@@ -34,6 +36,10 @@ public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpR
     @Override
     public int getSequence() {
         return sequence;
+    }
+
+    public Netty4HttpRequest getRequest() {
+        return request;
     }
 
     private static Map<RestStatus, HttpResponseStatus> MAP;

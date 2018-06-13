@@ -43,10 +43,12 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.MlRemoteLicenseChecker;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -111,23 +113,25 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                    ActionListener<StartDatafeedAction.Response> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
         if (licenseState.isMachineLearningAllowed()) {
-            ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> finalListener =
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-                    waitForDatafeedStarted(persistentTask.getId(), params, listener);
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        logger.debug("datafeed already started", e);
-                        e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
-                                "] because it has already been started", RestStatus.CONFLICT);
-                    }
-                    listener.onFailure(e);
-                }
-            };
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
+                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
+                        @Override
+                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>
+                                                       persistentTask) {
+                            waitForDatafeedStarted(persistentTask.getId(), params, listener);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof ResourceAlreadyExistsException) {
+                                logger.debug("datafeed already started", e);
+                                e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
+                                        "] because it has already been started", RestStatus.CONFLICT);
+                            }
+                            listener.onFailure(e);
+                        }
+                    };
 
             // Verify data extractor factory can be created, then start persistent task
             MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
@@ -135,14 +139,37 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             validate(params.getDatafeedId(), mlMetadata, tasks);
             DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
             Job job = mlMetadata.getJobs().get(datafeed.getJobId());
-            DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
-                    dataExtractorFactory ->
-                            persistentTasksService.sendStartRequest(MLMetadataField.datafeedTaskId(params.getDatafeedId()),
-                            StartDatafeedAction.TASK_NAME, params, finalListener)
-                    , listener::onFailure));
+
+            if (MlRemoteLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+                MlRemoteLicenseChecker remoteLicenseChecker = new MlRemoteLicenseChecker(client);
+                remoteLicenseChecker.checkRemoteClusterLicenses(MlRemoteLicenseChecker.remoteClusterNames(datafeed.getIndices()),
+                        ActionListener.wrap(
+                                response -> {
+                                    if (response.isViolated()) {
+                                        listener.onFailure(createUnlicensedError(datafeed.getId(), response));
+                                    } else {
+                                        createDataExtractor(job, datafeed, params, waitForTaskListener);
+                                    }
+                                },
+                                e -> listener.onFailure(createUnknownLicenseError(datafeed.getId(),
+                                        MlRemoteLicenseChecker.remoteIndices(datafeed.getIndices()), e))
+                        ));
+            } else {
+                createDataExtractor(job, datafeed, params, waitForTaskListener);
+            }
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }
+    }
+
+    private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,
+                                     ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>
+                                             listener) {
+        DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
+                dataExtractorFactory ->
+                        persistentTasksService.sendStartRequest(MLMetadataField.datafeedTaskId(params.getDatafeedId()),
+                                StartDatafeedAction.TASK_NAME, params, listener)
+                , listener::onFailure));
     }
 
     @Override
@@ -158,28 +185,29 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         DatafeedPredicate predicate = new DatafeedPredicate();
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, params.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-                if (predicate.exception != null) {
-                    // We want to return to the caller without leaving an unassigned persistent task, to match
-                    // what would have happened if the error had been detected in the "fast fail" validation
-                    cancelDatafeedStart(persistentTask, predicate.exception, listener);
-                } else {
-                    listener.onResponse(new StartDatafeedAction.Response(true));
-                }
-            }
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>
+                                                   persistentTask) {
+                        if (predicate.exception != null) {
+                            // We want to return to the caller without leaving an unassigned persistent task, to match
+                            // what would have happened if the error had been detected in the "fast fail" validation
+                            cancelDatafeedStart(persistentTask, predicate.exception, listener);
+                        } else {
+                            listener.onResponse(new StartDatafeedAction.Response(true));
+                        }
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
 
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                listener.onFailure(new ElasticsearchException("Starting datafeed ["
-                        + params.getDatafeedId() + "] timed out after [" + timeout + "]"));
-            }
-        });
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        listener.onFailure(new ElasticsearchException("Starting datafeed ["
+                                + params.getDatafeedId() + "] timed out after [" + timeout + "]"));
+                    }
+                });
     }
 
     private void cancelDatafeedStart(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
@@ -201,6 +229,25 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     }
                 }
         );
+    }
+
+    private ElasticsearchStatusException createUnlicensedError(String datafeedId,
+                                                               MlRemoteLicenseChecker.LicenseViolation licenseViolation) {
+        String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use "
+                + "indices on a remote cluster [" + licenseViolation.get().getClusterName()
+                + "] that is not licensed for Machine Learning. "
+                + MlRemoteLicenseChecker.buildErrorMessage(licenseViolation.get());
+
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private ElasticsearchStatusException createUnknownLicenseError(String datafeedId, List<String> remoteIndices,
+                                                                   Exception cause) {
+        String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use"
+                + " indices on a remote cluster " + remoteIndices
+                + " but the license type could not be verified";
+
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, new Exception(cause.getMessage()));
     }
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<StartDatafeedAction.DatafeedParams> {

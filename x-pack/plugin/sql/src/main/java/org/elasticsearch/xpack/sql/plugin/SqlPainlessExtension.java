@@ -12,7 +12,7 @@ import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +24,7 @@ public class SqlPainlessExtension implements PainlessExtension {
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        Map<ScriptContext<?>, List<Whitelist>> whitelist = new LinkedHashMap<>();
+        Map<ScriptContext<?>, List<Whitelist>> whitelist = new HashMap<>();
         List<Whitelist> list = singletonList(WHITELIST);
         whitelist.put(FilterScript.CONTEXT, list);
         whitelist.put(SearchScript.AGGS_CONTEXT, list);

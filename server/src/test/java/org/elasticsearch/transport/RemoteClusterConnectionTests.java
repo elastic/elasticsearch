@@ -1100,19 +1100,19 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
              MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
 
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            assertThat(seedNode, notNullValue());
-            knownNodes.add(seedNode);
+            DiscoveryNode connectedNode = seedTransport.getLocalDiscoNode();
+            assertThat(connectedNode, notNullValue());
+            knownNodes.add(connectedNode);
 
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
-            assertThat(discoverableNode, notNullValue());
-            knownNodes.add(discoverableNode);
+            DiscoveryNode disconnectedNode = discoverableTransport.getLocalDiscoNode();
+            assertThat(disconnectedNode, notNullValue());
+            knownNodes.add(disconnectedNode);
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
                 Transport.Connection seedConnection = new Transport.Connection() {
                     @Override
                     public DiscoveryNode getNode() {
-                        return seedNode;
+                        return connectedNode;
                     }
 
                     @Override
@@ -1126,30 +1126,41 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         // no-op
                     }
                 };
-                service.addDelegate(seedNode.getAddress(), new MockTransportService.DelegateTransport(service.getOriginalTransport()) {
+                service.addDelegate(connectedNode.getAddress(), new MockTransportService.DelegateTransport(service.getOriginalTransport()) {
                     @Override
                     public Connection getConnection(DiscoveryNode node) {
-                        if (node == seedNode) {
+                        if (node == connectedNode) {
                             return seedConnection;
                         }
                         return super.getConnection(node);
+                    }
+
+                    @Override
+                    public boolean nodeConnected(DiscoveryNode node) {
+                        return node.equals(connectedNode);
                     }
                 });
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                        Collections.singletonList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
-                    connection.addConnectedNode(seedNode);
+                        Collections.singletonList(connectedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    connection.addConnectedNode(connectedNode);
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected
-                        Transport.Connection remoteConnection = connection.getConnection(seedNode);
+                        Transport.Connection remoteConnection = connection.getConnection(connectedNode);
                         assertSame(seedConnection, remoteConnection);
                     }
                     for (int i = 0; i < 10; i++) {
+                        //always a direct connection as the remote node is already connected
+                        Transport.Connection remoteConnection = connection.getConnection(service.getLocalNode());
+                        assertThat(remoteConnection, not(instanceOf(RemoteClusterConnection.ProxyConnection.class)));
+                        assertThat(remoteConnection.getNode(), equalTo(service.getLocalNode()));
+                    }
+                    for (int i = 0; i < 10; i++) {
                         //always a proxy connection as the target node is not connected
-                        Transport.Connection remoteConnection = connection.getConnection(discoverableNode);
+                        Transport.Connection remoteConnection = connection.getConnection(disconnectedNode);
                         assertThat(remoteConnection, instanceOf(RemoteClusterConnection.ProxyConnection.class));
-                        assertThat(remoteConnection.getNode(), sameInstance(discoverableNode));
+                        assertThat(remoteConnection.getNode(), sameInstance(disconnectedNode));
                     }
                 }
             }

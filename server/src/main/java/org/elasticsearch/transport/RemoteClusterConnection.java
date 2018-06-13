@@ -257,7 +257,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
-        if (connectedNodes.contains(remoteClusterNode)) {
+        if (transportService.nodeConnected(remoteClusterNode)) {
             return transportService.getConnection(remoteClusterNode);
         }
         DiscoveryNode discoveryNode = connectedNodes.getAny();
@@ -265,7 +265,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return new ProxyConnection(connection, remoteClusterNode);
     }
 
-    static class ProxyConnection implements Transport.Connection {
+    static final class ProxyConnection implements Transport.Connection {
         private final Transport.Connection proxyConnection;
         private final DiscoveryNode targetNode;
 
@@ -622,7 +622,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return connectedNodes.size();
     }
 
-    private static class ConnectedNodes {
+    private static final class ConnectedNodes {
 
         private final Set<DiscoveryNode> nodeSet = new HashSet<>();
         private final String clusterAlias;

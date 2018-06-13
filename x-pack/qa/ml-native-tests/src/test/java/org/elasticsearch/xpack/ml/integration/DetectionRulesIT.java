@@ -12,7 +12,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Condition;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -21,7 +20,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
-import org.elasticsearch.xpack.core.ml.job.config.RuleConditionType;
+import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.junit.After;
 
@@ -34,9 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
@@ -47,37 +44,22 @@ import static org.hamcrest.Matchers.isOneOf;
 public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void cleanUpTest() throws Exception {
+    public void cleanUpTest() {
         cleanUp();
     }
 
-    public void testNumericalRule() throws Exception {
-        RuleCondition condition1 = RuleCondition.createNumerical(
-                RuleConditionType.NUMERICAL_ACTUAL,
-                "by_field",
-                "by_field_value_1",
-                new Condition(Operator.LT, "1000"));
-        RuleCondition condition2 = RuleCondition.createNumerical(
-                RuleConditionType.NUMERICAL_ACTUAL,
-                "by_field",
-                "by_field_value_2",
-                new Condition(Operator.LT, "500"));
-        RuleCondition condition3 = RuleCondition.createNumerical(
-                RuleConditionType.NUMERICAL_ACTUAL,
-                "by_field",
-                "by_field_value_3",
-                new Condition(Operator.LT, "100"));
-        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(condition1, condition2, condition3)).build();
+    public void testCondition() throws Exception {
+        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
+                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 100.0)
+        )).build();
 
-        Detector.Builder detector = new Detector.Builder("max", "value");
-        detector.setRules(Arrays.asList(rule));
+        Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("by_field");
-
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(detector.build()));
+        detector.setRules(Arrays.asList(rule));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        Job.Builder job = new Job.Builder("detection-rule-numeric-test");
+        Job.Builder job = new Job.Builder("detection-rules-it-test-condition");
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
@@ -89,12 +71,11 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         int totalBuckets = 2 * 24;
         // each half of the buckets contains one anomaly for each by field value
         Set<Integer> anomalousBuckets = new HashSet<>(Arrays.asList(20, 44));
-        List<String> byFieldValues = Arrays.asList("by_field_value_1", "by_field_value_2", "by_field_value_3");
+        List<String> byFieldValues = Arrays.asList("low", "high");
         Map<String, Integer> anomalousValues = new HashMap<>();
-        anomalousValues.put("by_field_value_1", 800);
-        anomalousValues.put("by_field_value_2", 400);
-        anomalousValues.put("by_field_value_3", 400);
-        int normalValue = 1;
+        anomalousValues.put("low", 99);
+        anomalousValues.put("high", 701);
+        int normalValue = 400;
         List<String> data = new ArrayList<>();
         for (int bucket = 0; bucket < totalBuckets; bucket++) {
             for (String byFieldValue : byFieldValues) {
@@ -113,27 +94,14 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         List<AnomalyRecord> records = getRecords(job.getId());
         assertThat(records.size(), equalTo(1));
-        assertThat(records.get(0).getByFieldValue(), equalTo("by_field_value_3"));
+        assertThat(records.get(0).getByFieldValue(), equalTo("high"));
         long firstRecordTimestamp = records.get(0).getTimestamp().getTime();
 
         {
             // Update rules so that the anomalies suppression is inverted
-            RuleCondition newCondition1 = RuleCondition.createNumerical(
-                    RuleConditionType.NUMERICAL_ACTUAL,
-                    "by_field",
-                    "by_field_value_1",
-                    new Condition(Operator.GT, "1000"));
-            RuleCondition newCondition2 = RuleCondition.createNumerical(
-                    RuleConditionType.NUMERICAL_ACTUAL,
-                    "by_field",
-                    "by_field_value_2",
-                    new Condition(Operator.GT, "500"));
-            RuleCondition newCondition3 = RuleCondition.createNumerical(
-                    RuleConditionType.NUMERICAL_ACTUAL,
-                    "by_field",
-                    "by_field_value_3",
-                    new Condition(Operator.GT, "0"));
-            DetectionRule newRule = new DetectionRule.Builder(Arrays.asList(newCondition1, newCondition2, newCondition3)).build();
+            DetectionRule newRule = new DetectionRule.Builder(Arrays.asList(
+                    new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 700.0)
+            )).build();
             JobUpdate.Builder update = new JobUpdate.Builder(job.getId());
             update.setDetectorUpdates(Arrays.asList(new JobUpdate.DetectorUpdate(0, null, Arrays.asList(newRule))));
             updateJob(job.getId(), update.build());
@@ -147,17 +115,15 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         GetRecordsAction.Request recordsAfterFirstHalf = new GetRecordsAction.Request(job.getId());
         recordsAfterFirstHalf.setStart(String.valueOf(firstRecordTimestamp + 1));
         records = getRecords(recordsAfterFirstHalf);
-        assertThat(records.size(), equalTo(2));
-        Set<String> secondHaldRecordByFieldValues = records.stream().map(AnomalyRecord::getByFieldValue).collect(Collectors.toSet());
-        assertThat(secondHaldRecordByFieldValues, contains("by_field_value_1", "by_field_value_2"));
+        assertThat(records.size(), equalTo(1));
+        assertThat(records.get(0).getByFieldValue(), equalTo("low"));
     }
 
-    public void testCategoricalRule() throws Exception {
+    public void testScope() throws Exception {
         MlFilter safeIps = new MlFilter("safe_ips", Arrays.asList("111.111.111.111", "222.222.222.222"));
         assertThat(putMlFilter(safeIps), is(true));
 
-        RuleCondition condition = RuleCondition.createCategorical("ip", safeIps.getId());
-        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(condition)).build();
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips")).build();
 
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setRules(Arrays.asList(rule));
@@ -166,7 +132,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        Job.Builder job = new Job.Builder("detection-rule-categorical-test");
+        Job.Builder job = new Job.Builder("detection-rules-it-test-scope");
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
@@ -258,6 +224,70 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         }
 
         closeJob(job.getId());
+    }
+
+    public void testScopeAndCondition() throws IOException {
+        // We have 2 IPs and they're both safe-listed.
+        List<String> ips = Arrays.asList("111.111.111.111", "222.222.222.222");
+        MlFilter safeIps = new MlFilter("safe_ips", ips);
+        assertThat(putMlFilter(safeIps), is(true));
+
+        // Ignore if ip in safe list AND actual < 10.
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips"))
+                .setConditions(Arrays.asList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 10.0)))
+                .build();
+
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setRules(Arrays.asList(rule));
+        detector.setOverFieldName("ip");
+
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        Job.Builder job = new Job.Builder("detection-rules-it-test-scope-and-condition");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        long timestamp = 1509062400000L;
+        List<String> data = new ArrayList<>();
+
+        // First, 20 buckets with a count of 1 for both IPs
+        for (int bucket = 0; bucket < 20; bucket++) {
+            for (String ip : ips) {
+                data.add(createIpRecord(timestamp, ip));
+            }
+            timestamp += TimeValue.timeValueHours(1).getMillis();
+        }
+
+        // Now send anomalous count of 9 for 111.111.111.111
+        for (int i = 0; i < 9; i++) {
+            data.add(createIpRecord(timestamp, "111.111.111.111"));
+        }
+
+        // and 10 for 222.222.222.222
+        for (int i = 0; i < 10; i++) {
+            data.add(createIpRecord(timestamp, "222.222.222.222"));
+        }
+        timestamp += TimeValue.timeValueHours(1).getMillis();
+
+        // Some more normal buckets
+        for (int bucket = 0; bucket < 3; bucket++) {
+            for (String ip : ips) {
+                data.add(createIpRecord(timestamp, ip));
+            }
+            timestamp += TimeValue.timeValueHours(1).getMillis();
+        }
+
+        postData(job.getId(), joinBetween(0, data.size(), data));
+        closeJob(job.getId());
+
+        List<AnomalyRecord> records = getRecords(job.getId());
+        assertThat(records.size(), equalTo(1));
+        assertThat(records.get(0).getOverFieldValue(), equalTo("222.222.222.222"));
     }
 
     private String createIpRecord(long timestamp, String ip) throws IOException {

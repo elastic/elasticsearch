@@ -876,4 +876,28 @@ public class ScopedSettingsTests extends ESTestCase {
                 Settings.builder().put(currentSettings), Settings.builder(), "node"));
         assertThat(exc.getMessage(), containsString("final node setting [some.final.group.foo]"));
     }
+
+    public void testInternalIndexSettingsFailsValidation() {
+        final Setting<String> indexInternalSetting = Setting.simpleString("index.internal", Property.InternalIndex, Property.IndexScope);
+        final IndexScopedSettings indexScopedSettings =
+                new IndexScopedSettings(Settings.EMPTY, Collections.singleton(indexInternalSetting));
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    final Settings settings = Settings.builder().put("index.internal", "internal").build();
+                    indexScopedSettings.validate(settings, false, /* validateInternalIndex */ true);
+                });
+        final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
+        assertThat(e, hasToString(containsString(message)));
+    }
+
+    public void testInternalIndexSettingsSkipValidation() {
+        final Setting<String> internalIndexSetting = Setting.simpleString("index.internal", Property.InternalIndex, Property.IndexScope);
+        final IndexScopedSettings indexScopedSettings = 
+                new IndexScopedSettings(Settings.EMPTY, Collections.singleton(internalIndexSetting));
+        // nothing should happen, validation should not throw an exception
+        final Settings settings = Settings.builder().put("index.internal", "internal").build();
+        indexScopedSettings.validate(settings, false, /* validateInternalIndex */ false);
+    }
+
 }

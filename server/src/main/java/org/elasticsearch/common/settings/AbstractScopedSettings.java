@@ -285,6 +285,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that all settings are registered and valid.
      *
+     * @param settings              the settings to validate
+     * @param validateDependencies  true if dependent settings should be validated
+     * @param validateInternalIndex true if internal index settings should be validated
+     * @see Setting#getSettingsDependencies(String)
+     */
+    public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
+        validate(settings, validateDependencies, false, false, validateInternalIndex);
+    }
+
+    /**
+     * Validates that all settings are registered and valid.
+     *
      * @param settings               the settings
      * @param validateDependencies   true if dependent settings should be validated
      * @param ignorePrivateSettings  true if private settings should be ignored during validation
@@ -296,6 +308,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             final boolean validateDependencies,
             final boolean ignorePrivateSettings,
             final boolean ignoreArchivedSettings) {
+        validate(settings, validateDependencies, ignorePrivateSettings, ignoreArchivedSettings, false);
+    }
+
+    /**
+     * Validates that all settings are registered and valid.
+     *
+     * @param settings               the settings
+     * @param validateDependencies   true if dependent settings should be validated
+     * @param ignorePrivateSettings  true if private settings should be ignored during validation
+     * @param ignoreArchivedSettings true if archived settings should be ignored during validation
+     * @param validateInternalIndex  true if index internal settings should be validated
+     * @see Setting#getSettingsDependencies(String)
+     */
+    public final void validate(
+            final Settings settings,
+            final boolean validateDependencies,
+            final boolean ignorePrivateSettings,
+            final boolean ignoreArchivedSettings,
+            final boolean validateInternalIndex) {
         final List<RuntimeException> exceptions = new ArrayList<>();
         for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
             if (isPrivateSetting(key) && ignorePrivateSettings) {
@@ -305,7 +336,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 continue;
             }
             try {
-                validate(key, settings, validateDependencies);
+                validate(key, settings, validateDependencies, validateInternalIndex);
             } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -314,9 +345,27 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Validates that the setting is valid
+     * Validates that the settings is valid.
+     *
+     * @param key the key of the setting to validate
+     * @param settings the settings
+     * @param validateDependencies true if dependent settings should be validated
+     * @throws IllegalArgumentException if the setting is invalid
      */
-    void validate(String key, Settings settings, boolean validateDependencies) {
+    void validate(final String key, final Settings settings, final boolean validateDependencies) {
+        validate(key, settings, validateDependencies, false);
+    }
+
+    /**
+     * Validates that the settings is valid.
+     *
+     * @param key the key of the setting to validate
+     * @param settings the settings
+     * @param validateDependencies true if dependent settings should be validated
+     * @param validateInternalIndex true if internal index settings should be validated
+     * @throws IllegalArgumentException if the setting is invalid
+     */
+    void validate(final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
         Setting setting = getRaw(key);
         if (setting == null) {
             LevensteinDistance ld = new LevensteinDistance();
@@ -355,6 +404,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                             + requiredSetting + "] for setting [" + setting.getKey() + "]");
                     }
                 }
+            }
+            // the only time that validateInternalIndex should be true is if this call is coming via the update settings API
+            if (validateInternalIndex && setting.getProperties().contains(Setting.Property.InternalIndex)) {
+                throw new IllegalArgumentException(
+                        "can not update internal setting [" + setting.getKey() + "]; this setting is managed via a dedicated API");
             }
         }
         setting.get(settings);

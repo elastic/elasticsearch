@@ -32,7 +32,6 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
-import org.elasticsearch.test.Netty4TestCase;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -43,6 +42,7 @@ import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.contains;
 /**
  * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
  */
-public class Netty4HttpServerPipeliningTests extends Netty4TestCase {
+public class Netty4HttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;

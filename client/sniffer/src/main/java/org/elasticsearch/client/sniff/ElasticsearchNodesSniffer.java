@@ -146,8 +146,8 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
         String version = null;
         /*
          * Multi-valued attributes come with key = `real_key.index` and we
-         * unflip them after reading them because we can't rely on the that
-         * they arive in the result object.
+         * unflip them after reading them because we can't rely on the order
+         * that they arive.
          */
         final Map<String, String> protoAttributes = new HashMap<String, String>();
 
@@ -271,9 +271,8 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
     /**
      * Returns {@code defaultValue} if the attribute didn't come back,
      * {@code true} or {@code false} if it did come back as
-     * either of those, or throws and IOException if the attribute
+     * either of those, or throws an IOException if the attribute
      * came back in a strange way.
-     * @throws IOException
      */
     private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes,
             String name, Boolean defaultValue) throws IOException {

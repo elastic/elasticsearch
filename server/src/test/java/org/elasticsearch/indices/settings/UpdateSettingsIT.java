@@ -27,8 +27,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -162,13 +164,19 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
 
         public static class UpdateInternalIndexAction
-                extends Action<UpdateInternalIndexAction.Request, UpdateInternalIndexAction.Response> {
+                extends Action<UpdateInternalIndexAction.Request, UpdateInternalIndexAction.Response,
+                UpdateInternalIndexAction.RequestBuilder> {
 
             private static final UpdateInternalIndexAction INSTANCE = new UpdateInternalIndexAction();
             private static final String NAME = "indices:admin/settings/update-internal-index";
 
             public UpdateInternalIndexAction() {
                 super(NAME);
+            }
+
+            @Override
+            public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
+                return new RequestBuilder(client, this);
             }
 
             static class Request extends MasterNodeRequest<Request> {
@@ -215,6 +223,12 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 return new Response();
             }
 
+            static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+
+                protected RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
+                    super(client, action, new Request());
+                }
+            }
         }
 
         public static class TransportUpdateInternalIndexAction

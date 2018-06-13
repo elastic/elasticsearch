@@ -374,7 +374,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
         private void forkConnect(final Collection<ActionListener<Void>> toNotify) {
             ThreadPool threadPool = transportService.getThreadPool();
-            assert threadPool.getThreadContext().isSystemContext() == false : "context is a system context";
             ExecutorService executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
             executor.submit(new AbstractRunnable() {
                 @Override
@@ -451,7 +450,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             // due to an already closed connection.
                             ThreadPool threadPool = transportService.getThreadPool();
                             ThreadContext threadContext = threadPool.getThreadContext();
-                            assert threadContext.isSystemContext() == false : "context is a system context";
                             TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler = new TransportService
                                 .ContextRestoreResponseHandler<>(threadContext.newRestorableContext(false),
                                 new SniffClusterStateResponseHandler(transportService, connection, listener, seedNodes,
@@ -530,7 +528,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
             @Override
             public void handleResponse(ClusterStateResponse response) {
-                assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 try {
                     if (remoteClusterName.get() == null) {
                         assert response.getClusterName().value() != null;
@@ -570,7 +567,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
             @Override
             public void handleException(TransportException exp) {
-                assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), exp);
                 try {
                     IOUtils.closeWhileHandlingException(connection);

@@ -11,3 +11,10 @@ header, e.g. `client.index(indexRequest)` becomes
 In case you are specifying headers
 e.g. `client.index(indexRequest, new Header("name" "value"))` becomes
 `client.index(indexRequest, RequestOptions.DEFAULT.toBuilder().addHeader("name", "value").build());`
+
+==== Cluster Health API default to `cluster` level
+
+The Cluster Health API used to default to `shards` level to ease migration
+from transport client that doesn't support the `level` parameter and always
+returns information including indices and shards details. The level default
+value has been aligned with the Elasticsearch default level: `cluster`.

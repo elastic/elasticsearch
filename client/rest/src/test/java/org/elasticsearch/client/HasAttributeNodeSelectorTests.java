@@ -50,7 +50,7 @@ public class HasAttributeNodeSelectorTests extends RestClientTestCase {
         assertEquals(expected, nodes);
     }
 
-    private Node dummyNode(Map<String, List<String>> attributes) {
+    private static Node dummyNode(Map<String, List<String>> attributes) {
         return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
                 randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
                 new Roles(randomBoolean(), randomBoolean(), randomBoolean()),

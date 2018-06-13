@@ -542,7 +542,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
     }
 
-    private Node nodeWithVersion(String version) {
+    private static Node nodeWithVersion(String version) {
         return new Node(new HttpHost("dummy"), null, null, version, null, null);
     }
 
@@ -597,7 +597,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         }
     }
 
-    private Node nodeWithAttributes(Map<String, List<String>> attributes) {
+    private static Node nodeWithAttributes(Map<String, List<String>> attributes) {
         return new Node(new HttpHost("dummy"), null, null, null, null, attributes);
     }
 
@@ -624,7 +624,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertEquals(Arrays.asList(both), nodes);
     }
 
-    private Node nodeWithVersionAndAttributes(String version, Map<String, List<String>> attributes) {
+    private static Node nodeWithVersionAndAttributes(String version, Map<String, List<String>> attributes) {
         return new Node(new HttpHost("dummy"), null, null, version, null, attributes);
     }
 

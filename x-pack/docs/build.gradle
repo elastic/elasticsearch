@@ -48,7 +48,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/watcher/trigger/schedule/yearly.asciidoc',
         'en/watcher/troubleshooting.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
-        'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',
         'en/rest-api/ml/get-job-stats.asciidoc',
         'en/rest-api/ml/get-overall-buckets.asciidoc',
@@ -60,11 +59,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/preview-datafeed.asciidoc',
         'en/rest-api/ml/revert-snapshot.asciidoc',
         'en/rest-api/ml/update-snapshot.asciidoc',
-<<<<<<< HEAD
-=======
-        'en/rest-api/ml/validate-detector.asciidoc',
-        'en/rest-api/security/authenticate.asciidoc',
->>>>>>> [DOCS] Test validate job API
         'en/rest-api/watcher/stats.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]

@@ -11,7 +11,7 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketSelector;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.WriteOperation;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     private final SSLDriver sslDriver;
 
-    SSLChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
+    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
                       ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
         super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
         this.sslDriver = sslDriver;
@@ -140,7 +140,7 @@ public final class SSLChannelContext extends SocketChannelContext {
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
             WriteOperation writeOperation = new CloseNotifyOperation(this);
-            SocketSelector selector = getSelector();
+            NioSelector selector = getSelector();
             if (selector.isOnCurrentThread() == false) {
                 selector.queueWrite(writeOperation);
                 return;

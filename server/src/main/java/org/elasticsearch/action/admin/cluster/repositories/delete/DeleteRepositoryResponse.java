@@ -20,20 +20,12 @@
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * Unregister repository response
  */
 public class DeleteRepositoryResponse extends AcknowledgedResponse {
-
-    private static final ConstructingObjectParser<DeleteRepositoryResponse, Void> PARSER =
-        new ConstructingObjectParser<>("delete_repository", true, args -> new DeleteRepositoryResponse((boolean) args[0]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-    }
 
     DeleteRepositoryResponse() {
     }
@@ -43,6 +35,6 @@ public class DeleteRepositoryResponse extends AcknowledgedResponse {
     }
 
     public static DeleteRepositoryResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new DeleteRepositoryResponse(parseAcknowledged(parser));
     }
 }

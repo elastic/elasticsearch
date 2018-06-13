@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -21,10 +19,7 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.SecurityField;
 
-import java.util.Collection;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 

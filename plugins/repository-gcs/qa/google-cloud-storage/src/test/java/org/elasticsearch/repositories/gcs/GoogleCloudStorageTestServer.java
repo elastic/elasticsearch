@@ -367,47 +367,6 @@ public class GoogleCloudStorageTestServer {
             return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, objectId, body));
         });
 
-        // Rewrite or Copy Object
-        //
-        // https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
-        // https://cloud.google.com/storage/docs/json_api/v1/objects/copy
-        handlers.insert("POST " + endpoint + "/storage/v1/b/{srcBucket}/o/{src}/{action}/b/{destBucket}/o/{dest}",
-                (params, headers, body) -> {
-                    final String action = params.get("action");
-                    if ((action.equals("rewriteTo") == false) && (action.equals("copyTo") == false)) {
-                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "Action not implemented. None of \"rewriteTo\" or \"copyTo\".");
-                    }
-                    final String source = params.get("src");
-                    if (Strings.hasText(source) == false) {
-                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "source object name is missing");
-                    }
-                    final Bucket srcBucket = buckets.get(params.get("srcBucket"));
-                    if (srcBucket == null) {
-                        return newError(RestStatus.NOT_FOUND, "source bucket not found");
-                    }
-                    final String dest = params.get("dest");
-                    if (Strings.hasText(dest) == false) {
-                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "destination object name is missing");
-                    }
-                    final Bucket destBucket = buckets.get(params.get("destBucket"));
-                    if (destBucket == null) {
-                        return newError(RestStatus.NOT_FOUND, "destination bucket not found");
-                    }
-                    final byte[] sourceBytes = srcBucket.objects.get(source);
-                    if (sourceBytes == null) {
-                        return newError(RestStatus.NOT_FOUND, "source object not found");
-                    }
-                    destBucket.objects.put(dest, sourceBytes);
-                    if (action.equals("rewriteTo")) {
-                        final XContentBuilder respBuilder = jsonBuilder();
-                        buildRewriteResponse(respBuilder, destBucket.name, dest, sourceBytes.length);
-                        return newResponse(RestStatus.OK, emptyMap(), respBuilder);
-                    } else {
-                        assert action.equals("copyTo");
-                        return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(destBucket.name, dest, sourceBytes));
-                    }
-                });
-
         // List Objects
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/list
@@ -700,29 +659,5 @@ public class GoogleCloudStorageTestServer {
                             .field("bucket", bucket)
                             .field("size", String.valueOf(bytes.length))
                         .endObject();
-    }
-
-    /**
-     * Builds the rewrite response as defined by
-     * https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
-     */
-    private static XContentBuilder buildRewriteResponse(final XContentBuilder builder,
-                                                        final String destBucket,
-                                                        final String dest,
-                                                        final int byteSize) throws IOException {
-        builder.startObject()
-                    .field("kind", "storage#rewriteResponse")
-                    .field("totalBytesRewritten", String.valueOf(byteSize))
-                    .field("objectSize", String.valueOf(byteSize))
-                    .field("done", true)
-                    .startObject("resource")
-                        .field("kind", "storage#object")
-                        .field("id", String.join("/", destBucket, dest))
-                        .field("name", dest)
-                        .field("bucket", destBucket)
-                        .field("size", String.valueOf(byteSize))
-                    .endObject()
-                .endObject();
-        return builder;
     }
 }

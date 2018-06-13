@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.qa.sql.cli;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 
 import java.io.IOException;

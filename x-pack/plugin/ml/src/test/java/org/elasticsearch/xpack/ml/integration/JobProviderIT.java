@@ -27,29 +27,28 @@ import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Connective;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
-import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
-import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -511,20 +510,15 @@ public class JobProviderIT extends MlSingleNodeTestCase {
     private AnalysisConfig.Builder createAnalysisConfig(List<String> filterIds) {
         Detector.Builder detector = new Detector.Builder("mean", "field");
         detector.setByFieldName("by_field");
+        List<DetectionRule> rules = new ArrayList<>();
 
-        if (!filterIds.isEmpty()) {
-            List<RuleCondition> conditions = new ArrayList<>();
+        for (String filterId : filterIds) {
+            RuleScope.Builder ruleScope = RuleScope.builder();
+            ruleScope.include("by_field", filterId);
 
-            for (String filterId : filterIds) {
-                conditions.add(RuleCondition.createCategorical("by_field", filterId));
-            }
-
-            DetectionRule.Builder rule = new DetectionRule.Builder(conditions)
-                    .setActions(RuleAction.FILTER_RESULTS)
-                    .setConditionsConnective(Connective.OR);
-
-            detector.setRules(Collections.singletonList(rule.build()));
+            rules.add(new DetectionRule.Builder(ruleScope).setActions(RuleAction.SKIP_RESULT).build());
         }
+        detector.setRules(rules);
 
         return new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
     }

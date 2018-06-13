@@ -8,18 +8,16 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.Condition;
-import org.elasticsearch.xpack.core.ml.job.config.Connective;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
-import org.elasticsearch.xpack.core.ml.job.config.RuleConditionType;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
@@ -31,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -190,22 +189,18 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     public void testWriteUpdateDetectorRulesMessage() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
 
-        DetectionRule rule1 = new DetectionRule.Builder(createRule("5")).setTargetFieldName("targetField1")
-                .setTargetFieldValue("targetValue").setConditionsConnective(Connective.AND).build();
-        DetectionRule rule2 = new DetectionRule.Builder(createRule("5")).setTargetFieldName("targetField2")
-                .setTargetFieldValue("targetValue").setConditionsConnective(Connective.AND).build();
+        DetectionRule rule1 = new DetectionRule.Builder(createRule(5)).build();
+        DetectionRule rule2 = new DetectionRule.Builder(createRule(5)).build();
         writer.writeUpdateDetectorRulesMessage(2, Arrays.asList(rule1, rule2));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("u[detectorRules]\ndetectorIndex=2\n" +
-                            "rulesJson=[{\"actions\":[\"filter_results\"],\"conditions_connective\":\"and\",\"conditions\":" +
-                "[{\"type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
-                "\"target_field_name\":\"targetField1\",\"target_field_value\":\"targetValue\"}," +
-                "{\"actions\":[\"filter_results\"],\"conditions_connective\":\"and\",\"conditions\":[" +
-                "{\"type\":\"numerical_actual\",\"condition\":{\"operator\":\"gt\",\"value\":\"5\"}}]," +
-                "\"target_field_name\":\"targetField2\",\"target_field_value\":\"targetValue\"}]");
+                "rulesJson=[{\"actions\":[\"skip_result\"],\"conditions\":" +
+                "[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}," +
+                "{\"actions\":[\"skip_result\"],\"conditions\":[" +
+                "{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}]");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -244,16 +239,17 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[scheduledEvents]\n"
+        ArgumentCaptor<String> capturedMessage = ArgumentCaptor.forClass(String.class);
+        inOrder.verify(lengthEncodedWriter).writeField(capturedMessage.capture());
+        assertThat(capturedMessage.getValue(), equalTo("u[scheduledEvents]\n"
                 + "scheduledevent.0.description = new year\n"
-                + "scheduledevent.0.rules = [{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\","
-                +     "\"conditions\":[{\"type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1514764800\"}},"
-                +     "{\"type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1514851200\"}}]}]\n"
+                + "scheduledevent.0.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
+                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5147648E9},"
+                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5148512E9}]}]\n"
                 + "scheduledevent.1.description = Jan maintenance day\n"
-                + "scheduledevent.1.rules = [{\"actions\":[\"filter_results\",\"skip_sampling\"],\"conditions_connective\":\"and\","
-                +     "\"conditions\":[{\"type\":\"time\",\"condition\":{\"operator\":\"gte\",\"value\":\"1515196800\"}},"
-                +     "{\"type\":\"time\",\"condition\":{\"operator\":\"lt\",\"value\":\"1515283200\"}}]}]\n"
-        );
+                + "scheduledevent.1.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
+                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5151968E9},"
+                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5152832E9}]}]\n"));
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -288,8 +284,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
-    private static List<RuleCondition> createRule(String value) {
-        Condition condition = new Condition(Operator.GT, value);
-        return Collections.singletonList(RuleCondition.createNumerical(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition));
+    private static List<RuleCondition> createRule(double value) {
+        return Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, value));
     }
 }

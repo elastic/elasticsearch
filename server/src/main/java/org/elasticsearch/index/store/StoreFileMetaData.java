@@ -24,7 +24,6 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.text.ParseException;

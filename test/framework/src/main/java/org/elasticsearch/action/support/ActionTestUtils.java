@@ -17,19 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.elasticsearch.action.support;
 
-import org.apache.http.HttpHost;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 
-import java.io.IOException;
-import java.util.List;
+import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
-/**
- * Responsible for sniffing the http hosts
- */
-public interface HostsSniffer {
-    /**
-     * Returns the sniffed http hosts
-     */
-    List<HttpHost> sniffHosts() throws IOException;
+public class ActionTestUtils {
+
+    private ActionTestUtils() { /* no construction */ }
+
+    public static <Request extends ActionRequest, Response extends ActionResponse>
+    Response executeBlocking(TransportAction<Request, Response> action, Request request) {
+        PlainActionFuture<Response> future = newFuture();
+        action.execute(request, future);
+        return future.actionGet();
+    }
 }

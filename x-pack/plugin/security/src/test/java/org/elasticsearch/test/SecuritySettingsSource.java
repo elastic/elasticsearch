@@ -92,7 +92,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     private final boolean usePEM;
 
     /**
-     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.//UsersTool
+     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslEnabled whether ssl is enabled
@@ -106,7 +106,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.sslEnabled = sslEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
         this.usePEM = randomBoolean();
-
     }
 
     Path nodePath(final int nodeOrdinal) {

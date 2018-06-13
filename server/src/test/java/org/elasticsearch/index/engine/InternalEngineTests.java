@@ -731,7 +731,7 @@ public class InternalEngineTests extends EngineTestCase {
                     super.commitIndexWriter(writer, translog, syncId);
                 }
             };
-            assertThat(recoveringEngine.getTranslog().stats().getUncommittedOperations(), equalTo(docs));
+            assertThat(getTranslog(recoveringEngine).stats().getUncommittedOperations(), equalTo(docs));
             recoveringEngine.recoverFromTranslog();
             assertTrue(committed.get());
         } finally {
@@ -758,7 +758,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
                 initialEngine.index(indexForDoc(doc));
                 if (rarely()) {
-                    initialEngine.getTranslog().rollGeneration();
+                    getTranslog(initialEngine).rollGeneration();
                 } else if (rarely()) {
                     initialEngine.flush();
                 }
@@ -3983,14 +3983,14 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(checkpointOnReplica, replicaEngine.getLocalCheckpoint());
             trimUnsafeCommits(copy(replicaEngine.config(), globalCheckpoint::get));
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
-            assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().stats().getUncommittedOperations());
+            assertEquals(numDocsOnReplica, getTranslog(recoveringEngine).stats().getUncommittedOperations());
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(checkpointOnReplica, recoveringEngine.getLocalCheckpoint());
             assertEquals((maxSeqIDOnReplica + 1) - numDocsOnReplica, recoveringEngine.fillSeqNoGaps(2));
 
             // now snapshot the tlog and ensure the primary term is updated
-            try (Translog.Snapshot snapshot = recoveringEngine.getTranslog().newSnapshot()) {
+            try (Translog.Snapshot snapshot = getTranslog(recoveringEngine).newSnapshot()) {
                 assertTrue((maxSeqIDOnReplica + 1) - numDocsOnReplica <= snapshot.totalOperations());
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
@@ -4005,7 +4005,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpoint());
                 if ((flushed = randomBoolean())) {
                     globalCheckpoint.set(recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
-                    recoveringEngine.getTranslog().sync();
+                    getTranslog(recoveringEngine).sync();
                     recoveringEngine.flush(true, true);
                 }
             }
@@ -4018,7 +4018,7 @@ public class InternalEngineTests extends EngineTestCase {
             trimUnsafeCommits(replicaEngine.config());
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
             if (flushed) {
-                assertThat(recoveringEngine.getTranslog().stats().getUncommittedOperations(), equalTo(0));
+                assertThat(recoveringEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
             }
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
@@ -4221,7 +4221,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(indexForDoc(testParsedDocument(Integer.toString(docId), null, document, B_1, null)));
                 if (frequently()) {
                     globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
-                    engine.getTranslog().sync();
+                    engine.syncTranslog();
                 }
                 if (frequently()) {
                     final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
@@ -4243,7 +4243,7 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                     // Make sure we keep all translog operations after the local checkpoint of the safe commit.
                     long localCheckpointFromSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                    try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
                         assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(localCheckpointFromSafeCommit + 1, docId));
                     }
                 }

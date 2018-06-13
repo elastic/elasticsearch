@@ -17,8 +17,18 @@
  * under the License.
  */
 
+package org.elasticsearch.tools.java_version_checker;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
 /**
- * Parses YAML test {@link org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite}s containing
- * {@link org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection}s.
+ * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
  */
-package org.elasticsearch.test.rest.yaml.parser;
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
+public @interface SuppressForbidden {
+    String reason();
+}

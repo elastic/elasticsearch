@@ -23,7 +23,6 @@ import java.util.IdentityHashMap;
 
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 
 public class TestAwsS3Service extends InternalAwsS3Service {

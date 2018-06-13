@@ -22,15 +22,13 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.FullHttpRequest;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipeliningAggregator;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -55,17 +53,14 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        if (msg instanceof LastHttpContent) {
-            HttpPipelinedRequest<LastHttpContent> pipelinedRequest = aggregator.read(((LastHttpContent) msg));
-            ctx.fireChannelRead(pipelinedRequest);
-        } else {
-            ctx.fireChannelRead(msg);
-        }
+        assert msg instanceof FullHttpRequest : "Invalid message type: " + msg.getClass();
+        HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = aggregator.read(((FullHttpRequest) msg));
+        ctx.fireChannelRead(pipelinedRequest);
     }
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        assert msg instanceof Netty4HttpResponse : "Message must be type: " + Netty4HttpResponse.class;
+        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();;
         Netty4HttpResponse response = (Netty4HttpResponse) msg;
         boolean success = false;
         try {

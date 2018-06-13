@@ -374,6 +374,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
         private void forkConnect(final Collection<ActionListener<Void>> toNotify) {
             ThreadPool threadPool = transportService.getThreadPool();
+            assert threadPool.getThreadContext().isSystemContext() == false : "context is a system context";
             ExecutorService executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
             executor.submit(new AbstractRunnable() {
                 @Override

@@ -20,7 +20,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -64,7 +64,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -184,7 +183,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
     private void fetchShardsInternal(ClusterSearchShardsRequest searchShardsRequest,
                                      final ActionListener<ClusterSearchShardsResponse> listener) {
-        final DiscoveryNode node = connectedNodes.get();
+        final DiscoveryNode node = connectedNodes.getAny();
         transportService.sendRequest(node, ClusterSearchShardsAction.NAME, searchShardsRequest,
             new TransportResponseHandler<ClusterSearchShardsResponse>() {
 
@@ -220,7 +219,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             request.clear();
             request.nodes(true);
             request.local(true); // run this on the node that gets the request it's as good as any other
-            final DiscoveryNode node = connectedNodes.get();
+            final DiscoveryNode node = connectedNodes.getAny();
             transportService.sendRequest(node, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<ClusterStateResponse>() {
                     @Override
@@ -258,40 +257,52 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     }
 
     /**
-     * Returns a connection to the remote cluster. This connection might be a proxy connection that redirects internally to the
-     * given node.
+     * Returns a connection to the remote cluster, preferably a direct connection to the provided {@link DiscoveryNode}.
+     * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
-        DiscoveryNode discoveryNode = connectedNodes.get();
+        if (transportService.nodeConnected(remoteClusterNode)) {
+            return transportService.getConnection(remoteClusterNode);
+        }
+        DiscoveryNode discoveryNode = connectedNodes.getAny();
         Transport.Connection connection = transportService.getConnection(discoveryNode);
-        return new Transport.Connection() {
-            @Override
-            public DiscoveryNode getNode() {
-                return remoteClusterNode;
-            }
+        return new ProxyConnection(connection, remoteClusterNode);
+    }
 
-            @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+    static final class ProxyConnection implements Transport.Connection {
+        private final Transport.Connection proxyConnection;
+        private final DiscoveryNode targetNode;
+
+        private ProxyConnection(Transport.Connection proxyConnection, DiscoveryNode targetNode) {
+            this.proxyConnection = proxyConnection;
+            this.targetNode = targetNode;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return targetNode;
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws IOException, TransportException {
-                connection.sendRequest(requestId, TransportActionProxy.getProxyAction(action),
-                    TransportActionProxy.wrapRequest(remoteClusterNode, request), options);
-            }
+            proxyConnection.sendRequest(requestId, TransportActionProxy.getProxyAction(action),
+                    TransportActionProxy.wrapRequest(targetNode, request), options);
+        }
 
-            @Override
-            public void close() throws IOException {
-                assert false: "proxy connections must not be closed";
-            }
+        @Override
+        public void close() {
+            assert false: "proxy connections must not be closed";
+        }
 
-            @Override
-            public Version getVersion() {
-                return connection.getVersion();
-            }
-        };
+        @Override
+        public Version getVersion() {
+            return proxyConnection.getVersion();
+        }
     }
 
     Transport.Connection getConnection() {
-        DiscoveryNode discoveryNode = connectedNodes.get();
-        return transportService.getConnection(discoveryNode);
+        return transportService.getConnection(getAnyConnectedNode());
     }
 
     @Override
@@ -388,7 +399,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 }
 
                 @Override
-                protected void doRun() throws Exception {
+                protected void doRun() {
                     ActionListener<Void> listener = ActionListener.wrap((x) -> {
                         synchronized (queue) {
                             running.release();
@@ -593,8 +604,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return connectedNodes.contains(node);
     }
 
-    DiscoveryNode getConnectedNode() {
-        return connectedNodes.get();
+    DiscoveryNode getAnyConnectedNode() {
+        return connectedNodes.getAny();
     }
 
     void addConnectedNode(DiscoveryNode node) {
@@ -605,7 +616,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * Fetches connection info for this connection
      */
     public void getConnectionInfo(ActionListener<RemoteConnectionInfo> listener) {
-        final Optional<DiscoveryNode> anyNode = connectedNodes.getAny();
+        final Optional<DiscoveryNode> anyNode = connectedNodes.getAnyConnectedNode();
         if (anyNode.isPresent() == false) {
             // not connected we return immediately
             RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
@@ -668,7 +679,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return connectedNodes.size();
     }
 
-    private static class ConnectedNodes implements Supplier<DiscoveryNode> {
+    private static final class ConnectedNodes {
 
         private final Set<DiscoveryNode> nodeSet = new HashSet<>();
         private final String clusterAlias;
@@ -679,8 +690,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             this.clusterAlias = clusterAlias;
         }
 
-        @Override
-        public synchronized DiscoveryNode get() {
+        public synchronized DiscoveryNode getAny() {
             ensureIteratorAvailable();
             if (currentIterator.hasNext()) {
                 return currentIterator.next();
@@ -713,7 +723,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             return nodeSet.contains(node);
         }
 
-        synchronized Optional<DiscoveryNode> getAny() {
+        synchronized Optional<DiscoveryNode> getAnyConnectedNode() {
             ensureIteratorAvailable();
             if (currentIterator.hasNext()) {
                 return Optional.of(currentIterator.next());

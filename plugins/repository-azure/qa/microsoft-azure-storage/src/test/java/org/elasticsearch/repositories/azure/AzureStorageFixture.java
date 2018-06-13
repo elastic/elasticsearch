@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.repositories.azure;
 
-import basic.BaseHttpFixture;
+import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -40,7 +40,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * The implementation is based on official documentation available at
  * https://docs.microsoft.com/en-us/rest/api/storageservices/blob-service-rest-api.
  */
-public class AzureStorageFixture extends BaseHttpFixture {
+public class AzureStorageFixture extends AbstractHttpFixture {
 
     /**
      * List of the containers stored on this test server
@@ -62,7 +62,7 @@ public class AzureStorageFixture extends BaseHttpFixture {
     }
 
     @Override
-    protected BaseHttpFixture.Response handle(final Request request) throws IOException {
+    protected AbstractHttpFixture.Response handle(final Request request) throws IOException {
         final RequestHandler handler = handlers.retrieve(request.getMethod() + " " + request.getPath(), request.getParameters());
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");

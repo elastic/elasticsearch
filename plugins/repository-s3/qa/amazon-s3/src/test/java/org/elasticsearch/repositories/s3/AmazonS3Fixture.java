@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import basic.BaseHttpFixture;
+import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import com.amazonaws.util.DateUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -45,7 +45,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * .
  * he implementation is based on official documentation available at https://docs.aws.amazon.com/AmazonS3/latest/API/.
  */
-public class AmazonS3Fixture extends BaseHttpFixture {
+public class AmazonS3Fixture extends AbstractHttpFixture {
 
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();

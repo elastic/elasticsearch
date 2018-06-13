@@ -28,10 +28,6 @@ esplugin {
 // No unit tests in this example
 test.enabled = false
 
-dependencies {
-  testCompile project(':test:fixtures:basic-fixture')
-}
-
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn testClasses
   executable = new File(project.runtimeJavaHome, 'bin/java')

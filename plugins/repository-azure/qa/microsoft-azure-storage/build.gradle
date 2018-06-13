@@ -23,10 +23,6 @@ import org.elasticsearch.gradle.test.AntFixture
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-dependencies {
-    testCompile project(':test:fixtures:basic-fixture')
-}
-
 integTestCluster {
     plugin ':plugins:repository-azure'
 }
@@ -48,7 +44,7 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath) {
 
 /** A task to start the fixture which emulates an Azure Storage service **/
 task azureStorageFixture(type: AntFixture) {
-    dependsOn compileTestJava
+    dependsOn testClasses
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.azure.AzureStorageFixture', baseDir, azureContainer

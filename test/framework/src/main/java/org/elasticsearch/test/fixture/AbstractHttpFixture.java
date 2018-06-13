@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package basic;
+package org.elasticsearch.test.fixture;
 
 import com.sun.net.httpserver.HttpServer;
 
@@ -48,7 +48,7 @@ import static java.util.Collections.singletonMap;
 /**
  * Base class for test fixtures that requires a {@link HttpServer} to work.
  */
-public abstract class BaseHttpFixture {
+public abstract class AbstractHttpFixture {
 
     protected static final Map<String, String> TEXT_PLAIN_CONTENT_TYPE = contentType("text/plain; charset=utf-8");
     protected static final Map<String, String> JSON_CONTENT_TYPE = contentType("application/json; charset=utf-8");
@@ -61,7 +61,7 @@ public abstract class BaseHttpFixture {
     /** Current working directory of the fixture **/
     private final Path workingDirectory;
 
-    protected BaseHttpFixture(final String workingDir) {
+    protected AbstractHttpFixture(final String workingDir) {
         this.workingDirectory = Paths.get(Objects.requireNonNull(workingDir));
     }
 

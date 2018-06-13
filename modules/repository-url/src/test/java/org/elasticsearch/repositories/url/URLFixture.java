@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.repositories.url;
 
-import basic.BaseHttpFixture;
+import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
@@ -33,7 +33,7 @@ import java.util.Map;
  * This {@link URLFixture} exposes a filesystem directory over HTTP. It is used in repository-url
  * integration tests to expose a directory created by a regular FS repository.
  */
-public class URLFixture extends BaseHttpFixture {
+public class URLFixture extends AbstractHttpFixture {
 
     private final Path repositoryDir;
 
@@ -55,7 +55,7 @@ public class URLFixture extends BaseHttpFixture {
     }
 
     @Override
-    protected BaseHttpFixture.Response handle(final Request request) throws IOException {
+    protected AbstractHttpFixture.Response handle(final Request request) throws IOException {
         if ("GET".equalsIgnoreCase(request.getMethod())) {
             String path = request.getPath();
             if (path.length() > 0 && path.charAt(0) == '/') {

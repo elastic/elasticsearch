@@ -26,10 +26,6 @@ import java.security.KeyPairGenerator
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-dependencies {
-    testCompile project(':test:fixtures:basic-fixture')
-}
-
 integTestCluster {
     plugin ':plugins:repository-gcs'
 }
@@ -55,7 +51,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
 
 /** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
 task googleCloudStorageFixture(type: AntFixture) {
-    dependsOn compileTestJava
+    dependsOn testClasses
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'

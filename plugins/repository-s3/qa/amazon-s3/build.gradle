@@ -25,7 +25,6 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
     testCompile project(path: ':plugins:repository-s3', configuration: 'runtime')
-    testCompile project(':test:fixtures:basic-fixture')
 }
 
 integTestCluster {
@@ -49,7 +48,7 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
 
 /** A task to start the AmazonS3Fixture which emulates a S3 service **/
 task s3Fixture(type: AntFixture) {
-    dependsOn compileTestJava
+    dependsOn testClasses
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3Bucket

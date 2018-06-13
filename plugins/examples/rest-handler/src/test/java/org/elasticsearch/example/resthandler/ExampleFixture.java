@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.example.resthandler;
 
-import basic.BaseHttpFixture;
+import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class ExampleFixture extends BaseHttpFixture {
+public class ExampleFixture extends AbstractHttpFixture {
 
     private final String message;
 

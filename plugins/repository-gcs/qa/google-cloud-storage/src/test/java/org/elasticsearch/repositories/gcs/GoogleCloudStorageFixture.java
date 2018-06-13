@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import basic.BaseHttpFixture;
+import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.path.PathTrie;
@@ -55,7 +55,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  * The implementation is based on official documentation available at https://cloud.google.com/storage/docs/json_api/v1/.
  */
-public class GoogleCloudStorageFixture extends BaseHttpFixture {
+public class GoogleCloudStorageFixture extends AbstractHttpFixture {
 
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();

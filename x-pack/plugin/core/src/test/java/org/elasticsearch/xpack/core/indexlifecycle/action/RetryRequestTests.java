@@ -11,6 +11,7 @@ import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction.Request;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class RetryRequestTests extends AbstractStreamableTestCase<Request> {
 
@@ -34,7 +35,8 @@ public class RetryRequestTests extends AbstractStreamableTestCase<Request> {
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
             case 0:
-                indices = generateRandomStringArray(20, 10, false);
+                indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
+                    () -> generateRandomStringArray(20, 10, false, true));
                 break;
             case 1:
                 indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),

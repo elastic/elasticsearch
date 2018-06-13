@@ -132,6 +132,9 @@ Aggregations::
 * Always return the after_key in composite aggregation response {pull}28358[#28358]
 * Upgrade t-digest to 3.2 {pull}28305[#28305] (issue: {issue}28295[#28295])
 
+CRUD::
+* Don't swallow exceptions on replication {pull}31179[#31179] (issue: {issue}28571[#28571])
+
 Core::
 * Implement Iterator#remove for Cache values iter {pull}29633[#29633]
 * Introduce analyze thread pool {pull}29541[#29541]
@@ -224,6 +227,7 @@ Mapping::
 Machine Learning::
 * Synchronize long and short tests for periodicity {ml-pull}62[#62]
 * Improvements to trend modelling and periodicity testing for forecasting {ml-pull}7[#7] (issue: {ml-issue}5[#5])
+* [ML] Clean left behind model state docs {pull}30659[#30659] (issue: {issue}30551[#30551])
 * [ML] Hide internal Job update options from the REST API {pull}30537[#30537] (issue: {issue}30512[#30512])
 
 Packaging::
@@ -265,7 +269,8 @@ Scripting::
 * Modify Painless grammar to support right brackets as statement delimiters {pull}29566[#29566]
 
 Search::
-*  Add support to match_phrase query for zero_terms_query. {pull}29598[#29598] (issue: {issue}29344[#29344])
+* Improve explanation in rescore {pull}30629[#30629] (issue: {issue}28725[#28725])
+* Add support to match_phrase query for zero_terms_query. {pull}29598[#29598] (issue: {issue}29344[#29344])
 * Improve similarity integration. {pull}29187[#29187] (issues: {issue}23208[#23208], {issue}29035[#29035])
 * Store offsets in index prefix fields when stored in the parent field {pull}29067[#29067] (issue: {issue}28994[#28994])
 * Add QueryBuilders.matchNoneQuery(), #28679 {pull}28680[#28680]
@@ -324,6 +329,8 @@ Audit::
 * Fix audit index template upgrade loop {pull}30779[#30779]
 
 Authentication::
+* Security: fix dynamic mapping updates with aliases {pull}30787[#30787] (issue: {issue}30597[#30597])
+* [Security] Include an empty json object in an json array when FLS filters out all fields {pull}30709[#30709] (issue: {issue}30624[#30624])
 * Security: cleanup code in file stores {pull}30348[#30348]
 * Security: fix TokenMetaData equals and hashcode {pull}30347[#30347]
 
@@ -399,6 +406,7 @@ Machine Learning::
 * Do not log incorrect model memory limit {ml-pull}3[#3]
 
 Mapping::
+* Delay _uid field data deprecation warning {pull}30651[#30651] (issue: {issue}30625[#30625])
 * Ignore null value for range field (#27845) {pull}28116[#28116] (issue: {issue}27845[#27845])
 * Fix a type check that is always false {pull}27726[#27726]
 
@@ -423,6 +431,7 @@ Percolator::
 * Do not take duplicate query extractions into account for minimum_should_match attribute {pull}28353[#28353] (issue: {issue}28315[#28315])
 
 Plugins::
+* Template upgrades should happen in a system context {pull}30621[#30621] (issue: {issue}30603[#30603])
 * Plugins: Fix native controller confirmation for non-meta plugin {pull}29434[#29434]
 * Plugins: Fix module name conflict check for meta plugins {pull}29146[#29146]
 * Ensure that azure stream has socket privileges {pull}28751[#28751] (issue: {issue}28662[#28662])

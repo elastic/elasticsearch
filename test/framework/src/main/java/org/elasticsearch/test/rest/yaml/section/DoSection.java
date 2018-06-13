@@ -390,19 +390,22 @@ public class DoSection implements ExecutableSection {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 key = parser.currentName();
-            } else {
+            } else if (token.isValue()) {
                 NodeSelector newSelector = new HasAttributeNodeSelector(key, parser.text());
-                parser.skipChildren();
                 result = result == NodeSelector.ANY ?
                     newSelector : new ComposeNodeSelector(result, newSelector);
+            } else {
+                throw new XContentParseException(parser.getTokenLocation(), "expected [" + key + "] to be a value");
             }
         }
         return result;
     }
 
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+        if (false == parser.currentToken().isValue()) {
+            throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
+        }
         Version[] range = SkipSection.parseVersionRange(parser.text());
-        parser.skipChildren();
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {

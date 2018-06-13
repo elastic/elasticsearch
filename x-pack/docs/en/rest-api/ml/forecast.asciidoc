@@ -62,7 +62,7 @@ POST _xpack/ml/anomaly_detectors/total-requests/_forecast
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_openjob]
+// TEST[skip:requires delay]
 
 When the forecast is created, you receive the following results:
 [source,js]
@@ -72,7 +72,7 @@ When the forecast is created, you receive the following results:
   "forecast_id": "wkCWa2IB2lF8nSE_TzZo"
 }
 ----
-// TESTRESPONSE[s/"forecast_id": "wkCWa2IB2lF8nSE_TzZo"/"forecast_id": $body.forecast_id/]
+// NOTCONSOLE
 
 You can subsequently see the forecast in the *Single Metric Viewer* in {kib}.
 

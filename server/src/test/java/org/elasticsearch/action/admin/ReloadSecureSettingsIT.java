@@ -41,6 +41,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -240,7 +241,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         for (final String nodeName : internalCluster().getNodeNames()) {
             internalCluster().getInstance(PluginsService.class, nodeName)
                     .filterPlugins(MisbehavingReloadablePlugin.class)
-                    .stream().findFirst().get().turnSulky();
+                    .stream().findFirst().get().setShouldThrow(true);
         }
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -261,7 +262,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                             assertThat(nodesMap.size(), equalTo(cluster().size()));
                             for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
                                 assertThat(nodeResponse.reloadException(), notNullValue());
-                                assertThat(nodeResponse.reloadException().getMessage(), containsString("When sulky I throw"));
+                                assertThat(nodeResponse.reloadException().getMessage(), containsString("If shouldThrow I throw"));
                             }
                         } catch (final AssertionError e) {
                             reloadSettingsError.set(e);
@@ -309,7 +310,10 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockReloadablePlugin.class, MisbehavingReloadablePlugin.class);
+        final List<Class<? extends Plugin>> plugins = Arrays.asList(MockReloadablePlugin.class, MisbehavingReloadablePlugin.class);
+        // shuffle as reload is called in order
+        Collections.shuffle(plugins);
+        return plugins;
     }
 
     private void successfulReloadCall() throws InterruptedException {
@@ -393,7 +397,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(DUMMY_SECRET_SETTING);
+            return Collections.singletonList(DUMMY_SECRET_SETTING);
         }
 
         public String getDummySecretValue() {
@@ -404,22 +408,22 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public static class MisbehavingReloadablePlugin extends CountingReloadablePlugin {
 
-        private volatile boolean sulky = false;
+        private boolean shouldThrow = false;
 
         public MisbehavingReloadablePlugin() {
         }
 
         @Override
-        public void reload(Settings settings) throws Exception {
+        public synchronized void reload(Settings settings) throws Exception {
             super.reload(settings);
-            if (sulky) {
-                sulky = false;
-                throw new Exception("When sulky I throw");
+            if (shouldThrow) {
+                shouldThrow = false;
+                throw new Exception("If shouldThrow I throw");
             }
         }
 
-        public void turnSulky() {
-            this.sulky = true;
+        public synchronized void setShouldThrow(boolean shouldThrow) {
+            this.shouldThrow = shouldThrow;
         }
     }
 

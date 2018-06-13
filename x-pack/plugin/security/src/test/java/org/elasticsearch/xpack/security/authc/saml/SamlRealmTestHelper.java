@@ -38,7 +38,7 @@ public class SamlRealmTestHelper {
         slo.setLocation(IDP_LOGOUT_URL);
 
         final SpConfiguration spConfiguration = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, SP_LOGOUT_URL,
-                new SigningConfiguration(Collections.singleton("*"), credential), Arrays.asList(credential));
+            new SigningConfiguration(Collections.singleton("*"), credential), Arrays.asList(credential), Collections.emptyList());
         return new SamlRealm(realmConfig, mock(UserRoleMapper.class), mock(SamlAuthenticator.class),
                 mock(SamlLogoutRequestHandler.class), () -> idpDescriptor, spConfiguration);
     }

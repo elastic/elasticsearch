@@ -148,7 +148,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                             @Override
                                             public ClusterState execute(ClusterState currentState) {
                                                 RolloverInfo rolloverInfo = new RolloverInfo(rolloverRequest.getAlias(), metConditions,
-                                                    System.currentTimeMillis());
+                                                    threadPool.absoluteTimeInMillis());
                                                 return ClusterState.builder(currentState)
                                                     .metaData(MetaData.builder(currentState.metaData())
                                                         .put(IndexMetaData.builder(currentState.metaData().index(sourceIndexName))

@@ -45,7 +45,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.core.CombinableMatcher.both;
+import static org.hamcrest.number.OrderingComparison.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RolloverIT extends ESIntegTestCase {
@@ -72,6 +75,7 @@ public class RolloverIT extends ESIntegTestCase {
     }
 
     public void testRollover() throws Exception {
+        long beforeTime = client().threadPool().absoluteTimeInMillis();
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
         index("test_index-2", "type1", "1", "field", "value");
         flush("test_index-2");
@@ -89,6 +93,8 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getAlias(), equalTo("test_alias"));
         assertThat(oldIndex.getRolloverInfos().get("test_alias").getMetConditions(), is(empty()));
+        assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis()))));
     }
 
     public void testRolloverWithIndexSettings() throws Exception {
@@ -258,6 +264,7 @@ public class RolloverIT extends ESIntegTestCase {
         // A small max_size
         {
             ByteSizeValue maxSizeValue = new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
+            long beforeTime = client().threadPool().absoluteTimeInMillis();
             final RolloverResponse response = client().admin().indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxIndexSizeCondition(maxSizeValue)
@@ -269,6 +276,8 @@ public class RolloverIT extends ESIntegTestCase {
             List<Condition> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
             assertThat(metConditions.size(), equalTo(1));
             assertThat(metConditions.get(0).toString(), equalTo(new MaxSizeCondition(maxSizeValue).toString()));
+            assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
+                is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis()))));
         }
 
         // An empty index

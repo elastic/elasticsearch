@@ -595,7 +595,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) {
             return false;
         }
-        if (!rolloverInfos.equals(that.rolloverInfos)) {
+        if (rolloverInfos.equals(that.rolloverInfos) == false) {
             return false;
         }
         return true;

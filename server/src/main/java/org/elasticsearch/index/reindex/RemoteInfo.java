@@ -62,11 +62,6 @@ public class RemoteInfo implements Writeable {
      */
     private final TimeValue connectTimeout;
 
-    public RemoteInfo(String scheme, String host, int port, BytesReference query, String username, String password,
-                      Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
-        this(scheme, host, port, null, query, username, password, headers, socketTimeout, connectTimeout);
-    }
-
     public RemoteInfo(String scheme, String host, int port, String pathPrefix, BytesReference query, String username, String password,
                       Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
         this.scheme = requireNonNull(scheme, "[scheme] must be specified to reindex from a remote cluster");

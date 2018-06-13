@@ -59,7 +59,7 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
         for (int i = 0; i < numHeaders; ++i) {
             headers.put("header" + i, Integer.toString(i));
         }
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null,
+        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, null, new BytesArray("ignored"), null, null,
             headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         long taskId = randomLong();
         List<Thread> threads = synchronizedList(new ArrayList<>());

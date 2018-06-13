@@ -25,12 +25,10 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
@@ -145,40 +143,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
 
         assertTrue(embeddedChannel.isOpen());
     }
-
-    // TODO: This does not make sense because we should have a full http request after the aggregator
-    public void testThatPipeliningWorksWithChunkedRequests() throws InterruptedException {
-        final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(
-                new AggregateUrisAndHeadersHandler(),
-                new NioHttpPipeliningHandler(logger, numberOfRequests),
-                new WorkEmulatorHandler());
-
-        for (int i = 0; i < numberOfRequests; i++) {
-            final DefaultHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/" + i);
-            embeddedChannel.writeInbound(request);
-            embeddedChannel.writeInbound(LastHttpContent.EMPTY_LAST_CONTENT);
-        }
-
-        final List<CountDownLatch> latches = new ArrayList<>();
-        for (int i = numberOfRequests - 1; i >= 0; i--) {
-            latches.add(finishRequest(Integer.toString(i)));
-        }
-
-        for (final CountDownLatch latch : latches) {
-            latch.await();
-        }
-
-        embeddedChannel.flush();
-
-        for (int i = 0; i < numberOfRequests; i++) {
-            assertReadHttpMessageHasContent(embeddedChannel, Integer.toString(i));
-        }
-
-        assertTrue(embeddedChannel.isOpen());
-    }
-
+    
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests),

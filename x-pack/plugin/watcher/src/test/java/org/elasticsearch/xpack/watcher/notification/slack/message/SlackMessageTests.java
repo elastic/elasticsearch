@@ -602,9 +602,6 @@ public class SlackMessageTests extends ESTestCase {
         }
     }
 
-    // Create template from null message or null attachment ok
-    // Can have message as null
-
     public void canHaveNullTextAndAttachment()  throws Exception {
         SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon");
         assertThat(slackMessage.getText(), is(null));

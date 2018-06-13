@@ -285,7 +285,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.LUCENE,
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.ELASTICSEARCH,
             () -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH,
             () -> new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true,
@@ -302,7 +302,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         analyzers.add(new PreBuiltAnalyzerProviderFactory("bulgarian", CachingStrategy.LUCENE, BulgarianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("catalan", CachingStrategy.LUCENE, CatalanAnalyzer::new));
         // chinese analyzer: only for old indices, best effort
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.LUCENE, StandardAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.ONE, StandardAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("cjk", CachingStrategy.LUCENE, CJKAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("czech", CachingStrategy.LUCENE, CzechAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("danish", CachingStrategy.LUCENE, DanishAnalyzer::new));

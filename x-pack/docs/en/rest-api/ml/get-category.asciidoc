@@ -5,7 +5,7 @@
 <titleabbrev>Get Categories</titleabbrev>
 ++++
 
-This API enables you to retrieve job results for one or more categories.
+Retrieves job results for one or more categories.
 
 
 ==== Request

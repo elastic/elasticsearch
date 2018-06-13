@@ -5,7 +5,7 @@
 <titleabbrev>Get Model Snapshots</titleabbrev>
 ++++
 
-This API enables you to retrieve information about model snapshots.
+Retrieves information about model snapshots.
 
 
 ==== Request

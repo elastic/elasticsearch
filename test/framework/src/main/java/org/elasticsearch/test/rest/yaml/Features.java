@@ -22,7 +22,11 @@ package org.elasticsearch.test.rest.yaml;
 import java.util.Arrays;
 import java.util.List;
 
+import org.elasticsearch.test.rest.ESRestTestCase;
+
 import static java.util.Collections.unmodifiableList;
+
+import java.io.IOException;
 
 /**
  * Allows to register additional features supported by the tests runner.
@@ -53,11 +57,23 @@ public final class Features {
      * Tells whether all the features provided as argument are supported
      */
     public static boolean areAllSupported(List<String> features) {
-        for (String feature : features) {
-            if (!SUPPORTED.contains(feature)) {
-                return false;
+        try {
+            for (String feature : features) {
+                if (feature.equals("xpack")) {
+                    if (false == ESRestTestCase.hasXPack()) {
+                        return false;
+                    }
+                } else if (feature.equals("no_xpack")) {
+                    if (ESRestTestCase.hasXPack()) {
+                        return false;
+                    }
+                } else if (false == SUPPORTED.contains(feature)) {
+                    return false;
+                }
             }
+            return true;
+        } catch (IOException e) {
+            throw new RuntimeException("error checking if xpack is available", e);
         }
-        return true;
     }
 }

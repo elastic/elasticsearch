@@ -59,7 +59,6 @@ for (Version version : bwcVersions.wireCompatible) {
     systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
     if ('zip'.equals(extension.distribution)) {
       systemProperty 'tests.rest.blacklist', [
-          'cat.templates/10_basic/No templates',
           'cat.templates/10_basic/Sort templates',
           'cat.templates/10_basic/Multiple template',
         ].join(',')

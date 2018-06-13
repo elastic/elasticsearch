@@ -15,7 +15,7 @@
 ---
 "No templates":
     - skip:
-        features: default_shards
+        features: default_shards, no_xpack
     - do:
         cat.templates: {}
 

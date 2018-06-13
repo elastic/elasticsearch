@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -21,11 +22,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
@@ -33,11 +36,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.RandomStepInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
@@ -790,6 +797,128 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .build();
         MetaData metadata = MetaData.builder().put(indexMetadata, true).build();
         return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
+    }
+
+    public void testSetPolicyForIndex() {
+        long now = randomNonNegativeLong();
+        String indexName = randomAlphaOfLength(10);
+        String oldPolicyName = "old_policy";
+        String newPolicyName = "new_policy";
+        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        StepKey currentStep = AbstractStepTestCase.randomStepKey();
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()).put(LifecycleSettings.LIFECYCLE_SKIP, true);
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        Index[] indices = new Index[] { index };
+        List<String> failedIndexes = new ArrayList<>();
+
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+                failedIndexes);
+
+        assertTrue(failedIndexes.isEmpty());
+        assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, currentStep, newClusterState, now);
+    }
+
+    public void testSetPolicyForIndexNoCurrentPolicy() {
+        long now = randomNonNegativeLong();
+        String indexName = randomAlphaOfLength(10);
+        String newPolicyName = "new_policy";
+        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        StepKey currentStep = new StepKey("", "", "");
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        Index[] indices = new Index[] { index };
+        List<String> failedIndexes = new ArrayList<>();
+
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+                failedIndexes);
+
+        assertTrue(failedIndexes.isEmpty());
+        assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, currentStep, newClusterState, now);
+    }
+
+    public void testSetPolicyForIndexIndexDoesntExist() {
+        String indexName = randomAlphaOfLength(10);
+        String oldPolicyName = "old_policy";
+        String newPolicyName = "new_policy";
+        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        StepKey currentStep = AbstractStepTestCase.randomStepKey();
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()).put(LifecycleSettings.LIFECYCLE_SKIP, true);
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        Index index = new Index("doesnt_exist", "im_not_here");
+        Index[] indices = new Index[] { index };
+        List<String> failedIndexes = new ArrayList<>();
+
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+                failedIndexes);
+
+        assertEquals(1, failedIndexes.size());
+        assertEquals("doesnt_exist", failedIndexes.get(0));
+        assertSame(clusterState, newClusterState);
+    }
+
+    public void testSetPolicyForIndexIndexInShrink() {
+        String indexName = randomAlphaOfLength(10);
+        String oldPolicyName = "old_policy";
+        String newPolicyName = "new_policy";
+        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        StepKey currentStep = new StepKey(randomAlphaOfLength(10), ShrinkAction.NAME, randomAlphaOfLength(10));
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()).put(LifecycleSettings.LIFECYCLE_SKIP, true);
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder);
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        Index[] indices = new Index[] { index };
+        List<String> failedIndexes = new ArrayList<>();
+
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+                failedIndexes);
+
+        assertEquals(1, failedIndexes.size());
+        assertEquals(index.getName(), failedIndexes.get(0));
+        assertSame(clusterState, newClusterState);
+    }
+
+    public static void assertClusterStateOnPolicy(ClusterState oldClusterState, Index index, String expectedPolicy, StepKey previousStep,
+            StepKey expectedStep, ClusterState newClusterState, long now) {
+        assertNotSame(oldClusterState, newClusterState);
+        MetaData newMetadata = newClusterState.metaData();
+        assertNotSame(oldClusterState.metaData(), newMetadata);
+        IndexMetaData newIndexMetadata = newMetadata.getIndexSafe(index);
+        assertNotSame(oldClusterState.metaData().index(index), newIndexMetadata);
+        Settings newIndexSettings = newIndexMetadata.getSettings();
+        assertNotSame(oldClusterState.metaData().index(index).getSettings(), newIndexSettings);
+        assertEquals(expectedStep.getPhase(), LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(newIndexSettings));
+        assertEquals(expectedStep.getAction(), LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(newIndexSettings));
+        assertEquals(expectedStep.getName(), LifecycleSettings.LIFECYCLE_STEP_SETTING.get(newIndexSettings));
+        if (previousStep.getPhase().equals(expectedStep.getPhase())) {
+            assertEquals(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                    LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newIndexSettings));
+        } else {
+            assertEquals(now, (long) LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newIndexSettings));
+        }
+        if (previousStep.getAction().equals(expectedStep.getAction())) {
+            assertEquals(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                    LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
+        } else {
+            assertEquals(now, (long) LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newIndexSettings));
+        }
+        if (previousStep.getName().equals(expectedStep.getName())) {
+            assertEquals(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
+                    LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
+        } else {
+            assertEquals(now, (long) LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
+        }
+        assertEquals("", LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(newIndexSettings));
+        assertEquals("", LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
     }
 
     public static void assertClusterStateOnNextStep(ClusterState oldClusterState, Index index, StepKey currentStep, StepKey nextStep,

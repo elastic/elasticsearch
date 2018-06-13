@@ -30,6 +30,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.contains;
@@ -168,6 +169,48 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         Exception exception = expectThrows(IllegalStateException.class, () -> service.innerExecute(before, Arrays.asList(
             new AliasAction.Add("test", "alias", null, null, null, true))));
         assertThat(exception.getMessage(), startsWith("alias [alias] has more than one write index ["));
+    }
+
+    public void testAddWriteOnlyWithExistingNonWriteIndices() {
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test")
+            .putAlias(AliasMetaData.builder("alias").writeIndex(randomBoolean() ? null : false).build())
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("test2")
+            .putAlias(AliasMetaData.builder("alias").writeIndex(randomBoolean() ? null : false).build())
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        IndexMetaData.Builder indexMetaData3 = IndexMetaData.builder("test3")
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2).put(indexMetaData3)).build();
+
+        assertNull(((AliasOrIndex.Alias) before.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex());
+
+        ClusterState after = service.innerExecute(before, Arrays.asList(
+            new AliasAction.Add("test3", "alias", null, null, null, true)));
+        assertTrue(after.metaData().index("test3").getAliases().get("alias").writeIndex());
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test3")));
+
+    }
+
+    public void testAddWriteOnlyWithIndexRemoved() {
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test")
+            .putAlias(AliasMetaData.builder("alias").build())
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("test2")
+            .putAlias(AliasMetaData.builder("alias").build())
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1);
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
+
+        assertNull(before.metaData().index("test").getAliases().get("alias").writeIndex());
+        assertNull(before.metaData().index("test2").getAliases().get("alias").writeIndex());
+        assertNull(((AliasOrIndex.Alias) before.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex());
+
+        ClusterState after = service.innerExecute(before, Collections.singletonList(new AliasAction.RemoveIndex("test")));
+        assertNull(after.metaData().index("test2").getAliases().get("alias").writeIndex());
+        assertThat(((AliasOrIndex.Alias) after.metaData().getAliasAndIndexLookup().get("alias")).getWriteIndex(),
+            equalTo(after.metaData().index("test2")));
     }
 
     public void testAddWriteOnlyValidatesAgainstMetaDataBuilder() {

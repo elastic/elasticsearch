@@ -204,6 +204,8 @@ public class Alias implements Streamable, ToXContentFragment {
         searchRouting = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             writeIndex = in.readOptionalBoolean();
+        } else {
+            writeIndex = null;
         }
     }
 

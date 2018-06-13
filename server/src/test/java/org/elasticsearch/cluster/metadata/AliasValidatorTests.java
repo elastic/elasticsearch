@@ -45,6 +45,4 @@ public class AliasValidatorTests extends ESTestCase {
         // Doesn't throw an exception because we allow upper case alias names
         validator.validateAliasStandalone("CAT", null);
     }
-
-
 }

@@ -297,7 +297,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testWriteIndex() throws Exception {
-        Boolean writeIndex = randomBoolean();
+        Boolean writeIndex = randomBoolean() ? null : randomBoolean();
         setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
         setupRequestMapping("mapping1", createMapping());
         setupRequestCustom("custom1", createCustom());

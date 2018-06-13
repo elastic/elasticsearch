@@ -250,8 +250,9 @@ GET /alias2/_search?q=user:kimchy&routing=2,3
 
 It is possible to associate the index pointed to by an alias as the write index.
 When specified, all index and update requests against an alias that point to multiple
-indices will attempt to resolve to the one index that is the write index. If no such index is
-found, then an exception will be thrown.
+indices will attempt to resolve to the one index that is the write index.
+Only one index per alias can be assigned to be the write index at a time. If no write index is specified
+and there are multiple indices referenced by an alias, then writes will not be allowed.
 
 It is possible to specify an index associated with an alias as a write index using both the aliases API
 and index creation API.

@@ -21,13 +21,7 @@ import java.util.Set;
 public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = ESLoggerFactory.getLogger(MaintenanceModeUpdateTask.class);
     private final OperationMode mode;
-    private static final Map<OperationMode, Set<OperationMode>> VALID_MODE_CHANGES = new HashMap<>();
 
-    static {
-        VALID_MODE_CHANGES.put(OperationMode.NORMAL, Sets.newHashSet(OperationMode.MAINTENANCE_REQUESTED));
-        VALID_MODE_CHANGES.put(OperationMode.MAINTENANCE_REQUESTED, Sets.newHashSet(OperationMode.NORMAL, OperationMode.MAINTENANCE));
-        VALID_MODE_CHANGES.put(OperationMode.MAINTENANCE, Sets.newHashSet(OperationMode.NORMAL));
-    }
     public MaintenanceModeUpdateTask(OperationMode mode) {
         this.mode = mode;
     }
@@ -41,7 +35,7 @@ public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
 
 
-        if (VALID_MODE_CHANGES.get(currentMetadata.getMaintenanceMode()).contains(mode) == false) {
+        if (currentMetadata.getMaintenanceMode().isValidChange(mode) == false) {
             return currentState;
         }
 

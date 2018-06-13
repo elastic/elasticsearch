@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.rest.NewRestRequest;
+import org.elasticsearch.rest.DefaultRestRequest;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -208,13 +208,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                innerRestRequest = NewRestRequest.request(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = DefaultRestRequest.request(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.ContentTypeHeaderException e) {
                 badRequestCause = getException(badRequestCause, e);
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = getException(badRequestCause, e);
-                innerRestRequest =  NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest =  DefaultRestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
         }
@@ -234,7 +234,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             } catch (final IllegalArgumentException e) {
                 badRequestCause = getException(badRequestCause, e);
                 // TODO: Should we rewrite the original request?
-                final RestRequest innerRequest = NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                final RestRequest innerRequest = DefaultRestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
             }
             channel = innerChannel;
@@ -253,10 +253,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
         HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
         try {
-            return NewRestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return DefaultRestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return NewRestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return DefaultRestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         }
     }
 

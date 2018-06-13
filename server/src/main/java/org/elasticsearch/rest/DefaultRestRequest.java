@@ -23,11 +23,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class NewRestRequest extends RestRequest {
+public class DefaultRestRequest extends RestRequest {
 
     private final HttpRequest httpRequest;
     private final HttpChannel httpChannel;
@@ -41,14 +42,14 @@ public class NewRestRequest extends RestRequest {
      * @throws BadParameterException      if the parameters can not be decoded
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
-    private NewRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
+    private DefaultRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
         super(xContentRegistry, httpRequest.uri(), httpRequest.getHeaders());
         this.httpRequest = httpRequest;
         this.httpChannel = httpChannel;
     }
 
-    private NewRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel,
-                           Map<String, List<String>> headers, Map<String, String> params) {
+    private DefaultRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel,
+                               Map<String, List<String>> headers, Map<String, String> params) {
         super(xContentRegistry, params, httpRequest.uri(), headers);
         this.httpRequest = httpRequest;
         this.httpChannel = httpChannel;
@@ -79,16 +80,31 @@ public class NewRestRequest extends RestRequest {
         return httpRequest;
     }
 
+    @Override
+    public HttpChannel getHttpChannel() {
+        return httpChannel;
+    }
+
+    @Override
+    public InetSocketAddress getRemoteAddress() {
+        return httpChannel.getRemoteAddress();
+    }
+
+    @Override
+    public InetSocketAddress getLocalAddress() {
+        return httpChannel.getLocalAddress();
+    }
+
     public HttpRequest httpRequest() {
         return httpRequest;
     }
 
-    public static NewRestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
-        return new NewRestRequest(xContentRegistry, httpRequest, httpChannel);
+    public static DefaultRestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
+        return new DefaultRestRequest(xContentRegistry, httpRequest, httpChannel);
     }
 
-    public static NewRestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
-                                                          HttpChannel httpChannel) {
-        return new NewRestRequest(xContentRegistry, httpRequest, httpChannel, httpRequest.getHeaders(), Collections.emptyMap());
+    public static DefaultRestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
+                                                              HttpChannel httpChannel) {
+        return new DefaultRestRequest(xContentRegistry, httpRequest, httpChannel, httpRequest.getHeaders(), Collections.emptyMap());
     }
 }

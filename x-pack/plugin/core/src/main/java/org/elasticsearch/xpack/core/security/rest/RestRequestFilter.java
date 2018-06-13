@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -62,6 +64,16 @@ public interface RestRequestFilter {
                 @Override
                 public SocketAddress getLocalAddress() {
                     return restRequest.getLocalAddress();
+                }
+
+                @Override
+                public HttpRequest getHttpRequest() {
+                    return restRequest.getHttpRequest();
+                }
+
+                @Override
+                public HttpChannel getHttpChannel() {
+                    return restRequest.getHttpChannel();
                 }
 
                 @Override

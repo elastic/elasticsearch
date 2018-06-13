@@ -26,6 +26,8 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
+import java.net.InetSocketAddress;
+
 public class Netty4HttpChannel implements HttpChannel {
 
     private final Channel channel;
@@ -51,6 +53,16 @@ public class Netty4HttpChannel implements HttpChannel {
             }
         });
         channel.writeAndFlush(response, writePromise);
+    }
+
+    @Override
+    public InetSocketAddress getLocalAddress() {
+        return (InetSocketAddress) channel.localAddress();
+    }
+
+    @Override
+    public InetSocketAddress getRemoteAddress() {
+        return (InetSocketAddress) channel.remoteAddress();
     }
 
     @Override

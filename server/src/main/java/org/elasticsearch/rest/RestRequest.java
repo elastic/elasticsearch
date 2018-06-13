@@ -220,19 +220,21 @@ public abstract class RestRequest implements ToXContent.Params {
 
     @Nullable
     public SocketAddress getRemoteAddress() {
-        // TODO: Need to implement
         return null;
     }
 
     @Nullable
     public SocketAddress getLocalAddress() {
-        // TODO: Need to implement
         return null;
     }
 
     @Nullable
     public HttpChannel getHttpChannel() {
-        // TODO: Need to implement
+        return null;
+    }
+
+    @Nullable
+    public HttpRequest getHttpRequest() {
         return null;
     }
 
@@ -258,11 +260,6 @@ public abstract class RestRequest implements ToXContent.Params {
 
     public Map<String, String> params() {
         return params;
-    }
-
-    // TODO: Override
-    public HttpRequest getHttpRequest() {
-        return null;
     }
 
     /**

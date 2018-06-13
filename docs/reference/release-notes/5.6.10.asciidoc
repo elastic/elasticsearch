@@ -1,0 +1,38 @@
+[[release-notes-5.6.10]]
+== 5.6.10 Release Notes
+
+coming[5.6.10]
+
+Also see <<breaking-changes-5.6>>.
+
+[[bug-5.6.10]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Security: reduce garbage during index resolution {pull}30180[#30180]
+
+CRUD::
+* Bulk operation fail to replicate operations when a mapping update times out {pull}30244[#30244]
+
+Core::
+* Fix the version ID for v5.6.10. {pull}29570[#29570]
+
+Engine::
+* Add an escape hatch to increase the maximum amount of memory that IndexWriter gets. {pull}31133[#31133] (issue: {issue}31105[#31105])
+
+Geo::
+* Fix BWC serialization for GeoDistance {pull}29501[#29501]
+
+REST API::
+* Protect against NPE in RestNodesAction {pull}29059[#29059]
+
+Scripting::
+* Remove Stored Script Check for Empty Code Strings {pull}27322[#27322]
+
+ZenDiscovery::
+* Fsync state file before exposing it {pull}30929[#30929]
+* Use correct cluster state version for node fault detection {pull}30810[#30810]
+
+
+

@@ -5,7 +5,7 @@
 <titleabbrev>Preview {dfeeds-cap}</titleabbrev>
 ++++
 
-This API enables you to preview a {dfeed}.
+Previews a {dfeed}.
 
 
 ==== Request

@@ -87,7 +87,7 @@ Controls how often to roll over to a new index: `hourly`, `daily`, `weekly`, or
 `xpack.security.audit.index.events.include`::
 Specifies the audit events to be indexed. The default value is
 `anonymous_access_denied, authentication_failed, realm_authentication_failed, access_granted, access_denied, tampered_request, connection_granted, connection_denied, run_as_granted, run_as_denied`.
-See {xpack-ref}/auditing.html#audit-event-types[Audit Entry Types] for the
+See {xpack-ref}/audit-event-types.html[Audit Entry Types] for the
 complete list.
 
 `xpack.security.audit.index.events.exclude`::
@@ -111,6 +111,15 @@ xpack.security.audit.index.settings:
     number_of_shards: 1
     number_of_replicas: 1
 ----------------------------
+--
++
+--
+NOTE: These settings apply to the local audit indices, as well as to the
+<<remote-audit-settings, remote audit indices>>, but only if the remote cluster
+does *not* have {security} installed, or the {es} versions are different.
+If the remote cluster has {security} installed, and the versions coincide, the
+settings for the audit indices there will take precedence,
+even if they are unspecified (i.e. left to defaults).
 --
 
 [[remote-audit-settings]]

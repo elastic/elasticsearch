@@ -1325,7 +1325,7 @@ This pipeline will insert these named captures as new fields within the document
 // NOTCONSOLE
 
 [[custom-patterns]]
-==== Custom Patterns and Pattern Files
+==== Custom Patterns
 
 The Grok processor comes pre-packaged with a base set of pattern. These patterns may not always have
 what you are looking for. Pattern have a very basic format. Each entry describes has a name and the pattern itself.
@@ -1511,6 +1511,24 @@ The above request will return a response body containing a key-value representat
 // NOTCONSOLE
 
 This can be useful to reference as the built-in patterns change across versions.
+
+[[grok-watchdog]]
+==== Grok watchdog
+
+Grok expressions that take too long to execute are interrupted and
+the grok processor then fails with an exception. The grok
+processor has a watchdog thread that determines when evaluation of
+a grok expression takes too long and is controlled by the following
+settings:
+
+[[grok-watchdog-options]]
+.Grok watchdog settings
+[options="header"]
+|======
+| Name                                      | Default | Description
+| `ingest.grok.watchdog.interval`           | 1s      | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time.
+| `ingest.grok.watchdog.max_execution_time` | 1s      | The maximum allowed execution of a grok expression evaluation.
+|======
 
 [[gsub-processor]]
 === Gsub Processor

@@ -53,14 +53,14 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Message must be type: " + FullHttpRequest.class;
+        assert msg instanceof FullHttpRequest : "Invalid message type: " + msg.getClass();
         HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = aggregator.read(((FullHttpRequest) msg));
         ctx.fireChannelRead(pipelinedRequest);
     }
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        assert msg instanceof Netty4HttpResponse : "Message must be type: " + Netty4HttpResponse.class;
+        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();;
         Netty4HttpResponse response = (Netty4HttpResponse) msg;
         boolean success = false;
         try {

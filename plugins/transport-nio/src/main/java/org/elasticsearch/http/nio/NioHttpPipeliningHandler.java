@@ -53,14 +53,14 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Message must be type: " + FullHttpRequest.class;
+        assert msg instanceof FullHttpRequest : "Invalid message type: " + msg.getClass();
         HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = aggregator.read(((FullHttpRequest) msg));
         ctx.fireChannelRead(pipelinedRequest);
     }
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        assert msg instanceof NioHttpResponse : "Message must be type: " + NioHttpResponse.class;
+        assert msg instanceof NioHttpResponse : "Invalid message type: " + msg.getClass();
         NioHttpResponse response = (NioHttpResponse) msg;
         boolean success = false;
         try {

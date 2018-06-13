@@ -45,7 +45,7 @@ your Elasticsearch nodes.
 
 `xpack.monitoring.collection.enabled`::
 
-added[6.3.0] Set to `true` to enable the collection of monitoring data. When
+Set to `true` to enable the collection of monitoring data. When
 this setting is `false` (default), {es} monitoring data is not collected and
 all monitoring data from other sources such as {kib}, Beats, and Logstash is
 ignored.
@@ -55,8 +55,7 @@ You can update this setting through the
 
 `xpack.monitoring.collection.interval`::
 
-Setting to `-1` to disable data collection has been deprecated. deprecated[6.3.0,
-Use `xpack.monitoring.collection.enabled` set to `false` instead.]
+Setting to `-1` to disable data collection has been deprecated.
 
 Controls how often data samples are collected. Defaults to `10s`. If you
 modify the collection interval, set the `xpack.monitoring.min_interval_seconds`

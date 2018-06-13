@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.script;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;

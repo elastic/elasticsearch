@@ -44,7 +44,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;

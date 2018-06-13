@@ -18,14 +18,6 @@
  */
 package org.elasticsearch.client;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Set;
-import java.util.HashSet;
-
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -42,6 +34,14 @@ import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 public class SyncedFlushResponseTests extends ESTestCase {
 
     public void testXContentSerialization() throws IOException {
@@ -55,9 +55,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
         serverResponsebuilder.endObject();
         XContentBuilder clientResponsebuilder = XContentBuilder.builder(xContentType.xContent());
         assertNotNull(plan.result);
-        clientResponsebuilder.startObject();
         plan.clientResult.toXContent(clientResponsebuilder, ToXContent.EMPTY_PARAMS);
-        clientResponsebuilder.endObject();
         Map<String, Object> serverContentMap = convertFailureListToSet(
             serverResponsebuilder
                 .generator()

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for adding a role to the security index

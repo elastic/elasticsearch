@@ -21,7 +21,7 @@ package org.elasticsearch.client.sniff;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 
@@ -29,6 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -43,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Class responsible for sniffing nodes from some source (default is elasticsearch itself) and setting them to a provided instance of
  * {@link RestClient}. Must be created via {@link SnifferBuilder}, which allows to set all of the different options or rely on defaults.
- * A background task fetches the nodes through the {@link HostsSniffer} and sets them to the {@link RestClient} instance.
+ * A background task fetches the nodes through the {@link NodesSniffer} and sets them to the {@link RestClient} instance.
  * It is possible to perform sniffing on failure by creating a {@link SniffOnFailureListener} and providing it as an argument to
  * {@link RestClientBuilder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation needs to be lazily set to the
  * previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
@@ -53,7 +54,7 @@ public class Sniffer implements Closeable {
     private static final Log logger = LogFactory.getLog(Sniffer.class);
     private static final String SNIFFER_THREAD_NAME = "es_rest_client_sniffer";
 
-    private final HostsSniffer hostsSniffer;
+    private final NodesSniffer nodesSniffer;
     private final RestClient restClient;
     private final long sniffIntervalMillis;
     private final long sniffAfterFailureDelayMillis;
@@ -61,12 +62,12 @@ public class Sniffer implements Closeable {
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private volatile ScheduledTask nextScheduledTask;
 
-    Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
-        this(restClient, hostsSniffer, new DefaultScheduler(), sniffInterval, sniffAfterFailureDelay);
+    Sniffer(RestClient restClient, NodesSniffer nodesSniffer, long sniffInterval, long sniffAfterFailureDelay) {
+        this(restClient, nodesSniffer, new DefaultScheduler(), sniffInterval, sniffAfterFailureDelay);
     }
 
-    Sniffer(RestClient restClient, HostsSniffer hostsSniffer, Scheduler scheduler,  long sniffInterval, long sniffAfterFailureDelay) {
-        this.hostsSniffer = hostsSniffer;
+    Sniffer(RestClient restClient, NodesSniffer nodesSniffer, Scheduler scheduler, long sniffInterval, long sniffAfterFailureDelay) {
+        this.nodesSniffer = nodesSniffer;
         this.restClient = restClient;
         this.sniffIntervalMillis = sniffInterval;
         this.sniffAfterFailureDelayMillis = sniffAfterFailureDelay;
@@ -205,14 +206,14 @@ public class Sniffer implements Closeable {
     }
 
     final void sniff() throws IOException {
-        List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
+        List<Node> sniffedNodes = nodesSniffer.sniff();
         if (logger.isDebugEnabled()) {
-            logger.debug("sniffed hosts: " + sniffedHosts);
+            logger.debug("sniffed nodes: " + sniffedNodes);
         }
-        if (sniffedHosts.isEmpty()) {
-            logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
+        if (sniffedNodes.isEmpty()) {
+            logger.warn("no nodes to set, nodes will be updated at the next sniffing round");
         } else {
-            restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
+            restClient.setNodes(sniffedNodes);
         }
     }
 
@@ -227,7 +228,8 @@ public class Sniffer implements Closeable {
     /**
      * Returns a new {@link SnifferBuilder} to help with {@link Sniffer} creation.
      *
-     * @param restClient the client that gets its hosts set (via {@link RestClient#setHosts(HttpHost...)}) once they are fetched
+     * @param restClient the client that gets its hosts set (via
+     *      {@link RestClient#setNodes(Collection)}) once they are fetched
      * @return a new instance of {@link SnifferBuilder}
      */
     public static SnifferBuilder builder(RestClient restClient) {

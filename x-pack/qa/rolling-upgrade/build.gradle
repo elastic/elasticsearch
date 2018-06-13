@@ -146,7 +146,6 @@ subprojects {
       if (version.onOrAfter('6.0.0') == false) {
         // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
         keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
-        setting 'xpack.security.authc.token.enabled', 'true'
       }
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')

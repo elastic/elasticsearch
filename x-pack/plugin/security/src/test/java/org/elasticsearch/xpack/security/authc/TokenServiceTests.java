@@ -26,6 +26,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.Strings;
@@ -44,6 +47,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -53,6 +57,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -66,6 +71,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -91,6 +97,7 @@ public class TokenServiceTests extends ESTestCase {
     private Client client;
     private SecurityLifecycleService lifecycleService;
     private ClusterService clusterService;
+    private boolean mixedCluster;
     private Settings tokenServiceEnabledSettings = Settings.builder()
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
 
@@ -141,6 +148,25 @@ public class TokenServiceTests extends ESTestCase {
             return null;
         }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        this.mixedCluster = randomBoolean();
+        if (mixedCluster) {
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_5_6_10);
+            logger.info("adding a node with version [{}] to the cluster service", version);
+            ClusterState updatedState = ClusterState.builder(clusterService.state())
+                .nodes(DiscoveryNodes.builder(clusterService.state().nodes())
+                    .add(new DiscoveryNode("56node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+                        EnumSet.allOf(DiscoveryNode.Role.class), version))
+                    .build())
+                .build();
+            ClusterServiceUtils.setState(clusterService, updatedState);
+        }
+    }
+
+    @After
+    public void stopClusterService() {
+        if (clusterService != null) {
+            clusterService.close();
+        }
     }
 
     @BeforeClass
@@ -173,7 +199,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
@@ -184,13 +210,13 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             anotherService.getAndValidateToken(requestContext, future);
             UserToken fromOtherService = future.get();
-            assertEquals(authentication, fromOtherService.getAuthentication());
+            assertAuthenticationEquals(authentication, fromOtherService.getAuthentication());
         }
     }
 
     public void testRotateKey() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
+        assumeFalse("internally managed keys do not work in a mixed cluster", mixedCluster);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
@@ -205,7 +231,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
         rotateKeys(tokenService);
 
@@ -213,7 +239,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
 
         PlainActionFuture<Tuple<UserToken, String>> newTokenFuture = new PlainActionFuture<>();
@@ -242,8 +268,8 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testKeyExchange() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
+        assumeFalse("internally managed keys do not work in a mixed cluster", mixedCluster);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         int numRotations = 0;randomIntBetween(1, 5);
         for (int i = 0; i < numRotations; i++) {
             rotateKeys(tokenService);
@@ -264,7 +290,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             otherTokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
 
         rotateKeys(tokenService);
@@ -275,13 +301,13 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             otherTokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
     }
 
     public void testPruneKeys() throws Exception {
-        TokenService tokenService =
-            new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
+        assumeFalse("internally managed keys do not work in a mixed cluster", mixedCluster);
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
@@ -296,7 +322,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
         TokenMetaData metaData = tokenService.pruneKeys(randomIntBetween(0, 100));
         tokenService.refreshMetaData(metaData);
@@ -310,7 +336,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
 
         PlainActionFuture<Tuple<UserToken, String>> newTokenFuture = new PlainActionFuture<>();
@@ -336,7 +362,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
 
     }
@@ -358,7 +384,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
@@ -459,7 +485,7 @@ public class TokenServiceTests extends ESTestCase {
             // the clock is still frozen, so the cookie should be valid
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
-            assertEquals(authentication, future.get().getAuthentication());
+            assertAuthenticationEquals(authentication, future.get().getAuthentication());
         }
 
         final TimeValue defaultExpiration = TokenService.TOKEN_EXPIRATION.get(Settings.EMPTY);
@@ -469,7 +495,7 @@ public class TokenServiceTests extends ESTestCase {
             clock.fastForwardSeconds(fastForwardAmount);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
-            assertEquals(authentication, future.get().getAuthentication());
+            assertAuthenticationEquals(authentication, future.get().getAuthentication());
         }
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
@@ -478,7 +504,7 @@ public class TokenServiceTests extends ESTestCase {
             clock.rewind(TimeValue.timeValueNanos(clock.instant().getNano())); // trim off nanoseconds since don't store them in the index
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
-            assertEquals(authentication, future.get().getAuthentication());
+            assertAuthenticationEquals(authentication, future.get().getAuthentication());
         }
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
@@ -574,7 +600,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
 
             when(lifecycleService.isSecurityIndexAvailable()).thenReturn(false);
             when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
@@ -606,6 +632,7 @@ public class TokenServiceTests extends ESTestCase {
         assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
                 " release! See the breaking changes documentation for the next major version.");
     }
+
     public void testGetAuthenticationWorksWithExpiredToken() throws Exception {
         TokenService tokenService =
                 new TokenService(tokenServiceEnabledSettings, Clock.systemUTC(), client, lifecycleService, clusterService);
@@ -616,7 +643,7 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
         tokenService.getAuthenticationAndMetaData(userTokenString, authFuture);
         Authentication retrievedAuth = authFuture.actionGet().v1();
-        assertEquals(authentication, retrievedAuth);
+        assertAuthenticationEquals(authentication, retrievedAuth);
     }
 
     private void mockGetTokenFromId(UserToken userToken) {
@@ -642,5 +669,17 @@ public class TokenServiceTests extends ESTestCase {
             getResponseListener.onResponse(getResponse);
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+    }
+
+    private void assertAuthenticationEquals(Authentication expected, Authentication actual) {
+        if (mixedCluster) {
+            assertNotNull(expected);
+            assertNotNull(actual);
+            assertEquals(expected.getUser(), actual.getUser());
+            assertEquals(expected.getAuthenticatedBy(), actual.getAuthenticatedBy());
+            assertEquals(expected.getLookedUpBy(), actual.getLookedUpBy());
+        } else {
+            assertEquals(expected, actual);
+        }
     }
 }

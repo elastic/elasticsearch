@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.http.LLHttpChannel;
 import org.elasticsearch.http.LLHttpRequest;
 
 import java.io.IOException;
@@ -57,6 +58,7 @@ public abstract class RestRequest implements ToXContent.Params {
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
+    private final LLHttpChannel httpChannel;
     private final NamedXContentRegistry xContentRegistry;
     private final Map<String, String> params;
     private final Map<String, List<String>> headers;
@@ -219,11 +221,17 @@ public abstract class RestRequest implements ToXContent.Params {
 
     @Nullable
     public SocketAddress getRemoteAddress() {
+        // TODO: Need to implement
         return null;
     }
 
     @Nullable
     public SocketAddress getLocalAddress() {
+        // TODO: Need to implement
+        return null;
+    }
+
+    public LLHttpChannel getHttpChannel() {
         return null;
     }
 

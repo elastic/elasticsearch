@@ -54,7 +54,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.BindHttpException;
@@ -386,10 +385,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings, threadPool.getThreadContext());
+        return new HttpChannelHandler(this, handlingSettings);
     }
 
-    static final AttributeKey<NewNetty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
+    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
@@ -397,18 +396,15 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final Netty4HttpRequestHandler requestHandler;
         private final HttpHandlingSettings handlingSettings;
 
-        protected HttpChannelHandler(
-                final Netty4HttpServerTransport transport,
-                final HttpHandlingSettings handlingSettings,
-                final ThreadContext threadContext) {
+        protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
-            this.requestHandler = new Netty4HttpRequestHandler(transport, handlingSettings, threadContext);
+            this.requestHandler = new Netty4HttpRequestHandler(transport);
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            NewNetty4HttpChannel nettyTcpChannel = new NewNetty4HttpChannel(ch);
+            Netty4HttpChannel nettyTcpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));

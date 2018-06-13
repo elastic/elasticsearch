@@ -37,7 +37,7 @@ import java.util.List;
 public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<Netty4HttpResponse, ChannelPromise> aggregator;
+    private final HttpPipeliningAggregator<LLNetty4HttpResponse, ChannelPromise> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -60,13 +60,13 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();;
-        Netty4HttpResponse response = (Netty4HttpResponse) msg;
+        assert msg instanceof LLNetty4HttpResponse : "Invalid message type: " + msg.getClass();;
+        LLNetty4HttpResponse response = (LLNetty4HttpResponse) msg;
         boolean success = false;
         try {
-            List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
-            for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getResponse(), readyResponse.v2());
+            List<Tuple<LLNetty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
+            for (Tuple<LLNetty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
+                ctx.write(readyResponse.v1(), readyResponse.v2());
             }
             success = true;
         } catch (IllegalStateException e) {
@@ -80,11 +80,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<Netty4HttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+        List<Tuple<LLNetty4HttpResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<Netty4HttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
+            for (Tuple<LLNetty4HttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
                 try {
                     inflightResponse.v2().setFailure(closedChannelException);
                 } catch (RuntimeException e) {

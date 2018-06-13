@@ -48,9 +48,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private Priority waitForEvents = null;
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
-     * The default value is 'shards' so it is backward compatible with the transport client behaviour.
+     * The default value is 'cluster'.
      */
-    private Level level = Level.SHARDS;
+    private Level level = Level.CLUSTER;
 
     public ClusterHealthRequest() {
     }
@@ -250,8 +250,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     /**
      * Set the level of detail for the health information to be returned.
-     * Only used by the high-level REST Client
-     * The default value is 'shards' so it is backward compatible with the transport client behaviour.
+     * Only used by the high-level REST Client.
      */
     public void level(Level level) {
         this.level = Objects.requireNonNull(level, "level must not be null");
@@ -260,7 +259,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     /**
      * Get the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
-     * The default value is 'shards' so it is backward compatible with the transport client behaviour.
      */
     public Level level() {
         return level;

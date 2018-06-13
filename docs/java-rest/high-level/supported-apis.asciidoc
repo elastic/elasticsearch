@@ -104,11 +104,8 @@ include::indices/get_alias.asciidoc[]
 include::indices/put_settings.asciidoc[]
 include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
-<<<<<<< HEAD
 include::indices/validate_query.asciidoc[]
-=======
 include::indices/get_templates.asciidoc[]
->>>>>>> 0bfd18cc8b6ab7e58d1d34c50ae7a3b441799761
 
 == Cluster APIs
 

@@ -269,7 +269,7 @@ public class NioSelectorTests extends ESTestCase {
 
         verify(channelContext).queueWriteOperation(writeOperation);
         verify(eventHandler, times(0)).handleWrite(channelContext);
-        verify(eventHandler, times(0)).postSocketChannelHandling(channelContext);
+        verify(eventHandler, times(0)).postHandling(channelContext);
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0);
     }
 
@@ -283,7 +283,7 @@ public class NioSelectorTests extends ESTestCase {
 
         verify(channelContext).queueWriteOperation(writeOperation);
         verify(eventHandler).handleWrite(channelContext);
-        verify(eventHandler).postSocketChannelHandling(channelContext);
+        verify(eventHandler).postHandling(channelContext);
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0);
     }
 
@@ -300,7 +300,7 @@ public class NioSelectorTests extends ESTestCase {
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
         verify(eventHandler, times(0)).handleWrite(channelContext);
-        verify(eventHandler, times(0)).postSocketChannelHandling(channelContext);
+        verify(eventHandler, times(0)).postHandling(channelContext);
         verify(listener).accept(null, cancelledKeyException);
     }
 
@@ -393,7 +393,7 @@ public class NioSelectorTests extends ESTestCase {
 
         verify(eventHandler).handleWrite(channelContext);
         verify(eventHandler).handleRead(channelContext);
-        verify(eventHandler).postSocketChannelHandling(channelContext);
+        verify(eventHandler).postHandling(channelContext);
     }
 
     public void testCleanup() throws Exception {

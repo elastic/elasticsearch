@@ -62,7 +62,7 @@ public class NioSelector implements Closeable {
         this(eventHandler, Selector.open());
     }
 
-    public NioSelector(EventHandler eventHandler, Selector selector) throws IOException {
+    public NioSelector(EventHandler eventHandler, Selector selector) {
         this.selector = selector;
         this.eventHandler = eventHandler;
     }
@@ -216,7 +216,7 @@ public class NioSelector implements Closeable {
                     handleRead(channelContext);
                 }
             }
-            eventHandler.postSocketChannelHandling(channelContext);
+            eventHandler.postHandling(channelContext);
         }
 
     }
@@ -281,18 +281,20 @@ public class NioSelector implements Closeable {
     public void writeToChannel(WriteOperation writeOperation) {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
-        boolean shouldFlush = context.readyForFlush() == false;
+        // If the channel does not currently have anything that is ready to flush, we should flush after
+        // the write operation is queued.
+        boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
         try {
             SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
             context.queueWriteOperation(writeOperation);
         } catch (Exception e) {
-            shouldFlush = false;
+            shouldFlushAfterQueuing = false;
             executeFailedListener(writeOperation.getListener(), e);
         }
 
-        if (shouldFlush) {
+        if (shouldFlushAfterQueuing) {
             handleWrite(context);
-            eventHandler.postSocketChannelHandling(context);
+            eventHandler.postHandling(context);
         }
     }
 

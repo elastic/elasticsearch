@@ -163,7 +163,7 @@ public class EventHandler {
      *
      * @param context that was handled
      */
-    protected void postSocketChannelHandling(SocketChannelContext context) {
+    protected void postHandling(SocketChannelContext context) {
         if (context.selectorShouldClose()) {
             handleClose(context);
         } else {

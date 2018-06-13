@@ -5,7 +5,7 @@
 <titleabbrev>Get Jobs</titleabbrev>
 ++++
 
-This API enables you to retrieve configuration information for jobs.
+Retrieves configuration information for jobs.
 
 
 ==== Request

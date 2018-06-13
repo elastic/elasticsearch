@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -234,7 +235,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             routing = in.readOptionalString();
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
-            writeIndex = in.readOptionalBoolean();
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                writeIndex = in.readOptionalBoolean();
+            }
         }
 
         @Override
@@ -246,7 +249,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(routing);
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
-            out.writeOptionalBoolean(writeIndex);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeOptionalBoolean(writeIndex);
+            }
         }
 
         /**

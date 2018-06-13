@@ -66,44 +66,8 @@ public abstract class RestRequest implements ToXContent.Params {
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
 
     /**
-     * Creates a new REST request.
-     *
-     * @param xContentRegistry the content registry
-     * @param uri              the raw URI that will be parsed into the path and the parameters
-     * @param headers          a map of the header; this map should implement a case-insensitive lookup
-     * @throws BadParameterException      if the parameters can not be decoded
-     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
-     */
-    public RestRequest(final NamedXContentRegistry xContentRegistry, final String uri, final Map<String, List<String>> headers) {
-        this(xContentRegistry, params(uri), path(uri), headers);
-    }
-
-    private static Map<String, String> params(final String uri) {
-        final Map<String, String> params = new HashMap<>();
-        int index = uri.indexOf('?');
-        if (index >= 0) {
-            try {
-                RestUtils.decodeQueryString(uri, index + 1, params);
-            } catch (final IllegalArgumentException e) {
-                throw new BadParameterException(e);
-            }
-        }
-        return params;
-    }
-
-    private static String path(final String uri) {
-        final int index = uri.indexOf('?');
-        if (index >= 0) {
-            return uri.substring(0, index);
-        } else {
-            return uri;
-        }
-    }
-
-    /**
-     * Creates a new REST request. In contrast to
-     * {@link RestRequest#RestRequest(NamedXContentRegistry, Map, String, Map)}, the path is not decoded so this constructor will not throw
-     * a {@link BadParameterException}.
+     * Creates a new REST request. The path is not decoded so this constructor will not throw a
+     * {@link BadParameterException}.
      *
      * @param xContentRegistry the content registry
      * @param params           the request parameters

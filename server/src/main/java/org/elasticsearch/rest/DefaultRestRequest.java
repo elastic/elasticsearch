@@ -25,6 +25,7 @@ import org.elasticsearch.http.HttpRequest;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,7 +44,7 @@ public class DefaultRestRequest extends RestRequest {
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
     private DefaultRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
-        super(xContentRegistry, httpRequest.uri(), httpRequest.getHeaders());
+        super(xContentRegistry, params(httpRequest.uri()), path(httpRequest.uri()), httpRequest.getHeaders());
         this.httpRequest = httpRequest;
         this.httpChannel = httpChannel;
     }
@@ -53,6 +54,28 @@ public class DefaultRestRequest extends RestRequest {
         super(xContentRegistry, params, httpRequest.uri(), headers);
         this.httpRequest = httpRequest;
         this.httpChannel = httpChannel;
+    }
+
+    private static Map<String, String> params(final String uri) {
+        final Map<String, String> params = new HashMap<>();
+        int index = uri.indexOf('?');
+        if (index >= 0) {
+            try {
+                RestUtils.decodeQueryString(uri, index + 1, params);
+            } catch (final IllegalArgumentException e) {
+                throw new BadParameterException(e);
+            }
+        }
+        return params;
+    }
+
+    private static String path(final String uri) {
+        final int index = uri.indexOf('?');
+        if (index >= 0) {
+            return uri.substring(0, index);
+        } else {
+            return uri;
+        }
     }
 
     @Override

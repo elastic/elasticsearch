@@ -19,10 +19,14 @@
 
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import java.net.SocketAddress;
 import java.util.Collections;
@@ -32,25 +36,23 @@ import java.util.Map;
 
 public class FakeRestRequest extends RestRequest {
 
-    private final BytesReference content;
-    private final Method method;
+    private final HttpRequest httpRequest;
     private final SocketAddress remoteAddress;
 
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
+        this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(), null);
     }
 
-    private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers,
-                            Map<String, String> params, BytesReference content, Method method, String path, SocketAddress remoteAddress) {
-        super(xContentRegistry, params, path, headers);
-        this.content = content;
-        this.method = method;
+    private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
+                            SocketAddress remoteAddress) {
+        super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders());
+        this.httpRequest = httpRequest;
         this.remoteAddress = remoteAddress;
     }
 
     @Override
     public Method method() {
-        return method;
+        return httpRequest.method();
     }
 
     @Override
@@ -60,17 +62,84 @@ public class FakeRestRequest extends RestRequest {
 
     @Override
     public boolean hasContent() {
-        return content != null;
+        return content() != null;
     }
 
     @Override
     public BytesReference content() {
-        return content;
+        return httpRequest.content();
     }
 
     @Override
     public SocketAddress getRemoteAddress() {
         return remoteAddress;
+    }
+
+    private static class FakeHttpRequest implements HttpRequest {
+
+        private final Method method;
+        private final String uri;
+        private final BytesReference content;
+        private final Map<String, List<String>> headers;
+
+        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
+            this.method = method;
+            this.uri = uri;
+            this.content = content;
+            this.headers = headers;
+        }
+
+        @Override
+        public Method method() {
+            return method;
+        }
+
+        @Override
+        public String uri() {
+            return uri;
+        }
+
+        @Override
+        public BytesReference content() {
+            return content;
+        }
+
+        @Override
+        public Map<String, List<String>> getHeaders() {
+            return headers;
+        }
+
+        @Override
+        public List<String> strictCookies() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public HttpVersion protocolVersion() {
+            return HttpVersion.HTTP_1_1;
+        }
+
+        @Override
+        public HttpRequest removeHeader(String header) {
+            headers.remove(header);
+            return this;
+        }
+
+        @Override
+        public HttpResponse createResponse(RestStatus status, BytesReference content) {
+            Map<String, String> headers = new HashMap<>();
+            return new HttpResponse() {
+                @Override
+                public void addHeader(String name, String value) {
+                    headers.put(name, value);
+                }
+
+                @Override
+                public boolean containsHeader(String name) {
+                    return headers.containsKey(name);
+                }
+            };
+        }
     }
 
     public static class Builder {
@@ -126,9 +195,8 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public FakeRestRequest build() {
-            return new FakeRestRequest(xContentRegistry, headers, params, content, method, path, address);
+            FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers);
+            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, address);
         }
-
     }
-
 }

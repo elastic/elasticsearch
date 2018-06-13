@@ -134,15 +134,15 @@
           }
 
 ---
-"Test job with pre 6.2 rules":
+"Test job with pre 6.4 rules":
 
   - skip:
-      version:  "6.2.0 - "
-      reason:   "Rules fields were renamed on 6.2.0"
+      version:  "6.4.0 - "
+      reason:   "Rules were replaced by custom_rules on 6.4.0"
 
   - do:
       xpack.ml.put_job:
-        job_id: old-cluster-job-with-rules
+        job_id: job-with-old-rules
         body:  >
           {
             "analysis_config": {
@@ -171,36 +171,22 @@
           }
 
 ---
-"Test job with post 6.2 rules":
+"Test job with pre 6.4 rules - dummy job 6.4 onwards":
 
   - skip:
-      version:  " - 6.1.99"
-      reason:   "Rules fields were renamed on 6.2.0"
+      version:  " - 6.3.99"
+      reason:   "Rules replaced by custom_rules on 6.4.0"
 
   - do:
       xpack.ml.put_job:
-        job_id: old-cluster-job-with-rules
+        job_id: job-with-old-rules
         body:  >
           {
             "analysis_config": {
               "detectors": [
                 {
                   "function": "count",
-                  "by_field_name": "country",
-                  "rules": [
-                    {
-                      "actions": ["filter_results"],
-                      "conditions": [
-                        {
-                          "type":"numerical_actual",
-                          "field_name":"country",
-                          "field_value": "uk",
-                          "condition": {"operator":"lt","value":"33.3"}
-                        },
-                        {"type":"categorical", "field_name":"country", "filter_id": "foo"}
-                      ]
-                    }
-                  ]
+                  "by_field_name": "country"
                 }
               ]
             },

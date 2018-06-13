@@ -41,7 +41,6 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "this test is muted temporarily until the new rules implementation is merged in")
     public void testScheduledEvents() throws IOException {
 
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
@@ -153,7 +152,6 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(records, is(empty()));
     }
 
-    @AwaitsFix(bugUrl = "this test is muted temporarily until the new rules implementation is merged in")
     public void testScheduledEventWithInterimResults() throws IOException {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         Job.Builder job = createJob("scheduled-events-interim-results", bucketSpan);
@@ -195,7 +193,6 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     /**
      * Test an open job picks up changes to scheduled events/calendars
      */
-    @AwaitsFix(bugUrl = "this test is muted temporarily until the new rules implementation is merged in")
     public void testOnlineUpdate() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         Job.Builder job = createJob("scheduled-events-online-update", bucketSpan);

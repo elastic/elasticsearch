@@ -63,7 +63,7 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
                 .filter(expectedInstance.filter())
                 .indexRouting(expectedInstance.indexRouting())
                 .searchRouting(expectedInstance.searchRouting())
-                .writeIndex(Boolean.FALSE)
+                .writeIndex(randomBoolean() ? null : randomBoolean())
                 .build();
         }
         assertEquals(expectedInstance, newInstance);

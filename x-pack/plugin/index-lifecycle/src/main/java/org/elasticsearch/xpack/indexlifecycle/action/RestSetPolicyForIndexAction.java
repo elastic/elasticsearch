@@ -22,7 +22,7 @@ public class RestSetPolicyForIndexAction extends BaseRestHandler {
     public RestSetPolicyForIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "_" + IndexLifecycle.NAME + "/set_policy/{new_policy}", this);
-        controller.registerHandler(RestRequest.Method.PUT, "{index}/_" + IndexLifecycle.NAME + "/sete_policy/{new_policy}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "{index}/_" + IndexLifecycle.NAME + "/set_policy/{new_policy}", this);
     }
 
     @Override

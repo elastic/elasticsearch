@@ -88,7 +88,7 @@ final class NoopEngine extends Engine {
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             List<IndexCommit> indexCommits = DirectoryReader.listCommits(store.directory());
-            lastCommit = indexCommits.get(indexCommits.size()-1);
+            lastCommit = indexCommits.get(indexCommits.size() - 1);
             historyUUID = lastCommit.getUserData().get(HISTORY_UUID_KEY);
             localCheckpoint = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             maxSeqNo = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));

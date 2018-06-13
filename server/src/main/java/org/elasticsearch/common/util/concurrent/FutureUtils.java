@@ -21,7 +21,6 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.support.AdapterActionFuture;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.concurrent.ExecutionException;

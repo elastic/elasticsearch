@@ -197,6 +197,24 @@ header. The warnings must match exactly. Using it looks like this:
             id:        1
 ....
 
+If the arguments to `do` include `node_selector` then the request is only
+sent to nodes that match the `node_selector`. Currently only the `version`
+selector is supported and it has the same logic as the `version` field in
+`skip`. It looks like this:
+
+....
+"test id":
+ - skip:
+      features: node_selector
+ - do:
+      node_selector:
+          version: " - 6.9.99"
+      index:
+          index:  test-weird-index-中文
+          type:   weird.type
+          id:     1
+          body:   { foo: bar }
+....
 
 === `set`
 

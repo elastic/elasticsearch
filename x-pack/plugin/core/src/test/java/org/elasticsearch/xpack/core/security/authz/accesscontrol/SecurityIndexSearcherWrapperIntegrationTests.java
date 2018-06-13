@@ -59,7 +59,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         ScriptService  scriptService = mock(ScriptService.class);
         when(mapperService.documentMapper()).thenReturn(null);
-        when(mapperService.simpleMatchToIndexNames(anyString()))
+        when(mapperService.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

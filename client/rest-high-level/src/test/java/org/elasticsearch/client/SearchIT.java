@@ -545,9 +545,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(searchResponse.getScrollId());
             ClearScrollResponse clearScrollResponse = execute(clearScrollRequest,
-                    // Not using a method reference to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=517951
-                    (request, headers) -> highLevelClient().clearScroll(request, headers),
-                    (request, listener, headers) -> highLevelClient().clearScrollAsync(request, listener, headers));
+                    highLevelClient()::clearScroll, highLevelClient()::clearScrollAsync);
             assertThat(clearScrollResponse.getNumFreed(), greaterThan(0));
             assertTrue(clearScrollResponse.isSucceeded());
 

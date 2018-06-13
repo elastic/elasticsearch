@@ -1,8 +1,6 @@
 [[release-notes-6.3.0]]
 == 6.3.0 Release Notes
 
-coming[6.3.0]
-
 Also see <<breaking-changes-6.3>>.
 
 [[breaking-6.3.0]]
@@ -11,6 +9,13 @@ Also see <<breaking-changes-6.3>>.
 
 Core::
 * Rename the bulk thread pool to write thread pool {pull}29593[#29593]
+
+Monitoring::
+* By default when you install {xpack}, monitoring is enabled but data collection
+is disabled. To enable data collection, use the new
+`xpack.monitoring.collection.enabled` setting. You can update this setting by
+using the <<cluster-update-settings,Cluster Update Settings API>>. For more
+information, see <<monitoring-settings>>.
 
 Packaging::
 * Create keystore on package install {pull}28928[#28928]
@@ -21,21 +26,13 @@ Plugins::
 Search::
 * Fail _search request with trailing tokens {pull}29428[#29428] (issue: {issue}28995[#28995])
 
-Task Management::
-* Remove metadata customs that can break serialization {pull}30945[#30945] (issues: {issue}30731[#30731], {issue}30857[#30857])
-
-Monitoring::
-* By default when you install {xpack}, monitoring is enabled but data collection
-is disabled. To enable data collection, use the new
-`xpack.monitoring.collection.enabled` setting. You can update this setting by
-using the <<cluster-update-settings,Cluster Update Settings API>>. For more
-information, see <<monitoring-settings>>.
-
 Security::
 * The legacy `XPackExtension` extension mechanism has been removed and replaced
 with an SPI based extension mechanism that is installed and built as an
 elasticsearch plugin.
 
+Task Management::
+* Remove metadata customs that can break serialization {pull}30945[#30945] (issues: {issue}30731[#30731], {issue}30857[#30857])
 
 
 [[breaking-java-6.3.0]]

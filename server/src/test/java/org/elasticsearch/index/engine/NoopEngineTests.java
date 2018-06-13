@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -31,12 +30,16 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class NoopEngineTests extends EngineTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
@@ -101,5 +104,15 @@ public class NoopEngineTests extends EngineTestCase {
             }
         }
         noopEngine.close();
+    }
+
+    public void testNoopEngineWithInvalidTranslogUUID() throws IOException {
+        Path newTranslogDir = createTempDir();
+        // A new translog will have a different UUID than the existing store/noop engine does
+        Translog newTranslog = createTranslog(newTranslogDir, () -> 1L);
+        newTranslog.close();
+        EngineCreationFailureException e = expectThrows(EngineCreationFailureException.class,
+            () -> new NoopEngine(noopConfig(INDEX_SETTINGS, store, newTranslogDir)));
+        assertThat(e.getCause(), instanceOf(TranslogCorruptedException.class));
     }
 }

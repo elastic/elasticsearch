@@ -110,9 +110,10 @@ public class SimpleKdcLdapServer {
     }
 
     private void createLdapBackendConf() throws IOException {
-        String backendConf =
-                "kdc_identity_backend = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n" + "host=127.0.0.1\n" + "port="
-                        + ldapPort + "\n" + "admin_dn=uid=admin,ou=system," + baseDn + "\n" + "admin_pw=secret\n" + "base_dn=" + baseDn;
+        String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
+                + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
+                + "host=127.0.0.1\n" + "port=" + ldapPort + "\n" + "admin_dn=uid=admin,ou=system," + baseDn
+                + "\n" + "admin_pw=secret\n" + "base_dn=" + baseDn;
         Files.write(this.workDir.resolve("backend.conf"), backendConf.getBytes(StandardCharsets.UTF_8));
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }

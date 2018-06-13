@@ -24,16 +24,16 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class ChangePolicyForIndexAction extends Action<ChangePolicyForIndexAction.Request, ChangePolicyForIndexAction.Response> {
-    public static final ChangePolicyForIndexAction INSTANCE = new ChangePolicyForIndexAction();
-    public static final String NAME = "indices:admin/xpack/index_lifecycle/change_policy";
+public class SetPolicyForIndexAction extends Action<SetPolicyForIndexAction.Request, SetPolicyForIndexAction.Response> {
+    public static final SetPolicyForIndexAction INSTANCE = new SetPolicyForIndexAction();
+    public static final String NAME = "indices:admin/xpack/index_lifecycle/set_policy";
 
-    protected ChangePolicyForIndexAction() {
+    protected SetPolicyForIndexAction() {
         super(NAME);
     }
 
     @Override
-    public ChangePolicyForIndexAction.Response newResponse() {
+    public SetPolicyForIndexAction.Response newResponse() {
         return new Response();
     }
 

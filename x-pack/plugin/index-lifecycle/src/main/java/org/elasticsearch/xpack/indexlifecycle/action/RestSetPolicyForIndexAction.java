@@ -12,31 +12,31 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ChangePolicyForIndexAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 
 import java.io.IOException;
 
-public class RestChangePolicyForIndexAction extends BaseRestHandler {
+public class RestSetPolicyForIndexAction extends BaseRestHandler {
 
-    public RestChangePolicyForIndexAction(Settings settings, RestController controller) {
+    public RestSetPolicyForIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "_" + IndexLifecycle.NAME + "/change_policy/{new_policy}", this);
-        controller.registerHandler(RestRequest.Method.GET, "{index}/_" + IndexLifecycle.NAME + "/change_policy/{new_policy}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "_" + IndexLifecycle.NAME + "/set_policy/{new_policy}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "{index}/_" + IndexLifecycle.NAME + "/sete_policy/{new_policy}", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_put_action";
+        return "xpack_set_policy_for_index_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
         String newPolicyName = restRequest.param("new_policy");
-        ChangePolicyForIndexAction.Request changePolicyRequest = new ChangePolicyForIndexAction.Request(newPolicyName, indexes);
+        SetPolicyForIndexAction.Request changePolicyRequest = new SetPolicyForIndexAction.Request(newPolicyName, indexes);
         changePolicyRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", changePolicyRequest.masterNodeTimeout()));
 
-        return channel -> client.execute(ChangePolicyForIndexAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(SetPolicyForIndexAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
     }
 }

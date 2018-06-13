@@ -23,20 +23,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ChangePolicyForIndexAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ChangePolicyForIndexAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ChangePolicyForIndexAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportChangePolicyForIndexAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportSetPolicyForIndexAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportChangePolicyForIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportSetPolicyForIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
             ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ChangePolicyForIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(settings, SetPolicyForIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, Request::new);
     }
 
@@ -74,7 +74,7 @@ public class TransportChangePolicyForIndexAction extends TransportMasterNodeActi
                             throw new ResourceNotFoundException("Policy does not exist [{}]", newPolicyName);
                         }
 
-                        return IndexLifecycleRunner.changePolicyForIndexes(newPolicyName, indices, currentState, newPolicy, failedIndexes);
+                        return IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, currentState, newPolicy, failedIndexes);
                     }
 
                     @Override

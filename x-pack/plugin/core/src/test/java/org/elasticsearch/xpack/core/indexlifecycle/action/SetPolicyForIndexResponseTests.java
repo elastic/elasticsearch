@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ChangePolicyForIndexAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Response;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class ChangePolicyForIndexResponseTests extends AbstractStreamableXContentTestCase<ChangePolicyForIndexAction.Response> {
+public class SetPolicyForIndexResponseTests extends AbstractStreamableXContentTestCase<SetPolicyForIndexAction.Response> {
 
     @Override
     protected Response createBlankInstance() {

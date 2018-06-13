@@ -799,7 +799,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
     }
 
-    public void testChangePolicyForIndex() {
+    public void testSetPolicyForIndex() {
         long now = randomNonNegativeLong();
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
@@ -815,14 +815,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleRunner.changePolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
                 failedIndexes);
 
         assertTrue(failedIndexes.isEmpty());
         assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, currentStep, newClusterState, now);
     }
 
-    public void testChangePolicyForIndexNoCurrentPolicy() {
+    public void testSetPolicyForIndexNoCurrentPolicy() {
         long now = randomNonNegativeLong();
         String indexName = randomAlphaOfLength(10);
         String newPolicyName = "new_policy";
@@ -834,14 +834,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleRunner.changePolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
                 failedIndexes);
 
         assertTrue(failedIndexes.isEmpty());
         assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, currentStep, newClusterState, now);
     }
 
-    public void testChangePolicyForIndexIndexDoesntExist() {
+    public void testSetPolicyForIndexIndexDoesntExist() {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
@@ -856,7 +856,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleRunner.changePolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
                 failedIndexes);
 
         assertEquals(1, failedIndexes.size());
@@ -864,7 +864,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertSame(clusterState, newClusterState);
     }
 
-    public void testChangePolicyForIndexIndexInShrink() {
+    public void testSetPolicyForIndexIndexInShrink() {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
@@ -879,7 +879,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleRunner.changePolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
+        ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
                 failedIndexes);
 
         assertEquals(1, failedIndexes.size());

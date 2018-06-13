@@ -1,14 +1,14 @@
 {
-  "xpack.index_lifecycle.change_policy": {
+  "xpack.index_lifecycle.set_policy": {
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
-    "methods": [ "GET" ],
+    "methods": [ "PUT" ],
     "url": {
-      "path": "/{index}/_index_lifecycle/change_policy/{new_policy}",
-      "paths": ["/{index}/_index_lifecycle/change_policy/{new_policy}", "/_index_lifecycle/change_policy/{new_policy}"],
+      "path": "/{index}/_index_lifecycle/set_policy/{new_policy}",
+      "paths": ["/{index}/_index_lifecycle/set_policy/{new_policy}", "/_index_lifecycle/set_policy/{new_policy}"],
       "parts": {
         "index": {
           "type" : "string",
-          "description" : "The name of the index to change policy on"
+          "description" : "The name of the index to set policy on"
         },
         "new_policy": {
           "type" : "string",

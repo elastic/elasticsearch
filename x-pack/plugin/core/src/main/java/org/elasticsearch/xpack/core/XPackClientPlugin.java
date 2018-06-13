@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ReplicasAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ChangePolicyForIndexAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
@@ -331,7 +331,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 GetLifecycleAction.INSTANCE,
                 PutLifecycleAction.INSTANCE,
                 ExplainLifecycleAction.INSTANCE,
-                ChangePolicyForIndexAction.INSTANCE,
+                SetPolicyForIndexAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE
         );

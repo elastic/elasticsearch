@@ -140,7 +140,7 @@ teardown:
         lifecycle: "my_alternative_timeseries_lifecycle"
 
 ---
-"Test Change Policy Single Index":
+"Test Set Policy Single Index":
 
   - do:
       indices.get_settings:
@@ -150,7 +150,7 @@ teardown:
 
   - do:
       acknowledge: true
-      xpack.index_lifecycle.change_policy:
+      xpack.index_lifecycle.set_policy:
         index: "another_index"
         new_policy: my_alternative_timeseries_lifecycle
 
@@ -164,7 +164,7 @@ teardown:
   - match: { another_index.settings.index.lifecycle.name: my_alternative_timeseries_lifecycle }
   
 ---
-"Test Change Policy Index Pattern":
+"Test Set Policy Index Pattern":
 
   - do:
       indices.get_settings:
@@ -175,7 +175,7 @@ teardown:
 
   - do:
       acknowledge: true
-      xpack.index_lifecycle.change_policy:
+      xpack.index_lifecycle.set_policy:
         index: "my_*"
         new_policy: my_alternative_timeseries_lifecycle
 
@@ -190,7 +190,7 @@ teardown:
   - match: { my_index2.settings.index.lifecycle.name: my_alternative_timeseries_lifecycle }
   
 ---
-"Test Change Policy Unmanaged Index":
+"Test Set Policy Unmanaged Index":
 
   - do:
       indices.get_settings:
@@ -200,7 +200,7 @@ teardown:
 
   - do:
       acknowledge: true
-      xpack.index_lifecycle.change_policy:
+      xpack.index_lifecycle.set_policy:
         index: "unmanaged_index"
         new_policy: my_alternative_timeseries_lifecycle
 
@@ -214,10 +214,10 @@ teardown:
   - match: { unmanaged_index.settings.index.lifecycle.name: my_alternative_timeseries_lifecycle }
   
 ---
-"Test Change Policy Index Does Not Exist":
+"Test Set Policy Index Does Not Exist":
 
   - do:
       catch: missing
-      xpack.index_lifecycle.change_policy:
+      xpack.index_lifecycle.set_policy:
         index: "doesnt_exist"
         new_policy: my_alternative_timeseries_lifecycle

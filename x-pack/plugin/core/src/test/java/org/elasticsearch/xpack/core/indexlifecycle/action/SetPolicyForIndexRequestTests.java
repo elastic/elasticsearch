@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ChangePolicyForIndexAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Request;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class ChangePolicyForIndexRequestTests extends AbstractStreamableTestCase<ChangePolicyForIndexAction.Request> {
+public class SetPolicyForIndexRequestTests extends AbstractStreamableTestCase<SetPolicyForIndexAction.Request> {
 
     @Override
     protected Request createTestInstance() {

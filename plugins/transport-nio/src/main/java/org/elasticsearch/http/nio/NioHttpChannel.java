@@ -27,9 +27,9 @@ import org.elasticsearch.nio.NioSocketChannel;
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
 
-public class NioLLHttpChannel extends NioSocketChannel implements HttpChannel {
+public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
 
-    NioLLHttpChannel(SocketChannel socketChannel) throws IOException {
+    NioHttpChannel(SocketChannel socketChannel) throws IOException {
         super(socketChannel);
     }
 

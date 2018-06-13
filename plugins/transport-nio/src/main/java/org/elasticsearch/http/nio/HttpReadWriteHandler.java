@@ -48,10 +48,10 @@ import java.util.function.BiConsumer;
 public class HttpReadWriteHandler implements ReadWriteHandler {
 
     private final NettyAdaptor adaptor;
-    private final NioLLHttpChannel nioHttpChannel;
+    private final NioHttpChannel nioHttpChannel;
     private final NioHttpServerTransport transport;
 
-    HttpReadWriteHandler(NioLLHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
+    HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
                          NioCorsConfig corsConfig) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;

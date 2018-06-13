@@ -23,7 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
@@ -83,7 +82,7 @@ import static org.mockito.Mockito.verify;
 public class HttpReadWriteHandlerTests extends ESTestCase {
 
     private HttpReadWriteHandler handler;
-    private NioLLHttpChannel nioHttpChannel;
+    private NioHttpChannel nioHttpChannel;
     private NioHttpServerTransport transport;
 
     private final RequestEncoder requestEncoder = new RequestEncoder();
@@ -107,7 +106,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings),
             SETTING_PIPELINING_MAX_EVENTS.getDefault(settings),
             SETTING_CORS_ENABLED.getDefault(settings));
-        nioHttpChannel = mock(NioLLHttpChannel.class);
+        nioHttpChannel = mock(NioHttpChannel.class);
         handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, NioCorsConfigBuilder.forAnyOrigin().build());
     }
 
@@ -122,12 +121,12 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         ByteBuf slicedBuf2 = buf.retainedSlice(slicePoint, buf.writerIndex());
         handler.consumeReads(toChannelBuffer(slicedBuf));
 
-        verify(transport, times(0)).incomingRequest(any(HttpRequest.class), any(NioLLHttpChannel.class));
+        verify(transport, times(0)).incomingRequest(any(HttpRequest.class), any(NioHttpChannel.class));
 
         handler.consumeReads(toChannelBuffer(slicedBuf2));
 
         ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(transport).incomingRequest(requestCaptor.capture(), any(NioLLHttpChannel.class));
+        verify(transport).incomingRequest(requestCaptor.capture(), any(NioHttpChannel.class));
 
         HttpRequest nioHttpRequest = requestCaptor.getValue();
         assertEquals(HttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
@@ -146,7 +145,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         handler.consumeReads(toChannelBuffer(buf));
 
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
-        verify(transport).incomingRequestError(any(HttpRequest.class), any(NioLLHttpChannel.class), exceptionCaptor.capture());
+        verify(transport).incomingRequestError(any(HttpRequest.class), any(NioHttpChannel.class), exceptionCaptor.capture());
 
         assertTrue(exceptionCaptor.getValue() instanceof IllegalArgumentException);
     }

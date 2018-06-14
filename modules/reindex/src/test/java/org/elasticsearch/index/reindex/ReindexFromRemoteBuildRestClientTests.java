@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTestCase {
     public void testBuildRestClient() throws Exception {
-        for(final String path: new String[]{"", null, "path"}) {
+        for(final String path: new String[]{"", null, "/", "path"}) {
             RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, path, new BytesArray("ignored"), null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
             long taskId = randomLong();

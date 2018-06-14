@@ -236,7 +236,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
                 return c;
             });
-        if (Strings.hasLength(remoteInfo.getPathPrefix())) {
+        if (Strings.hasLength(remoteInfo.getPathPrefix()) && "/".equals(remoteInfo.getPathPrefix()) == false) {
             builder.setPathPrefix(remoteInfo.getPathPrefix());
         }
         return builder.build();

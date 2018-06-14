@@ -101,6 +101,14 @@ public class RestReindexActionTests extends ESTestCase {
         assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
         assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
 
+        info = buildRemoteInfoHostTestCase("https://other.example.com:9201/");
+        assertEquals("https", info.getScheme());
+        assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertEquals("/", info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
         info = buildRemoteInfoHostTestCase("https://other.example.com:9201/proxy-path/");
         assertEquals("https", info.getScheme());
         assertEquals("other.example.com", info.getHost());

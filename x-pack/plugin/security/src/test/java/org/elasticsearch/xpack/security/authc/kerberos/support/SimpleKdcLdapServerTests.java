@@ -16,13 +16,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.ietf.jgss.GSSException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.text.ParseException;
 import java.util.Base64;
 
@@ -33,13 +32,8 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
     public void testPrincipalCreationAndSearchOnLdap() throws Exception {
         simpleKdcLdapServer.createPrincipal(workDir.resolve("p1p2.keytab"), "p1", "p2");
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
-        try (LDAPConnection ldapConn = AccessController.doPrivileged(new PrivilegedExceptionAction<LDAPConnection>() {
-
-            @Override
-            public LDAPConnection run() throws Exception {
-                return new LDAPConnection("localhost", simpleKdcLdapServer.getLdapListenPort());
-            }
-        });) {
+        try (LDAPConnection ldapConn =
+                LdapUtils.privilegedConnect(() -> new LDAPConnection("localhost", simpleKdcLdapServer.getLdapListenPort()));) {
             assertTrue(ldapConn.isConnected());
             SearchResult sr = ldapConn.search("dc=example,dc=com", SearchScope.SUB, "(krb5PrincipalName=p1@EXAMPLE.COM)");
             assertEquals(1, sr.getEntryCount());

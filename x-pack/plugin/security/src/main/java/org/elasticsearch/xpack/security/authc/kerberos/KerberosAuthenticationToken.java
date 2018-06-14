@@ -11,15 +11,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Objects;
 
 /**
- * This class represents AuthenticationToken for Kerberos authentication using
- * SPNEGO mechanism. The token stores base 64 decoded token bytes, extracted
- * from the Authorization header with auth scheme 'Negotiate'.
+ * This class represents an AuthenticationToken for Kerberos authentication
+ * using SPNEGO. The token stores base 64 decoded token bytes, extracted from
+ * the Authorization header with auth scheme 'Negotiate'.
  * <p>
  * Example Authorization header "Authorization: Negotiate
  * YIIChgYGKwYBBQUCoII..."
@@ -32,8 +30,10 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     public static final String WWW_AUTHENTICATE = "WWW-Authenticate";
     public static final String AUTH_HEADER = "Authorization";
-    public static final String NEGOTIATE_AUTH_HEADER = "Negotiate ";
+    public static final String NEGOTIATE_SCHEME_NAME = "Negotiate";
+    public static final String NEGOTIATE_AUTH_HEADER = NEGOTIATE_SCHEME_NAME + " ";
 
+    // authorization scheme check is case-insensitive
     private static final boolean IGNORE_CASE_AUTH_HEADER_MATCH = true;
 
     private final byte[] base64DecodedToken;
@@ -57,20 +57,19 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (Strings.isNullOrEmpty(authorizationHeader)) {
             return null;
         }
-
-        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER.trim(), 0,
-                NEGOTIATE_AUTH_HEADER.trim().length()) == false) {
+        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER, 0,
+                NEGOTIATE_AUTH_HEADER.length()) == false) {
             return null;
         }
 
-        final String base64EncodedToken = authorizationHeader.substring(NEGOTIATE_AUTH_HEADER.trim().length()).trim();
+        final String base64EncodedToken = authorizationHeader.substring(NEGOTIATE_AUTH_HEADER.length()).trim();
         if (Strings.isEmpty(base64EncodedToken)) {
             throw unauthorized("invalid negotiate authentication header value, expected base64 encoded token but value is empty", null);
         }
-        final byte[] base64Token = base64EncodedToken.getBytes(StandardCharsets.UTF_8);
+
         byte[] decodedKerberosTicket = null;
         try {
-            decodedKerberosTicket = Base64.getDecoder().decode(base64Token);
+            decodedKerberosTicket = Base64.getDecoder().decode(base64EncodedToken);
         } catch (IllegalArgumentException iae) {
             throw unauthorized("invalid negotiate authentication header value, could not decode base64 token {}", iae, base64EncodedToken);
         }
@@ -80,7 +79,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     @Override
     public String principal() {
-        return "<Unauthenticated Principal Name>";
+        return "<Unauthenticated Principal>";
     }
 
     @Override
@@ -95,7 +94,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     @Override
     public int hashCode() {
-        return Objects.hash(base64DecodedToken);
+        return Arrays.hashCode(base64DecodedToken);
     }
 
     @Override
@@ -107,12 +106,12 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (getClass() != other.getClass())
             return false;
         final KerberosAuthenticationToken otherKerbToken = (KerberosAuthenticationToken) other;
-        return Objects.equals(otherKerbToken.credentials(), credentials());
+        return Arrays.equals(otherKerbToken.base64DecodedToken, this.base64DecodedToken);
     }
 
     private static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
-        ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER.trim());
+        ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_SCHEME_NAME);
         return ese;
     }
 }

@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class KerberosAuthenticationTokenTests extends ESTestCase {
 
-    private static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal Name>";
+    private static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal>";
 
     public void testExtractTokenForValidAuthorizationHeader() throws IOException {
         final String base64Token = Base64.getEncoder().encodeToString(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8));
@@ -38,9 +38,13 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         assertArrayEquals(Base64.getDecoder().decode(base64Token), (byte[]) kerbAuthnToken.credentials());
     }
 
-    public void testExtractTokenForInvalidNegotiateAuthorizationHeaderThrowsException() throws IOException {
-        final String header =
-                randomFrom(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER, "negotiate", "negotiate ", "Negotiate", "Negotiate      ");
+    public void testExtractTokenForInvalidNegotiateAuthorizationHeaderShouldReturnNull() throws IOException {
+        final String header = randomFrom("negotiate", "Negotiate", " Negotiate", "NegotiateToken", "Basic ", " Custom ", null);
+        assertNull(KerberosAuthenticationToken.extractToken(header));
+    }
+
+    public void testExtractTokenForNegotiateAuthorizationHeaderWithNoTokenShouldThrowException() throws IOException {
+        final String header = randomFrom(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER, "negotiate ", "Negotiate      ");
         final ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> KerberosAuthenticationToken.extractToken(header));
         assertThat(e.getMessage(),
@@ -58,12 +62,6 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         assertContainsAuthenticateHeader(e);
     }
 
-    public void testExtractTokenForInvalidAuthorizationHeaderShouldReturnNull() throws IOException {
-        final String header = randomFrom(Arrays.asList(" Negotiate", "Basic ", " Custom ", null));
-        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(header);
-        assertNull(kerbAuthnToken);
-    }
-
     public void testKerberoAuthenticationTokenClearCredentials() {
         byte[] inputBytes = randomByteArrayOfLength(5);
         final String base64Token = Base64.getEncoder().encodeToString(inputBytes);
@@ -79,6 +77,10 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
                 new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_8));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
             return new KerberosAuthenticationToken((byte[]) original.credentials());
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            byte[] originalCreds = (byte[]) original.credentials();
+            return new KerberosAuthenticationToken(Arrays.copyOf(originalCreds, originalCreds.length));
         });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
             return new KerberosAuthenticationToken((byte[]) original.credentials());
@@ -102,7 +104,6 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
         assertThat(e.getHeaderKeys(), hasSize(1));
         assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), notNullValue());
-        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE),
-                contains(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER.trim()));
+        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), contains(KerberosAuthenticationToken.NEGOTIATE_SCHEME_NAME));
     }
 }

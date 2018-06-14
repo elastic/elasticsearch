@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Utility wrapper around Apache {@link SimpleKdcServer} backed by Unboundid
@@ -55,7 +57,9 @@ public class SimpleKdcLdapServer {
 
     /**
      * Constructor for SimpleKdcLdapServer, creates instance of Kdc server and ldap
-     * backend server. Also initializes them with provided configuration.
+     * backend server. Also initializes and starts them with provided configuration.
+     * <p>
+     * To stop the KDC and ldap server use {@link #stop()}
      *
      * @param workDir Base directory for server, used to locate kdc.conf,
      *            backend.conf and kdc.ldiff
@@ -111,9 +115,8 @@ public class SimpleKdcLdapServer {
 
     private void createLdapBackendConf() throws IOException {
         String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
-                + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
-                + "host=127.0.0.1\n" + "port=" + ldapPort + "\n" + "admin_dn=uid=admin,ou=system," + baseDn
-                + "\n" + "admin_pw=secret\n" + "base_dn=" + baseDn;
+                + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n" + "host=127.0.0.1\n" + "port=" + ldapPort + "\n"
+                + "admin_dn=uid=admin,ou=system," + baseDn + "\n" + "admin_pw=secret\n" + "base_dn=" + baseDn;
         Files.write(this.workDir.resolve("backend.conf"), backendConf.getBytes(StandardCharsets.UTF_8));
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }
@@ -140,14 +143,10 @@ public class SimpleKdcLdapServer {
         } else {
             throw new IllegalArgumentException("Need to set transport!");
         }
-        long minimumTicketLifeTime = simpleKdc.getKdcConfig().getMinimumTicketLifetime();
-        long maxRenewableLifeTime = simpleKdc.getKdcConfig().getMaximumRenewableLifetime();
-        simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, 86400000L);
-        simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, 604800000L);
-        logger.info("MINIMUM_TICKET_LIFETIME changed from {}  to {}", minimumTicketLifeTime,
-                simpleKdc.getKdcConfig().getMinimumTicketLifetime());
-        logger.info("MAXIMUM_RENEWABLE_LIFETIME changed from {}  to {}", maxRenewableLifeTime,
-                simpleKdc.getKdcConfig().getMaximumRenewableLifetime());
+        final TimeValue minimumTicketLifeTime = new TimeValue(1, TimeUnit.DAYS);
+        final TimeValue maxRenewableLifeTime = new TimeValue(7, TimeUnit.DAYS);
+        simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, minimumTicketLifeTime.getMillis());
+        simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, maxRenewableLifeTime.getMillis());
         simpleKdc.init();
         simpleKdc.start();
     }
@@ -184,7 +183,7 @@ public class SimpleKdcLdapServer {
      * @throws Exception thrown if the principals or the keytab file could not be
      *             created.
      */
-    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File")
+    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File in order to create a SimpleKdcServer")
     public synchronized void createPrincipal(final Path keytabFile, final String... principals) throws Exception {
         simpleKdc.createPrincipals(principals);
         for (String principal : principals) {
@@ -211,13 +210,6 @@ public class SimpleKdcLdapServer {
                     } finally {
                         System.setProperty("sun.security.krb5.debug", Boolean.toString(krb5DebugBackupConfigValue));
                     }
-                }
-
-                try {
-                    // Will be fixed in next Kerby version.
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    throw ExceptionsHelper.convertToRuntime(e);
                 }
 
                 if (ldapServer != null) {

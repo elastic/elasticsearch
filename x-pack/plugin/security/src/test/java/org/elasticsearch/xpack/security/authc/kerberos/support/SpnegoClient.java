@@ -25,9 +25,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,9 +41,11 @@ import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 
 /**
- * This class is used as a Spnego client and handles spnego interactions using
- * GSS context negotiation.<br>
- * Not thread safe
+ * This class is used as a Spnego client during testing and handles SPNEGO
+ * interactions using GSS context negotiation.<br>
+ * It is not advisable to share a SpnegoClient between threads as there is no
+ * synchronization in place, internally this depends on {@link GSSContext} for
+ * context negotiation which maintains sequencing for replay detections.
  */
 class SpnegoClient implements AutoCloseable {
     private static final Logger LOGGER = ESLoggerFactory.getLogger(SpnegoClient.class);
@@ -58,7 +58,7 @@ class SpnegoClient implements AutoCloseable {
 
     /**
      * Creates SpengoClient to interact with given service principal
-     * 
+     *
      * @param userPrincipalName User principal name for login as client
      * @param password password for client
      * @param servicePrincipalName Service principal name with whom this client
@@ -70,8 +70,7 @@ class SpnegoClient implements AutoCloseable {
             throws PrivilegedActionException, GSSException {
         String oldUseSubjectCredsOnlyFlag = null;
         try {
-            oldUseSubjectCredsOnlyFlag = getAndSetSystemProperty("javax.security.auth.useSubjectCredsOnly", "true");
-            Date date = new Date();
+            oldUseSubjectCredsOnlyFlag = getAndSetUseSubjectCredsOnlySystemProperty("true");
             LOGGER.info("SpnegoClient with userPrincipalName : {}", userPrincipalName);
             final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
             final GSSName gssServicePrincipalName = gssManager.createName(servicePrincipalName, GSSName.NT_USER_NAME);
@@ -87,7 +86,7 @@ class SpnegoClient implements AutoCloseable {
             LOGGER.error("privileged action exception, with root cause", pve.getException());
             throw pve;
         } finally {
-            getAndSetSystemProperty("javax.security.auth.useSubjectCredsOnly", oldUseSubjectCredsOnlyFlag);
+            getAndSetUseSubjectCredsOnlySystemProperty(oldUseSubjectCredsOnlyFlag);
         }
     }
 
@@ -113,7 +112,7 @@ class SpnegoClient implements AutoCloseable {
      *         nothing to be sent.
      * @throws PrivilegedActionException
      */
-    public String handleResponse(final String base64Token) throws PrivilegedActionException {
+    String handleResponse(final String base64Token) throws PrivilegedActionException {
         if (gssContext.isEstablished()) {
             throw new IllegalStateException("GSS Context has already been established");
         }
@@ -126,6 +125,9 @@ class SpnegoClient implements AutoCloseable {
         return Base64.getEncoder().encodeToString(outToken);
     }
 
+    /**
+     * Logout from {@link LoginContext} and disposes {@link GSSContext}
+     */
     public void close() throws LoginException, GSSException, PrivilegedActionException {
         if (loginContext != null) {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -159,10 +161,9 @@ class SpnegoClient implements AutoCloseable {
      * @throws LoginException
      */
     private static LoginContext loginUsingPassword(final String principal, final SecureString password) throws LoginException {
-        final Set<Principal> principals = new HashSet<>();
-        principals.add(new KerberosPrincipal(principal));
+        final Set<Principal> principals = Collections.singleton(new KerberosPrincipal(principal));
 
-        final Subject subject = new Subject(false, principals, new HashSet<Object>(), new HashSet<Object>());
+        final Subject subject = new Subject(false, principals, Collections.emptySet(), Collections.emptySet());
 
         final Configuration conf = new PasswordJaasConf(principal);
         final CallbackHandler callback = new KrbCallbackHandler(principal, password);
@@ -228,18 +229,18 @@ class SpnegoClient implements AutoCloseable {
         }
     }
 
-    private static String getAndSetSystemProperty(final String systemProperty, final String value) {
+    private static String getAndSetUseSubjectCredsOnlySystemProperty(final String value) {
         String retVal = null;
         try {
             retVal = AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
 
                 @Override
                 @SuppressForbidden(
-                        reason = "For testing application provides credentials, needs sys prop javax.security.auth.useSubjectCredsOnly")
+                        reason = "For tests where we provide credentials, need to set reset javax.security.auth.useSubjectCredsOnly")
                 public String run() throws Exception {
-                    String oldValue = System.getProperty(systemProperty);
+                    String oldValue = System.getProperty("javax.security.auth.useSubjectCredsOnly");
                     if (value != null) {
-                        System.setProperty(systemProperty, value);
+                        System.setProperty("javax.security.auth.useSubjectCredsOnly", value);
                     }
                     return oldValue;
                 }

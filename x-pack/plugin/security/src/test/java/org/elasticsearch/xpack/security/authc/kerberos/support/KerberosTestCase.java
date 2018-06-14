@@ -14,7 +14,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -72,8 +71,8 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     @BeforeClass
     public static void setupKerberos() throws Exception {
-        Logger logger = Loggers.getLogger(SamlTestCase.class);
         if (isLocaleUnsupported()) {
+            Logger logger = Loggers.getLogger(KerberosTestCase.class);
             logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
                     Locale.getDefault());
             restoreLocale = Locale.getDefault();
@@ -94,8 +93,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     }
 
     @Before
-    public void startMiniKdc() throws Exception {
-
+    public void startSimpleKdcLdapServer() throws Exception {
         workDir = createTempDir();
         globalSettings = Settings.builder().put("path.home", workDir).build();
 
@@ -175,7 +173,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     }
 
     /**
-     * Write content to keytab provided.
+     * Write content to provided keytab file.
      * 
      * @param keytabPath {@link Path} to keytab file.
      * @param content Content for keytab

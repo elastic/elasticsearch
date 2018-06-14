@@ -26,6 +26,10 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A basic http request abstraction. Http modules needs to implement this interface to integrate with the
+ * server package's rest handling.
+ */
 public interface HttpRequest {
 
     enum HttpVersion {
@@ -53,6 +57,9 @@ public interface HttpRequest {
 
     HttpRequest removeHeader(String header);
 
+    /**
+     * Create an http response from this request and the supplied status and content.
+     */
     HttpResponse createResponse(RestStatus status, BytesReference content);
 
 }

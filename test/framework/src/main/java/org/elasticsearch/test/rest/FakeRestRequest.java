@@ -140,7 +140,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public InetSocketAddress getRemoteAddress() {
-            return null;
+            return remoteAddress;
         }
 
         @Override

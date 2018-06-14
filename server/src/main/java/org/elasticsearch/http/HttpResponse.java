@@ -19,6 +19,10 @@
 
 package org.elasticsearch.http;
 
+/**
+ * A basic http response abstraction. Http modules must implement this interface as the server package rest
+ * handling needs to set http headers for a response.
+ */
 public interface HttpResponse {
 
     void addHeader(String name, String value);

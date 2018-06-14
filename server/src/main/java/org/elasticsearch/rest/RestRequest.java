@@ -240,14 +240,6 @@ public class RestRequest implements ToXContent.Params {
         this.xContentType.set(xContentType);
     }
 
-    public InetSocketAddress getRemoteAddress() {
-        return httpChannel.getRemoteAddress();
-    }
-
-    public InetSocketAddress getLocalAddress() {
-        return httpChannel.getLocalAddress();
-    }
-
     public HttpChannel getHttpChannel() {
         return httpChannel;
     }

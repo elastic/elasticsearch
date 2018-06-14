@@ -37,6 +37,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
+ * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
+ */
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
     static final String CLOSE = "close";

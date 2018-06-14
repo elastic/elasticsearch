@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkService;
@@ -88,10 +89,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.port = SETTING_HTTP_PORT.get(settings);
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-    }
-
-    public BigArrays getBigArrays() {
-        return bigArrays;
     }
 
     @Override
@@ -169,15 +166,29 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
+    /**
+     * This method handles an incoming http request.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         handleIncomingRequest(httpRequest, httpChannel, null);
     }
 
+    /**
+     * This method handles an incoming http request that has encountered an error.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     * @param exception that was encountered
+     */
     public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         handleIncomingRequest(httpRequest, httpChannel, exception);
     }
 
-    public void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
+    // Visible for testing
+    void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             if (badRequestCause != null) {
@@ -204,10 +215,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             try {
                 innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.ContentTypeHeaderException e) {
-                badRequestCause = getException(badRequestCause, e);
+                badRequestCause = IOUtils.useOrSuppress(badRequestCause, e);
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {
-                badRequestCause = getException(badRequestCause, e);
+                badRequestCause = IOUtils.useOrSuppress(badRequestCause, e);
                 innerRestRequest =  RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
@@ -226,7 +237,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             try {
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext);
             } catch (final IllegalArgumentException e) {
-                badRequestCause = getException(badRequestCause, e);
+                badRequestCause = IOUtils.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
             }
@@ -244,14 +255,5 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             badRequestCause.addSuppressed(e);
             return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         }
-    }
-
-    private static Exception getException(Exception firstException, Exception secondException) {
-        if (firstException == null) {
-            firstException = secondException;
-        } else {
-            firstException.addSuppressed(secondException);
-        }
-        return firstException;
     }
 }

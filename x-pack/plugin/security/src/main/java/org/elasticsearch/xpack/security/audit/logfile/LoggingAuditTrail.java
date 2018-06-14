@@ -544,13 +544,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     private static String hostAttributes(RestRequest request) {
-        String formattedAddress;
-        final SocketAddress socketAddress = request.getRemoteAddress();
-        if (socketAddress instanceof InetSocketAddress) {
-            formattedAddress = NetworkAddress.format(((InetSocketAddress) socketAddress).getAddress());
-        } else {
-            formattedAddress = socketAddress.toString();
-        }
+        final InetSocketAddress socketAddress = request.getHttpChannel().getRemoteAddress();
+        String formattedAddress = NetworkAddress.format(socketAddress.getAddress());
         return "origin_address=[" + formattedAddress + "]";
     }
 

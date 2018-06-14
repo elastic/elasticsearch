@@ -16,7 +16,6 @@ import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;

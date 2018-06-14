@@ -22,17 +22,15 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     private final Step.StepKey nextStepKey;
     private final Listener listener;
     private final LongSupplier nowSupplier;
-    private final PolicyStepsRegistry policyStepsRegistry;
 
     public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-            LongSupplier nowSupplier, PolicyStepsRegistry policyStepsRegistry, Listener listener) {
+            LongSupplier nowSupplier, Listener listener) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
         this.listener = listener;
-        this.policyStepsRegistry = policyStepsRegistry;
     }
 
     Index getIndex() {

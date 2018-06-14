@@ -26,19 +26,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Request, IndexUpgradeInfoAction.Response,
-        IndexUpgradeInfoAction.RequestBuilder> {
+public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Request, IndexUpgradeInfoAction.Response> {
 
     public static final IndexUpgradeInfoAction INSTANCE = new IndexUpgradeInfoAction();
     public static final String NAME = "cluster:admin/xpack/upgrade/info";
 
     private IndexUpgradeInfoAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -183,8 +177,8 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
 
     public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, IndexUpgradeInfoAction action) {
-            super(client, action, new Request());
+        public RequestBuilder(ElasticsearchClient client) {
+            super(client, INSTANCE, new Request());
         }
 
         public RequestBuilder setIndices(String... indices) {

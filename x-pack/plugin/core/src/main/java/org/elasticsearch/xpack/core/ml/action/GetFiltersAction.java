@@ -27,18 +27,13 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 
-public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFiltersAction.Response, GetFiltersAction.RequestBuilder> {
+public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFiltersAction.Response> {
 
     public static final GetFiltersAction INSTANCE = new GetFiltersAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/get";
 
     private GetFiltersAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -111,7 +106,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

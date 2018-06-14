@@ -19,9 +19,8 @@
 package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class TypesExistsAction extends Action<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
+public class TypesExistsAction extends Action<TypesExistsRequest, TypesExistsResponse> {
 
     public static final TypesExistsAction INSTANCE = new TypesExistsAction();
     public static final String NAME = "indices:admin/types/exists";
@@ -33,10 +32,5 @@ public class TypesExistsAction extends Action<TypesExistsRequest, TypesExistsRes
     @Override
     public TypesExistsResponse newResponse() {
         return new TypesExistsResponse();
-    }
-
-    @Override
-    public TypesExistsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new TypesExistsRequestBuilder(client, this);
     }
 }

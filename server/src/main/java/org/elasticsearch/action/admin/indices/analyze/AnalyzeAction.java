@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class AnalyzeAction extends Action<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
+public class AnalyzeAction extends Action<AnalyzeRequest, AnalyzeResponse> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
     public static final String NAME = "indices:admin/analyze";
@@ -34,10 +33,5 @@ public class AnalyzeAction extends Action<AnalyzeRequest, AnalyzeResponse, Analy
     @Override
     public AnalyzeResponse newResponse() {
         return new AnalyzeResponse();
-    }
-
-    @Override
-    public AnalyzeRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new AnalyzeRequestBuilder(client, this);
     }
 }

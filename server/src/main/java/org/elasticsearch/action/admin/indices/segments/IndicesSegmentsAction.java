@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndicesSegmentsAction extends Action<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
+public class IndicesSegmentsAction extends Action<IndicesSegmentsRequest, IndicesSegmentResponse> {
 
     public static final IndicesSegmentsAction INSTANCE = new IndicesSegmentsAction();
     public static final String NAME = "indices:monitor/segments";
@@ -34,10 +33,5 @@ public class IndicesSegmentsAction extends Action<IndicesSegmentsRequest, Indice
     @Override
     public IndicesSegmentResponse newResponse() {
         return new IndicesSegmentResponse();
-    }
-
-    @Override
-    public IndicesSegmentsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndicesSegmentsRequestBuilder(client, this);
     }
 }

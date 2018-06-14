@@ -70,8 +70,8 @@ public class NodeClient extends AbstractClient {
     @Override
     public <    Request extends ActionRequest,
                 Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>
-            > void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                RequestBuilder extends ActionRequestBuilder<Request, Response>
+            > void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
         // Discard the task because the Client interface doesn't use it.
         executeLocally(action, request, listener);
     }

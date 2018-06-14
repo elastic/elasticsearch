@@ -36,6 +36,7 @@ Elasticsearch 6.x in order to be readable by Elasticsearch 7.x.
 * <<breaking_70_settings_changes>>
 * <<breaking_70_scripting_changes>>
 * <<breaking_70_snapshotstats_changes>>
+* <<breaking_70_restclient_changes>>
 
 include::migrate_7_0/aggregations.asciidoc[]
 include::migrate_7_0/analysis.asciidoc[]
@@ -50,3 +51,4 @@ include::migrate_7_0/java.asciidoc[]
 include::migrate_7_0/settings.asciidoc[]
 include::migrate_7_0/scripting.asciidoc[]
 include::migrate_7_0/snapshotstats.asciidoc[]
+include::migrate_7_0/restclient.asciidoc[]

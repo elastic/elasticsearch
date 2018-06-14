@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJobsStatsAction.Response, GetJobsStatsAction.RequestBuilder> {
+public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJobsStatsAction.Response> {
 
     public static final GetJobsStatsAction INSTANCE = new GetJobsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/stats/get";
@@ -51,11 +51,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
     private GetJobsStatsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -144,7 +139,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, GetJobsStatsAction action) {
             super(client, action, new Request());

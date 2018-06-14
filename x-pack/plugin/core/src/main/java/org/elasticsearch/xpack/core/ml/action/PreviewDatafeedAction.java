@@ -25,19 +25,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
-public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response,
-        PreviewDatafeedAction.RequestBuilder> {
+public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
     public static final PreviewDatafeedAction INSTANCE = new PreviewDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";
 
     private PreviewDatafeedAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -107,7 +101,7 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

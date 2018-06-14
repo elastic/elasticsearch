@@ -20,9 +20,8 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class MultiGetAction extends Action<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder> {
+public class MultiGetAction extends Action<MultiGetRequest, MultiGetResponse> {
 
     public static final MultiGetAction INSTANCE = new MultiGetAction();
     public static final String NAME = "indices:data/read/mget";
@@ -34,10 +33,5 @@ public class MultiGetAction extends Action<MultiGetRequest, MultiGetResponse, Mu
     @Override
     public MultiGetResponse newResponse() {
         return new MultiGetResponse();
-    }
-
-    @Override
-    public MultiGetRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MultiGetRequestBuilder(client, this);
     }
 }

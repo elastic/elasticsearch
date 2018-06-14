@@ -6,20 +6,14 @@
 package org.elasticsearch.xpack.core.monitoring.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class MonitoringBulkAction extends Action<MonitoringBulkRequest, MonitoringBulkResponse, MonitoringBulkRequestBuilder> {
+public class MonitoringBulkAction extends Action<MonitoringBulkRequest, MonitoringBulkResponse> {
 
     public static final MonitoringBulkAction INSTANCE = new MonitoringBulkAction();
     public static final String NAME = "cluster:admin/xpack/monitoring/bulk";
 
     private MonitoringBulkAction() {
         super(NAME);
-    }
-
-    @Override
-    public MonitoringBulkRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MonitoringBulkRequestBuilder(client);
     }
 
     @Override

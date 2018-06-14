@@ -20,10 +20,8 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class MultiSearchTemplateAction
-        extends Action<MultiSearchTemplateRequest, MultiSearchTemplateResponse, MultiSearchTemplateRequestBuilder> {
+public class MultiSearchTemplateAction extends Action<MultiSearchTemplateRequest, MultiSearchTemplateResponse> {
 
     public static final MultiSearchTemplateAction INSTANCE = new MultiSearchTemplateAction();
     public static final String NAME = "indices:data/read/msearch/template";
@@ -35,10 +33,5 @@ public class MultiSearchTemplateAction
     @Override
     public MultiSearchTemplateResponse newResponse() {
         return new MultiSearchTemplateResponse();
-    }
-
-    @Override
-    public MultiSearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MultiSearchTemplateRequestBuilder(client, this);
     }
 }

@@ -29,18 +29,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Request, GetCalendarEventsAction.Response,
-        GetCalendarEventsAction.RequestBuilder> {
+public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Request, GetCalendarEventsAction.Response> {
     public static final GetCalendarEventsAction INSTANCE = new GetCalendarEventsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/events/get";
 
     private GetCalendarEventsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -193,7 +187,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Requ
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

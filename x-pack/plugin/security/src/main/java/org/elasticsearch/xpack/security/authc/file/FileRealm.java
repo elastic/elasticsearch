@@ -55,11 +55,11 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    public Map<String, Object> usageStats() {
-        Map<String, Object> stats = super.usageStats();
-        // here we can determine the size based on the in mem user store
-        stats.put("size", userPasswdStore.usersCount());
-        return stats;
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("size", userPasswdStore.usersCount());
+            listener.onResponse(stats);
+        }, listener::onFailure));
     }
 
 }

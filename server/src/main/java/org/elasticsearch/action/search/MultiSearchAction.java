@@ -20,9 +20,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class MultiSearchAction extends Action<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
+public class MultiSearchAction extends Action<MultiSearchRequest, MultiSearchResponse> {
 
     public static final MultiSearchAction INSTANCE = new MultiSearchAction();
     public static final String NAME = "indices:data/read/msearch";
@@ -34,10 +33,5 @@ public class MultiSearchAction extends Action<MultiSearchRequest, MultiSearchRes
     @Override
     public MultiSearchResponse newResponse() {
         return new MultiSearchResponse();
-    }
-
-    @Override
-    public MultiSearchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MultiSearchRequestBuilder(client, this);
     }
 }

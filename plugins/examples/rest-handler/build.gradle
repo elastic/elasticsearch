@@ -28,20 +28,12 @@ esplugin {
 // No unit tests in this example
 test.enabled = false
 
-configurations {
-  exampleFixture
-}
-
-dependencies {
-  exampleFixture project(':test:fixtures:example-fixture')
-}
-
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-  dependsOn project.configurations.exampleFixture
+  dependsOn testClasses
   executable = new File(project.runtimeJavaHome, 'bin/java')
-  args '-cp', "${ -> project.configurations.exampleFixture.asPath }",
-          'example.ExampleTestFixture',
-          baseDir
+  args '-cp', "${ -> project.sourceSets.test.runtimeClasspath.asPath }",
+          'org.elasticsearch.example.resthandler.ExampleFixture',
+          baseDir, 'TEST'
 }
 
 integTestCluster {

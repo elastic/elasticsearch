@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
 
 import java.util.Collections;
 import java.util.Date;

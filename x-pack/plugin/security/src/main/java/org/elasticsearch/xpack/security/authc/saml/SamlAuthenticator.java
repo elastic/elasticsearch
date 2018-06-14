@@ -26,6 +26,7 @@ import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.AttributeStatement;
 import org.opensaml.saml.saml2.core.Audience;
 import org.opensaml.saml.saml2.core.AudienceRestriction;
+import org.opensaml.saml.saml2.core.AuthnStatement;
 import org.opensaml.saml.saml2.core.Conditions;
 import org.opensaml.saml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml.saml2.core.EncryptedAttribute;
@@ -159,8 +160,10 @@ class SamlAuthenticator extends SamlRequestHandler {
     private void checkResponseDestination(Response response) {
         final String asc = getSpConfiguration().getAscUrl();
         if (asc.equals(response.getDestination()) == false) {
-            throw samlException("SAML response " + response.getID() + " is for destination " + response.getDestination()
+            if (response.isSigned() || Strings.hasText(response.getDestination())) {
+                throw samlException("SAML response " + response.getID() + " is for destination " + response.getDestination()
                     + " but this realm uses " + asc);
+            }
         }
     }
 
@@ -217,6 +220,7 @@ class SamlAuthenticator extends SamlRequestHandler {
         checkConditions(assertion.getConditions());
         checkIssuer(assertion.getIssuer(), assertion);
         checkSubject(assertion.getSubject(), assertion, allowedSamlRequestIds);
+        checkAuthnStatement(assertion.getAuthnStatements());
 
         List<Attribute> attributes = new ArrayList<>();
         for (AttributeStatement statement : assertion.getAttributeStatements()) {
@@ -232,6 +236,33 @@ class SamlAuthenticator extends SamlRequestHandler {
             }
         }
         return attributes;
+    }
+
+    private void checkAuthnStatement(List<AuthnStatement> authnStatements) {
+        if (authnStatements.size() != 1) {
+            throw samlException("SAML Assertion subject contains {} Authn Statements while exactly one was expected.",
+                authnStatements.size());
+        }
+        final AuthnStatement authnStatement = authnStatements.get(0);
+        // "past now" that is now - the maximum skew we will tolerate. Essentially "if our clock is 2min fast, what time is it now?"
+        final Instant now = now();
+        final Instant pastNow = now.minusMillis(maxSkewInMillis());
+        if (authnStatement.getSessionNotOnOrAfter() != null &&
+            pastNow.isBefore(toInstant(authnStatement.getSessionNotOnOrAfter())) == false) {
+            throw samlException("Rejecting SAML assertion's Authentication Statement because [{}] is on/after [{}]", pastNow,
+                authnStatement.getSessionNotOnOrAfter());
+        }
+        List<String> reqAuthnCtxClassRef = this.getSpConfiguration().getReqAuthnCtxClassRef();
+        if (reqAuthnCtxClassRef.isEmpty() == false) {
+            String authnCtxClassRefValue = null;
+            if (authnStatement.getAuthnContext() != null && authnStatement.getAuthnContext().getAuthnContextClassRef() != null) {
+                authnCtxClassRefValue = authnStatement.getAuthnContext().getAuthnContextClassRef().getAuthnContextClassRef();
+            }
+            if (Strings.isNullOrEmpty(authnCtxClassRefValue) || reqAuthnCtxClassRef.contains(authnCtxClassRefValue) == false) {
+                throw samlException("Rejecting SAML assertion as the AuthnContextClassRef [{}] is not one of the ({}) that were " +
+                    "requested in the corresponding AuthnRequest", authnCtxClassRefValue, reqAuthnCtxClassRef);
+            }
+        }
     }
 
     private Attribute decrypt(EncryptedAttribute encrypted) {
@@ -252,7 +283,7 @@ class SamlAuthenticator extends SamlRequestHandler {
             if (logger.isTraceEnabled()) {
                 logger.trace("SAML Assertion was intended for the following Service providers: {}",
                         conditions.getAudienceRestrictions().stream().map(r -> text(r, 32))
-                                .collect(Collectors.joining(" | ")));
+                            .collect(Collectors.joining(" | ")));
                 logger.trace("SAML Assertion is only valid between: " + conditions.getNotBefore() + " and " + conditions.getNotOnOrAfter());
             }
             checkAudienceRestrictions(conditions.getAudienceRestrictions());

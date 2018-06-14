@@ -54,8 +54,18 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
+        delegate.writeBlobAtomic(blobName, inputStream, blobSize);
+    }
+
+    @Override
     public void deleteBlob(String blobName) throws IOException {
         delegate.deleteBlob(blobName);
+    }
+
+    @Override
+    public void deleteBlobIgnoringIfNotExists(final String blobName) throws IOException {
+        delegate.deleteBlobIgnoringIfNotExists(blobName);
     }
 
     @Override
@@ -66,10 +76,5 @@ public class BlobContainerWrapper implements BlobContainer {
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
-    }
-
-    @Override
-    public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        delegate.move(sourceBlobName, targetBlobName);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -278,6 +279,19 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
+    public void testJoinValidatorForLicenseDeserialization() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            VersionUtils.randomVersionBetween(random(), null, Version.V_6_3_0));
+        MetaData.Builder builder = MetaData.builder();
+        License license = TestUtils.generateSignedLicense(null,
+            randomIntBetween(License.VERSION_CRYPTO_ALGORITHMS, License.VERSION_CURRENT), -1, TimeValue.timeValueHours(24));
+        TestUtils.putLicense(builder, license);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> new Security.ValidateLicenseCanBeDeserialized().accept(node, state));
+        assertThat(e.getMessage(), containsString("cannot deserialize the license format"));
+    }
+
     public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
@@ -345,7 +359,7 @@ public class SecurityTests extends ESTestCase {
             .nodes(discoveryNodes).build();
         joinValidator.accept(node, clusterState);
     }
-    
+
     public void testGetFieldFilterSecurityEnabled() throws Exception {
         createComponents(Settings.EMPTY);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();

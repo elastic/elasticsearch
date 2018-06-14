@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
-import org.elasticsearch.client.ElasticsearchClient;
-
 /**
  * This action gets an watch by name
  */
-public class GetWatchAction extends org.elasticsearch.action.Action<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder> {
+public class GetWatchAction extends org.elasticsearch.action.Action<GetWatchRequest, GetWatchResponse> {
 
     public static final GetWatchAction INSTANCE = new GetWatchAction();
     public static final String NAME = "cluster:monitor/xpack/watcher/watch/get";
@@ -22,10 +20,5 @@ public class GetWatchAction extends org.elasticsearch.action.Action<GetWatchRequ
     @Override
     public GetWatchResponse newResponse() {
         return new GetWatchResponse();
-    }
-
-    @Override
-    public GetWatchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetWatchRequestBuilder(client);
     }
 }

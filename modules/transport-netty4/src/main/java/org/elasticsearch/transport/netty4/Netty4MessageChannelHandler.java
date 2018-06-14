@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.Transports;
 
-import java.net.InetSocketAddress;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message

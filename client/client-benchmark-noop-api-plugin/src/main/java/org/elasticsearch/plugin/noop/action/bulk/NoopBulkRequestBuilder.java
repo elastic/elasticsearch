@@ -35,7 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, NoopBulkRequestBuilder>
+public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse>
         implements WriteRequestBuilder<NoopBulkRequestBuilder> {
 
     public NoopBulkRequestBuilder(ElasticsearchClient client, NoopBulkAction action) {

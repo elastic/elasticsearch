@@ -68,6 +68,7 @@ Consider the following `string` mapping:
     }
 }
 ----
+// NOTCONSOLE
 
 The following SQL query:
 
@@ -75,6 +76,7 @@ The following SQL query:
 ----
 SELECT first_name FROM index WHERE first_name = 'John'
 ----
+// NOTCONSOLE
 
 is identical to:
 
@@ -82,6 +84,7 @@ is identical to:
 ----
 SELECT first_name FROM index WHERE first_name.raw = 'John'
 ----
+// NOTCONSOLE
 
 as {es-sql} automatically _picks_ up the `raw` multi-field from `raw` for exact matching.
 

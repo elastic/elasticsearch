@@ -28,12 +28,6 @@ dependencies {
     testCompile project(path: ':plugins:discovery-ec2', configuration: 'runtime')
 }
 
-forbiddenApisTest {
-    // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
-}
-
 final int ec2NumberOfNodes = 3
 File ec2DiscoveryFile =  new File(project.buildDir, 'generated-resources/nodes.uri')
 
@@ -69,7 +63,7 @@ integTestCluster {
         ec2DiscoveryFile.setText(integTest.nodes.collect { n -> "${n.transportUri()}" }.join('\n'), 'UTF-8')
 
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${ec2NumberOfNodes}&wait_for_status=yellow",
+        ant.get(src: "http://${node.httpUri()}/",
                 dest: tmpFile.toString(),
                 ignoreerrors: true,
                 retries: 10)

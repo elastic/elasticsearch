@@ -666,13 +666,11 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         private void onCompleted(Exception failure) {
-            final List<Listener> listeners;
             synchronized (this) {
                 this.failure = failure;
-                listeners = this.listeners;
                 this.isNotified = true;
             }
-            Exception firstException = null;
+            RuntimeException firstException = null;
             for (Listener listener : listeners) {
                 try {
                     if (failure != null) {
@@ -680,7 +678,7 @@ public class ShardStateAction extends AbstractComponent {
                     } else {
                         listener.onSuccess();
                     }
-                } catch (Exception innerEx) {
+                } catch (RuntimeException innerEx) {
                     if (firstException == null) {
                         firstException = innerEx;
                     } else {
@@ -689,7 +687,7 @@ public class ShardStateAction extends AbstractComponent {
                 }
             }
             if (firstException != null) {
-                throw new ElasticsearchException("failed to notify listener", firstException);
+                throw firstException;
             }
         }
 

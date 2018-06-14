@@ -207,8 +207,8 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     public void testWriteUpdateFiltersMessage() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
 
-        MlFilter filter1 = new MlFilter("filter_1", Arrays.asList("a"));
-        MlFilter filter2 = new MlFilter("filter_2", Arrays.asList("b", "c"));
+        MlFilter filter1 = MlFilter.builder("filter_1").setItems("a").build();
+        MlFilter filter2 = MlFilter.builder("filter_2").setItems("b", "c").build();
 
         writer.writeUpdateFiltersMessage(Arrays.asList(filter1, filter2));
 

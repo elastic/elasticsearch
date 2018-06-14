@@ -40,7 +40,6 @@ import java.util.Set;
 import com.fasterxml.jackson.core.JsonFactory;
 
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

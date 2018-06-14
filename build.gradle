@@ -131,7 +131,7 @@ task verifyVersions {
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
         xml = new XmlParser().parse(s)
     }
-    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
+    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }.collect { Version.fromString(it) })
 
     // Limit the known versions to those that should be index compatible, and are not future versions
     knownVersions = knownVersions.findAll { it.major >= bwcVersions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }

@@ -21,7 +21,7 @@ package org.elasticsearch.http;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkService;
@@ -215,10 +215,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             try {
                 innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.ContentTypeHeaderException e) {
-                badRequestCause = IOUtils.useOrSuppress(badRequestCause, e);
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {
-                badRequestCause = IOUtils.useOrSuppress(badRequestCause, e);
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest =  RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
@@ -237,7 +237,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             try {
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext);
             } catch (final IllegalArgumentException e) {
-                badRequestCause = IOUtils.useOrSuppress(badRequestCause, e);
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
                 innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
             }

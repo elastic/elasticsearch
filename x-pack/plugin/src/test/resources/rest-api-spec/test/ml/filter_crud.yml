@@ -32,6 +32,7 @@ setup:
         filter_id: filter-foo2
         body:  >
           {
+            "description": "This filter has a description",
             "items": ["123", "lmnop"]
           }
 
@@ -76,6 +77,7 @@ setup:
   - match:
       filters.1:
         filter_id: "filter-foo2"
+        description: "This filter has a description"
         items: ["123", "lmnop"]
 
   - do:

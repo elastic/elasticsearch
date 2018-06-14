@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -52,9 +53,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -131,13 +130,13 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         tasks.addAll(failingTasks);
         tasks.addAll(nonExistentTasks);
         ClusterStateTaskExecutor.ClusterTasksResult<FailedShardEntry> result = failingExecutor.execute(currentState, tasks);
-        Map<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap = new IdentityHashMap<>();
+        List<Tuple<FailedShardEntry, ClusterStateTaskExecutor.TaskResult>> taskResultMap = new ArrayList<>();
         for (FailedShardEntry failingTask : failingTasks) {
-            taskResultMap.put(failingTask,
-                ClusterStateTaskExecutor.TaskResult.failure(new RuntimeException("simulated applyFailedShards failure")));
+            taskResultMap.add(Tuple.tuple(failingTask,
+                ClusterStateTaskExecutor.TaskResult.failure(new RuntimeException("simulated applyFailedShards failure"))));
         }
         for (FailedShardEntry nonExistentTask : nonExistentTasks) {
-            taskResultMap.put(nonExistentTask, ClusterStateTaskExecutor.TaskResult.success());
+            taskResultMap.add(Tuple.tuple(nonExistentTask, ClusterStateTaskExecutor.TaskResult.success()));
         }
         assertTaskResults(taskResultMap, result, currentState, false);
     }
@@ -152,13 +151,12 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             tasks.add(new FailedShardEntry(failingTask.shardId, failingTask.allocationId,
                 randomIntBetween(1, (int) primaryTerm - 1), failingTask.message, failingTask.failure, randomBoolean()));
         }
-        Map<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap = new IdentityHashMap<>();
-        for (FailedShardEntry task : tasks) {
-            taskResultMap.put(task,
-                ClusterStateTaskExecutor.TaskResult.failure(new ShardStateAction.NoLongerPrimaryShardException(task.shardId,
-                    "primary term [" + task.primaryTerm + "] did not match current primary term [" +
-                        currentState.metaData().index(task.shardId.getIndex()).primaryTerm(task.shardId.id()) + "]")));
-        }
+        List<Tuple<FailedShardEntry, ClusterStateTaskExecutor.TaskResult>> taskResultMap = tasks.stream()
+            .map(task -> Tuple.tuple(task, ClusterStateTaskExecutor.TaskResult.failure(
+                new ShardStateAction.NoLongerPrimaryShardException(task.shardId, "primary term ["
+                    + task.primaryTerm + "] did not match current primary term ["
+                    + currentState.metaData().index(task.shardId.getIndex()).primaryTerm(task.shardId.id()) + "]"))))
+            .collect(Collectors.toList());
         ClusterStateTaskExecutor.ClusterTasksResult<FailedShardEntry> result = executor.execute(currentState, tasks);
         assertTaskResults(taskResultMap, result, currentState, false);
     }
@@ -257,15 +255,13 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         ClusterState clusterState,
         boolean clusterStateChanged
     ) {
-        Map<ShardStateAction.FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap = new IdentityHashMap<>();
-        for (FailedShardEntry task : tasks) {
-            taskResultMap.put(task, ClusterStateTaskExecutor.TaskResult.success());
-        }
+        List<Tuple<FailedShardEntry, ClusterStateTaskExecutor.TaskResult>> taskResultMap = tasks.stream()
+            .map(t -> Tuple.tuple(t, ClusterStateTaskExecutor.TaskResult.success())).collect(Collectors.toList());
         assertTaskResults(taskResultMap, result, clusterState, clusterStateChanged);
     }
 
     private static void assertTaskResults(
-        Map<ShardStateAction.FailedShardEntry, ClusterStateTaskExecutor.TaskResult> taskResultMap,
+        List<Tuple<ShardStateAction.FailedShardEntry, ClusterStateTaskExecutor.TaskResult>> taskResultMap,
         ClusterStateTaskExecutor.ClusterTasksResult<ShardStateAction.FailedShardEntry> result,
         ClusterState clusterState,
         boolean clusterStateChanged
@@ -273,30 +269,30 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         // there should be as many task results as tasks
         assertEquals(taskResultMap.size(), result.executionResults.size());
 
-        for (Map.Entry<ShardStateAction.FailedShardEntry, ClusterStateTaskExecutor.TaskResult> entry : taskResultMap.entrySet()) {
+        for (Tuple<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> entry : taskResultMap) {
             // every task should have a corresponding task result
-            assertTrue(result.executionResults.containsKey(entry.getKey()));
+            assertTrue(result.executionResults.containsKey(entry.v1()));
 
             // the task results are as expected
-            assertEquals(entry.getKey().toString(), entry.getValue().isSuccess(), result.executionResults.get(entry.getKey()).isSuccess());
+            assertEquals(entry.v1().toString(), entry.v2().isSuccess(), result.executionResults.get(entry.v1()).isSuccess());
         }
 
         List<ShardRouting> shards = clusterState.getRoutingTable().allShards();
-        for (Map.Entry<ShardStateAction.FailedShardEntry, ClusterStateTaskExecutor.TaskResult> entry : taskResultMap.entrySet()) {
-            if (entry.getValue().isSuccess()) {
+        for (Tuple<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> entry : taskResultMap) {
+            if (entry.v2().isSuccess()) {
                 // the shard was successfully failed and so should not be in the routing table
                 for (ShardRouting shard : shards) {
                     if (shard.assignedToNode()) {
-                        assertFalse("entry key " + entry.getKey() + ", shard routing " + shard,
-                            entry.getKey().getShardId().equals(shard.shardId()) &&
-                                entry.getKey().getAllocationId().equals(shard.allocationId().getId()));
+                        assertFalse("entry key " + entry.v1() + ", shard routing " + shard,
+                            entry.v1().getShardId().equals(shard.shardId()) &&
+                                entry.v1().getAllocationId().equals(shard.allocationId().getId()));
                     }
                 }
             } else {
                 // check we saw the expected failure
-                ClusterStateTaskExecutor.TaskResult actualResult = result.executionResults.get(entry.getKey());
-                assertThat(actualResult.getFailure(), instanceOf(entry.getValue().getFailure().getClass()));
-                assertThat(actualResult.getFailure().getMessage(), equalTo(entry.getValue().getFailure().getMessage()));
+                ClusterStateTaskExecutor.TaskResult actualResult = result.executionResults.get(entry.v1());
+                assertThat(actualResult.getFailure(), instanceOf(entry.v2().getFailure().getClass()));
+                assertThat(actualResult.getFailure().getMessage(), equalTo(entry.v2().getFailure().getMessage()));
             }
         }
 

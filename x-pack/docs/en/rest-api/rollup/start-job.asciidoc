@@ -5,6 +5,8 @@
 <titleabbrev>Start Job</titleabbrev>
 ++++
 
+experimental[]
+
 This API starts an existing, stopped rollup job.  If the job does not exist an exception will be thrown.
 Starting an already started job has no action.
 

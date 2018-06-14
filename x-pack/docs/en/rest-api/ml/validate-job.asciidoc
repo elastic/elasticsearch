@@ -5,7 +5,7 @@
 <titleabbrev>Validate Jobs</titleabbrev>
 ++++
 
-This API validates job configuration information.
+Validates job configuration information.
 
 ==== Request
 

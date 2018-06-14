@@ -31,7 +31,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
  */
 class RemoveDuplicatesTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    public RemoveDuplicatesTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    RemoveDuplicatesTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 

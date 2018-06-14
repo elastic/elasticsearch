@@ -34,7 +34,6 @@ List projects = [
   'server',
   'server:cli',
   'test:framework',
-  'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',

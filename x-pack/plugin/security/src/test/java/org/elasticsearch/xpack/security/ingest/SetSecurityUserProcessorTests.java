@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.authz.accesscontrol;
+package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -11,9 +11,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.SetSecurityUserProcessor;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.SetSecurityUserProcessor.Property;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor.Property;
 
 import java.util.Collections;
 import java.util.EnumSet;

@@ -68,7 +68,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -86,7 +86,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -106,7 +106,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         mlMetadataBuilder.putJob(job, false);
 
         // Using wildcard index name to test for index resolving as well
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         tasks = PersistentTasksCustomMetaData.builder().build();
@@ -128,7 +128,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -156,7 +156,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         mlMetadataBuilder.putJob(job, false);
 
         // Using wildcard index name to test for index resolving as well
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -182,7 +182,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         mlMetadataBuilder.putJob(job, false);
 
         // Using wildcard index name to test for index resolving as well
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("fo*")), Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -207,7 +207,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")),
+                Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -231,7 +232,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("remote:foo")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("remote:foo")),
+                Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -248,7 +250,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo")), Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         String nodeId = randomBoolean() ? "node_id2" : null;
@@ -286,7 +288,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         Job job = createScheduledJob("job_id").build(new Date());
         mlMetadataBuilder.putJob(job, false);
-        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")), null);
+        mlMetadataBuilder.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo")),
+                Collections.emptyMap());
         mlMetadata = mlMetadataBuilder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();

@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -293,7 +292,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
-        public Builder putDatafeed(DatafeedConfig datafeedConfig, ThreadContext threadContext) {
+        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
             }
@@ -302,13 +301,13 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             Job job = jobs.get(jobId);
             DatafeedJobValidator.validate(datafeedConfig, job);
 
-            if (threadContext != null) {
+            if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
                 DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
-                Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
+                Map<String, String> securityHeaders = headers.entrySet().stream()
                         .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                builder.setHeaders(headers);
+                builder.setHeaders(securityHeaders);
                 datafeedConfig = builder.build();
             }
 
@@ -328,7 +327,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
 
-        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, ThreadContext threadContext) {
+        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, Map<String, String> headers) {
             String datafeedId = update.getId();
             DatafeedConfig oldDatafeedConfig = datafeeds.get(datafeedId);
             if (oldDatafeedConfig == null) {
@@ -336,7 +335,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
             checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE, datafeedId,
                     DatafeedState.STARTED), datafeedId, persistentTasks);
-            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, threadContext);
+            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, headers);
             if (newDatafeedConfig.getJobId().equals(oldDatafeedConfig.getJobId()) == false) {
                 checkJobIsAvailableForDatafeed(newDatafeedConfig.getJobId());
             }

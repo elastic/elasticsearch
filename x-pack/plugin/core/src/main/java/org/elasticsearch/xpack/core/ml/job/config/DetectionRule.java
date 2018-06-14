@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -70,6 +71,56 @@ public class DetectionRule implements ToXContentObject, Writeable {
         actions = in.readEnumSet(RuleAction.class);
         scope = new RuleScope(in);
         conditions = in.readList(RuleCondition::new);
+    }
+
+    /**
+     * This is reading the old style rules (< 6.4) off the stream.
+     */
+    public static DetectionRule readOldFormat(StreamInput in) throws IOException {
+        // Read actions
+        if (in.getVersion().before(Version.V_6_2_0)) {
+            // used to be a singe enum
+            in.readVInt();
+        } else {
+            // read an enum set
+            int actionsCount = in.readVInt();
+            for (int i = 0; i < actionsCount; ++i) {
+                in.readVInt();
+            }
+        }
+
+        // Read conditions connective enum
+        in.readVInt();
+
+        // Read conditions
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            // read condition type enum
+            in.readVInt();
+
+            // read internal condition which is optional
+            if (in.readBoolean()) {
+                // operator
+                in.readVInt();
+                // value
+                in.readOptionalString();
+            }
+
+            // field_name
+            in.readOptionalString();
+            // field_value
+            in.readOptionalString();
+            // filter_id
+            in.readOptionalString();
+
+        }
+
+        // Read target_field_name
+        in.readOptionalString();
+        // Read target_field_value
+        in.readOptionalString();
+
+        return null;
     }
 
     @Override

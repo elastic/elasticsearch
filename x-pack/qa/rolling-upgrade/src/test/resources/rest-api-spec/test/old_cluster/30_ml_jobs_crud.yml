@@ -134,11 +134,11 @@
           }
 
 ---
-"Test job with pre 6.4 rules":
+"Test job with pre 6.2 rules":
 
   - skip:
-      version:  "6.4.0 - "
-      reason:   "Rules were replaced by custom_rules on 6.4.0"
+      version:  "6.2.0 - "
+      reason:   "Rules were renamed on 6.2.0 and replaced by custom_rules on 6.4.0"
 
   - do:
       xpack.ml.put_job:
@@ -171,10 +171,10 @@
           }
 
 ---
-"Test job with pre 6.4 rules - dummy job 6.4 onwards":
+"Test job with pre 6.4 rules - dummy job 6.2 onwards":
 
   - skip:
-      version:  " - 6.3.99"
+      version:  " - 6.1.99"
       reason:   "Rules replaced by custom_rules on 6.4.0"
 
   - do:

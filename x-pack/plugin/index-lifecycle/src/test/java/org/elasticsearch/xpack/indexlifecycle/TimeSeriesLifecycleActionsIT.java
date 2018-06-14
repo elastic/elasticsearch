@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -88,8 +88,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
-            client().performRequest("PUT", index + "/_doc/" + i, singletonMap("refresh", "true"),
-                new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
+            Request request = new Request("PUT", index + "/_doc/" + i);
+            request.addParameter("refresh", "true");
+            request.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
+            client().performRequest(request);
         }
 
         Supplier<Integer> numSegments = () -> {
@@ -139,7 +141,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "_xpack/index_lifecycle/" + policy, Collections.emptyMap(), entity);
+        Request request = new Request("PUT", "_xpack/index_lifecycle/" + policy);
+        request.setEntity(entity);
+        client().performRequest(request);
     }
 
     private void createIndexWithSettings(String index, Settings.Builder settings) throws IOException {

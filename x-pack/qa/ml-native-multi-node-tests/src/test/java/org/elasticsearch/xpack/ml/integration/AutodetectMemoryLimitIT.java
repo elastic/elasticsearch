@@ -37,7 +37,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyPartitions() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("user");
@@ -83,7 +82,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyByFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("user");
@@ -129,7 +127,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyByAndOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("department");
@@ -179,7 +176,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testManyDistinctOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("sum", "value");
         detector.setOverFieldName("user");

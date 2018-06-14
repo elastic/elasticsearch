@@ -173,7 +173,7 @@ setup() {
   max_map_count=$(sysctl -n vm.max_map_count)
   stop_elasticsearch_service
 
-  [ $max_map_count != 100 ]
+  [ $max_map_count = 262144 ]
 
 }
 

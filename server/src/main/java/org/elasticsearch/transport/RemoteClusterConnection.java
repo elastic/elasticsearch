@@ -87,6 +87,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
+    private final ClusterName localClusterName;
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -100,6 +101,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     RemoteClusterConnection(Settings settings, String clusterAlias, List<DiscoveryNode> seedNodes,
                             TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate) {
         super(settings);
+        this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
@@ -310,6 +312,21 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return connectHandler.isClosed();
     }
 
+    private ConnectionProfile getRemoteProfile(ClusterName name) {
+        // we can only compare the cluster name to make a decision if we should use a remote profile
+        // we can't use a cluster UUID here since we could be connecting to that remote cluster before
+        // the remote node has joined it cluster and have a cluster UUID. The fact that we just loose a
+        // rather smallish optimization on the connection layer under certain situations were remote clusters
+        // have the same name as the local one is minor here.
+        // the alternative here is to complicate the remote infrastructure to also wait until we formed a cluster,
+        // gained a cluster UUID and then start connecting etc. we rather use this simplification in order to maintain simplicity
+        if (this.localClusterName.equals(name)) {
+            return null;
+        } else {
+            return remoteProfile;
+        }
+    }
+
     /**
      * The connect handler manages node discovery and the actual connect to the remote cluster.
      * There is at most one connect job running at any time. If such a connect job is triggered
@@ -419,7 +436,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     collectRemoteNodes(seedNodes.iterator(), transportService, listener);
                 }
             });
-
         }
 
         void collectRemoteNodes(Iterator<DiscoveryNode> seedNodes,
@@ -443,10 +459,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                                 logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
                                     "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
                                 throw ex;
-                            }
-                            if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
-                                transportService.connectToNode(handshakeNode, remoteProfile);
-                                connectedNodes.add(handshakeNode);
                             }
                             ClusterStateRequest request = new ClusterStateRequest();
                             request.clear();
@@ -552,7 +564,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             for (DiscoveryNode node : nodesIter) {
                                 if (nodePredicate.test(node) && connectedNodes.size() < maxNumRemoteConnections) {
                                     try {
-                                        transportService.connectToNode(node, remoteProfile); // noop if node is connected
+                                        transportService.connectToNode(node, getRemoteProfile(remoteClusterName.get())); // noop if node is
+                                        // connected
                                         connectedNodes.add(node);
                                     } catch (ConnectTransportException | IllegalStateException ex) {
                                         // ISE if we fail the handshake with an version incompatible node

@@ -39,6 +39,7 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
@@ -53,9 +54,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -149,37 +148,28 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
         Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
 
-    protected final BigArrays bigArrays;
+    private final ByteSizeValue maxInitialLineLength;
+    private final ByteSizeValue maxHeaderSize;
+    private final ByteSizeValue maxChunkSize;
 
-    protected final ByteSizeValue maxInitialLineLength;
-    protected final ByteSizeValue maxHeaderSize;
-    protected final ByteSizeValue maxChunkSize;
+    private final int workerCount;
 
-    protected final int workerCount;
+    private final int pipeliningMaxEvents;
 
-    protected final int pipeliningMaxEvents;
+    private final boolean tcpNoDelay;
+    private final boolean tcpKeepAlive;
+    private final boolean reuseAddress;
 
-    /**
-     * The registry used to construct parsers so they support {@link XContentParser#namedObject(Class, String, Object)}.
-     */
-    protected final NamedXContentRegistry xContentRegistry;
-
-    protected final boolean tcpNoDelay;
-    protected final boolean tcpKeepAlive;
-    protected final boolean reuseAddress;
-
-    protected final ByteSizeValue tcpSendBufferSize;
-    protected final ByteSizeValue tcpReceiveBufferSize;
-    protected final RecvByteBufAllocator recvByteBufAllocator;
+    private final ByteSizeValue tcpSendBufferSize;
+    private final ByteSizeValue tcpReceiveBufferSize;
+    private final RecvByteBufAllocator recvByteBufAllocator;
     private final int readTimeoutMillis;
 
-    protected final int maxCompositeBufferComponents;
+    private final int maxCompositeBufferComponents;
 
     protected volatile ServerBootstrap serverBootstrap;
 
     protected final List<Channel> serverChannels = new ArrayList<>();
-
-    protected final HttpHandlingSettings httpHandlingSettings;
 
     // package private for testing
     Netty4OpenChannelsHandler serverOpenChannels;
@@ -189,16 +179,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                      NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
-        super(settings, networkService, threadPool, dispatcher);
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
-        this.bigArrays = bigArrays;
-        this.xContentRegistry = xContentRegistry;
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
-        this.httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
@@ -398,8 +385,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, httpHandlingSettings, threadPool.getThreadContext());
+        return new HttpChannelHandler(this, handlingSettings);
     }
+
+    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
@@ -407,17 +396,16 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final Netty4HttpRequestHandler requestHandler;
         private final HttpHandlingSettings handlingSettings;
 
-        protected HttpChannelHandler(
-                final Netty4HttpServerTransport transport,
-                final HttpHandlingSettings handlingSettings,
-                final ThreadContext threadContext) {
+        protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
-            this.requestHandler = new Netty4HttpRequestHandler(transport, handlingSettings, threadContext);
+            this.requestHandler = new Netty4HttpRequestHandler(transport);
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            Netty4HttpChannel nettyTcpChannel = new Netty4HttpChannel(ch);
+            ch.attr(HTTP_CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(

@@ -67,6 +67,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wai
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-level]
 --------------------------------------------------
 <1> The level of detail of the returned health information. Accepts a `ClusterHealthRequest.Level` value.
+Default value is `cluster`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

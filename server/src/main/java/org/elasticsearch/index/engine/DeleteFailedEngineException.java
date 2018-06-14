@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 

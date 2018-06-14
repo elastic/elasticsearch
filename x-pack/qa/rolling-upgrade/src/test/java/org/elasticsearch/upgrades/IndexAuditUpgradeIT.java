@@ -11,7 +11,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.hamcrest.Matcher;
 import org.elasticsearch.common.Booleans;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -20,12 +19,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.hasSize;
-
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 
 public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
     private Version minVersionInCluster;

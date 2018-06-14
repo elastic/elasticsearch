@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
@@ -185,6 +186,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node)
                         + "], because the job's model snapshot requires a node of version ["
                         + job.getModelSnapshotMinVersion() + "] or higher";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
+
+            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
+                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -371,6 +380,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             return true;
         }
         return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
+    }
+
+    private static boolean jobHasRules(Job job) {
+        return job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false);
     }
 
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion,
@@ -646,9 +659,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         @Override
         public void validate(OpenJobAction.JobParams params, ClusterState clusterState) {
+
+            TransportOpenJobAction.validate(params.getJobId(), MlMetadata.getMlMetadata(clusterState));
+
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
-            TransportOpenJobAction.validate(params.getJobId(), MlMetadata.getMlMetadata(clusterState));
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState,
                     maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
             if (assignment.getExecutorNode() == null) {

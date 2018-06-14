@@ -1,6 +1,8 @@
 [[rollup-api-quickref]]
 == API Quick Reference
 
+experimental[]
+
 Most {rollup} endpoints have the following base:
 
 [source,js]

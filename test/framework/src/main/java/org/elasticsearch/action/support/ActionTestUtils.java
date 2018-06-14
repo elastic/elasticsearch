@@ -17,10 +17,21 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
-test.enabled = false
-// Not published so no need to assemble
-tasks.remove(assemble)
-build.dependsOn.remove('assemble')
+package org.elasticsearch.action.support;
 
-dependenciesInfo.enabled = false
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+
+import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
+
+public class ActionTestUtils {
+
+    private ActionTestUtils() { /* no construction */ }
+
+    public static <Request extends ActionRequest, Response extends ActionResponse>
+    Response executeBlocking(TransportAction<Request, Response> action, Request request) {
+        PlainActionFuture<Response> future = newFuture();
+        action.execute(request, future);
+        return future.actionGet();
+    }
+}

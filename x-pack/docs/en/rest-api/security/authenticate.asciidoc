@@ -29,18 +29,21 @@ GET _xpack/security/_authenticate
 --------------------------------------------------
 // CONSOLE
 
-The following example output provides information about the "rdeniro" user:
+The following example output provides information about the "elastic" user:
 
 [source,js]
 --------------------------------------------------
 {
-  "username": "rdeniro",
+  "username": "elastic",
   "roles": [
-    "admin",
-    "kibana4"
+    "superuser"
   ],
-  "metadata" : {
-    "employee_id": "8675309"
-  }
+  "full_name": null,
+  "email": null,
+  "metadata": {
+    "_reserved": true
+  },
+  "enabled": true
 }
 --------------------------------------------------
+// TESTRESPONSE

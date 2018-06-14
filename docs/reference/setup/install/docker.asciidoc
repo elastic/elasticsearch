@@ -271,6 +271,14 @@ FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
 COPY --chown=elasticsearch:elasticsearch elasticsearch.yml /usr/share/elasticsearch/config/
 --------------------------------------------
 
+Also if you want to install a specific plugin, you can write a `Dockerfile` as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
+RUN bin/elasticsearch-plugin ingest-attachment --batch
+--------------------------------------------
+
 You could then build and try the image with something like:
 
 ["source","sh"]

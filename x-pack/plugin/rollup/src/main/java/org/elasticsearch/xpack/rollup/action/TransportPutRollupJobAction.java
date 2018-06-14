@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -132,7 +133,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         String jobMetadata = "\"" + job.getConfig().getId() + "\":" + job.getConfig().toJSONString();
 
         String mapping = Rollup.DYNAMIC_MAPPING_TEMPLATE
-                .replace(Rollup.MAPPING_METADATA_PLACEHOLDER, jobMetadata);
+                .replace(Rollup.MAPPING_METADATA_PLACEHOLDER, jobMetadata)
+                .replace(Rollup.ROLLUP_NULL_VALUE_PLACEHOLDER, Rollup.ROLLUP_NULL_VALUE);
 
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getRollupIndex());
         request.mapping(RollupField.TYPE_NAME, mapping, XContentType.JSON);
@@ -176,6 +178,21 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             }
 
             Map<String, Object> rollupMeta = (Map<String, Object>)((Map<String, Object>) m).get(RollupField.ROLLUP_META);
+
+            String stringVersion = (String)((Map<String, Object>) m).get(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD);
+            if (stringVersion == null) {
+                logger.warn("Could not determine version of existing rollup metadata for index [" + indexName + "]");
+            }
+            Version parsedVersion = Version.fromString(stringVersion);
+            if (parsedVersion.before(Version.V_6_4_0)) {
+                String msg = "Cannot create rollup job [" + job.getConfig().getId() + "] because the rollup index contains " +
+                    "jobs from pre-6.4.0.  The mappings for these jobs are not compatible with 6.4.0+.  Please specify a new rollup " +
+                    "index.";
+                logger.error(msg);
+                listener.onFailure(new ElasticsearchStatusException(msg, RestStatus.CONFLICT));
+                return;
+            }
+
             if (rollupMeta.get(job.getConfig().getId()) != null) {
                 String msg = "Cannot create rollup job [" + job.getConfig().getId()
                         + "] because job was previously created (existing metadata).";

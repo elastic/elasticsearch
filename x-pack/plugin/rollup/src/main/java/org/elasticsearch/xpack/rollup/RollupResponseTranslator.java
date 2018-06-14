@@ -382,6 +382,12 @@ public class RollupResponseTranslator {
             });
         } else if (rolled instanceof StringTerms) {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
+
+                // Hide our `null_value` placeholder so it doesn't show up in the terms list
+                if (bucket.getKeyAsString().equals(Rollup.ROLLUP_NULL_VALUE)) {
+                    return null;
+                }
+
                 BytesRef key = new BytesRef(bucket.getKeyAsString().getBytes(StandardCharsets.UTF_8));
                 assert bucketCount >= 0;
                 //TODO expose getFormatter(), keyed upstream in Core

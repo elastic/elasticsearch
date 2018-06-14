@@ -85,6 +85,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
     public static final String ROLLUP_TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${rollup.dynamic_template.version}");
+    public static final String ROLLUP_NULL_VALUE_PLACEHOLDER = "ROLLUP_NULL_VALUE_PLACEHOLDER";
+    public static final String ROLLUP_NULL_VALUE = "__ROLLUP_NULL_VALUE_PLACEHOLDER__";
 
     private static final String ROLLUP_TEMPLATE_NAME = "/rollup-dynamic-template.json";
     public static final String DYNAMIC_MAPPING_TEMPLATE = TemplateUtils.loadTemplate(ROLLUP_TEMPLATE_NAME,

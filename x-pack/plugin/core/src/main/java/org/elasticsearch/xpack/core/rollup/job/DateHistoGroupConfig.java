@@ -159,7 +159,7 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
         vsBuilder.dateHistogramInterval(interval);
         vsBuilder.field(field);
         vsBuilder.timeZone(timeZone);
-
+        vsBuilder.missingBucket(true);
         return Collections.singletonList(vsBuilder);
     }
 

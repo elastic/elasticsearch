@@ -45,7 +45,7 @@ class IndexerUtils {
      * @param rollupIndex  The index that holds rollups for this job
      * @return             A list of rolled documents derived from the response
      */
-    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupJobStats stats, 
+    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupJobStats stats,
                                              GroupConfig groupConfig, String jobId) {
 
         logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");
@@ -90,7 +90,10 @@ class IndexerUtils {
                 docID.update(Numbers.doubleToBytes((Double)v), 0, 8);
             } else if (k.endsWith("." + TermsAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);
-                if (v instanceof String) {
+                if (v == null) {
+                    // Arbitrary value to update the doc ID with for nulls
+                    docID.update(19);
+                } else if (v instanceof String) {
                     byte[] vs = ((String) v).getBytes(StandardCharsets.UTF_8);
                     docID.update(vs, 0, vs.length);
                 } else if (v instanceof Long) {

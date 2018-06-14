@@ -31,12 +31,6 @@ integTestCluster {
     plugin ':plugins:repository-s3'
 }
 
-forbiddenApisTest {
-    // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
-}
-
 boolean useFixture = false
 
 String s3AccessKey = System.getenv("amazon_s3_access_key")
@@ -54,7 +48,7 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
 
 /** A task to start the AmazonS3Fixture which emulates a S3 service **/
 task s3Fixture(type: AntFixture) {
-    dependsOn compileTestJava
+    dependsOn testClasses
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3Bucket
@@ -64,6 +58,7 @@ Map<String, Object> expansions = [
         'bucket': s3Bucket,
         'base_path': s3BasePath
 ]
+
 processTestResources {
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)

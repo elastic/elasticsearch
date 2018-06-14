@@ -254,7 +254,8 @@ public class XPackLicenseState {
 
     public XPackLicenseState(Settings settings) {
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.isSecurityExplicitlyEnabled = settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) && isSecurityEnabled;
+        this.isSecurityExplicitlyEnabled = (isSecurityEnabled && settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey())) ||
+            (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
     }
 
     /** Updates the current state of the license, which will change what features are available. */

@@ -5,8 +5,7 @@
 <titleabbrev>Forecast Jobs</titleabbrev>
 ++++
 
-This API uses historical behavior to predict the future behavior of a time
-series.
+Predict the future behavior of a time series by using historical behavior. 
 
 ==== Request
 

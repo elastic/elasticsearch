@@ -271,14 +271,6 @@ FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
 COPY --chown=elasticsearch:elasticsearch elasticsearch.yml /usr/share/elasticsearch/config/
 --------------------------------------------
 
-Also if you want to install a specific plugin, you can write a `Dockerfile` as follows:
-
-["source","sh",subs="attributes"]
---------------------------------------------
-FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
-RUN bin/elasticsearch-plugin ingest-attachment --batch
---------------------------------------------
-
 You could then build and try the image with something like:
 
 ["source","sh"]
@@ -286,6 +278,13 @@ You could then build and try the image with something like:
 docker build --tag=elasticsearch-custom .
 docker run -ti -v /usr/share/elasticsearch/data elasticsearch-custom
 --------------------------------------------
+
+Some plugins require additional security permissions. You have to explicitly accept
+them either by attaching a tty when you run the Docker image and accepting yes at 
+the prompts, or inspecting the security permissions separately and if you are 
+comfortable with them adding the `--batch` flag to the plugin install command.
+See {plugins}/_other_command_line_parameters.html[Plugin Management documentation]
+for more details.
 
 ===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
 

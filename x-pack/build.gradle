@@ -21,7 +21,7 @@ subprojects {
   ext.xpackModule = { String moduleName -> xpackProject("plugin:${moduleName}").path }
 
   ext.licenseName = 'Elastic License'
-  ext.licenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+  ext.licenseUrl = ext.elasticLicenseUrl
 
   project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
   project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')

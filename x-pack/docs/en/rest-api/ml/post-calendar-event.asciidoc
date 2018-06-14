@@ -5,7 +5,7 @@
 <titleabbrev>Add Events to Calendar</titleabbrev>
 ++++
 
-This API enables you to post scheduled events in a calendar.
+Posts scheduled events in a calendar.
 
 ==== Request
 

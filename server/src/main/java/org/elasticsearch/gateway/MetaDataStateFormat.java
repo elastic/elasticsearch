@@ -151,10 +151,12 @@ public abstract class MetaDataStateFormat<T> {
                     logger.trace("copied state to {}", finalPath);
                 } finally {
                     Files.deleteIfExists(tmpPath);
+                    logger.trace("cleaned up {}", tmpPath);
                 }
             }
         } finally {
             Files.deleteIfExists(tmpStatePath);
+            logger.trace("cleaned up {}", tmpStatePath);
         }
         cleanupOldFiles(prefix, fileName, locations);
     }
@@ -215,20 +217,19 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     private void cleanupOldFiles(final String prefix, final String currentStateFile, Path[] locations) throws IOException {
-        final DirectoryStream.Filter<Path> filter = new DirectoryStream.Filter<Path>() {
-            @Override
-            public boolean accept(Path entry) throws IOException {
-                final String entryFileName = entry.getFileName().toString();
-                return Files.isRegularFile(entry)
-                        && entryFileName.startsWith(prefix) // only state files
-                        && currentStateFile.equals(entryFileName) == false; // keep the current state file around
-            }
+        final DirectoryStream.Filter<Path> filter = entry -> {
+            final String entryFileName = entry.getFileName().toString();
+            return Files.isRegularFile(entry)
+                    && entryFileName.startsWith(prefix) // only state files
+                    && currentStateFile.equals(entryFileName) == false; // keep the current state file around
         };
         // now clean up the old files
         for (Path dataLocation : locations) {
+            logger.trace("cleanupOldFiles: cleaning up {}", dataLocation);
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataLocation.resolve(STATE_DIR_NAME), filter)) {
                 for (Path stateFile : stream) {
                     Files.deleteIfExists(stateFile);
+                    logger.trace("cleanupOldFiles: cleaned up {}", stateFile);
                 }
             }
         }

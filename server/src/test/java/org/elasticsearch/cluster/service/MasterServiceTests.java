@@ -754,7 +754,7 @@ public class MasterServiceTests extends ESTestCase {
 
         // check that we timeout if commit took too long
         {
-            final CountDownLatch latch = new CountDownLatch(1);
+            final CountDownLatch latch = new CountDownLatch(2);
 
             final TimeValue ackTimeout = TimeValue.timeValueMillis(randomInt(100));
 
@@ -783,7 +783,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    // ok
+                    latch.countDown();
                 }
 
                 @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -53,12 +55,14 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        return channel -> client.admin()
+        final NodesReloadSecureSettingsRequestBuilder nodesRequestBuilder = client.admin()
                 .cluster()
                 .prepareReloadSecureSettings()
                 .setTimeout(request.param("timeout"))
                 .source(request.requiredContent(), request.getXContentType())
-                .setNodesIds(nodesIds)
+                .setNodesIds(nodesIds);
+        final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
+        return channel -> nodesRequestBuilder
                 .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
@@ -68,7 +72,8 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
                         builder.field("cluster_name", response.getClusterName().value());
                         response.toXContent(builder, channel.request());
                         builder.endObject();
-
+                        // clear password for the original request
+                        nodesRequest.secureSettingsPassword().close();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });

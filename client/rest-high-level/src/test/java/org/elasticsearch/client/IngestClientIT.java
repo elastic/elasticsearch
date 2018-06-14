@@ -144,7 +144,7 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         } else {
             assertTrue(result0 instanceof SimulateDocumentBaseResult);
             SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)result0;
-            SimulateDocumentBaseResult failedBaseResult = (SimulateDocumentBaseResult)result0;
+            SimulateDocumentBaseResult failedBaseResult = (SimulateDocumentBaseResult)result1;
             assertNotNull(baseResult.getIngestDocument());
             assertEquals(
                 baseResult.getIngestDocument().getFieldValue("foo", String.class),

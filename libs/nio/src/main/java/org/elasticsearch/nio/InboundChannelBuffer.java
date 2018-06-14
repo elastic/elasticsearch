@@ -154,6 +154,16 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return buffers;
     }
 
+    /**
+     * This method will return an array of {@link Page} representing the bytes from the beginning of
+     * this buffer up through the index argument that was passed. The pages and buffers will be duplicates of
+     * the internal components, so any modifications to the markers {@link ByteBuffer#position()},
+     * {@link ByteBuffer#limit()}, etc will not modify the this class. Additionally, this will internally
+     * retain the underlying pages, so the pages returned by this method must be closed.
+     *
+     * @param to the index to slice up to
+     * @return the pages
+     */
     public Page[] sliceAndRetainPagesTo(long to) {
         if (to > capacity) {
             throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
@@ -216,32 +226,6 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
         return buffers;
     }
-
-    public Page[] sliceAndRetainPagesFrom(long from) {
-        if (from > capacity) {
-            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
-                "], with slice parameters from [" + from + "]");
-        } else if (from == capacity) {
-            return EMPTY_BYTE_PAGE_ARRAY;
-        }
-        long indexWithOffset = from + offset;
-
-        int pageIndex = pageIndex(indexWithOffset);
-        int indexInPage = indexInPage(indexWithOffset);
-
-        Page[] pages = new Page[this.pages.size() - pageIndex];
-        Iterator<Page> pageIterator = this.pages.descendingIterator();
-        for (int i = pages.length - 1; i > 0; --i) {
-            pages[i] = pageIterator.next().duplicate();
-        }
-        Page firstPostIndexPage = pageIterator.next().duplicate();
-        ByteBuffer firstPostIndexBuffer = firstPostIndexPage.byteBuffer;
-        firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
-        pages[0] = firstPostIndexPage;
-        return pages;
-    }
-
-
 
     public void incrementIndex(long delta) {
         if (delta < 0) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -69,7 +70,13 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.content());
+        HttpResponse httpResponse;
+        if (RestRequest.Method.HEAD == request.method()) {
+            httpResponse = httpRequest.createResponse(restResponse.status(), BytesArray.EMPTY);
+        } else {
+            httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.content());
+        }
+
         // TODO: Ideally we should move the setting of Cors headers into :server
         // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 

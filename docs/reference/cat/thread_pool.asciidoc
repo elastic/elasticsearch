@@ -23,6 +23,14 @@ node-0 write               0 0 0
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./(node-0 .+ 0 0 0\n)+/]
 // TESTRESPONSE[s/\d+/\\d+/ _cat]
+// The substitutions do two things:
+// 1. Expect any number of extra thread pools. This allows us to only list a
+//    few thread pools. The list would be super long otherwise. In addition,
+//    if xpack is installed then the list will contain more thread pools and
+//    this way we don't have to assert about them.
+// 2. Expect any number of active, queued, or rejected items. We really don't
+//    know how many there will be and we just want to assert that there are
+//    numbers in the response, not *which* numbers are there.
 
 The first column is the node name
 

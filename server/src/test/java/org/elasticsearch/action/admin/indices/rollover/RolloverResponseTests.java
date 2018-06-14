@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.TimeValue;

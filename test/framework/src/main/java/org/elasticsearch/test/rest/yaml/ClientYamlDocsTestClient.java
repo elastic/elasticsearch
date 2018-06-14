@@ -22,6 +22,8 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -49,22 +51,29 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         super(restSpec, restClient, hosts, esVersion, masterVersion);
     }
 
-    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity, Map<String, String> headers)
-            throws IOException {
+    @Override
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity,
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
 
         if ("raw".equals(apiName)) {
-            // Raw requests are bit simpler....
+            // Raw requests don't use the rest spec at all and are configured entirely by their parameters
             Map<String, String> queryStringParams = new HashMap<>(params);
             String method = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
             String path = "/" + Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
-            // And everything else is a url parameter!
+            Request request = new Request(method, path);
+            // All other parameters are url parameters
+            for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
+                request.addParameter(param.getKey(), param.getValue());
+            }
+            request.setEntity(entity);
+            setOptions(request, headers, nodeSelector);
             try {
-                Response response = restClient.performRequest(method, path, queryStringParams, entity);
+                Response response = restClient.performRequest(request);
                 return new ClientYamlTestResponse(response);
             } catch (ResponseException e) {
                 throw new ClientYamlTestResponseException(e);
             }
         }
-        return super.callApi(apiName, params, entity, headers);
+        return super.callApi(apiName, params, entity, headers, nodeSelector);
     }
 }

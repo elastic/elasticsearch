@@ -53,8 +53,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
-                DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().getType());
-                fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());
+                fieldNamesToHighlight = context.mapperService().simpleMatchToFullName(field.field());
             } else {
                 fieldNamesToHighlight = Collections.singletonList(field.field());
             }

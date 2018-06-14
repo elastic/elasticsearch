@@ -49,7 +49,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;

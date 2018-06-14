@@ -570,7 +570,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             }
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
-                shard.getEngine().getLocalCheckpointTracker().getCheckpoint());
+                shard.getLocalCheckpoint());
         } else {
             result = shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
                 VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);

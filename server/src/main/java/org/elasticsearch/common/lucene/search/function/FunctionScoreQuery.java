@@ -30,8 +30,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -376,9 +374,9 @@ public class FunctionScoreQuery extends Query {
             double factor = computeScore(docId, subQueryScore);
             float finalScore = scoreCombiner.combine(subQueryScore, factor, maxBoost);
             if (finalScore == Float.NEGATIVE_INFINITY || Float.isNaN(finalScore)) {
-                /**
-                 * These scores are invalid for score based {@link TopDocsCollector}s.
-                 * See {@link TopScoreDocCollector} for details.
+                /*
+                  These scores are invalid for score based {@link org.apache.lucene.search.TopDocsCollector}s.
+                  See {@link org.apache.lucene.search.TopScoreDocCollector} for details.
                  */
                 throw new ElasticsearchException("function score query returned an invalid score: " + finalScore + " for doc: " + docId);
             }

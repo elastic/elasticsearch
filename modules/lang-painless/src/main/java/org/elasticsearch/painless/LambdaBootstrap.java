@@ -188,6 +188,7 @@ public final class LambdaBootstrap {
      * @param delegateMethodName The name of the method to be called in the Painless script class
      * @param delegateMethodType The type of method call in the Painless script class without
      *                           the captured types
+     * @param isDelegateInterface If the method to be called is owned by an interface
      * @return A {@link CallSite} linked to a factory method for creating a lambda class
      * that implements the expected functional interface
      * @throws LambdaConversionException Thrown when an illegal type conversion occurs at link time
@@ -200,7 +201,8 @@ public final class LambdaBootstrap {
             String delegateClassName,
             int delegateInvokeType,
             String delegateMethodName,
-            MethodType delegateMethodType)
+            MethodType delegateMethodType,
+            int isDelegateInterface)
             throws LambdaConversionException {
         Loader loader = (Loader)lookup.lookupClass().getClassLoader();
         String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
@@ -225,7 +227,7 @@ public final class LambdaBootstrap {
 
         generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
             interfaceMethodType, delegateClassType, delegateInvokeType,
-            delegateMethodName, delegateMethodType, captures);
+            delegateMethodName, delegateMethodType, isDelegateInterface == 1, captures);
 
         endLambdaClass(cw);
 
@@ -369,6 +371,7 @@ public final class LambdaBootstrap {
             int delegateInvokeType,
             String delegateMethodName,
             MethodType delegateMethodType,
+            boolean isDelegateInterface,
             Capture[] captures)
             throws LambdaConversionException {
 
@@ -434,7 +437,7 @@ public final class LambdaBootstrap {
         Handle delegateHandle =
             new Handle(delegateInvokeType, delegateClassType.getInternalName(),
                 delegateMethodName, delegateMethodType.toMethodDescriptorString(),
-                delegateInvokeType == H_INVOKEINTERFACE);
+                isDelegateInterface);
         iface.invokeDynamic(delegateMethodName, Type.getMethodType(interfaceMethodType
                 .toMethodDescriptorString()).getDescriptor(), DELEGATE_BOOTSTRAP_HANDLE,
                 delegateHandle);

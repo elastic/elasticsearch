@@ -447,18 +447,28 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 if (seedNodes.hasNext()) {
                     cancellableThreads.executeIO(() -> {
                         final DiscoveryNode seedNode = seedNodes.next();
-                        final DiscoveryNode handshakeNode;
+                        final TransportService.HandshakeResponse handshakeResponse;
                         Transport.Connection connection = transportService.openConnection(seedNode,
                             ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
                         boolean success = false;
                         try {
                             try {
-                                handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
+                                handshakeResponse = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
                                     (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
                             } catch (IllegalStateException ex) {
                                 logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
                                     "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
                                 throw ex;
+                            }
+
+                            final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
+                            if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
+                                transportService.connectToNode(handshakeNode, getRemoteProfile(handshakeResponse.getClusterName()));
+                                if (remoteClusterName.get() == null) {
+                                    assert handshakeResponse.getClusterName().value() != null;
+                                    remoteClusterName.set(handshakeResponse.getClusterName());
+                                }
+                                connectedNodes.add(handshakeNode);
                             }
                             ClusterStateRequest request = new ClusterStateRequest();
                             request.clear();

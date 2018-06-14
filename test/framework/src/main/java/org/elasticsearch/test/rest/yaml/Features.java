@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.test.ESIntegTestCase;
-
 import java.util.Arrays;
 import java.util.List;
 
@@ -56,9 +54,6 @@ public final class Features {
      */
     public static boolean areAllSupported(List<String> features) {
         for (String feature : features) {
-            if ("requires_replica".equals(feature) && ESIntegTestCase.cluster().numDataNodes() >= 2) {
-                continue;
-            }
             if (!SUPPORTED.contains(feature)) {
                 return false;
             }

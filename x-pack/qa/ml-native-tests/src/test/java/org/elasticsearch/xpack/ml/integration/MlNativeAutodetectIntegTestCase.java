@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -86,7 +84,6 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
-import org.elasticsearch.xpack.core.test.ObjectCleanerThreadThreadFilter;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -110,7 +107,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
-@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     private List<Job.Builder> jobs = new ArrayList<>();

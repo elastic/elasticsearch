@@ -42,6 +42,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
     private static final int PAGE_MASK = PAGE_SIZE - 1;
     private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
+    private static final Page[] EMPTY_BYTE_PAGE_ARRAY = new Page[0];
 
 
     private final ArrayDeque<Page> pages;
@@ -153,6 +154,36 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return buffers;
     }
 
+    public Page[] sliceAndRetainPagesTo(long to) {
+        if (to > capacity) {
+            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
+                "], with slice parameters to [" + to + "]");
+        } else if (to == 0) {
+            return EMPTY_BYTE_PAGE_ARRAY;
+        }
+        long indexWithOffset = to + offset;
+        int pageCount = pageIndex(indexWithOffset);
+        int finalLimit = indexInPage(indexWithOffset);
+        if (finalLimit != 0) {
+            pageCount += 1;
+        }
+
+        Page[] pages = new Page[pageCount];
+        Iterator<Page> pageIterator = this.pages.iterator();
+        Page firstPage = pageIterator.next().duplicate();
+        ByteBuffer firstBuffer = firstPage.byteBuffer;
+        firstBuffer.position(firstBuffer.position() + offset);
+        pages[0] = firstPage;
+        for (int i = 1; i < pages.length; i++) {
+            pages[i] = pageIterator.next().duplicate();
+        }
+        if (finalLimit != 0) {
+            pages[pages.length - 1].byteBuffer.limit(finalLimit);
+        }
+
+        return pages;
+    }
+
     /**
      * This method will return an array of {@link ByteBuffer} representing the bytes from the index passed
      * through the end of this buffer. The buffers will be duplicates of the internal buffers, so any
@@ -186,29 +217,28 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return buffers;
     }
 
-    public ByteBuffer[] sliceAndRetainPagesFrom(long from) {
-//        if (from > capacity) {
-//            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
-//                "], with slice parameters from [" + from + "]");
-//        } else if (from == capacity) {
-//            return EMPTY_BYTE_BUFFER_ARRAY;
-//        }
-//        long indexWithOffset = from + offset;
-//
-//        int pageIndex = pageIndex(indexWithOffset);
-//        int indexInPage = indexInPage(indexWithOffset);
-//
-//        ByteBuffer[] buffers = new Page[pages.size() - pageIndex];
-//        Iterator<Page> pageIterator = pages.descendingIterator();
-//        for (int i = buffers.length - 1; i > 0; --i) {
-//            buffers[i] = pageIterator.next().byteBuffer.duplicate();
-//        }
-//        ByteBuffer firstPostIndexBuffer = pageIterator.next().byteBuffer.duplicate();
-//        firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
-//        buffers[0] = firstPostIndexBuffer;
-//
-//        return buffers;
-        return null;
+    public Page[] sliceAndRetainPagesFrom(long from) {
+        if (from > capacity) {
+            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
+                "], with slice parameters from [" + from + "]");
+        } else if (from == capacity) {
+            return EMPTY_BYTE_PAGE_ARRAY;
+        }
+        long indexWithOffset = from + offset;
+
+        int pageIndex = pageIndex(indexWithOffset);
+        int indexInPage = indexInPage(indexWithOffset);
+
+        Page[] pages = new Page[this.pages.size() - pageIndex];
+        Iterator<Page> pageIterator = this.pages.descendingIterator();
+        for (int i = pages.length - 1; i > 0; --i) {
+            pages[i] = pageIterator.next().duplicate();
+        }
+        Page firstPostIndexPage = pageIterator.next().duplicate();
+        ByteBuffer firstPostIndexBuffer = firstPostIndexPage.byteBuffer;
+        firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
+        pages[0] = firstPostIndexPage;
+        return pages;
     }
 
 
@@ -270,6 +300,11 @@ public final class InboundChannelBuffer implements AutoCloseable {
             this.byteBuffer = byteBuffer;
             this.closeable = closeable;
             this.referenceCount = referenceCount;
+        }
+
+        private Page duplicate() {
+            referenceCount.incrementAndGet();
+            return new Page(byteBuffer.duplicate(), closeable, referenceCount);
         }
 
         public ByteBuffer getByteBuffer() {

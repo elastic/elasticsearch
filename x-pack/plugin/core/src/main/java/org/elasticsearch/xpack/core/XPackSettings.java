@@ -89,7 +89,7 @@ public class XPackSettings {
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)
      */
-    protected static final List<String> DEFAULT_CIPHERS;
+    public static final List<String> DEFAULT_CIPHERS;
 
     static {
         List<String> ciphers = Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
@@ -123,7 +123,7 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
-    static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
     public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;

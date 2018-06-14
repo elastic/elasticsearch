@@ -103,13 +103,7 @@ public class CapturingTransport implements Transport {
     private Map<String, List<CapturedRequest>> groupRequestsByTargetNode(Collection<CapturedRequest> requests) {
         Map<String, List<CapturedRequest>> result = new HashMap<>();
         for (CapturedRequest request : requests) {
-            result.compute(request.node.getId(), (k, group) -> {
-                if (group == null) {
-                    group = new ArrayList<>();
-                }
-                group.add(request);
-                return group;
-            });
+            result.computeIfAbsent(request.node.getId(), node -> new ArrayList<>()).add(request);
         }
         return result;
     }

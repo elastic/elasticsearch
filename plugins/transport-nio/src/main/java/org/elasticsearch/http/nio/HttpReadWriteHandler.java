@@ -52,7 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 
 public class HttpReadWriteHandler implements ReadWriteHandler {
 

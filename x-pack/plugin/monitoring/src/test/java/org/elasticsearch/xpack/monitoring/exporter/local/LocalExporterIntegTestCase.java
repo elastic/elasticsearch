@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.TestThreadPool;

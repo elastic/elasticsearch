@@ -5,7 +5,7 @@ esplugin {
     name 'x-pack-sql'
     description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
     classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
-    extendedPlugins = ['x-pack-core']
+    extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
 configurations {
@@ -20,6 +20,7 @@ integTest.enabled = false
 
 dependencies {
     compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly project(':modules:lang-painless')
     compile project('sql-proto')
     compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
     compile "org.antlr:antlr4-runtime:4.5.3"

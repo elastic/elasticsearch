@@ -103,7 +103,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             }
 
             if (isCloseConnection()) {
-                toClose.add(httpChannel::close);
+                toClose.add(httpChannel);
             }
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));

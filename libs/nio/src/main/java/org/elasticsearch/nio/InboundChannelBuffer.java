@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
@@ -185,6 +186,33 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return buffers;
     }
 
+    public ByteBuffer[] sliceAndRetainPagesFrom(long from) {
+//        if (from > capacity) {
+//            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
+//                "], with slice parameters from [" + from + "]");
+//        } else if (from == capacity) {
+//            return EMPTY_BYTE_BUFFER_ARRAY;
+//        }
+//        long indexWithOffset = from + offset;
+//
+//        int pageIndex = pageIndex(indexWithOffset);
+//        int indexInPage = indexInPage(indexWithOffset);
+//
+//        ByteBuffer[] buffers = new Page[pages.size() - pageIndex];
+//        Iterator<Page> pageIterator = pages.descendingIterator();
+//        for (int i = buffers.length - 1; i > 0; --i) {
+//            buffers[i] = pageIterator.next().byteBuffer.duplicate();
+//        }
+//        ByteBuffer firstPostIndexBuffer = pageIterator.next().byteBuffer.duplicate();
+//        firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
+//        buffers[0] = firstPostIndexBuffer;
+//
+//        return buffers;
+        return null;
+    }
+
+
+
     public void incrementIndex(long delta) {
         if (delta < 0) {
             throw new IllegalArgumentException("Cannot increment an index with a negative delta [" + delta + "]");
@@ -232,15 +260,29 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
         private final ByteBuffer byteBuffer;
         private final Runnable closeable;
+        private final AtomicInteger referenceCount;
 
         public Page(ByteBuffer byteBuffer, Runnable closeable) {
+            this(byteBuffer, closeable, new AtomicInteger(1));
+        }
+
+        private Page(ByteBuffer byteBuffer, Runnable closeable, AtomicInteger referenceCount) {
             this.byteBuffer = byteBuffer;
             this.closeable = closeable;
+            this.referenceCount = referenceCount;
+        }
+
+        public ByteBuffer getByteBuffer() {
+            return byteBuffer;
         }
 
         @Override
         public void close() {
-            closeable.run();
+            int newReferenceCount = referenceCount.decrementAndGet();
+            assert newReferenceCount >= 0 : "Reference count should never be less than 0. Found: [" + newReferenceCount + "].";
+            if (newReferenceCount == 0) {
+                closeable.run();
+            }
         }
     }
 }

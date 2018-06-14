@@ -92,7 +92,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        final byte[] passwordBytes = toUtf8Bytes(this.secureSettingsPassword.getChars());
+        final byte[] passwordBytes = charsToUtf8Bytes(this.secureSettingsPassword.getChars());
         try {
             out.writeByteArray(passwordBytes);
         } finally {
@@ -105,7 +105,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
      * conversions to String. The provided char[] is not modified by this method, so
      * the caller needs to take care of clearing the value if it is sensitive.
      */
-    private static byte[] toUtf8Bytes(char[] chars) {
+    private static byte[] charsToUtf8Bytes(char[] chars) {
         final CharBuffer charBuffer = CharBuffer.wrap(chars);
         final ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(charBuffer);
         final byte[] bytes;

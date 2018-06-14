@@ -32,7 +32,7 @@ public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase
         List<SimulateProcessorResult> results = new ArrayList<>();
         for (int i = 0; i<numDocs; i++) {
             results.add(
-                SimulateProcessorResultTests.createTestInstance(randomBoolean(), randomBoolean(), false)
+                SimulateProcessorResultTests.createTestInstance(randomBoolean(), randomBoolean())
             );
         }
         return new SimulateDocumentVerboseResult(results);
@@ -48,8 +48,8 @@ public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase
         return false;
     }
 
-    protected static void assertEqualDocuments(SimulateDocumentVerboseResult response,
-                                        SimulateDocumentVerboseResult parsedResponse) {
+    protected static void assertEqualDocs(SimulateDocumentVerboseResult response,
+                                          SimulateDocumentVerboseResult parsedResponse) {
         assertEquals(response.getProcessorResults().size(), parsedResponse.getProcessorResults().size());
         for (int i=0; i < response.getProcessorResults().size(); i++) {
             SimulateProcessorResultTests.assertEqualProcessorResults(
@@ -62,7 +62,7 @@ public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase
     @Override
     protected void assertEqualInstances(SimulateDocumentVerboseResult response,
                                         SimulateDocumentVerboseResult parsedResponse) {
-        assertEqualDocuments(response, parsedResponse);
+        assertEqualDocs(response, parsedResponse);
     }
 
     @Override

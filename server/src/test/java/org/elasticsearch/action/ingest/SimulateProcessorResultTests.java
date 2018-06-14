@@ -27,6 +27,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -34,13 +36,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.action.ingest.WriteableIngestDocumentTests.assertEqualIngestDocs;
 
 public class SimulateProcessorResultTests extends AbstractXContentTestCase<SimulateProcessorResult> {
 
     public void testSerialization() throws IOException {
         boolean isSuccessful = randomBoolean();
         boolean isIgnoredException = randomBoolean();
-        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException, true);
+        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException);
 
         BytesStreamOutput out = new BytesStreamOutput();
         simulateProcessorResult.writeTo(out);
@@ -65,12 +68,11 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
     }
 
     protected static SimulateProcessorResult createTestInstance(boolean isSuccessful,
-                                                                boolean isIgnoredException,
-                                                                boolean withByteArray) {
+                                                                boolean isIgnoredException) {
         String processorTag = randomAlphaOfLengthBetween(1, 10);
         SimulateProcessorResult simulateProcessorResult;
         if (isSuccessful) {
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), withByteArray);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
             if (isIgnoredException) {
                 simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument, new IllegalArgumentException("test"));
             } else {
@@ -82,11 +84,16 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         return simulateProcessorResult;
     }
 
-    @Override
-    protected SimulateProcessorResult createTestInstance() {
+    private static SimulateProcessorResult createTestInstanceWithFailures() {
         boolean isSuccessful = randomBoolean();
         boolean isIgnoredException = randomBoolean();
-        return createTestInstance(isSuccessful, isIgnoredException, false);
+        return createTestInstance(isSuccessful, isIgnoredException);
+    }
+
+    @Override
+    protected SimulateProcessorResult createTestInstance() {
+        // we test failures separately since comparing XContent is not possible with failures
+        return createTestInstance(true, false);
     }
 
     @Override
@@ -96,13 +103,19 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
-    protected static void assertEqualProcessorResults(SimulateProcessorResult response,
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // We cannot have random fields in the _source field and _ingest field
+        return field -> field.contains("doc._source") || field.contains("doc._ingest");
+    }
+
+    static void assertEqualProcessorResults(SimulateProcessorResult response,
                                                       SimulateProcessorResult parsedResponse) {
         assertEquals(response.getProcessorTag(), parsedResponse.getProcessorTag());
-        assertEquals(response.getIngestDocument(), parsedResponse.getIngestDocument());
+        assertEqualIngestDocs(response.getIngestDocument(), parsedResponse.getIngestDocument());
         if (response.getFailure() != null ) {
             assertNotNull(parsedResponse.getFailure());
             assertThat(
@@ -119,8 +132,20 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         assertEqualProcessorResults(response, parsedResponse);
     }
 
-    @Override
-    protected boolean assertToXContentEquivalence() {
-        return false;
+    /**
+     * Test parsing {@link SimulateProcessorResult} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
+     * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
+     */
+    public void testFromXContentWithFailures() throws IOException {
+        Supplier<SimulateProcessorResult> instanceSupplier = SimulateProcessorResultTests::createTestInstanceWithFailures;
+        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        //but that does not bother our assertions, as we only want to test that we don't break.
+        boolean supportsUnknownFields = true;
+        //exceptions are not of the same type whenever parsed back
+        boolean assertToXContentEquivalence = false;
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields,
+            getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+            this::assertEqualInstances, assertToXContentEquivalence, getToXContentParams());
     }
 }

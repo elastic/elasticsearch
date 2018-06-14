@@ -94,6 +94,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                             ensureExpectedToken(Token.END_OBJECT, p.currentToken(), p::getTokenLocation);
                             break;
                         default:
+                            p.nextToken();
                             p.skipChildren();
                             break;
                     }

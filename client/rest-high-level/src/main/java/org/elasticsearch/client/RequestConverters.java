@@ -877,7 +877,7 @@ final class RequestConverters {
         if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
             builder.addPathPart(simulatePipelineRequest.getId());
         }
-        builder.addPathPart("_simulate");
+        builder.addPathPartAsIs("_simulate");
         String endpoint = builder.build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request);

@@ -1535,8 +1535,12 @@ public class RequestConvertersTests extends ESTestCase {
     public void testSimulatePipeline() throws IOException {
         String pipelineId = randomBoolean() ? "some_pipeline_id" : null;
         boolean verbose = randomBoolean();
+        String json = "{\"pipeline\":{" +
+            "\"description\":\"_description\"," +
+            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
+            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
         SimulatePipelineRequest request = new SimulatePipelineRequest(
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         );
         request.setId(pipelineId);
@@ -1553,6 +1557,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
         assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
+        assertToXContentBody(request, expectedRequest.getEntity());
     }
 
     public void testClusterHealth() {

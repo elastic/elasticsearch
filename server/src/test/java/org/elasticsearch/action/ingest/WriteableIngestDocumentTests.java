@@ -22,18 +22,16 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -152,59 +150,30 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }
 
-    public void testSourceFromXContentWithByteArray() throws IOException {
-        WriteableIngestDocument testInstance = new WriteableIngestDocument(RandomDocumentPicks.randomIngestDocument(random(), true));
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false);
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
-        WriteableIngestDocument parsed = doParseInstance(parser);
-        assertTrue(
-            testSourceMapEquality(
-                testInstance.getIngestDocument().getSourceAndMetadata(),
-                parsed.getIngestDocument().getSourceAndMetadata()
-            )
-        );
+    protected static void assertEqualIngestDocs(IngestDocument response, IngestDocument parsedResponse) {
+        if (response != null && parsedResponse != null) {
+            ElasticsearchAssertions.assertMapEquals(
+                response.getSourceAndMetadata(),
+                parsedResponse.getSourceAndMetadata(),
+                true
+            );
+            assertEquals(response.getIngestMetadata(), parsedResponse.getIngestMetadata());
+        } else if (response == null) {
+            assertNull(parsedResponse);
+        } else {
+            fail("parsed response was null but the expected was non null.");
+        }
+
     }
 
-    private boolean testSourceMapEquality(Map<String, Object> first, Map<String, Object> second) {
-        if (first == null) {
-            return second == null;
-        } else if (second == null) {
-            return false;
-        } else if (first.size() != second.size()) {
-            return false;
-        } else {
-            for (Map.Entry<String, Object> entry: first.entrySet()) {
-                Object value = entry.getValue();
-                Object value2;
-                if ((value2 = second.get(entry.getKey())) != null) {
-                    if (value2.getClass() == value.getClass()) {
-                        if (value instanceof byte[]) {
-                            if (!Arrays.equals((byte[])value, (byte[])value2)) {
-                                return false;
-                            }
-                        } else if (value instanceof Map) {
-                            //noinspection unchecked
-                            if (!testSourceMapEquality((Map<String, Object>)value, (Map<String, Object>)value2)) {
-                                return false;
-                            }
-                        } else if (!value.equals(value2)) {
-                            return false;
-                        }
-                    }
-                } else {
-                    return false;
-                }
-            }
-            return true;
-        }
+    @Override
+    protected void assertEqualInstances(WriteableIngestDocument response, WriteableIngestDocument parsedResponse) {
+        assertEqualIngestDocs(response.getIngestDocument(), parsedResponse.getIngestDocument());
     }
 
     @Override
     protected WriteableIngestDocument createTestInstance() {
-        // We want to create a test instance without byte arrays. For testing byte arrays see testSourceFromXContentWithByteArray.
-        // This is needed because for comparing byte[] Object.equal fails
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), false);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         return new WriteableIngestDocument(new IngestDocument(ingestDocument));
     }
 

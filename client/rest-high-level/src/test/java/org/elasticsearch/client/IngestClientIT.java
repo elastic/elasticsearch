@@ -32,12 +32,9 @@ import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.ingest.RandomDocumentPicks;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class IngestClientIT extends ESRestHighLevelClientTestCase {
 
@@ -93,7 +90,6 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
     public void testSimulatePipeline() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
-        int numDocs = randomIntBetween(1, 10);
         boolean isVerbose = randomBoolean();
         builder.startObject();
         {
@@ -101,23 +97,18 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             buildRandomXContentPipeline(builder);
             builder.startArray("docs");
             {
-                for (int i = 0; i < numDocs; i++) {
-                    builder.startObject();
-                    IngestDocument document = RandomDocumentPicks.randomIngestDocument(random());
-                    Map<IngestDocument.MetaData, Object> metadataMap = document.extractMetadata();
-                    for (Map.Entry<IngestDocument.MetaData, Object> metadata : metadataMap.entrySet()) {
-                        if (metadata.getValue() != null) {
-                            if (metadata.getKey().equals(IngestDocument.MetaData.VERSION)) {
-                                builder.field(metadata.getKey().getFieldName(), (long)metadata.getValue());
-                            } else {
-                                builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
-                            }
-                        }
-                    }
-                    document.setFieldValue("rank", Integer.toString(randomInt()));
-                    builder.field("_source", document.getSourceAndMetadata());
-                    builder.endObject();
-                }
+                builder.startObject()
+                    .field("_index", "index")
+                    .field("_type", "doc")
+                    .field("_id", "doc_" + 1)
+                    .startObject("_source").field("foo", "rab_" + 1).field("rank", "1234").endObject()
+                    .endObject();
+                builder.startObject()
+                    .field("_index", "index")
+                    .field("_type", "doc")
+                    .field("_id", "doc_" + 2)
+                    .startObject("_source").field("foo", "rab_" + 1).field("rank", "non-int").endObject()
+                    .endObject();
             }
             builder.endArray();
         }
@@ -132,28 +123,39 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         SimulatePipelineResponse simulatePipelineResponse =
             execute(request, highLevelClient().ingest()::simulatePipeline, highLevelClient().ingest()::simulatePipelineAsync);
 
-        for (SimulateDocumentResult result: simulatePipelineResponse.getResults()) {
-            if (isVerbose) {
-                assertTrue(result instanceof SimulateDocumentVerboseResult);
-                SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult)result;
-                assertTrue(verboseResult.getProcessorResults().size() > 0);
-                assertEquals(
-                    verboseResult.getProcessorResults().get(0).getIngestDocument()
-                        .getFieldValue("foo", String.class),
-                    "bar"
-                );
-            } else {
-                assertTrue(result instanceof SimulateDocumentBaseResult);
-                SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)result;
-                assertNotNull(baseResult.getIngestDocument());
-                assertEquals(
-                    baseResult.getIngestDocument().getFieldValue("foo", String.class),
-                    "bar"
-                );
-                assertNotNull(
-                    baseResult.getIngestDocument().getFieldValue("rank", Integer.class)
-                );
-            }
+        SimulateDocumentResult result0 = simulatePipelineResponse.getResults().get(0);
+        SimulateDocumentResult result1 = simulatePipelineResponse.getResults().get(1);
+        if (isVerbose) {
+            assertTrue(result0 instanceof SimulateDocumentVerboseResult);
+            SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult)result0;
+            SimulateDocumentVerboseResult failedVerboseResult = (SimulateDocumentVerboseResult)result1;
+            assertTrue(verboseResult.getProcessorResults().size() > 0);
+            assertEquals(
+                verboseResult.getProcessorResults().get(0).getIngestDocument()
+                    .getFieldValue("foo", String.class),
+                "bar"
+            );
+            assertEquals(
+                Integer.valueOf(1234),
+                verboseResult.getProcessorResults().get(1).getIngestDocument()
+                    .getFieldValue("rank", Integer.class)
+            );
+            assertNotNull(failedVerboseResult.getProcessorResults().get(1).getFailure());
+        } else {
+            assertTrue(result0 instanceof SimulateDocumentBaseResult);
+            SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)result0;
+            SimulateDocumentBaseResult failedBaseResult = (SimulateDocumentBaseResult)result0;
+            assertNotNull(baseResult.getIngestDocument());
+            assertEquals(
+                baseResult.getIngestDocument().getFieldValue("foo", String.class),
+                "bar"
+            );
+            assertEquals(
+                Integer.valueOf(1234),
+                baseResult.getIngestDocument()
+                    .getFieldValue("rank", Integer.class)
+            );
+            assertNotNull(failedBaseResult.getFailure());
         }
     }
 }

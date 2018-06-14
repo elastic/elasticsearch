@@ -32,12 +32,13 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.elasticsearch.action.ingest.WriteableIngestDocumentTests.assertEqualIngestDocs;
 
 public class SimulateDocumentBaseResultTests extends AbstractXContentTestCase<SimulateDocumentBaseResult> {
 
     public void testSerialization() throws IOException {
         boolean isFailure = randomBoolean();
-        SimulateDocumentBaseResult simulateDocumentBaseResult = createTestInstance(isFailure, true);
+        SimulateDocumentBaseResult simulateDocumentBaseResult = createTestInstance(isFailure);
 
         BytesStreamOutput out = new BytesStreamOutput();
         simulateDocumentBaseResult.writeTo(out);
@@ -54,12 +55,12 @@ public class SimulateDocumentBaseResultTests extends AbstractXContentTestCase<Si
         }
     }
 
-    protected SimulateDocumentBaseResult createTestInstance(boolean isFailure, boolean withByteArray) {
+    protected SimulateDocumentBaseResult createTestInstance(boolean isFailure) {
         SimulateDocumentBaseResult simulateDocumentBaseResult;
         if (isFailure) {
             simulateDocumentBaseResult = new SimulateDocumentBaseResult(new IllegalArgumentException("test"));
         } else {
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), withByteArray);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
             simulateDocumentBaseResult = new SimulateDocumentBaseResult(ingestDocument);
         }
         return simulateDocumentBaseResult;
@@ -67,7 +68,7 @@ public class SimulateDocumentBaseResultTests extends AbstractXContentTestCase<Si
 
     @Override
     protected SimulateDocumentBaseResult createTestInstance() {
-        return createTestInstance(randomBoolean(), false);
+        return createTestInstance(randomBoolean());
     }
 
     @Override
@@ -81,7 +82,7 @@ public class SimulateDocumentBaseResultTests extends AbstractXContentTestCase<Si
     }
 
     public static void assertEqualDocs(SimulateDocumentBaseResult response, SimulateDocumentBaseResult parsedResponse) {
-        assertEquals(response.getIngestDocument(), parsedResponse.getIngestDocument());
+        assertEqualIngestDocs(response.getIngestDocument(), parsedResponse.getIngestDocument());
         if (response.getFailure() != null) {
             assertNotNull(parsedResponse.getFailure());
             assertThat(

@@ -25,12 +25,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -93,12 +94,12 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         }
     }
 
-    public static SimulatePipelineResponse createInstance(String pipelineId, boolean isVerbose, boolean withByteArraySource) {
+    public static SimulatePipelineResponse createInstance(String pipelineId, boolean isVerbose, boolean withFailure) {
         int numResults = randomIntBetween(1, 10);
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
-            boolean isFailure = randomBoolean();
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), withByteArraySource);
+            boolean isFailure = withFailure && randomBoolean();
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
             if (isVerbose) {
                 int numProcessors = randomIntBetween(1, 10);
                 List<SimulateProcessorResult> processorResults = new ArrayList<>(numProcessors);
@@ -127,10 +128,16 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         return new SimulatePipelineResponse(pipelineId, isVerbose, results);
     }
 
+    private static SimulatePipelineResponse createTestInstanceWithFailures() {
+        boolean isVerbose = randomBoolean();
+        return createInstance(null, isVerbose, false);
+    }
+
     @Override
     protected SimulatePipelineResponse createTestInstance() {
         boolean isVerbose = randomBoolean();
         // since the pipeline id is not serialized with XContent we set it to null for equality tests.
+        // we test failures separately since comparing XContent is not possible with failures
         return createInstance(null, isVerbose, false);
     }
 
@@ -141,7 +148,7 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override
@@ -156,7 +163,7 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
                 assert parsedResponse.getResults().get(i) instanceof SimulateDocumentVerboseResult;
                 SimulateDocumentVerboseResult responseResult = (SimulateDocumentVerboseResult)response.getResults().get(i);
                 SimulateDocumentVerboseResult parsedResult = (SimulateDocumentVerboseResult)parsedResponse.getResults().get(i);
-                SimulateDocumentVerboseResultTests.assertEqualDocuments(responseResult, parsedResult);
+                SimulateDocumentVerboseResultTests.assertEqualDocs(responseResult, parsedResult);
             } else {
                 assert response.getResults().get(i) instanceof SimulateDocumentBaseResult;
                 assert parsedResponse.getResults().get(i) instanceof SimulateDocumentBaseResult;
@@ -168,7 +175,22 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
     }
 
     @Override
-    protected boolean assertToXContentEquivalence() {
-        return false;
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // We cannot have random fields in the _source field
+        return field -> field.contains("doc._source") || field.contains("doc._ingest");
+    }
+
+    /**
+     * Test parsing {@link SimulatePipelineResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
+     * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
+     */
+    public void testFromXContentWithFailures() throws IOException {
+        Supplier<SimulatePipelineResponse> instanceSupplier = SimulatePipelineResponseTests::createTestInstanceWithFailures;
+        //exceptions are not of the same type whenever parsed back
+        boolean assertToXContentEquivalence = false;
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields(), getShuffleFieldsExceptions(),
+            getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+            this::assertEqualInstances, assertToXContentEquivalence, getToXContentParams());
     }
 }

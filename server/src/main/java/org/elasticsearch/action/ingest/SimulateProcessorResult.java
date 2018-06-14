@@ -33,7 +33,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
@@ -41,6 +41,21 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     private final String processorTag;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<ElasticsearchException, Void> IGNORED_ERROR_PARSER =
+        new ConstructingObjectParser<>(
+            "ignored_error_parser",
+            true,
+            a -> (ElasticsearchException)a[0]
+        );
+    static {
+        IGNORED_ERROR_PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField("error")
+        );
+    }
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SimulateProcessorResult, Void> PARSER =
@@ -68,14 +83,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         );
         PARSER.declareObject(
             optionalConstructorArg(),
-            (p, c) -> {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p::getTokenLocation);
-                p.nextToken();
-                ElasticsearchException e = ElasticsearchException.failureFromXContent(p);
-                ensureExpectedToken(XContentParser.Token.END_OBJECT, p.currentToken(), p::getTokenLocation);
-                p.nextToken();
-                return e;
-            },
+            IGNORED_ERROR_PARSER,
             new ParseField(IGNORED_ERROR_FIELD)
         );
         PARSER.declareObject(

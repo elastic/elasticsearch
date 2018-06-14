@@ -130,11 +130,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (source != null) {
-            builder.rawValue(source.streamInput(), xContentType);
-        } else {
-            builder.startObject().endObject();
-        }
+        builder.rawValue(source.streamInput(), xContentType);
         return builder;
     }
 

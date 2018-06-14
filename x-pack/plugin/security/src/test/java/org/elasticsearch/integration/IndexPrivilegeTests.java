@@ -8,8 +8,6 @@ package org.elasticsearch.integration;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;

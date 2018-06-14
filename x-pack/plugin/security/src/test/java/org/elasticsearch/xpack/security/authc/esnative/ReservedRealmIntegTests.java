@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;

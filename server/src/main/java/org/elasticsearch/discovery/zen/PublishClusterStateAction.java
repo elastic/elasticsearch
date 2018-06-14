@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
@@ -207,6 +207,12 @@ public class PublishClusterStateAction extends AbstractComponent {
                         clusterState.version(), publishTimeout, pendingNodes);
                 }
             }
+            // The failure is logged under debug when a sending failed. we now log a summary.
+            Set<DiscoveryNode> failedNodes = publishResponseHandler.getFailedNodes();
+            if (failedNodes.isEmpty() == false) {
+                logger.warn("publishing cluster state with version [{}] failed for the following nodes: [{}]",
+                    clusterChangedEvent.state().version(), failedNodes);
+            }
         } catch (InterruptedException e) {
             // ignore & restore interrupt
             Thread.currentThread().interrupt();
@@ -367,14 +373,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     protected void handleIncomingClusterStateRequest(BytesTransportRequest request, TransportChannel channel) throws IOException {
         Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
-        try {
-            if (compressor != null) {
-                in = compressor.streamInput(in);
-            }
-            in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
-            in.setVersion(request.version());
-            synchronized (lastSeenClusterStateMutex) {
-                final ClusterState incomingState;
+        final ClusterState incomingState;
+        synchronized (lastSeenClusterStateMutex) {
+            try {
+                if (compressor != null) {
+                    in = compressor.streamInput(in);
+                }
+                in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+                in.setVersion(request.version());
                 // If true we received full cluster state - otherwise diffs
                 if (in.readBoolean()) {
                     incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
@@ -391,14 +397,17 @@ public class PublishClusterStateAction extends AbstractComponent {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 }
-                incomingClusterStateListener.onIncomingClusterState(incomingState);
-                lastSeenClusterState = incomingState;
+            } catch (IncompatibleClusterStateVersionException e) {
+                incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+                throw e;
+            } catch (Exception e) {
+                logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                throw e;
+            } finally {
+                IOUtils.close(in);
             }
-        } catch (IncompatibleClusterStateVersionException e) {
-            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-            throw e;
-        } finally {
-            IOUtils.close(in);
+            incomingClusterStateListener.onIncomingClusterState(incomingState);
+            lastSeenClusterState = incomingState;
         }
         channel.sendResponse(TransportResponse.Empty.INSTANCE);
     }

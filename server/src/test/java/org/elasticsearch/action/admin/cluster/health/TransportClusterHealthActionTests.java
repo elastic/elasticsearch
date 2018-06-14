@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -59,6 +60,20 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         clusterState = randomClusterStateWithInitializingShards("test", randomInt(20));
         response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
+    }
+
+    public void testWaitForAllShards() {
+        final String[] indices = {"test"};
+        final ClusterHealthRequest request = new ClusterHealthRequest();
+        request.waitForActiveShards(ActiveShardCount.ALL);
+
+        ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1);
+        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
+        assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
+
+        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+        response = new ClusterHealthResponse("", indices, clusterState);
+        assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {

@@ -27,10 +27,11 @@ one of the following:
 * `master:false`, `data:false`, `ingest:false` or `coordinating_only:false`,
   which respectively remove from the subset all master-eligible nodes, all data
   nodes, all ingest nodes, and all coordinating-only nodes.
-* a pattern, using `*` wildcards, of the form `attrname:attrvalue`, which adds
-  to the subset all nodes with a custom node attribute that matches the
-  pattern. Custom node attributes are configured by setting properties in the
-  configuration file of the form `node.attr.attrname: attrvalue`.
+* a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`,
+  which adds to the subset all nodes with a custom node attribute whose name
+  and value match the respective patterns. Custom node attributes are
+  configured by setting properties in the configuration file of the form
+  `node.attr.attrname: attrvalue`.
 
 NOTE: node filters run in the order in which they are given, which is important
 if using filters that remove nodes from the set. For example

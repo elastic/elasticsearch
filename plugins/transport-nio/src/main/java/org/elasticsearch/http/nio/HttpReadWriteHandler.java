@@ -23,54 +23,38 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
-import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
-
 
 public class HttpReadWriteHandler implements ReadWriteHandler {
 
     private final NettyAdaptor adaptor;
-    private final NioSocketChannel nioChannel;
+    private final NioHttpChannel nioHttpChannel;
     private final NioHttpServerTransport transport;
-    private final HttpHandlingSettings settings;
-    private final NamedXContentRegistry xContentRegistry;
-    private final NioCorsConfig corsConfig;
-    private final ThreadContext threadContext;
 
-    HttpReadWriteHandler(NioSocketChannel nioChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                         NamedXContentRegistry xContentRegistry, NioCorsConfig corsConfig, ThreadContext threadContext) {
-        this.nioChannel = nioChannel;
+    HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
+                         NioCorsConfig corsConfig) {
+        this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
-        this.settings = settings;
-        this.xContentRegistry = xContentRegistry;
-        this.corsConfig = corsConfig;
-        this.threadContext = threadContext;
 
         List<ChannelHandler> handlers = new ArrayList<>(5);
         HttpRequestDecoder decoder = new HttpRequestDecoder(settings.getMaxInitialLineLength(), settings.getMaxHeaderSize(),
@@ -89,7 +73,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         handlers.add(new NioHttpPipeliningHandler(transport.getLogger(), settings.getPipeliningMaxEvents()));
 
         adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
-        adaptor.addCloseListener((v, e) -> nioChannel.close());
+        adaptor.addCloseListener((v, e) -> nioHttpChannel.close());
     }
 
     @Override
@@ -150,95 +134,22 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
                     request.headers(),
                     request.trailingHeaders());
 
-            Exception badRequestCause = null;
-
-            /*
-             * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
-             * are incorrectly encoded parameters, or the Content-Type header is invalid. If one of these specific failures occurs, we
-             * attempt to create a REST request again without the input that caused the exception (e.g., we remove the Content-Type header,
-             * or skip decoding the parameters). Once we have a request in hand, we then dispatch the request as a bad request with the
-             * underlying exception that caused us to treat the request as bad.
-             */
-            final NioHttpRequest httpRequest;
-            {
-                NioHttpRequest innerHttpRequest;
-                try {
-                    innerHttpRequest = new NioHttpRequest(xContentRegistry, copiedRequest);
-                } catch (final RestRequest.ContentTypeHeaderException e) {
-                    badRequestCause = e;
-                    innerHttpRequest = requestWithoutContentTypeHeader(copiedRequest, badRequestCause);
-                } catch (final RestRequest.BadParameterException e) {
-                    badRequestCause = e;
-                    innerHttpRequest = requestWithoutParameters(copiedRequest);
-                }
-                httpRequest = innerHttpRequest;
-            }
-
-            /*
-             * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
-             * parameter values for any of the filter_path, human, or pretty parameters. We detect these specific failures via an
-             * IllegalArgumentException from the channel constructor and then attempt to create a new channel that bypasses parsing of
-             * these parameter values.
-             */
-            final NioHttpChannel channel;
-            {
-                NioHttpChannel innerChannel;
-                int sequence = pipelinedRequest.getSequence();
-                BigArrays bigArrays = transport.getBigArrays();
-                try {
-                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, httpRequest, sequence, settings, corsConfig, threadContext);
-                } catch (final IllegalArgumentException e) {
-                    if (badRequestCause == null) {
-                        badRequestCause = e;
-                    } else {
-                        badRequestCause.addSuppressed(e);
-                    }
-                    final NioHttpRequest innerRequest =
-                        new NioHttpRequest(
-                            xContentRegistry,
-                            Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
-                            copiedRequest.uri(),
-                            copiedRequest);
-                    innerChannel = new NioHttpChannel(nioChannel, bigArrays, innerRequest, sequence, settings, corsConfig, threadContext);
-                }
-                channel = innerChannel;
-            }
+            NioHttpRequest httpRequest = new NioHttpRequest(copiedRequest, pipelinedRequest.getSequence());
 
             if (request.decoderResult().isFailure()) {
-                transport.dispatchBadRequest(httpRequest, channel, request.decoderResult().cause());
-            } else if (badRequestCause != null) {
-                transport.dispatchBadRequest(httpRequest, channel, badRequestCause);
+                Throwable cause = request.decoderResult().cause();
+                if (cause instanceof Error) {
+                    ExceptionsHelper.dieOnError(cause);
+                    transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
+                } else {
+                    transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);
+                }
             } else {
-                transport.dispatchRequest(httpRequest, channel);
+                transport.incomingRequest(httpRequest, nioHttpChannel);
             }
         } finally {
             // As we have copied the buffer, we can release the request
             request.release();
         }
-    }
-
-    private NioHttpRequest requestWithoutContentTypeHeader(final FullHttpRequest request, final Exception badRequestCause) {
-        final HttpHeaders headersWithoutContentTypeHeader = new DefaultHttpHeaders();
-        headersWithoutContentTypeHeader.add(request.headers());
-        headersWithoutContentTypeHeader.remove("Content-Type");
-        final FullHttpRequest requestWithoutContentTypeHeader =
-            new DefaultFullHttpRequest(
-                request.protocolVersion(),
-                request.method(),
-                request.uri(),
-                request.content(),
-                headersWithoutContentTypeHeader, // remove the Content-Type header so as to not parse it again
-                request.trailingHeaders()); // Content-Type can not be a trailing header
-        try {
-            return new NioHttpRequest(xContentRegistry, requestWithoutContentTypeHeader);
-        } catch (final RestRequest.BadParameterException e) {
-            badRequestCause.addSuppressed(e);
-            return requestWithoutParameters(requestWithoutContentTypeHeader);
-        }
-    }
-
-    private NioHttpRequest requestWithoutParameters(final FullHttpRequest request) {
-        // remove all parameters as at least one is incorrectly encoded
-        return new NioHttpRequest(xContentRegistry, Collections.emptyMap(), request.uri(), request);
     }
 }

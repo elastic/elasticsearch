@@ -17,23 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.http;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.nio.NioSocketChannel;
+/**
+ * A basic http response abstraction. Http modules must implement this interface as the server package rest
+ * handling needs to set http headers for a response.
+ */
+public interface HttpResponse {
 
-import java.io.IOException;
-import java.nio.channels.SocketChannel;
+    void addHeader(String name, String value);
 
-public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
+    boolean containsHeader(String name);
 
-    NioHttpChannel(SocketChannel socketChannel) throws IOException {
-        super(socketChannel);
-    }
-
-    public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        getContext().sendMessage(response, ActionListener.toBiConsumer(listener));
-    }
 }

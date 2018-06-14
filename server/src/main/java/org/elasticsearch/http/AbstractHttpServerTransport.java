@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkService;
@@ -29,7 +30,9 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,11 +51,14 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 
-public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements org.elasticsearch.http.HttpServerTransport {
+public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
+    public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;
+    protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
+    private final NamedXContentRegistry xContentRegistry;
 
     protected final String[] bindHosts;
     protected final String[] publishHosts;
@@ -61,11 +67,15 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected volatile BoundTransportAddress boundAddress;
 
-    protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, ThreadPool threadPool, Dispatcher dispatcher) {
+    protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
+                                          NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings);
         this.networkService = networkService;
+        this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
+        this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
@@ -156,17 +166,94 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel) {
+    /**
+     * This method handles an incoming http request.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     */
+    public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+        handleIncomingRequest(httpRequest, httpChannel, null);
+    }
+
+    /**
+     * This method handles an incoming http request that has encountered an error.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     * @param exception that was encountered
+     */
+    public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        handleIncomingRequest(httpRequest, httpChannel, exception);
+    }
+
+    // Visible for testing
+    void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchRequest(request, channel, threadContext);
+            if (badRequestCause != null) {
+                dispatcher.dispatchBadRequest(restRequest, channel, threadContext, badRequestCause);
+            } else {
+                dispatcher.dispatchRequest(restRequest, channel, threadContext);
+            }
         }
     }
 
-    public void dispatchBadRequest(final RestRequest request, final RestChannel channel, final Throwable cause) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchBadRequest(request, channel, threadContext, cause);
+    private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        Exception badRequestCause = exception;
+
+        /*
+         * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
+         * are incorrectly encoded parameters, or the Content-Type header is invalid. If one of these specific failures occurs, we
+         * attempt to create a REST request again without the input that caused the exception (e.g., we remove the Content-Type header,
+         * or skip decoding the parameters). Once we have a request in hand, we then dispatch the request as a bad request with the
+         * underlying exception that caused us to treat the request as bad.
+         */
+        final RestRequest restRequest;
+        {
+            RestRequest innerRestRequest;
+            try {
+                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
+            } catch (final RestRequest.ContentTypeHeaderException e) {
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
+            } catch (final RestRequest.BadParameterException e) {
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+                innerRestRequest =  RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+            }
+            restRequest = innerRestRequest;
+        }
+
+        /*
+         * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
+         * parameter values for any of the filter_path, human, or pretty parameters. We detect these specific failures via an
+         * IllegalArgumentException from the channel constructor and then attempt to create a new channel that bypasses parsing of these
+         * parameter values.
+         */
+        final RestChannel channel;
+        {
+            RestChannel innerChannel;
+            ThreadContext threadContext = threadPool.getThreadContext();
+            try {
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext);
+            } catch (final IllegalArgumentException e) {
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
+            }
+            channel = innerChannel;
+        }
+
+        dispatchRequest(restRequest, channel, badRequestCause);
+    }
+
+    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
+        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
+        try {
+            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+        } catch (final RestRequest.BadParameterException e) {
+            badRequestCause.addSuppressed(e);
+            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         }
     }
 }

@@ -187,7 +187,12 @@ public class IndexLifecycleService extends AbstractComponent
      */
     public void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        OperationMode currentMode = currentMetadata == null ? OperationMode.NORMAL : currentMetadata.getMaintenanceMode();
+
+        if (currentMetadata == null) {
+            return;
+        }
+
+        OperationMode currentMode = currentMetadata.getMaintenanceMode();
 
         if (OperationMode.MAINTENANCE.equals(currentMode)) {
             return;
@@ -203,7 +208,7 @@ public class IndexLifecycleService extends AbstractComponent
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(idxMeta.getSettings());
-                if (OperationMode.MAINTENANCE_REQUESTED == currentMode
+                if (OperationMode.MAINTENANCE_REQUESTED == currentMode && stepKey != null
                         && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
                     logger.info("skipping policy [" + policyName + "] for index [" + idxMeta.getIndex().getName()
                         + "]. maintenance mode requested");

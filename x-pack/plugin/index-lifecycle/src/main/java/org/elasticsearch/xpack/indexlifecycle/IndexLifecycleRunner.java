@@ -57,6 +57,10 @@ public class IndexLifecycleRunner {
             return;
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
+        if (currentStep == null) {
+            throw new IllegalStateException(
+                "current step for index [" + indexMetaData.getIndex().getName() + "] with policy [" + policy + "] is not recognized");
+        }
         logger.debug("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
             logger.debug("policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] complete, skipping execution");
@@ -303,7 +307,7 @@ public class IndexLifecycleRunner {
             return currentState;
         }
     }
-    
+
     private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicy newPolicy,
             List<String> failedIndexes,
             Index index, IndexMetaData indexMetadata) {
@@ -321,7 +325,7 @@ public class IndexLifecycleRunner {
             return null;
         }
     }
-    
+
     private static boolean canSetPolicy(StepKey currentStepKey, String currentPolicyName, LifecyclePolicy newPolicy) {
         if (Strings.hasLength(currentPolicyName)) {
             if (ShrinkAction.NAME.equals(currentStepKey.getAction())) {

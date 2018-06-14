@@ -77,7 +77,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         }
 
         ChangePasswordResponse response = securityClient()
-            .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length), SecuritySettingsSource.HASHING_ALGORITHM)
+            .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length), getFastStoredHashAlgoForTests())
                 .get();
         assertThat(response, notNullValue());
 

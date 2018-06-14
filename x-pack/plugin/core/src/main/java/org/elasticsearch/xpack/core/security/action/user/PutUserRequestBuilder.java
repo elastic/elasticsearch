@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -53,7 +52,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
     }
 
     public PutUserRequestBuilder password(@Nullable char[] password, String hashingAlgorithm) {
-        final Hasher hasher = HasherFactory.getHasher(hashingAlgorithm);
+        final Hasher hasher = Hasher.resolve(hashingAlgorithm, Hasher.BCRYPT);
         return password(password, hasher);
     }
 

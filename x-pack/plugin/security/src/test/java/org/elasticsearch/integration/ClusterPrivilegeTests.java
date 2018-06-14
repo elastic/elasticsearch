@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -42,6 +41,11 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                     "role_a:user_a\n" +
                     "role_b:user_b\n" +
                     "role_c:user_c\n";
+
+    private static final String USERS =
+        "user_a:" + USERS_PASSWD_HASHED + "\n" +
+            "user_b:" + USERS_PASSWD_HASHED + "\n" +
+            "user_c:" + USERS_PASSWD_HASHED + "\n";
 
     private static Path repositoryLocation;
 
@@ -74,12 +78,8 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
-        final String usersPasswdHashed = new String(hasher.hash(new SecureString("passwd".toCharArray())));
-        return super.configUsers() +
-            "user_a:" + usersPasswdHashed + "\n" +
-            "user_b:" + usersPasswdHashed + "\n" +
-            "user_c:" + usersPasswdHashed + "\n";
+        return super.configUsers() + USERS;
+
     }
 
     @Override

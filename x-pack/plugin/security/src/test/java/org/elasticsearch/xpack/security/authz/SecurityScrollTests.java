@@ -33,8 +33,8 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
         securityClient().preparePutRole("scrollable")
                 .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null)
                 .get();
-        securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), SecuritySettingsSource
-            .HASHING_ALGORITHM, "scrollable")
+        securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests(),
+            "scrollable")
             .get();
 
         final int numDocs = randomIntBetween(4, 16);

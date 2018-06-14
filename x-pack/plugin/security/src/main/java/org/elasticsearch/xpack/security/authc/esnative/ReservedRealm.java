@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -74,8 +73,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityIndex = securityIndex;
 
-        this.reservedRealmHasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings),
-            XPackSettings.PASSWORD_HASHING_COST.get(settings));
+        this.reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), Hasher.BCRYPT);
         final char[] emptyPasswordHash = reservedRealmHasher.hash(new SecureString("".toCharArray()));
         disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
         enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
@@ -97,7 +95,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     try {
                         if (userInfo.hasEmptyPassword) {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
-                        } else if (reservedRealmHasher.verify(token.credentials(), userInfo.passwordHash)) {
+                        } else if (Hasher.verifyHash(token.credentials(), userInfo.passwordHash)) {
                             final User user = getUser(token.principal(), userInfo);
                             result = AuthenticationResult.success(user);
                         } else {

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
@@ -135,7 +134,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
-        final Hasher hasher = HasherFactory.getHasher("bcrypt");
+        final Hasher hasher = Hasher.resolve("bcrypt", Hasher.BCRYPT);
         when(securityIndex.indexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
@@ -288,7 +287,7 @@ public class ReservedRealmTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
-        final Hasher hasher = HasherFactory.getHasher("bcrypt");
+        final Hasher hasher = Hasher.resolve("bcrypt", Hasher.BCRYPT);
         char[] hash = hasher.hash(password);
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
@@ -349,7 +348,7 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
-        final Hasher hasher = HasherFactory.getHasher("bcrypt");
+        final Hasher hasher = Hasher.resolve("bcrypt", Hasher.BCRYPT);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             char[] hash = hasher.hash(password);

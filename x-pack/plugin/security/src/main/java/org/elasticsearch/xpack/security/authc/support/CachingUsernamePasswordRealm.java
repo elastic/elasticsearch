@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -37,7 +36,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
         super(type, config);
-        cacheHasher = HasherFactory.getHasher(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()));
+        cacheHasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()), Hasher.SSHA256);
         this.threadPool = threadPool;
         TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {
@@ -234,16 +233,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private static class UserWithHash {
         final User user;
         final char[] hash;
-        final Hasher hasher;
 
         UserWithHash(User user, SecureString password, Hasher hasher) {
             this.user = Objects.requireNonNull(user);
             this.hash = password == null ? null : hasher.hash(password);
-            this.hasher = hasher;
         }
 
         boolean verify(SecureString password) {
-            return hash != null && hasher.verify(password, hash);
+            return hash != null && Hasher.verifyHash(password, hash);
         }
     }
 }

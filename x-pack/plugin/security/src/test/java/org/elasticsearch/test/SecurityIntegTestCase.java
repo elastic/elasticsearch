@@ -521,4 +521,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     protected boolean isTransportSSLEnabled() {
         return customSecuritySettingsSource.isSslEnabled();
     }
+
+    protected static String getFastStoredHashAlgoForTests() {
+        return randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+    }
 }

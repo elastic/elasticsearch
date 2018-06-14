@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
@@ -49,7 +48,6 @@ public class FileUserPasswdStore {
     private final Path file;
     private final Settings settings;
     private final CopyOnWriteArrayList<Runnable> listeners;
-    private final Hasher hasher;
     private volatile Map<String, char[]> users;
 
     public FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService) {
@@ -62,9 +60,6 @@ public class FileUserPasswdStore {
         settings = config.globalSettings();
         users = parseFileLenient(file, logger, settings);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
-        this.hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), XPackSettings.PASSWORD_HASHING_COST
-            .get
-                (settings));
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
@@ -87,7 +82,7 @@ public class FileUserPasswdStore {
         if (hash == null) {
             return AuthenticationResult.notHandled();
         }
-        if (hasher.verify(password, hash) == false) {
+        if (Hasher.verifyHash(password, hash) == false) {
             return AuthenticationResult.unsuccessful("Password authentication failed for " + username, null);
         }
         return AuthenticationResult.success(user.get());
@@ -152,7 +147,7 @@ public class FileUserPasswdStore {
             // only trim the line because we have a format, our tool generates the formatted text and we shouldn't be lenient
             // and allow spaces in the format
             line = line.trim();
-            int i = line.indexOf(":");
+            int i = line.indexOf(':');
             if (i <= 0 || i == line.length() - 1) {
                 logger.error("invalid entry in users file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 continue;

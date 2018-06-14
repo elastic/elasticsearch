@@ -8,76 +8,78 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
+
+import static org.hamcrest.Matchers.sameInstance;
 
 public class HasherTests extends ESTestCase {
     public void testBcryptFamilySelfGenerated() throws Exception {
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt4"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt5"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt6"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt7"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt8"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt9"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt10"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt11"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt12"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt13"));
-        testHasherSelfGenerated(HasherFactory.getHasher("bcrypt14"));
+        testHasherSelfGenerated(Hasher.BCRYPT);
+        testHasherSelfGenerated(Hasher.BCRYPT4);
+        testHasherSelfGenerated(Hasher.BCRYPT5);
+        testHasherSelfGenerated(Hasher.BCRYPT6);
+        testHasherSelfGenerated(Hasher.BCRYPT7);
+        testHasherSelfGenerated(Hasher.BCRYPT8);
+        testHasherSelfGenerated(Hasher.BCRYPT9);
+        testHasherSelfGenerated(Hasher.BCRYPT10);
+        testHasherSelfGenerated(Hasher.BCRYPT11);
+        testHasherSelfGenerated(Hasher.BCRYPT12);
+        testHasherSelfGenerated(Hasher.BCRYPT13);
+        testHasherSelfGenerated(Hasher.BCRYPT14);
+    }
+
+    public void testPBKDF2FamilySelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.PBKDF2);
+        testHasherSelfGenerated(Hasher.PBKDF2_1000);
+        testHasherSelfGenerated(Hasher.PBKDF2_10000);
+        testHasherSelfGenerated(Hasher.PBKDF2_50000);
+        testHasherSelfGenerated(Hasher.PBKDF2_100000);
+        testHasherSelfGenerated(Hasher.PBKDF2_500000);
+        testHasherSelfGenerated(Hasher.PBKDF2_1000000);
     }
 
     public void testMd5SelfGenerated() throws Exception {
-        testHasherSelfGenerated(HasherFactory.getHasher("md5"));
+        testHasherSelfGenerated(Hasher.MD5);
     }
 
     public void testSha1SelfGenerated() throws Exception {
-        testHasherSelfGenerated(HasherFactory.getHasher("sha1"));
+        testHasherSelfGenerated(Hasher.SHA1);
     }
 
     public void testSSHA256SelfGenerated() throws Exception {
-        testHasherSelfGenerated(HasherFactory.getHasher("ssha256"));
-    }
-
-    public void testPBKDF2SelfGenerated() throws Exception {
-        testHasherSelfGenerated(HasherFactory.getHasher("pbkdf2"));
+        testHasherSelfGenerated(Hasher.SSHA256);
     }
 
     public void testNoopSelfGenerated() throws Exception {
-        testHasherSelfGenerated(HasherFactory.getHasher("noop"));
+        testHasherSelfGenerated(Hasher.NOOP);
     }
 
     public void testHasherFactory() throws Exception {
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt", -1).getAlgorithm());
-        assertEquals(10, HasherFactory.getHasher("bcrypt", -1).getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt", 7).getAlgorithm());
-        assertEquals(7, HasherFactory.getHasher("bcrypt", 7).getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt5", 6).getAlgorithm());
-        assertEquals(6, HasherFactory.getHasher("bcrypt5", 6).getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt").getAlgorithm());
-        assertEquals(10, HasherFactory.getHasher("bcrypt").getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt4").getAlgorithm());
-        assertEquals(4, HasherFactory.getHasher("bcrypt4").getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt5").getAlgorithm());
-        assertEquals(5, HasherFactory.getHasher("bcrypt5").getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt6").getAlgorithm());
-        assertEquals(6, HasherFactory.getHasher("bcrypt6").getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt7").getAlgorithm());
-        assertEquals(7, HasherFactory.getHasher("bcrypt7").getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt8").getAlgorithm());
-        assertEquals(8, HasherFactory.getHasher("bcrypt8").getCost());
-        assertEquals("bcrypt", HasherFactory.getHasher("bcrypt9").getAlgorithm());
-        assertEquals(9, HasherFactory.getHasher("bcrypt9").getCost());
-        assertEquals("sha1", HasherFactory.getHasher("sha1").getAlgorithm());
-        assertEquals("md5", HasherFactory.getHasher("md5").getAlgorithm());
-        assertEquals("ssha256", HasherFactory.getHasher("ssha256").getAlgorithm());
-        assertEquals("pbkdf2", HasherFactory.getHasher("pbkdf2").getAlgorithm());
-        assertEquals(10000, HasherFactory.getHasher("pbkdf2").getCost());
-        assertEquals("pbkdf2", HasherFactory.getHasher("pbkdf2", 100000).getAlgorithm());
-        assertEquals(100000, HasherFactory.getHasher("pbkdf2", 100000).getCost());
-        assertEquals("noop", HasherFactory.getHasher("noop").getAlgorithm());
-        assertEquals("noop", HasherFactory.getHasher("clear_text").getAlgorithm());
+        assertThat(Hasher.resolve("bcrypt"), sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolve("bcrypt4"), sameInstance(Hasher.BCRYPT4));
+        assertThat(Hasher.resolve("bcrypt5"), sameInstance(Hasher.BCRYPT5));
+        assertThat(Hasher.resolve("bcrypt6"), sameInstance(Hasher.BCRYPT6));
+        assertThat(Hasher.resolve("bcrypt7"), sameInstance(Hasher.BCRYPT7));
+        assertThat(Hasher.resolve("bcrypt8"), sameInstance(Hasher.BCRYPT8));
+        assertThat(Hasher.resolve("bcrypt9"), sameInstance(Hasher.BCRYPT9));
+        assertThat(Hasher.resolve("bcrypt10"), sameInstance(Hasher.BCRYPT10));
+        assertThat(Hasher.resolve("bcrypt11"), sameInstance(Hasher.BCRYPT11));
+        assertThat(Hasher.resolve("bcrypt12"), sameInstance(Hasher.BCRYPT12));
+        assertThat(Hasher.resolve("bcrypt13"), sameInstance(Hasher.BCRYPT13));
+        assertThat(Hasher.resolve("bcrypt14"), sameInstance(Hasher.BCRYPT14));
+        assertThat(Hasher.resolve("pbkf2"), sameInstance(Hasher.PBKDF2));
+        assertThat(Hasher.resolve("pbkf2_1000"), sameInstance(Hasher.PBKDF2_1000));
+        assertThat(Hasher.resolve("pbkf2_10000"), sameInstance(Hasher.PBKDF2_10000));
+        assertThat(Hasher.resolve("pbkf2_50000"), sameInstance(Hasher.PBKDF2_50000));
+        assertThat(Hasher.resolve("pbkf2_100000"), sameInstance(Hasher.PBKDF2_100000));
+        assertThat(Hasher.resolve("pbkf2_500000"), sameInstance(Hasher.PBKDF2_500000));
+        assertThat(Hasher.resolve("pbkf2_1000000"), sameInstance(Hasher.PBKDF2_1000000));
+        assertThat(Hasher.resolve("sha1"), sameInstance(Hasher.SHA1));
+        assertThat(Hasher.resolve("md5"), sameInstance(Hasher.MD5));
+        assertThat(Hasher.resolve("ssha256"), sameInstance(Hasher.SSHA256));
+        assertThat(Hasher.resolve("noop"), sameInstance(Hasher.NOOP));
+        assertThat(Hasher.resolve("clear_text"), sameInstance(Hasher.NOOP));
         try {
-            HasherFactory.getHasher("unknown_hasher");
+            Hasher.resolve("unknown_hasher", Hasher.BCRYPT);
             fail("expected a settings error when trying to resolve an unknown hasher");
         } catch (IllegalArgumentException e) {
             // expected

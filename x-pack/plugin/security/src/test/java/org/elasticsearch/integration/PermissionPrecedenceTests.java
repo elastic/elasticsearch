@@ -13,9 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Collections;
@@ -35,6 +33,8 @@ import static org.hamcrest.Matchers.hasSize;
  * index template actions.
  */
 public class PermissionPrecedenceTests extends SecurityIntegTestCase {
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).
+        hash(new SecureString("test123".toCharArray())));
 
     @Override
     protected String configRoles() {
@@ -52,11 +52,9 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
-        final String usersPasswdHashed = new String(hasher.hash(new SecureString("test123".toCharArray())));
-        return "admin:" + usersPasswdHashed + "\n" +
-                "client:" + usersPasswdHashed + "\n" +
-                "user:" + usersPasswdHashed + "\n";
+        return "admin:" + USERS_PASSWD_HASHED + "\n" +
+            "client:" + USERS_PASSWD_HASHED + "\n" +
+            "user:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override

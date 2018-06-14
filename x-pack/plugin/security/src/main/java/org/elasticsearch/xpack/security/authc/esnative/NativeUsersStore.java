@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -81,7 +80,6 @@ public class NativeUsersStore extends AbstractComponent {
     public static final String INDEX_TYPE = "doc";
     static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
-    private final Hasher hasher;
     private final Client client;
     private final ReservedUserInfo disabledDefaultUserInfo;
     private final ReservedUserInfo enabledDefaultUserInfo;
@@ -92,9 +90,8 @@ public class NativeUsersStore extends AbstractComponent {
         super(settings);
         this.client = client;
         this.securityIndex = securityIndex;
-        this.hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), XPackSettings.PASSWORD_HASHING_COST
-            .get(settings));
-        final char[] emptyPasswordHash = hasher.hash(new SecureString("".toCharArray()));
+        final char[] emptyPasswordHash = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), Hasher.BCRYPT).
+            hash(new SecureString("".toCharArray()));
         this.disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
         this.enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
     }
@@ -493,7 +490,7 @@ public class NativeUsersStore extends AbstractComponent {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null || userAndPassword.passwordHash() == null) {
                 listener.onResponse(AuthenticationResult.notHandled());
-            } else if (hasher.verify(password, userAndPassword.passwordHash())) {
+            } else if (userAndPassword.verifyPassword(password)) {
                 listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
             } else {
                 listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));

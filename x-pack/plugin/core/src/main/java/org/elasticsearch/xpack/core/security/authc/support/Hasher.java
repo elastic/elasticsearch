@@ -11,144 +11,364 @@ import org.elasticsearch.common.settings.SecureString;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
+import java.util.Locale;
 import java.util.Random;
+import java.util.stream.Collectors;
 
-public interface Hasher {
+public enum Hasher {
 
-    char[] hash(SecureString data);
-
-    boolean verify(SecureString data, char[] hash);
-
-    String getAlgorithm();
-    int getCost();
-
-
-    class NoopHasher implements Hasher {
-
+    BCRYPT() {
         @Override
-        public char[] hash(SecureString data) {
-            return data.clone().getChars();
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt();
+            return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(SecureString data, char[] hash) {
-            return CharArrays.constantTimeEquals(data.getChars(), hash);
-        }
-
-        @Override
-        public String getAlgorithm() {
-            return "noop";
-        }
-
-        @Override
-        public int getCost() {
-            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
-        }
-    }
-
-    class BcryptHasher implements Hasher {
-        private int cost;
-        private static final String BCRYPT_PREFIX = "$2a$";
-
-        public BcryptHasher(int cost) {
-            this.cost = cost;
-        }
-
-        @Override
-        public char[] hash(SecureString data) {
-            String salt = BCrypt.gensalt(this.cost);
-            return BCrypt.hashpw(data, salt).toCharArray();
-        }
-
-        @Override
-        public boolean verify(SecureString data, char[] hash) {
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
             if (!hashStr.startsWith(BCRYPT_PREFIX)) {
                 return false;
             }
-            return BCrypt.checkpw(data, hashStr);
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT4() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(4);
+            return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public String getAlgorithm() {
-            return "bcrypt";
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT5() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(5);
+            return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public int getCost(){ return this.cost; }
-    }
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
 
-    class PBKDF2Hasher implements Hasher {
-        private int cost;
-        private static final String PBKDF2_PREFIX = "{PBKDF2}";
-
-        public PBKDF2Hasher(int cost) {
-            this.cost = cost;
+    BCRYPT6() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(6);
+            return BCrypt.hashpw(text, salt).toCharArray();
         }
 
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT7() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(7);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT8() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(8);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT9() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(9);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT10() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(10);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT11() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(11);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT12() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(12);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT13() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(13);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    BCRYPT14() {
+        @Override
+        public char[] hash(SecureString text) {
+            String salt = BCrypt.gensalt(14);
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    PBKDF2() {
         @Override
         public char[] hash(SecureString data) {
-            try {
-                StringBuilder result = new StringBuilder();
-                result.append(PBKDF2_PREFIX);
-                String costString = String.valueOf(this.cost);
-                result.append(costString);
-                result.append("$");
-                char[] salt = SaltProvider.salt(32);  // 32 characters for 64 bytes
-                result.append(salt);
-                result.append("$");
-                SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-                PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), CharArrays.toUtf8Bytes(salt), this.cost, 256);
-                String pwdHash = Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded());
-                result.append(pwdHash);
-                return result.toString().toCharArray();
-            } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-                throw new IllegalStateException("Can't use PKDF2 for password hashing", e);
-            }
+            return getPbkdf2Hash(data, PBKDF2_DEFAULT_COST);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            try {
+            return verifyPbkdf2Hash(data, hash);
+        }
+
+    },
+
+    PBKDF2_1000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(data, 1000);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(data, hash);
+        }
+
+    },
+
+    PBKDF2_10000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(data, 10000);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(data, hash);
+        }
+
+    },
+
+    PBKDF2_50000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(data, 50000);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(data, hash);
+        }
+
+    },
+
+    PBKDF2_100000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(data, 100000);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(data, hash);
+        }
+
+    },
+
+    PBKDF2_500000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(data, 500000);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(data, hash);
+        }
+
+    },
+
+    PBKDF2_1000000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(data, 1000000);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(data, hash);
+        }
+
+    },
+
+    SHA1() {
+        @Override
+        public char[] hash(SecureString text) {
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
+            MessageDigest md = MessageDigests.sha1();
+            md.update(textBytes);
+            String hash = Base64.getEncoder().encodeToString(md.digest());
+            return (SHA1_PREFIX + hash).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
-                if (!hashStr.startsWith(PBKDF2_PREFIX)) {
-                    return false;
-                }
-                hashStr = hashStr.replace(PBKDF2_PREFIX, "");
-                String[] tokens = hashStr.split("\\$");
-                if (tokens.length != 3) {
+            if (!hashStr.startsWith(SHA1_PREFIX)) {
                 return false;
             }
-                int cost = Integer.parseInt(tokens[0]);
-                String salt = tokens[1];
-                SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-                PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), salt.getBytes(StandardCharsets.UTF_8), cost, 256);
-                String pwdHash = Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded());
-                return CharArrays.constantTimeEquals(pwdHash, tokens[2]);
-            } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-                throw new IllegalStateException("Can't use PKDF2 for password hashing", e);
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
+            MessageDigest md = MessageDigests.sha1();
+            md.update(textBytes);
+            String passwd64 = Base64.getEncoder().encodeToString(md.digest());
+            String hashNoPrefix = hashStr.substring(SHA1_PREFIX.length());
+            return CharArrays.constantTimeEquals(hashNoPrefix, passwd64);
+        }
+    },
+
+    MD5() {
+        @Override
+        public char[] hash(SecureString text) {
+            MessageDigest md = MessageDigests.md5();
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
+            String hash = Base64.getEncoder().encodeToString(md.digest());
+            return (MD5_PREFIX + hash).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(MD5_PREFIX)) {
+                return false;
             }
+            hashStr = hashStr.substring(MD5_PREFIX.length());
+            MessageDigest md = MessageDigests.md5();
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
+            String computedHashStr = Base64.getEncoder().encodeToString(md.digest());
+            return CharArrays.constantTimeEquals(hashStr, computedHashStr);
         }
+    },
 
-        @Override
-        public String getAlgorithm() {
-            return "pbkdf2";
-        }
-
-        @Override
-        public int getCost() {
-            return this.cost;
-        }
-    }
-
-    class SSHA256Hasher implements Hasher {
-        private static final String SSHA256_PREFIX = "{SSHA256}";
-
+    SSHA256() {
         @Override
         public char[] hash(SecureString text) {
             MessageDigest md = MessageDigests.sha256();
@@ -177,91 +397,167 @@ public interface Hasher {
             String computedHash = Base64.getEncoder().encodeToString(md.digest());
             return CharArrays.constantTimeEquals(computedHash, new String(saltAndHash, 8, saltAndHash.length - 8));
         }
+    },
 
-        @Override
-        public String getAlgorithm() {
-            return "ssha256";
-        }
-
-        @Override
-        public int getCost() {
-            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
-        }
-    }
-
-    class SHA1Hasher implements Hasher {
-        private static final String SHA1_PREFIX = "{SHA}";
-
+    NOOP() {
         @Override
         public char[] hash(SecureString text) {
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
-            MessageDigest md = MessageDigests.sha1();
-            md.update(textBytes);
-            String hash = Base64.getEncoder().encodeToString(md.digest());
-            return (SHA1_PREFIX + hash).toCharArray();
+            return text.clone().getChars();
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
+            return CharArrays.constantTimeEquals(text.getChars(), hash);
+        }
+    };
+
+    private static final String BCRYPT_PREFIX = "$2a$";
+    private static final String SHA1_PREFIX = "{SHA}";
+    private static final String MD5_PREFIX = "{MD5}";
+    private static final String SSHA256_PREFIX = "{SSHA256}";
+    private static final String PBKDF2_PREFIX = "{PBKDF2}";
+    private static final int PBKDF2_DEFAULT_COST = 10000;
+
+    public static Hasher resolve(String name, Hasher defaultHasher) {
+        if (name == null) {
+            return defaultHasher;
+        }
+        switch (name.toLowerCase(Locale.ROOT)) {
+            case "bcrypt":
+                return BCRYPT;
+            case "bcrypt4":
+                return BCRYPT4;
+            case "bcrypt5":
+                return BCRYPT5;
+            case "bcrypt6":
+                return BCRYPT6;
+            case "bcrypt7":
+                return BCRYPT7;
+            case "bcrypt8":
+                return BCRYPT8;
+            case "bcrypt9":
+                return BCRYPT9;
+            case "bcrypt10":
+                return BCRYPT10;
+            case "bcrypt11":
+                return BCRYPT11;
+            case "bcrypt12":
+                return BCRYPT12;
+            case "bcrypt13":
+                return BCRYPT13;
+            case "bcrypt14":
+                return BCRYPT14;
+            case "pbkdf2":
+                return PBKDF2;
+            case "pbkdf2_1000":
+                return PBKDF2_1000;
+            case "pbkdf2_10000":
+                return PBKDF2_10000;
+            case "pbkdf2_50000":
+                return PBKDF2_50000;
+            case "pbkdf2_100000":
+                return PBKDF2_100000;
+            case "pbkdf2_500000":
+                return PBKDF2_500000;
+            case "pbkdf2_1000000":
+                return PBKDF2_1000000;
+            case "sha1":
+                return SHA1;
+            case "md5":
+                return MD5;
+            case "ssha256":
+                return SSHA256;
+            case "noop":
+            case "clear_text":
+                return NOOP;
+            default:
+                return defaultHasher;
+        }
+    }
+
+    public static Hasher resolveFromHash(char[] hash) {
+        String hashString = new String(hash);
+        if (hashString.startsWith(BCRYPT_PREFIX)) {
+            return Hasher.BCRYPT;
+        } else if (hashString.startsWith(PBKDF2_PREFIX)) {
+            return Hasher.PBKDF2;
+        } else if (hashString.startsWith(SHA1_PREFIX)) {
+            return Hasher.SHA1;
+        } else if (hashString.startsWith(MD5_PREFIX)) {
+            return Hasher.MD5;
+        } else if (hashString.startsWith(SSHA256_PREFIX)) {
+            return Hasher.SSHA256;
+        } else {
+            return Hasher.BCRYPT;
+        }
+    }
+
+    public static boolean verifyHash(SecureString data, char[] hash) {
+        final Hasher hasher = resolveFromHash(hash);
+        return hasher.verify(data, hash);
+    }
+
+    private static char[] getPbkdf2Hash(SecureString data, int cost) {
+        try {
+            // Base64 string length : ((4*n/3)+3) rounded up to the next multiple of 4 because of padding = 44
+            CharBuffer result = CharBuffer.allocate(PBKDF2_PREFIX.length() + String.valueOf(cost).length() + 2 + 32 + 44);
+            result.put(PBKDF2_PREFIX);
+            result.put(String.valueOf(cost));
+            result.put("$");
+            char[] salt = SaltProvider.salt(32);  // 32 characters for 64 bytes
+            result.put(salt);
+            result.put("$");
+            SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), CharArrays.toUtf8Bytes(salt), cost, 256);
+            result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
+            return result.array();
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Can't use PKDF2 for password hashing", e);
+        }
+    }
+
+    private static boolean verifyPbkdf2Hash(SecureString data, char[] hash) {
+        try {
             String hashStr = new String(hash);
-            if (!hashStr.startsWith(SHA1_PREFIX)) {
+            if (!hashStr.startsWith(PBKDF2_PREFIX)) {
                 return false;
             }
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
-            MessageDigest md = MessageDigests.sha1();
-            md.update(textBytes);
-            String passwd64 = Base64.getEncoder().encodeToString(md.digest());
-            String hashNoPrefix = hashStr.substring(SHA1_PREFIX.length());
-            return CharArrays.constantTimeEquals(hashNoPrefix, passwd64);
-        }
-
-        @Override
-        public String getAlgorithm() {
-            return "sha1";
-        }
-
-        @Override
-        public int getCost() {
-            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
-        }
-    }
-
-    class MD5Hasher implements Hasher {
-        private static final String MD5_PREFIX = "{MD5}";
-
-        @Override
-        public char[] hash(SecureString text) {
-            MessageDigest md = MessageDigests.md5();
-            md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            String hash = Base64.getEncoder().encodeToString(md.digest());
-            return (MD5_PREFIX + hash).toCharArray();
-        }
-
-        @Override
-        public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(MD5_PREFIX)) {
+            hashStr = hashStr.replace(PBKDF2_PREFIX, "");
+            String[] tokens = hashStr.split("\\$");
+            if (tokens.length != 3) {
                 return false;
             }
-            hashStr = hashStr.substring(MD5_PREFIX.length());
-            MessageDigest md = MessageDigests.md5();
-            md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            String computedHashStr = Base64.getEncoder().encodeToString(md.digest());
-            return CharArrays.constantTimeEquals(hashStr, computedHashStr);
-        }
-
-        @Override
-        public String getAlgorithm() {
-            return "md5";
-    }
-
-        @Override
-        public int getCost() {
-            throw new UnsupportedOperationException("Algorithm is not associated with a cost factor");
+            int cost = Integer.parseInt(tokens[0]);
+            String salt = tokens[1];
+            SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), salt.getBytes(StandardCharsets.UTF_8), cost, 256);
+            String pwdHash = Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded());
+            return CharArrays.constantTimeEquals(pwdHash, tokens[2]);
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Can't use PKDF2 for password hashing", e);
         }
     }
 
-    final class SaltProvider {
+    public static Hasher resolve(String name) {
+        Hasher hasher = resolve(name, null);
+        if (hasher == null) {
+            throw new IllegalArgumentException("unknown hash function [" + name + "]");
+        }
+        return hasher;
+    }
+
+    public static List<String> getAvailableAlgoStoredHash() {
+        return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
+            .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt")))
+            .collect(Collectors.toList());
+    }
+
+    public abstract char[] hash(SecureString data);
+
+    public abstract boolean verify(SecureString data, char[] hash);
+
+
+    static final class SaltProvider {
 
         private SaltProvider() {
             throw new IllegalStateException("Utility class should not be instantiated");

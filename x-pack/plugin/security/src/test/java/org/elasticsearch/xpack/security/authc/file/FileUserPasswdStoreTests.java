@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
@@ -56,7 +55,8 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         settings = Settings.builder()
                 .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
-            .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "pbkdf2"))
+            .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000",
+                "pbkdf2_50000"))
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
@@ -88,8 +88,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.createDirectories(xpackConf);
         Path file = xpackConf.resolve("users");
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
-        final Hasher hasher = HasherFactory.getHasher(settings.get("xpack.security.authc.password_hashing.algorithm"));
-
+        final Hasher hasher = Hasher.resolve(settings.get("xpack.security.authc.password_hashing.algorithm"));
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
         RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);

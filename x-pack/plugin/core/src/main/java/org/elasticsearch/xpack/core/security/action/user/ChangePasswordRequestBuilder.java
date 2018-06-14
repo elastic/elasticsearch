@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -43,7 +42,7 @@ public class ChangePasswordRequestBuilder
     }
 
     public static char[] validateAndHashPassword(SecureString password, String hashingAlgorithm) {
-        final Hasher hasher = HasherFactory.getHasher(hashingAlgorithm);
+        final Hasher hasher = Hasher.resolve(hashingAlgorithm, Hasher.BCRYPT);
         Validation.Error error = Validation.Users.validatePassword(password.getChars());
         if (error != null) {
             ValidationException validationException = new ValidationException();

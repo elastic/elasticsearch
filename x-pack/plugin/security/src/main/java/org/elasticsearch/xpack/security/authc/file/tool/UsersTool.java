@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
@@ -125,8 +124,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users.containsKey(username)) {
                 throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
-            final Hasher hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()),
-                XPackSettings.PASSWORD_HASHING_COST.get(env.settings()));
+            final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()), Hasher.BCRYPT);
             users = new HashMap<>(users); // make modifiable
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, passwordFile);
@@ -230,8 +228,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
-            final Hasher hasher = HasherFactory.getHasher(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()),
-                XPackSettings.PASSWORD_HASHING_COST.get(env.settings()));
+            final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()), Hasher.BCRYPT);
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, file);
 
@@ -298,7 +295,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
 
             Map<String, String[]> userRolesToWrite = new HashMap<>(userRoles.size());
             userRolesToWrite.putAll(userRoles);
-            if (roles.size() == 0) {
+            if (roles.isEmpty()) {
                 userRolesToWrite.remove(username);
             } else {
                 userRolesToWrite.put(username, new LinkedHashSet<>(roles).toArray(new String[]{}));
@@ -371,7 +368,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                     Path rolesFile = FileRolesStore.resolveFile(env).toAbsolutePath();
                     terminal.println("");
                     terminal.println(" [*]   Role is not in the [" + rolesFile.toAbsolutePath() + "] file. If the role has been created "
-                            + "using the API, please disregard this message.");
+                        + "using the API, please disregard this message.");
                 }
             } else {
                 terminal.println(String.format(Locale.ROOT, "%-15s: -", username));
@@ -405,7 +402,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 Path rolesFile = FileRolesStore.resolveFile(env).toAbsolutePath();
                 terminal.println("");
                 terminal.println(" [*]   Role is not in the [" + rolesFile.toAbsolutePath() + "] file. If the role has been created "
-                        + "using the API, please disregard this message.");
+                    + "using the API, please disregard this message.");
             }
         }
     }

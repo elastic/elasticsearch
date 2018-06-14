@@ -16,9 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -33,10 +31,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndexAliasesTests extends SecurityIntegTestCase {
 
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
+        ("test123".toCharArray())));
     @Override
     protected String configUsers() {
-        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
-        final String USERS_PASSWD_HASHED = new String(hasher.hash(new SecureString("test123".toCharArray())));
         return super.configUsers() +
                 "create_only:" + USERS_PASSWD_HASHED + "\n" +
                 "create_test_aliases_test:" + USERS_PASSWD_HASHED + "\n" +

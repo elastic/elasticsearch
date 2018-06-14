@@ -22,7 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -167,10 +166,10 @@ public class TransportPutUserActionTests extends ESTestCase {
 
         final boolean isCreate = randomBoolean();
         final PutUserRequest request = new PutUserRequest();
-        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
         request.username(user.principal());
         if (isCreate) {
-            request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+            request.passwordHash(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).
+                hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }
         final boolean created = isCreate ? randomBoolean() : false; // updates should always return false for create
         doAnswer(new Answer() {

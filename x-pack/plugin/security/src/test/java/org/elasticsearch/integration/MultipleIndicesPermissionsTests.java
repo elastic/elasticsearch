@@ -16,7 +16,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 
 import java.util.Collections;
 
@@ -30,7 +29,9 @@ import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
-    protected static final SecureString PASSWD = new SecureString("passwd".toCharArray());
+    protected static final SecureString USERS_PASSWD = new SecureString("passwd".toCharArray());
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(USERS_PASSWD));
+
 
     @Override
     protected String configRoles() {
@@ -59,11 +60,9 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
-        final String usersPasswdHashed = new String(hasher.hash(PASSWD));
         return SecuritySettingsSource.CONFIG_STANDARD_USER +
-                "user_a:" + usersPasswdHashed + "\n" +
-                "user_ab:" + usersPasswdHashed + "\n";
+            "user_a:" + USERS_PASSWD_HASHED + "\n" +
+            "user_ab:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override
@@ -148,7 +147,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         Client client = internalCluster().transportClient();
 
         SearchResponse response = client
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", PASSWD)))
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
                 .prepareSearch("a")
                 .get();
         assertNoFailures(response);
@@ -159,7 +158,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 new String[] { "*" } :
                 new String[] {};
         response = client
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", PASSWD)))
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
                 .prepareSearch(indices)
                 .get();
         assertNoFailures(response);
@@ -168,7 +167,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         try {
             indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
             client
-                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", PASSWD)))
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
                     .prepareSearch(indices)
                     .get();
             fail("expected an authorization excpetion when trying to search on multiple indices where there are no search permissions on " +
@@ -178,14 +177,14 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
 
-        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", PASSWD)))
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
                 .prepareSearch("b")
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
         indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
-        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", PASSWD)))
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
                 .prepareSearch(indices)
                 .get();
         assertNoFailures(response);
@@ -195,7 +194,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 new String[] { "_all"} : randomBoolean() ?
                 new String[] { "*" } :
                 new String[] {};
-        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", PASSWD)))
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
                 .prepareSearch(indices)
                 .get();
         assertNoFailures(response);

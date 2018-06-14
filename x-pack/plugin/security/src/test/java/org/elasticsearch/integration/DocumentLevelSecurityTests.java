@@ -50,9 +50,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
@@ -83,6 +81,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(USERS_PASSWD));
+
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -96,12 +96,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
-        final String usersPasswdHashed = new String(hasher.hash(USERS_PASSWD));
         return super.configUsers() +
-                "user1:" + usersPasswdHashed + "\n" +
-                "user2:" + usersPasswdHashed + "\n" +
-                "user3:" + usersPasswdHashed + "\n" ;
+            "user1:" + USERS_PASSWD_HASHED + "\n" +
+            "user2:" + USERS_PASSWD_HASHED + "\n" +
+            "user3:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override

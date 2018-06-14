@@ -14,11 +14,9 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.HasherFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,16 +34,15 @@ import static org.hamcrest.Matchers.is;
 
 public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
-
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).
+        hash(new SecureString("change_me".toCharArray())));
     private List<String> scrollIds;
 
     @Override
     protected String configUsers() {
-        final Hasher hasher = HasherFactory.getHasher(SecuritySettingsSource.HASHING_ALGORITHM);
-        final String usersPasswdHashed = new String(hasher.hash(new SecureString("change_me".toCharArray())));
         return super.configUsers() +
-            "allowed_user:" + usersPasswdHashed + "\n" +
-            "denied_user:" + usersPasswdHashed + "\n" ;
+            "allowed_user:" + USERS_PASSWD_HASHED + "\n" +
+            "denied_user:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override

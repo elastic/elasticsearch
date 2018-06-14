@@ -28,7 +28,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -213,11 +212,11 @@ public class ShardChangesIT extends ESIntegTestCase {
             Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("index1");
-    
+
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowIndex("index2");
-    
+
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
         createAndFollowRequest.setFollowRequest(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();

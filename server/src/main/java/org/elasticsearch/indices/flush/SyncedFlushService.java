@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

@@ -76,7 +76,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
@@ -122,7 +121,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;

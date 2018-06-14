@@ -1405,7 +1405,7 @@ public class InternalEngineTests extends EngineTestCase {
         final boolean omitSourceAllTheTime = randomBoolean();
         final Set<String> liveDocs = new HashSet<>();
         try (Store store = createStore();
-             Engine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null,
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null,
                  globalCheckpoint::get))) {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {

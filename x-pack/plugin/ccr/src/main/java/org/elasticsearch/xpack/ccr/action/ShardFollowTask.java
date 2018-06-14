@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;

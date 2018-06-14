@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.index.engine;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngine;
 
 /**
  * An engine factory for following engines.

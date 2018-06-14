@@ -27,7 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;

@@ -67,7 +67,7 @@ public class FunctionRef {
     public final Type delegateType;
 
     /** whether a call is made on a delegate interface */
-    public final int isDelegateInterface;
+    public final boolean isDelegateInterface;
 
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
@@ -100,13 +100,13 @@ public class FunctionRef {
         // the Painless$Script class can be inferred if owner is null
         if (delegateMethod.owner == null) {
             delegateClassName = CLASS_NAME;
-            isDelegateInterface = 0;
+            isDelegateInterface = false;
         } else if (delegateMethod.augmentation != null) {
             delegateClassName = delegateMethod.augmentation.getName();
-            isDelegateInterface = delegateMethod.augmentation.isInterface() ? 1 : 0;
+            isDelegateInterface = delegateMethod.augmentation.isInterface();
         } else {
             delegateClassName = delegateMethod.owner.clazz.getName();
-            isDelegateInterface = delegateMethod.owner.clazz.isInterface() ? 1 : 0;
+            isDelegateInterface = delegateMethod.owner.clazz.isInterface();
         }
 
         if ("<init>".equals(delegateMethod.name)) {
@@ -145,7 +145,7 @@ public class FunctionRef {
         delegateInvokeType = H_INVOKESTATIC;
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
-        isDelegateInterface = 0;
+        isDelegateInterface = false;
 
         this.interfaceMethod = null;
         delegateMethod = null;

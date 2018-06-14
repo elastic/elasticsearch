@@ -188,7 +188,10 @@ public final class LambdaBootstrap {
      * @param delegateMethodName The name of the method to be called in the Painless script class
      * @param delegateMethodType The type of method call in the Painless script class without
      *                           the captured types
-     * @param isDelegateInterface If the method to be called is owned by an interface
+     * @param isDelegateInterface If the method to be called is owned by an interface where
+     *                            if the value is '1' if the delegate is an interface and '0'
+     *                            otherwise; note this is an int because the bootstrap method
+     *                            cannot convert constants to boolean
      * @return A {@link CallSite} linked to a factory method for creating a lambda class
      * that implements the expected functional interface
      * @throws LambdaConversionException Thrown when an illegal type conversion occurs at link time

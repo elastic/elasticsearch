@@ -113,7 +113,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                 ref.delegateInvokeType,
                 ref.delegateMethodName,
                 ref.delegateType,
-                ref.isDelegateInterface
+                ref.isDelegateInterface ? 1 : 0
             );
         } else {
             // TODO: don't do this: its just to cutover :)

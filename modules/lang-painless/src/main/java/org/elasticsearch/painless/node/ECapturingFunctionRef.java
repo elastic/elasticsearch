@@ -122,7 +122,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 ref.delegateInvokeType,
                 ref.delegateMethodName,
                 ref.delegateType,
-                ref.isDelegateInterface
+                ref.isDelegateInterface ? 1 : 0
             );
         }
     }

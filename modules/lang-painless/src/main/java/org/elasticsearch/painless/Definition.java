@@ -214,9 +214,10 @@ public final class Definition {
             }
 
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
-                // special case for interfaces where the interface function needs to be set to true
-                // to reference the appropriate class file when calling a static interface method
-                // java 8 did not check, but java 9 and 10 do
+                // invokeStatic assumes that the owner class is not an interface, so this is a
+                // special case for interfaces where the interface method boolean needs to be set to
+                // true to reference the appropriate class constant when calling a static interface
+                // method since java 8 did not check, but java 9 and 10 do
                 if (java.lang.reflect.Modifier.isInterface(clazz.getModifiers())) {
                     writer.visitMethodInsn(Opcodes.INVOKESTATIC,
                             type.getInternalName(), name, getMethodType().toMethodDescriptorString(), true);

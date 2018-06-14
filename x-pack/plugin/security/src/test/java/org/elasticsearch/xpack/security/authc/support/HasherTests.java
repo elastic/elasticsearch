@@ -90,7 +90,6 @@ public class HasherTests extends ESTestCase {
     private static void testHasherSelfGenerated(Hasher hasher) throws Exception {
         SecureString passwd = new SecureString(randomAlphaOfLength(10).toCharArray());
         char[] hash = hasher.hash(passwd);
-        System.out.println(new String(hash));
         assertTrue(hasher.verify(passwd, hash));
     }
 }

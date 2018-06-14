@@ -99,7 +99,7 @@ public class NettyAdaptor implements AutoCloseable {
     }
 
     public int read(InboundChannelBuffer.Page[] pages) {
-        ByteBuf byteBuf = PageByteBuf.byteBufFromPages(pages);
+        ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages);
         int readableBytes = byteBuf.readableBytes();
         nettyChannel.writeInbound(byteBuf);
         return readableBytes;

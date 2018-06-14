@@ -30,16 +30,16 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PageByteBuf extends UnpooledHeapByteBuf {
+public class PagedByteBuf extends UnpooledHeapByteBuf {
 
     private final Runnable releasable;
 
-    private PageByteBuf(byte[] array, Runnable releasable) {
+    private PagedByteBuf(byte[] array, Runnable releasable) {
         super(UnpooledByteBufAllocator.DEFAULT, array, array.length);
         this.releasable = releasable;
     }
 
-    public static ByteBuf byteBufFromPages(InboundChannelBuffer.Page[] pages) {
+    static ByteBuf byteBufFromPages(InboundChannelBuffer.Page[] pages) {
         int componentCount = pages.length;
         if (componentCount == 0) {
             return Unpooled.EMPTY_BUFFER;
@@ -59,7 +59,7 @@ public class PageByteBuf extends UnpooledHeapByteBuf {
         ByteBuffer buffer = page.getByteBuffer();
         assert !buffer.isDirect() && buffer.hasArray() : "Must be a heap buffer with an array";
         int offset = buffer.arrayOffset() + buffer.position();
-        PageByteBuf newByteBuf = new PageByteBuf(buffer.array(), page::close);
+        PagedByteBuf newByteBuf = new PagedByteBuf(buffer.array(), page::close);
         return newByteBuf.slice(offset, buffer.remaining());
     }
 

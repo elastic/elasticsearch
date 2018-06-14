@@ -27,7 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PageByteBufTests extends ESTestCase {
+public class PagedByteBufTests extends ESTestCase {
 
     public void testReleasingPage() {
         AtomicInteger integer = new AtomicInteger(0);
@@ -37,7 +37,7 @@ public class PageByteBufTests extends ESTestCase {
             pages.add(new InboundChannelBuffer.Page(ByteBuffer.allocate(10), integer::incrementAndGet));
         }
 
-        ByteBuf byteBuf = PageByteBuf.byteBufFromPages(pages.toArray(new InboundChannelBuffer.Page[0]));
+        ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages.toArray(new InboundChannelBuffer.Page[0]));
 
         assertEquals(0, integer.get());
         byteBuf.retain();

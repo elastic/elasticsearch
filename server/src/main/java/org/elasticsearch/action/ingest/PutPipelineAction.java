@@ -20,7 +20,6 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class PutPipelineAction extends Action<PutPipelineRequest, WritePipelineResponse, PutPipelineRequestBuilder> {

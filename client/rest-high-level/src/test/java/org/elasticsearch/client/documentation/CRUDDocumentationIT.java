@@ -72,6 +72,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -755,7 +756,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::bulk-execute-async
-            client.bulkAsync(request, listener); // <1>
+            client.bulkAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::bulk-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1007,8 +1008,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             };
 
-            BulkProcessor bulkProcessor =
-                    BulkProcessor.builder(client::bulkAsync, listener).build(); // <5>
+            BiConsumer<BulkRequest, ActionListener<BulkResponse>> bulkConsumer =
+                    (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener);
+            BulkProcessor bulkProcessor = BulkProcessor.builder(bulkConsumer, listener).build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
@@ -1066,7 +1068,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::bulk-processor-listener
 
             // tag::bulk-processor-options
-            BulkProcessor.Builder builder = BulkProcessor.builder(client::bulkAsync, listener);
+            BiConsumer<BulkRequest, ActionListener<BulkResponse>> bulkConsumer =
+                    (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener);
+            BulkProcessor.Builder builder = BulkProcessor.builder(bulkConsumer, listener);
             builder.setBulkActions(500); // <1>
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>
@@ -1189,7 +1193,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::multi-get-execute-async
-            client.multiGetAsync(request, listener); // <1>
+            client.multiGetAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::multi-get-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

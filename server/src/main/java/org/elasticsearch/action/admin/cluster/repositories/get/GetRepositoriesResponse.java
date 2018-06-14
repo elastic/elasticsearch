@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;

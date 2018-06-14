@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {

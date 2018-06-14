@@ -29,7 +29,6 @@ import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;

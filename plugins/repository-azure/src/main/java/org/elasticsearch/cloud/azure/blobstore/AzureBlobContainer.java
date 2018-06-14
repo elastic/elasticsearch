@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
@@ -88,10 +87,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
-        }
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
+
         try {
             blobStore.writeBlob(buildKey(blobName), inputStream, blobSize);
         } catch (URISyntaxException|StorageException e) {

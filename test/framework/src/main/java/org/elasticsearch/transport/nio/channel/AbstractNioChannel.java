@@ -24,7 +24,6 @@ import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;

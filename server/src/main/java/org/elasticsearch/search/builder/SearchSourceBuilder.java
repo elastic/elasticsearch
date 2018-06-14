@@ -20,7 +20,6 @@
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;

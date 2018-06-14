@@ -40,7 +40,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -840,7 +839,7 @@ public abstract class EngineTestCase extends ESTestCase {
             return;
         }
         final Map<Long, Translog.Operation> translogOps = new HashMap<>();
-        try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+        try (Translog.Snapshot snapshot = EngineTestCase.getTranslog(engine).newSnapshot()) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 translogOps.put(op.seqNo(), op);
@@ -848,7 +847,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
-        final long globalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
+        final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         long maxSeqNo = Math.max(0, ((InternalEngine)engine).getLocalCheckpointTracker().getMaxSeqNo());
         for (Translog.Operation translogOp : translogOps.values()) {
@@ -887,6 +886,8 @@ public abstract class EngineTestCase extends ESTestCase {
      * Exposes a translog associated with the given engine for testing purpose.
      */
     public static Translog getTranslog(Engine engine) {
-        return engine.getTranslog();
+        assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
+        InternalEngine internalEngine = (InternalEngine) engine;
+        return internalEngine.getTranslog();
     }
 }

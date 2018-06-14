@@ -628,7 +628,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             scrollListener = new LatchedActionListener<>(scrollListener, latch);
 
             // tag::search-scroll-execute-async
-            client.searchScrollAsync(scrollRequest, scrollListener); // <1>
+            client.searchScrollAsync(scrollRequest, RequestOptions.DEFAULT, scrollListener); // <1>
             // end::search-scroll-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

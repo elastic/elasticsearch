@@ -33,9 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";

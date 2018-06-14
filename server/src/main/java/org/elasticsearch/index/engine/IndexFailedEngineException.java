@@ -21,10 +21,8 @@ package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Deprecated as not used in 6.0, should be removed in 7.0

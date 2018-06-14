@@ -25,14 +25,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 

@@ -5,7 +5,7 @@
 <titleabbrev>Update Jobs</titleabbrev>
 ++++
 
-This API enables you to update certain properties of a job.
+Updates certain properties of a job.
 
 ==== Request
 

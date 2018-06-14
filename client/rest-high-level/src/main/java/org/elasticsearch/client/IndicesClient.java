@@ -54,13 +54,17 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
@@ -977,6 +981,33 @@ public final class IndicesClient {
     }
 
     /**
+     * Gets one or more aliases using the Get Index Aliases API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
+     * elastic.co</a>
+     * @param getAliasesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetAliasesResponse getAlias(GetAliasesRequest getAliasesRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getAliasesRequest, RequestConverters::getAlias, options,
+                GetAliasesResponse::fromXContent, singleton(RestStatus.NOT_FOUND.getStatus()));
+    }
+
+    /**
+     * Asynchronously gets one or more aliases using the Get Index Aliases API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
+     * elastic.co</a>
+     * @param getAliasesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<GetAliasesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getAliasesRequest, RequestConverters::getAlias, options,
+                GetAliasesResponse::fromXContent, listener, singleton(RestStatus.NOT_FOUND.getStatus()));
+    }
+
+    /**
      * Updates specific index level settings using the Update Indices Settings API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
      * API on elastic.co</a>
@@ -1058,5 +1089,34 @@ public final class IndicesClient {
                                  ActionListener<PutIndexTemplateResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate, options,
             PutIndexTemplateResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets index templates using the Index Templates API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     * @param getIndexTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetIndexTemplatesResponse getTemplate(GetIndexTemplatesRequest getIndexTemplatesRequest,
+                                                 RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest, RequestConverters::getTemplates,
+            options, GetIndexTemplatesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets index templates using the Index Templates API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     * @param getIndexTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getTemplateAsync(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options,
+                                 ActionListener<GetIndexTemplatesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest, RequestConverters::getTemplates,
+            options, GetIndexTemplatesResponse::fromXContent, listener, emptySet());
     }
 }

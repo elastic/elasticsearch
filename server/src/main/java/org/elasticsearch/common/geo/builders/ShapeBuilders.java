@@ -22,7 +22,6 @@ package org.elasticsearch.common.geo.builders;
 import java.util.List;
 
 import org.locationtech.jts.geom.Coordinate;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 
 /**
  * A collection of static methods for creating ShapeBuilders.

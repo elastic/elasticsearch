@@ -64,7 +64,6 @@ import java.util.Arrays;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.inject.matcher.Matchers.any;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasAllKeys;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.hamcrest.Matchers.containsString;
@@ -72,9 +71,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.isA;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;

@@ -15,6 +15,7 @@ integTestRunner {
     ['cat.aliases/10_basic/Empty cluster',
      'index/10_with_id/Index with ID',
      'indices.get_alias/10_basic/Get alias against closed indices',
+     'indices.get_alias/20_empty/Check empty aliases when getting all aliases via /_alias',
      'cat.templates/10_basic/No templates',
      'cat.templates/10_basic/Sort templates',
      'cat.templates/10_basic/Multiple template',

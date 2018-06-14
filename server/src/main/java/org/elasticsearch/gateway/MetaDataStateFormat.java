@@ -29,6 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -76,6 +77,7 @@ public abstract class MetaDataStateFormat<T> {
     private final String prefix;
     private final Pattern stateFilePattern;
 
+    private static final Logger logger = Loggers.getLogger(MetaDataStateFormat.class);
 
     /**
      * Creates a new {@link MetaDataStateFormat} instance
@@ -134,6 +136,7 @@ public abstract class MetaDataStateFormat<T> {
             IOUtils.fsync(tmpStatePath, false); // fsync the state file
             Files.move(tmpStatePath, finalStatePath, StandardCopyOption.ATOMIC_MOVE);
             IOUtils.fsync(stateLocation, true);
+            logger.trace("written state to {}", finalStatePath);
             for (int i = 1; i < locations.length; i++) {
                 stateLocation = locations[i].resolve(STATE_DIR_NAME);
                 Files.createDirectories(stateLocation);
@@ -145,6 +148,7 @@ public abstract class MetaDataStateFormat<T> {
                     // we are on the same FileSystem / Partition here we can do an atomic move
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
                     IOUtils.fsync(stateLocation, true);
+                    logger.trace("copied state to {}", finalPath);
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }

@@ -29,21 +29,20 @@ GET _xpack/security/_authenticate
 --------------------------------------------------
 // CONSOLE
 
-The following example output provides information about the "elastic" user:
+The following example output provides information about the "rdeniro" user:
 
 [source,js]
 --------------------------------------------------
 {
-  "username": "elastic",
-  "roles": [
-    "superuser"
+  "username": "rdeniro",
+  "roles": [ 
+    "admin"
   ],
   "full_name": null,
-  "email": null,
-  "metadata": {
-    "_reserved": true
-  },
+  "email":  null,
+  "metadata": { },
   "enabled": true
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"rdeniro"/"$body.username"/]
+// TESTRESPONSE[s/"admin"/"superuser"/]

@@ -63,7 +63,9 @@ public class NoopEngineTests extends EngineTestCase {
 
     public void testTwoNoopEngines() throws IOException {
         engine.close();
-        // It's so noop you can even open two engines for the same store without tripping anything
+        // It's so noop you can even open two engines for the same store without tripping anything,
+        // this ensures we're not doing any kind of locking on the store or filesystem level in
+        // the noop engine
         final NoopEngine engine1 = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         final NoopEngine engine2 = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         engine1.close();

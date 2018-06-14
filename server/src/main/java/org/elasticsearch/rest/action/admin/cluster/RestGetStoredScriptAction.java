@@ -40,7 +40,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
-    public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
 
     public RestGetStoredScriptAction(Settings settings, RestController controller) {
         super(settings);
@@ -66,19 +65,8 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
                 StoredScriptSource source = response.getSource();
                 boolean found = source != null;
-                builder.field(FOUND_PARSE_FIELD.getPreferredName(), found);
 
-                if (found) {
-                    builder.startObject(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
-                    builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), source.getLang());
-                    builder.field(StoredScriptSource.SOURCE_PARSE_FIELD.getPreferredName(), source.getSource());
-
-                    if (source.getOptions().isEmpty() == false) {
-                        builder.field(StoredScriptSource.OPTIONS_PARSE_FIELD.getPreferredName(), source.getOptions());
-                    }
-
-                    builder.endObject();
-                }
+                response.toXContent(builder, channel.request());
 
                 builder.endObject();
 

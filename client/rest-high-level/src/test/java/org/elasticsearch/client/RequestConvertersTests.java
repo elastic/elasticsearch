@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -1909,6 +1910,16 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomLocal(getTemplatesRequest, expectedParams);
         Request request = RequestConverters.getTemplates(getTemplatesRequest);
         assertThat(request.getEndpoint(), equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testGetStoredScriptRequest() {
+        GetStoredScriptRequest storedScriptRequest = new GetStoredScriptRequest("x-script");
+        Map<String, String> expectedParams = new HashMap<>();
+
+        Request request = RequestConverters.getStoredScript(storedScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + storedScriptRequest.id()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
     }

@@ -5,14 +5,6 @@ import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
 Project xpackRootProject = project
 
-apply plugin: 'nebula.info-scm'
-final String licenseCommit
-if (version.endsWith('-SNAPSHOT')) {
-  licenseCommit = xpackRootProject.scminfo.change ?: "master" // leniency for non git builds
-} else {
-  licenseCommit = "v${version}"
-}
-
 subprojects {
   group = 'org.elasticsearch.plugin'
   ext.xpackRootProject = xpackRootProject

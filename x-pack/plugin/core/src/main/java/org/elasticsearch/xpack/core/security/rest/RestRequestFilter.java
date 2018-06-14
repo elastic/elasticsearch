@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.rest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -14,12 +13,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
-import java.net.SocketAddress;
 import java.util.Map;
 import java.util.Set;
 

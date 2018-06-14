@@ -30,7 +30,6 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.cors.CorsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.http.nio.NioHttpResponse;
 

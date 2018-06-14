@@ -315,7 +315,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private ConnectionProfile getRemoteProfile(ClusterName name) {
         // we can only compare the cluster name to make a decision if we should use a remote profile
         // we can't use a cluster UUID here since we could be connecting to that remote cluster before
-        // the remote node has joined it cluster and have a cluster UUID. The fact that we just loose a
+        // the remote node has joined its cluster  and have a cluster UUID. The fact that we just lose a
         // rather smallish optimization on the connection layer under certain situations were remote clusters
         // have the same name as the local one is minor here.
         // the alternative here is to complicate the remote infrastructure to also wait until we formed a cluster,

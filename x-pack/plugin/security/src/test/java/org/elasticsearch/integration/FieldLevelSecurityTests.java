@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(USERS_PASSWD));
+
 
 
     @Override
@@ -83,15 +83,16 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
+        final String usersPasswHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(USERS_PASSWD));
         return super.configUsers() +
-            "user1:" + USERS_PASSWD_HASHED + "\n" +
-            "user2:" + USERS_PASSWD_HASHED + "\n" +
-            "user3:" + USERS_PASSWD_HASHED + "\n" +
-            "user4:" + USERS_PASSWD_HASHED + "\n" +
-            "user5:" + USERS_PASSWD_HASHED + "\n" +
-            "user6:" + USERS_PASSWD_HASHED + "\n" +
-            "user7:" + USERS_PASSWD_HASHED + "\n" +
-            "user8:" + USERS_PASSWD_HASHED + "\n";
+            "user1:" + usersPasswHashed + "\n" +
+            "user2:" + usersPasswHashed + "\n" +
+            "user3:" + usersPasswHashed + "\n" +
+            "user4:" + usersPasswHashed + "\n" +
+            "user5:" + usersPasswHashed + "\n" +
+            "user6:" + usersPasswHashed + "\n" +
+            "user7:" + usersPasswHashed + "\n" +
+            "user8:" + usersPasswHashed + "\n";
     }
 
     @Override

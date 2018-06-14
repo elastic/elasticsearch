@@ -44,8 +44,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
     private static String[] usernames;
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
-        ("passwd".toCharArray())));
+
 
 
     @BeforeClass
@@ -188,8 +187,10 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         StringBuilder builder = new StringBuilder(SecuritySettingsSource.CONFIG_STANDARD_USER);
+        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
+            ("passwd".toCharArray())));
         for (String username : usernames) {
-            builder.append(username).append(":").append(USERS_PASSWD_HASHED).append("\n");
+            builder.append(username).append(":").append(usersPasswdHashed).append("\n");
         }
         return builder.toString();
     }

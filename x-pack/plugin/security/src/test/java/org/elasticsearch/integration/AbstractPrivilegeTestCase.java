@@ -32,8 +32,6 @@ import static org.hamcrest.Matchers.not;
  * a helper class that contains a couple of HTTP helper methods
  */
 public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCase {
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt",
-        "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body,
                                          Map<String, String> params) throws IOException {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.Security;
 
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -53,7 +54,7 @@ public class HasherTests extends ESTestCase {
         testHasherSelfGenerated(Hasher.NOOP);
     }
 
-    public void testHasherFactory() throws Exception {
+    public void testResolve() throws Exception {
         assertThat(Hasher.resolve("bcrypt"), sameInstance(Hasher.BCRYPT));
         assertThat(Hasher.resolve("bcrypt4"), sameInstance(Hasher.BCRYPT4));
         assertThat(Hasher.resolve("bcrypt5"), sameInstance(Hasher.BCRYPT5));
@@ -66,20 +67,20 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolve("bcrypt12"), sameInstance(Hasher.BCRYPT12));
         assertThat(Hasher.resolve("bcrypt13"), sameInstance(Hasher.BCRYPT13));
         assertThat(Hasher.resolve("bcrypt14"), sameInstance(Hasher.BCRYPT14));
-        assertThat(Hasher.resolve("pbkf2"), sameInstance(Hasher.PBKDF2));
-        assertThat(Hasher.resolve("pbkf2_1000"), sameInstance(Hasher.PBKDF2_1000));
-        assertThat(Hasher.resolve("pbkf2_10000"), sameInstance(Hasher.PBKDF2_10000));
-        assertThat(Hasher.resolve("pbkf2_50000"), sameInstance(Hasher.PBKDF2_50000));
-        assertThat(Hasher.resolve("pbkf2_100000"), sameInstance(Hasher.PBKDF2_100000));
-        assertThat(Hasher.resolve("pbkf2_500000"), sameInstance(Hasher.PBKDF2_500000));
-        assertThat(Hasher.resolve("pbkf2_1000000"), sameInstance(Hasher.PBKDF2_1000000));
+        assertThat(Hasher.resolve("pbkdf2"), sameInstance(Hasher.PBKDF2));
+        assertThat(Hasher.resolve("pbkdf2_1000"), sameInstance(Hasher.PBKDF2_1000));
+        assertThat(Hasher.resolve("pbkdf2_10000"), sameInstance(Hasher.PBKDF2_10000));
+        assertThat(Hasher.resolve("pbkdf2_50000"), sameInstance(Hasher.PBKDF2_50000));
+        assertThat(Hasher.resolve("pbkdf2_100000"), sameInstance(Hasher.PBKDF2_100000));
+        assertThat(Hasher.resolve("pbkdf2_500000"), sameInstance(Hasher.PBKDF2_500000));
+        assertThat(Hasher.resolve("pbkdf2_1000000"), sameInstance(Hasher.PBKDF2_1000000));
         assertThat(Hasher.resolve("sha1"), sameInstance(Hasher.SHA1));
         assertThat(Hasher.resolve("md5"), sameInstance(Hasher.MD5));
         assertThat(Hasher.resolve("ssha256"), sameInstance(Hasher.SSHA256));
         assertThat(Hasher.resolve("noop"), sameInstance(Hasher.NOOP));
         assertThat(Hasher.resolve("clear_text"), sameInstance(Hasher.NOOP));
         try {
-            Hasher.resolve("unknown_hasher", Hasher.BCRYPT);
+            Hasher.resolve("unknown_hasher");
             fail("expected a settings error when trying to resolve an unknown hasher");
         } catch (IllegalArgumentException e) {
             // expected
@@ -89,6 +90,7 @@ public class HasherTests extends ESTestCase {
     private static void testHasherSelfGenerated(Hasher hasher) throws Exception {
         SecureString passwd = new SecureString(randomAlphaOfLength(10).toCharArray());
         char[] hash = hasher.hash(passwd);
+        System.out.println(new String(hash));
         assertTrue(hasher.verify(passwd, hash));
     }
 }

@@ -30,8 +30,6 @@ import static org.hamcrest.Matchers.is;
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("passwd".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(USERS_PASSWD));
-
 
     @Override
     protected String configRoles() {
@@ -60,9 +58,10 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
+        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(USERS_PASSWD));
         return SecuritySettingsSource.CONFIG_STANDARD_USER +
-            "user_a:" + USERS_PASSWD_HASHED + "\n" +
-            "user_ab:" + USERS_PASSWD_HASHED + "\n";
+            "user_a:" + usersPasswdHashed + "\n" +
+            "user_ab:" + usersPasswdHashed + "\n";
     }
 
     @Override

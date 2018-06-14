@@ -5,5 +5,9 @@ plain:{plain}test123
 sha:{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w=
 # this is a comment line
 # another comment line
-bcrypt10:$2y$10$FMhmFjwU5.qxQ/BsEciS9OqcJVkFMgXMo4uH5CelOR1j4N9zIv67e
-pbkdf2:{PBKDF2}10000$3UFeVCkSNj.WeiBLqvs2W6Jrb169o9c0$aMEN8zob/LiIYEmdnlffzcaUSxr0QAUAQhxHJiFki10=
+pbkdf2:{PBKDF2}10000$mt6v5zV3MjdNXnxZC2oCRa7NEGxNWuMk$6hdneZD6U+9S7CSIw7bET/bqekPij8iPJ0VbckW1bmg=
+pbkdf2_1000:{PBKDF2}1000$oHlBSjW2NHGtK/RvKoXHFMs0IA8bnWm2$ipz0ZvKjnu/tlui9vFzD6ftuQWaonlIAGqmW1MDd0/k=
+pbkdf2_50000:{PBKDF2}50000$aiCg0jaOsm1avJY/XWOEzqWUja4dE7l5$qVjn2BCt31GF8ZgQ5PbzdKLquT2MFyifHM3CROiyDYg=
+bcrypt9:$2a$09$YhstxoAjO7M5MtAIFv7dVO70/pElJAYrzyumeCpLpZV2Gcz4J2/F.
+bcrypt10:$2a$10$cFxpMx6YDrH/PXwLpTlux.KVykN1TG2Pgdl5oJX5/G/KYp3G6jbFG
+bcrypt11:$2a$11$uxr7b0qgCrLV9VIz9XS7M.Eoc0gJRR60oV48UK5DKfLOp.9HjfYF2

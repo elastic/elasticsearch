@@ -104,22 +104,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "delete_b_role:u11\n" +
             "index_a_role:u13\n";
 
-    private static final String USERS =
-        "admin:" + USERS_PASSWD_HASHED + "\n" +
-            "u1:" + USERS_PASSWD_HASHED + "\n" +
-            "u2:" + USERS_PASSWD_HASHED + "\n" +
-            "u3:" + USERS_PASSWD_HASHED + "\n" +
-            "u4:" + USERS_PASSWD_HASHED + "\n" +
-            "u5:" + USERS_PASSWD_HASHED + "\n" +
-            "u6:" + USERS_PASSWD_HASHED + "\n" +
-            "u7:" + USERS_PASSWD_HASHED + "\n" +
-            "u8:" + USERS_PASSWD_HASHED + "\n" +
-            "u9:" + USERS_PASSWD_HASHED + "\n" +
-            "u11:" + USERS_PASSWD_HASHED + "\n" +
-            "u12:" + USERS_PASSWD_HASHED + "\n" +
-            "u13:" + USERS_PASSWD_HASHED + "\n" +
-            "u14:" + USERS_PASSWD_HASHED + "\n";
-
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
@@ -132,7 +116,24 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + USERS;
+        final String usersPasswdHashed = new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt",
+            "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+
+        return super.configUsers() +
+            "admin:" + usersPasswdHashed + "\n" +
+            "u1:" + usersPasswdHashed + "\n" +
+            "u2:" + usersPasswdHashed + "\n" +
+            "u3:" + usersPasswdHashed + "\n" +
+            "u4:" + usersPasswdHashed + "\n" +
+            "u5:" + usersPasswdHashed + "\n" +
+            "u6:" + usersPasswdHashed + "\n" +
+            "u7:" + usersPasswdHashed + "\n" +
+            "u8:" + usersPasswdHashed + "\n" +
+            "u9:" + usersPasswdHashed + "\n" +
+            "u11:" + usersPasswdHashed + "\n" +
+            "u12:" + usersPasswdHashed + "\n" +
+            "u13:" + usersPasswdHashed + "\n" +
+            "u14:" + usersPasswdHashed + "\n";
     }
 
     @Override

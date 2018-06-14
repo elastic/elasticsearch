@@ -31,16 +31,16 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndexAliasesTests extends SecurityIntegTestCase {
 
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
-        ("test123".toCharArray())));
     @Override
     protected String configUsers() {
+        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
+            ("test123".toCharArray())));
         return super.configUsers() +
-                "create_only:" + USERS_PASSWD_HASHED + "\n" +
-                "create_test_aliases_test:" + USERS_PASSWD_HASHED + "\n" +
-                "create_test_aliases_alias:" + USERS_PASSWD_HASHED + "\n" +
-                "create_test_aliases_test_alias:" + USERS_PASSWD_HASHED + "\n" +
-                "aliases_only:" + USERS_PASSWD_HASHED + "\n";
+            "create_only:" + usersPasswdHashed + "\n" +
+            "create_test_aliases_test:" + usersPasswdHashed + "\n" +
+            "create_test_aliases_alias:" + usersPasswdHashed + "\n" +
+            "create_test_aliases_test_alias:" + usersPasswdHashed + "\n" +
+            "aliases_only:" + usersPasswdHashed + "\n";
     }
 
     @Override

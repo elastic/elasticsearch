@@ -33,8 +33,6 @@ import static org.hamcrest.Matchers.hasSize;
  * index template actions.
  */
 public class PermissionPrecedenceTests extends SecurityIntegTestCase {
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).
-        hash(new SecureString("test123".toCharArray())));
 
     @Override
     protected String configRoles() {
@@ -52,9 +50,11 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        return "admin:" + USERS_PASSWD_HASHED + "\n" +
-            "client:" + USERS_PASSWD_HASHED + "\n" +
-            "user:" + USERS_PASSWD_HASHED + "\n";
+        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).
+            hash(new SecureString("test123".toCharArray())));
+        return "admin:" + usersPasswdHashed + "\n" +
+            "client:" + usersPasswdHashed + "\n" +
+            "user:" + usersPasswdHashed + "\n";
     }
 
     @Override

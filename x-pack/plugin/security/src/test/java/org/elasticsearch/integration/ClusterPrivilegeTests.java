@@ -42,11 +42,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                     "role_b:user_b\n" +
                     "role_c:user_c\n";
 
-    private static final String USERS =
-        "user_a:" + USERS_PASSWD_HASHED + "\n" +
-            "user_b:" + USERS_PASSWD_HASHED + "\n" +
-            "user_c:" + USERS_PASSWD_HASHED + "\n";
-
     private static Path repositoryLocation;
 
     @BeforeClass
@@ -78,7 +73,12 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + USERS;
+        final String usersPasswdHashed = new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt",
+            "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        return super.configUsers() +
+            "user_a:" + usersPasswdHashed + "\n" +
+            "user_b:" + usersPasswdHashed + "\n" +
+            "user_c:" + usersPasswdHashed + "\n";
 
     }
 

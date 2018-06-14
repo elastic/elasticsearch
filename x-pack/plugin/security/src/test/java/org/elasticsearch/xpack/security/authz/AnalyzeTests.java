@@ -18,13 +18,13 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 
 public class AnalyzeTests extends SecurityIntegTestCase {
 
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
-        ("test123".toCharArray())));
     @Override
     protected String configUsers() {
+        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
+            ("test123".toCharArray())));
         return super.configUsers() +
-                "analyze_indices:" + USERS_PASSWD_HASHED + "\n" +
-                "analyze_cluster:" + USERS_PASSWD_HASHED + "\n";
+            "analyze_indices:" + usersPasswdHashed + "\n" +
+            "analyze_cluster:" + usersPasswdHashed + "\n";
     }
 
     @Override

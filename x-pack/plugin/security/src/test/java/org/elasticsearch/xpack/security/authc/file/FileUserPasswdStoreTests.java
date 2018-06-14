@@ -159,11 +159,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path path = getDataPath("users");
         Map<String, char[]> users = FileUserPasswdStore.parseFile(path, null, Settings.EMPTY);
         assertThat(users, notNullValue());
-        assertThat(users.size(), is(7));
+        assertThat(users.size(), is(11));
         assertThat(users.get("bcrypt"), notNullValue());
         assertThat(new String(users.get("bcrypt")), equalTo("$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e"));
         assertThat(users.get("bcrypt10"), notNullValue());
-        assertThat(new String(users.get("bcrypt10")), equalTo("$2y$10$FMhmFjwU5.qxQ/BsEciS9OqcJVkFMgXMo4uH5CelOR1j4N9zIv67e"));
+        assertThat(new String(users.get("bcrypt10")), equalTo("$2a$10$cFxpMx6YDrH/PXwLpTlux.KVykN1TG2Pgdl5oJX5/G/KYp3G6jbFG"));
         assertThat(users.get("md5"), notNullValue());
         assertThat(new String(users.get("md5")), equalTo("$apr1$R3DdqiAZ$aljIkaIVPSarmDMlJUBBP."));
         assertThat(users.get("crypt"), notNullValue());
@@ -174,7 +174,13 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(new String(users.get("sha")), equalTo("{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w="));
         assertThat(users.get("pbkdf2"), notNullValue());
         assertThat(new String(users.get("pbkdf2")),
-            equalTo("{PBKDF2}10000$3UFeVCkSNj.WeiBLqvs2W6Jrb169o9c0$aMEN8zob/LiIYEmdnlffzcaUSxr0QAUAQhxHJiFki10="));
+            equalTo("{PBKDF2}10000$mt6v5zV3MjdNXnxZC2oCRa7NEGxNWuMk$6hdneZD6U+9S7CSIw7bET/bqekPij8iPJ0VbckW1bmg="));
+        assertThat(users.get("pbkdf2_1000"), notNullValue());
+        assertThat(new String(users.get("pbkdf2_1000")),
+            equalTo("{PBKDF2}1000$oHlBSjW2NHGtK/RvKoXHFMs0IA8bnWm2$ipz0ZvKjnu/tlui9vFzD6ftuQWaonlIAGqmW1MDd0/k="));
+        assertThat(users.get("pbkdf2_50000"), notNullValue());
+        assertThat(new String(users.get("pbkdf2_50000")),
+            equalTo("{PBKDF2}50000$aiCg0jaOsm1avJY/XWOEzqWUja4dE7l5$qVjn2BCt31GF8ZgQ5PbzdKLquT2MFyifHM3CROiyDYg="));
     }
 
     public void testParseFile_Empty() throws Exception {

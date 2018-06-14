@@ -19,20 +19,29 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-public class PutStoredScriptResponse extends AcknowledgedResponse {
+import java.io.IOException;
 
-    PutStoredScriptResponse() {
+public class PutStoredScriptResponseTests extends AbstractStreamableXContentTestCase<PutStoredScriptResponse>  {
+    @Override
+    protected PutStoredScriptResponse doParseInstance(XContentParser parser) throws IOException {
+        return PutStoredScriptResponse.fromXContent(parser);
     }
 
-    public PutStoredScriptResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    protected PutStoredScriptResponse createBlankInstance() {
+        return new PutStoredScriptResponse();
     }
 
-    public static PutStoredScriptResponse fromXContent(XContentParser parser) {
-        return new PutStoredScriptResponse(parseAcknowledged(parser));
+    @Override
+    protected PutStoredScriptResponse createTestInstance() {
+        return new PutStoredScriptResponse(randomBoolean());
     }
 
+    @Override
+    protected  PutStoredScriptResponse mutateInstance(PutStoredScriptResponse response) {
+        return new PutStoredScriptResponse(response.isAcknowledged() == false);
+    }
 }

@@ -104,6 +104,7 @@ include::indices/put_settings.asciidoc[]
 include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
 include::indices/get_templates.asciidoc[]
+include::indices/put_storedscript.asciidoc[]
 
 == Cluster APIs
 

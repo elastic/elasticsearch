@@ -22,6 +22,8 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -73,6 +75,8 @@ import org.elasticsearch.client.SyncedFlushResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -93,6 +97,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -2127,5 +2132,109 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-templates-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testPutStoredScript() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::put-stored-script-request
+            PutStoredScriptRequest request = new PutStoredScriptRequest();
+            request.id("id"); // <1>
+            request.content(new BytesArray(
+                "{\n" +
+                    "\"script\": {\n" +
+                    "\"lang\": \"painless\",\n" +
+                    "\"source\": \"Math.log(_score * 2) + params.multiplier\"" +
+                    "}\n" +
+                    "}\n"
+            ), XContentType.JSON); // <2>
+            // end::put-stored-script-request
+        }
+
+        {
+            PutStoredScriptRequest request = new PutStoredScriptRequest();
+            request.id("id");
+
+            // tag::put-stored-script-content-painless
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject("script");
+                {
+                    builder.field("lang", "painless");
+                    builder.field("source", "Math.log(_score * 2) + params.multiplier");
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
+            // end::put-stored-script-content-painless
+
+
+            // tag::put-stored-script-execute
+            PutStoredScriptResponse putStoredScriptResponse = client.indices().putStoredScript(request, RequestOptions.DEFAULT);
+            // end::put-stored-script-execute
+
+            // tag::put-stored-script-response
+            boolean acknowledged = putStoredScriptResponse.isAcknowledged(); // <1>
+            // end::put-stored-script-response
+
+            assertTrue(acknowledged);
+
+            // tag::put-stored-script-execute-listener
+            ActionListener<PutStoredScriptResponse> listener =
+                new ActionListener<PutStoredScriptResponse>() {
+                    @Override
+                    public void onResponse(PutStoredScriptResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-stored-script-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-stored-script-execute-async
+            client.indices().putStoredScriptAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-stored-script-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            PutStoredScriptRequest request = new PutStoredScriptRequest();
+            request.id("id");
+
+            // tag::put-stored-script-content-mustache
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject("script");
+                {
+                    builder.field("lang", "mustache");
+                    builder.field("source", "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}");
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
+            // end::put-stored-script-content-mustache
+
+            Map<String, Object> script = getAsMap("/_scripts/id");
+            assertThat(extractValue("script.lang", script), equalTo("mustache"));
+            assertThat(extractValue("script.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));
+        }
+
     }
 }

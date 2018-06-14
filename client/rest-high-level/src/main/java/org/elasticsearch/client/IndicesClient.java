@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -688,5 +690,34 @@ public final class IndicesClient {
                                  ActionListener<GetIndexTemplatesResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest, RequestConverters::getTemplates,
             options, GetIndexTemplatesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Puts an stored script using the Scripting API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/6.2/modules-scripting.html"> Scripting API
+     * on elastic.co</a>
+     * @param putStoredScriptRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutStoredScriptResponse putStoredScript(PutStoredScriptRequest putStoredScriptRequest,
+                                                   RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putStoredScript, options,
+            PutStoredScriptResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously puts an stored script using the Scripting API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/6.2/modules-scripting.html"> Scripting API
+     * on elastic.co</a>
+     * @param putStoredScriptRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putStoredScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
+                                     ActionListener<PutStoredScriptResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putStoredScript, options,
+            PutStoredScriptResponse::fromXContent, listener, emptySet());
     }
 }

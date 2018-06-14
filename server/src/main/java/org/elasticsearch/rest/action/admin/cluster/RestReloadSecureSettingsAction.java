@@ -57,8 +57,8 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
                 .cluster()
                 .prepareReloadSecureSettings()
                 .setTimeout(request.param("timeout"))
+                .source(request.requiredContent(), request.getXContentType())
                 .setNodesIds(nodesIds)
-                .setSecureStorePassword(request.param("secure_settings_password", ""))
                 .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)

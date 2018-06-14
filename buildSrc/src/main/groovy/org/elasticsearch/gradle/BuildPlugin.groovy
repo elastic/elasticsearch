@@ -350,6 +350,7 @@ class BuildPlugin implements Plugin<Project> {
             }
             configuration.resolutionStrategy { 
                 failOnVersionConflict()
+                // work around https://github.com/gradle/gradle/issues/5692
                 preferProjectModules()
             }
         })
@@ -478,6 +479,8 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
+            // Work around Gradle 4.8 issue until we `enableFeaturePreview('STABLE_PUBLISHING')`
+            // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
             project.getGradle().getTaskGraph().whenReady {
                 project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
                     // place the pom next to the jar it is for

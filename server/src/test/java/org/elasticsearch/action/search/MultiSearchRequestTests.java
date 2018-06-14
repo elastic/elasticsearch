@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
@@ -40,11 +39,9 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;

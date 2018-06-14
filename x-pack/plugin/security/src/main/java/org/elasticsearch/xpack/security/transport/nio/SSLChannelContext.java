@@ -145,7 +145,7 @@ public final class SSLChannelContext extends SocketChannelContext {
                 selector.queueWrite(writeOperation);
                 return;
             }
-            selector.queueWriteInChannelBuffer(writeOperation);
+            selector.writeToChannel(writeOperation);
         }
     }
 

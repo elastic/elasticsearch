@@ -56,7 +56,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
-        return BulkProcessor.builder(highLevelClient()::bulkAsync, listener);
+        return BulkProcessor.builder(
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
     }
 
     public void testThatBulkProcessorCountIsCorrect() throws Exception {

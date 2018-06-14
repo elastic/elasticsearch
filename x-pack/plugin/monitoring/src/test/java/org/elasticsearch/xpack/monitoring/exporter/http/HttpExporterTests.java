@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
@@ -44,8 +45,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -300,7 +299,7 @@ public class HttpExporterTests extends ESTestCase {
         final StringEntity entity = new StringEntity("{}", ContentType.APPLICATION_JSON);
 
         when(response.getEntity()).thenReturn(entity);
-        when(client.performRequest(eq("get"), eq("/_nodes/http"), anyMapOf(String.class, String.class))).thenReturn(response);
+        when(client.performRequest(any(Request.class))).thenReturn(response);
 
         try (Sniffer sniffer = HttpExporter.createSniffer(config, client, listener)) {
             assertThat(sniffer, not(nullValue()));
@@ -309,7 +308,7 @@ public class HttpExporterTests extends ESTestCase {
         }
 
         // it's a race whether it triggers this at all
-        verify(client, atMost(1)).performRequest(eq("get"), eq("/_nodes/http"), anyMapOf(String.class, String.class));
+        verify(client, atMost(1)).performRequest(any(Request.class));
 
         verifyNoMoreInteractions(client, listener);
     }

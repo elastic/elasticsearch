@@ -20,11 +20,9 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 

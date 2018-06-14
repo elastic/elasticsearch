@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 

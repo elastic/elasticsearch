@@ -29,7 +29,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 

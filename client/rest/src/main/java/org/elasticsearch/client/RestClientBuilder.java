@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -32,6 +31,7 @@ import javax.net.ssl.SSLContext;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -48,7 +48,7 @@ public final class RestClientBuilder {
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
-    private final HttpHost[] hosts;
+    private final List<Node> nodes;
     private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
     private Header[] defaultHeaders = EMPTY_HEADERS;
     private RestClient.FailureListener failureListener;
@@ -59,18 +59,18 @@ public final class RestClientBuilder {
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
      *
-     * @throws NullPointerException if {@code hosts} or any host is {@code null}.
-     * @throws IllegalArgumentException if {@code hosts} is empty.
+     * @throws IllegalArgumentException if {@code nodes} is {@code null} or empty.
      */
-    RestClientBuilder(HttpHost... hosts) {
-        Objects.requireNonNull(hosts, "hosts must not be null");
-        if (hosts.length == 0) {
-            throw new IllegalArgumentException("no hosts provided");
+    RestClientBuilder(List<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            throw new IllegalArgumentException("nodes must not be null or empty");
         }
-        for (HttpHost host : hosts) {
-            Objects.requireNonNull(host, "host cannot be null");
+        for (Node node : nodes) {
+            if (node == null) {
+                throw new IllegalArgumentException("node cannot be null");
+            }
         }
-        this.hosts = hosts;
+        this.nodes = nodes;
     }
 
     /**
@@ -186,7 +186,7 @@ public final class RestClientBuilder {
                 return createHttpClient();
             }
         });
-        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, pathPrefix, failureListener);
+        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, nodes, pathPrefix, failureListener);
         httpClient.start();
         return restClient;
     }

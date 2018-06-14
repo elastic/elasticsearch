@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject.assistedinject;
 
 import org.elasticsearch.common.inject.BindingAnnotation;
-import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;

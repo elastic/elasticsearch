@@ -17,10 +17,16 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
-test.enabled = false
-// Not published so no need to assemble
-tasks.remove(assemble)
-build.dependsOn.remove('assemble')
+package org.elasticsearch.http;
 
-dependenciesInfo.enabled = false
+/**
+ * A basic http response abstraction. Http modules must implement this interface as the server package rest
+ * handling needs to set http headers for a response.
+ */
+public interface HttpResponse {
+
+    void addHeader(String name, String value);
+
+    boolean containsHeader(String name);
+
+}

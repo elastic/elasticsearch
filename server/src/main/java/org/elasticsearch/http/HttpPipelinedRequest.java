@@ -18,13 +18,19 @@
  */
 package org.elasticsearch.http;
 
-public class HttpPipelinedRequest<R> extends HttpPipelinedMessage {
+public class HttpPipelinedRequest<R>  implements HttpPipelinedMessage {
 
     private final R request;
+    private final int sequence;
 
     HttpPipelinedRequest(int sequence, R request) {
-        super(sequence);
+        this.sequence = sequence;
         this.request = request;
+    }
+
+    @Override
+    public int getSequence() {
+        return sequence;
     }
 
     public R getRequest() {

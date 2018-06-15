@@ -300,6 +300,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31307")
     public void testSelfReferencingAggStateAfterMap() throws IOException {
         try (Directory directory = newDirectory()) {
             Integer numDocs = randomInt(100);

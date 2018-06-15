@@ -26,12 +26,25 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
     @Override
     protected MlFilter createTestInstance() {
+        return createRandom();
+    }
+
+    public static MlFilter createRandom() {
+        return createRandom(randomAlphaOfLengthBetween(1, 20));
+    }
+
+    public static MlFilter createRandom(String filterId) {
+        String description = null;
+        if (randomBoolean()) {
+            description = randomAlphaOfLength(20);
+        }
+
         int size = randomInt(10);
         List<String> items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             items.add(randomAlphaOfLengthBetween(1, 20));
         }
-        return new MlFilter(randomAlphaOfLengthBetween(1, 20), items);
+        return new MlFilter(filterId, description, items);
     }
 
     @Override
@@ -45,13 +58,13 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public void testNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new MlFilter(null, Collections.emptyList()));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new MlFilter(null, "", Collections.emptyList()));
         assertEquals(MlFilter.ID.getPreferredName() + " must not be null", ex.getMessage());
     }
 
     public void testNullItems() {
         NullPointerException ex =
-                expectThrows(NullPointerException.class, () -> new MlFilter(randomAlphaOfLengthBetween(1, 20), null));
+                expectThrows(NullPointerException.class, () -> new MlFilter(randomAlphaOfLengthBetween(1, 20), "", null));
         assertEquals(MlFilter.ITEMS.getPreferredName() + " must not be null", ex.getMessage());
     }
 

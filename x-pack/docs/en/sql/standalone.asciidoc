@@ -1,9 +1,0 @@
-[[elasticsearch-sql-standalone]]
-= Elasticsearch SQL Standalone
-
-:es-repo-dir:           {docdir}/../../../../../elasticsearch/docs
-
-:edit_url:
-include::{es-repo-dir}/reference/index-shared3.asciidoc[]
-:edit_url!:
-include::index.asciidoc[]

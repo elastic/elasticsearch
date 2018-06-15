@@ -42,7 +42,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
@@ -53,11 +52,11 @@ import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioChannel;
 import org.elasticsearch.nio.NioGroup;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -84,13 +83,9 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ME
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE;
@@ -108,12 +103,6 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "http.nio.worker_count"), Setting.Property.NodeScope);
 
-    private final BigArrays bigArrays;
-    private final ThreadPool threadPool;
-    private final NamedXContentRegistry xContentRegistry;
-
-    private final HttpHandlingSettings httpHandlingSettings;
-
     private final boolean tcpNoDelay;
     private final boolean tcpKeepAlive;
     private final boolean reuseAddress;
@@ -128,24 +117,12 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                   NamedXContentRegistry xContentRegistry, HttpServerTransport.Dispatcher dispatcher) {
-        super(settings, networkService, threadPool, dispatcher);
-        this.bigArrays = bigArrays;
-        this.threadPool = threadPool;
-        this.xContentRegistry = xContentRegistry;
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
 
         ByteSizeValue maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         ByteSizeValue maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         ByteSizeValue maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         int pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
-        this.httpHandlingSettings = new HttpHandlingSettings(Math.toIntExact(maxContentLength.getBytes()),
-            Math.toIntExact(maxChunkSize.getBytes()),
-            Math.toIntExact(maxHeaderSize.getBytes()),
-            Math.toIntExact(maxInitialLineLength.getBytes()),
-            SETTING_HTTP_RESET_COOKIES.get(settings),
-            SETTING_HTTP_COMPRESSION.get(settings),
-            SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
-            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
-            pipeliningMaxEvents);
         this.corsConfig = buildCorsConfig(settings);
 
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
@@ -158,10 +135,6 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}]," +
                 " pipelining_max_events[{}]",
             maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, pipeliningMaxEvents);
-    }
-
-    BigArrays getBigArrays() {
-        return bigArrays;
     }
 
     public Logger getLogger() {
@@ -347,17 +320,17 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         socketChannels.add(socketChannel);
     }
 
-    private class HttpChannelFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
+    private class HttpChannelFactory extends ChannelFactory<NioServerSocketChannel, NioHttpChannel> {
 
         private HttpChannelFactory() {
             super(new RawChannelFactory(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize));
         }
 
         @Override
-        public NioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            NioSocketChannel nioChannel = new NioSocketChannel(channel);
+        public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+            NioHttpChannel nioChannel = new NioHttpChannel(channel);
             HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(nioChannel,NioHttpServerTransport.this,
-                httpHandlingSettings, xContentRegistry, corsConfig, threadPool.getThreadContext());
+                handlingSettings, corsConfig);
             Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
             SocketChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, httpReadWritePipeline,
                 InboundChannelBuffer.allocatingInstance());

@@ -109,7 +109,7 @@ public class MockRepository extends FsRepository {
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
 
-    private volatile boolean atomicMove;
+    private volatile boolean allowAtomicOperations;
 
     private volatile boolean blocked = false;
 
@@ -126,7 +126,7 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
-        atomicMove = metadata.settings().getAsBoolean("atomic_move", true);
+        allowAtomicOperations = metadata.settings().getAsBoolean("allow_atomic_operations", true);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
@@ -346,24 +346,6 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void move(String sourceBlob, String targetBlob) throws IOException {
-                if (blockOnWriteIndexFile && targetBlob.startsWith("index-")) {
-                    blockExecutionAndMaybeWait(targetBlob);
-                }
-                if (atomicMove) {
-                    // atomic move since this inherits from FsBlobContainer which provides atomic moves
-                    maybeIOExceptionOrBlock(targetBlob);
-                    super.move(sourceBlob, targetBlob);
-                } else {
-                    // simulate a non-atomic move, since many blob container implementations
-                    // will not have an atomic move, and we should be able to handle that
-                    maybeIOExceptionOrBlock(targetBlob);
-                    super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
-                    super.deleteBlob(sourceBlob);
-                }
-            }
-
-            @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 super.writeBlob(blobName, inputStream, blobSize);
@@ -377,14 +359,14 @@ public class MockRepository extends FsRepository {
             @Override
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
-                if (random.nextBoolean()) {
+                if (allowAtomicOperations && random.nextBoolean()) {
                     if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                         // Simulate a failure between the write and move operation in FsBlobContainer
                         final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
                         super.writeBlob(tempBlobName, inputStream, blobSize);
                         maybeIOExceptionOrBlock(blobName);
                         final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                        fsBlobContainer.move(tempBlobName, blobName);
+                        fsBlobContainer.moveBlobAtomic(tempBlobName, blobName);
                     } else {
                         // Atomic write since it is potentially supported
                         // by the delegating blob container

@@ -5,6 +5,8 @@
 <titleabbrev>Get Job</titleabbrev>
 ++++
 
+experimental[]
+
 This API returns the configuration, stats and status of rollup jobs.  The API can return the details for a single job,
 or for all jobs.
 

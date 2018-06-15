@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -211,9 +211,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
             assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
-            JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
-            assertNotNull(jobTaskStatus);
-            assertEquals(JobState.OPENED, jobTaskStatus.getState());
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
+            assertNotNull(jobTaskState);
+            assertEquals(JobState.OPENED, jobTaskState.getState());
         });
 
         logger.info("stop the only running ml node");
@@ -264,7 +264,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             for (DiscoveryNode node : event.state().nodes()) {
                 Collection<PersistentTask<?>> foundTasks = tasks.findTasks(OpenJobAction.TASK_NAME, task -> {
-                    JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
+                    JobTaskState jobTaskState = (JobTaskState) task.getState();
                     return node.getId().equals(task.getExecutorNode()) &&
                             (jobTaskState == null || jobTaskState.isStatusStale(task));
                 });
@@ -396,9 +396,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
             assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
 
-            JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
-            assertNotNull(jobTaskStatus);
-            assertEquals(expectedState, jobTaskStatus.getState());
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
+            assertNotNull(jobTaskState);
+            assertEquals(expectedState, jobTaskState.getState());
         } else {
             assertNull(task.getExecutorNode());
         }
@@ -411,9 +411,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNotNull(task.getExecutorNode());
-                JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
-                assertNotNull(jobTaskStatus);
-                assertEquals(JobState.OPENED, jobTaskStatus.getState());
+                JobTaskState jobTaskState = (JobTaskState) task.getState();
+                assertNotNull(jobTaskState);
+                assertEquals(JobState.OPENED, jobTaskState.getState());
             }
         };
     }

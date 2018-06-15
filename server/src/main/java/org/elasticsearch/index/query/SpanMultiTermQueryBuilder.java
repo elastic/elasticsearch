@@ -37,7 +37,6 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,7 +44,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -137,47 +135,42 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
     }
 
-    public static class TopTermSpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrapper.SpanRewriteMethod {
-
-        private MultiTermQuery multiTermQuery;
+    static class TopTermSpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrapper.SpanRewriteMethod {
         private final long maxExpansions;
 
-        TopTermSpanBooleanQueryRewriteWithMaxClause(long max) {
-            maxExpansions = max;
+        TopTermSpanBooleanQueryRewriteWithMaxClause() {
+            this.maxExpansions = BooleanQuery.getMaxClauseCount();
         }
 
         @Override
         public SpanQuery rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
-            multiTermQuery = query;
-            return (SpanQuery) this.delegate.rewrite(reader, multiTermQuery);
-        }
-
-        final ScoringRewrite<List<SpanQuery>> delegate = new ScoringRewrite<List<SpanQuery>>() {
-
-            @Override
-            protected List<SpanQuery> getTopLevelBuilder() {
-                return new ArrayList();
-            }
-
-            @Override
-            protected Query build(List<SpanQuery> builder) {
-                return new SpanOrQuery((SpanQuery[]) builder.toArray(new SpanQuery[builder.size()]));
-            }
-
-            @Override
-            protected void checkMaxClauseCount(int count) {
-                if (count > maxExpansions) {
-                    throw new ElasticsearchException("[" + multiTermQuery.toString() + " ] " +
-                        "exceeds maxClauseCount [ Boolean maxClauseCount is set to " + BooleanQuery.getMaxClauseCount() + "]");
+            final MultiTermQuery.RewriteMethod delegate = new ScoringRewrite<List<SpanQuery>>() {
+                @Override
+                protected List<SpanQuery> getTopLevelBuilder() {
+                    return new ArrayList();
                 }
-            }
 
-            @Override
-            protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermContext states) {
-                SpanTermQuery q = new SpanTermQuery(term, states);
-                topLevel.add(q);
-            }
-        };
+                @Override
+                protected Query build(List<SpanQuery> builder) {
+                    return new SpanOrQuery((SpanQuery[]) builder.toArray(new SpanQuery[builder.size()]));
+                }
+
+                @Override
+                protected void checkMaxClauseCount(int count) {
+                    if (count > maxExpansions) {
+                        throw new RuntimeException("[" + query.toString() + " ] " +
+                            "exceeds maxClauseCount [ Boolean maxClauseCount is set to " + BooleanQuery.getMaxClauseCount() + "]");
+                    }
+                }
+
+                @Override
+                protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermContext states) {
+                    SpanTermQuery q = new SpanTermQuery(term, states);
+                    topLevel.add(q);
+                }
+            };
+            return (SpanQuery) delegate.rewrite(reader, query);
+        }
     }
 
     @Override
@@ -222,6 +215,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                         QueryParsers.parseRewriteMethod(prefixBuilder.rewrite(), null, LoggingDeprecationHandler.INSTANCE);
                     prefixQuery.setRewriteMethod(rewriteMethod);
                 }
+                subQuery = prefixQuery;
                 spanQuery = new SpanMultiTermQueryWrapper<>(prefixQuery);
             } else {
                 String origFieldName = ((PrefixQueryBuilder) multiTermQueryBuilder).fieldName();
@@ -240,9 +234,12 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName());
             }
             spanQuery = new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
-            if (((MultiTermQuery) subQuery).getRewriteMethod() instanceof TopTermsRewrite == false) {
-                ((SpanMultiTermQueryWrapper<MultiTermQuery>) spanQuery).setRewriteMethod(new
-                    TopTermSpanBooleanQueryRewriteWithMaxClause(BooleanQuery.getMaxClauseCount()));
+        }
+        if (subQuery instanceof MultiTermQuery) {
+            MultiTermQuery multiTermQuery = (MultiTermQuery) subQuery;
+            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) spanQuery;
+            if (multiTermQuery.getRewriteMethod() instanceof TopTermsRewrite == false) {
+                wrapper.setRewriteMethod(new TopTermSpanBooleanQueryRewriteWithMaxClause());
             }
         }
         if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {

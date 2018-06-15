@@ -22,7 +22,6 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;

@@ -20,20 +20,12 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * A response for a close index action.
  */
 public class CloseIndexResponse extends AcknowledgedResponse {
-    private static final ConstructingObjectParser<CloseIndexResponse, Void> PARSER = new ConstructingObjectParser<>("close_index", true,
-            args -> new CloseIndexResponse((boolean) args[0]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-    }
-
     CloseIndexResponse() {
     }
 
@@ -42,6 +34,6 @@ public class CloseIndexResponse extends AcknowledgedResponse {
     }
 
     public static CloseIndexResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new CloseIndexResponse(parseAcknowledged(parser));
     }
 }

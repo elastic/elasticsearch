@@ -20,20 +20,12 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * Register repository response
  */
 public class PutRepositoryResponse extends AcknowledgedResponse {
-
-    private static final ConstructingObjectParser<PutRepositoryResponse, Void> PARSER = new ConstructingObjectParser<>("put_repository",
-        true, args -> new PutRepositoryResponse((boolean) args[0]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-    }
 
     PutRepositoryResponse() {
     }
@@ -43,6 +35,6 @@ public class PutRepositoryResponse extends AcknowledgedResponse {
     }
 
     public static PutRepositoryResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new PutRepositoryResponse(parseAcknowledged(parser));
     }
 }

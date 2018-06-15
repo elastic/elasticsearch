@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ public class MlFilter implements ToXContentObject, Writeable {
 
     public static final ParseField TYPE = new ParseField("type");
     public static final ParseField ID = new ParseField("filter_id");
+    public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField ITEMS = new ParseField("items");
 
     // For QueryPage
@@ -43,27 +45,38 @@ public class MlFilter implements ToXContentObject, Writeable {
 
         parser.declareString((builder, s) -> {}, TYPE);
         parser.declareString(Builder::setId, ID);
+        parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
         parser.declareStringArray(Builder::setItems, ITEMS);
 
         return parser;
     }
 
     private final String id;
+    private final String description;
     private final List<String> items;
 
-    public MlFilter(String id, List<String> items) {
+    public MlFilter(String id, String description, List<String> items) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
+        this.description = description;
         this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
     }
 
     public MlFilter(StreamInput in) throws IOException {
         id = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            description = in.readOptionalString();
+        } else {
+            description = null;
+        }
         items = Arrays.asList(in.readStringArray());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeOptionalString(description);
+        }
         out.writeStringArray(items.toArray(new String[items.size()]));
     }
 
@@ -71,6 +84,9 @@ public class MlFilter implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
         builder.field(ITEMS.getPreferredName(), items);
         if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
             builder.field(TYPE.getPreferredName(), FILTER_TYPE);
@@ -81,6 +97,10 @@ public class MlFilter implements ToXContentObject, Writeable {
 
     public String getId() {
         return id;
+    }
+
+    public String getDescription() {
+        return description;
     }
 
     public List<String> getItems() {
@@ -98,12 +118,12 @@ public class MlFilter implements ToXContentObject, Writeable {
         }
 
         MlFilter other = (MlFilter) obj;
-        return id.equals(other.id) && items.equals(other.items);
+        return id.equals(other.id) && Objects.equals(description, other.description) && items.equals(other.items);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, items);
+        return Objects.hash(id, description, items);
     }
 
     public String documentId() {
@@ -114,21 +134,31 @@ public class MlFilter implements ToXContentObject, Writeable {
         return DOCUMENT_ID_PREFIX + filterId;
     }
 
+    public static Builder builder(String filterId) {
+        return new Builder().setId(filterId);
+    }
+
     public static class Builder {
 
         private String id;
+        private String description;
         private List<String> items = Collections.emptyList();
+
+        private Builder() {}
 
         public Builder setId(String id) {
             this.id = id;
             return this;
         }
 
-        private Builder() {}
-
         @Nullable
         public String getId() {
             return id;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
         }
 
         public Builder setItems(List<String> items) {
@@ -136,8 +166,13 @@ public class MlFilter implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setItems(String... items) {
+            this.items = Arrays.asList(items);
+            return this;
+        }
+
         public MlFilter build() {
-            return new MlFilter(id, items);
+            return new MlFilter(id, description, items);
         }
     }
 }

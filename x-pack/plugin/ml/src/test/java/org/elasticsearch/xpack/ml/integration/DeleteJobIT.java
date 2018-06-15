@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;

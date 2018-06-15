@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -95,23 +94,9 @@ public class CapturingTransport implements Transport {
      * @return the captured requests
      */
     public CapturedRequest[] getCapturedRequestsAndClear() {
-        List<CapturedRequest> requests = new ArrayList<>(capturedRequests.size());
-        capturedRequests.drainTo(requests);
-        return requests.toArray(new CapturedRequest[0]);
-    }
-
-    private Map<String, List<CapturedRequest>> groupRequestsByTargetNode(Collection<CapturedRequest> requests) {
-        Map<String, List<CapturedRequest>> result = new HashMap<>();
-        for (CapturedRequest request : requests) {
-            result.compute(request.node.getId(), (k, group) -> {
-                if (group == null) {
-                    group = new ArrayList<>();
-                }
-                group.add(request);
-                return group;
-            });
-        }
-        return result;
+        CapturedRequest[] capturedRequests = capturedRequests();
+        clear();
+        return capturedRequests;
     }
 
     /**
@@ -119,7 +104,16 @@ public class CapturingTransport implements Transport {
      * Doesn't clear the captured request list. See {@link #clear()}
      */
     public Map<String, List<CapturedRequest>> capturedRequestsByTargetNode() {
-        return groupRequestsByTargetNode(capturedRequests);
+        Map<String, List<CapturedRequest>> map = new HashMap<>();
+        for (CapturedRequest request : capturedRequests) {
+            List<CapturedRequest> nodeList = map.get(request.node.getId());
+            if (nodeList == null) {
+                nodeList = new ArrayList<>();
+                map.put(request.node.getId(), nodeList);
+            }
+            nodeList.add(request);
+        }
+        return map;
     }
 
     /**
@@ -131,9 +125,9 @@ public class CapturingTransport implements Transport {
      * @return the captured requests grouped by target node
      */
     public Map<String, List<CapturedRequest>> getCapturedRequestsByTargetNodeAndClear() {
-        List<CapturedRequest> requests = new ArrayList<>(capturedRequests.size());
-        capturedRequests.drainTo(requests);
-        return groupRequestsByTargetNode(requests);
+        Map<String, List<CapturedRequest>> map = capturedRequestsByTargetNode();
+        clear();
+        return map;
     }
 
     /** clears captured requests */

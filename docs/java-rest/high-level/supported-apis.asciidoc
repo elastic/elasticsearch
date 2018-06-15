@@ -153,9 +153,10 @@ include::tasks/cancel_tasks.asciidoc[]
 == Scripts
 
 The Java High Level REST Client supports the following Scripts APIs:
+
 * <<java-rest-high-get-stored-script>>
 * <<java-rest-high-delete-stored-script>>
 
-include::scripts/get_script.asciidoc[]
-include::scripts/delete_script.asciidoc[]
+include::get_script.asciidoc[]
+include::delete_script.asciidoc[]
 

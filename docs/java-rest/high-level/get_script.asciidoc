@@ -28,7 +28,7 @@ instance and an `ActionListener` instance to be passed to the asynchronous metho
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-execute-async]
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-execute-async]
 --------------------------------------------------
 <1> The `GetStoredScriptRequest` to execute and the `ActionListener` to use when
 the execution completes

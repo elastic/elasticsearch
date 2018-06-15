@@ -25,6 +25,7 @@ import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class GetStoredScriptResponseTests extends AbstractStreamableXContentTestCase<GetStoredScriptResponse> {
@@ -41,7 +42,7 @@ public class GetStoredScriptResponseTests extends AbstractStreamableXContentTest
 
     @Override
     protected GetStoredScriptResponse createTestInstance() {
-        return new GetStoredScriptResponse(scriptSource());
+        return new GetStoredScriptResponse(randomAlphaOfLengthBetween(1, 10), scriptSource());
     }
 
     @Override
@@ -50,7 +51,11 @@ public class GetStoredScriptResponseTests extends AbstractStreamableXContentTest
     }
 
     private StoredScriptSource scriptSource() {
-        return new StoredScriptSource("lang", "code",
-            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final String lang = randomFrom("lang", "painless", "mustache");
+        final String source = randomAlphaOfLengthBetween(1, 10);
+        final Map<String, String> options = randomBoolean()
+            ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+            : Collections.emptyMap();
+        return new StoredScriptSource(lang, source, options);
     }
 }

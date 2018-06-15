@@ -40,13 +40,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-
 
 /**
  * This class is used to generate the Java Stored Scripts API documentation.
@@ -93,13 +90,12 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
             assertThat(source, equalTo(scriptSource));
 
-            AtomicReference<GetStoredScriptResponse> getResponseRef = new AtomicReference<>();
             // tag::get-stored-script-execute-listener
             ActionListener<GetStoredScriptResponse> listener =
                 new ActionListener<GetStoredScriptResponse>() {
                     @Override
                     public void onResponse(GetStoredScriptResponse response) {
-                        getResponseRef.set(response); // <1>
+                        // <1>
                     }
 
                     @Override
@@ -118,8 +114,6 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-stored-script-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
-            assertThat(getResponseRef.get(), notNullValue());
-            assertThat(getResponseRef.get().getSource(), equalTo(scriptSource));
         }
 
     }
@@ -143,18 +137,17 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::delete-stored-script-execute
 
         // tag::delete-stored-script-response
-        assertThat(deleteResponse.isAcknowledged(), equalTo(true));
+        assertThat(deleteResponse.isAcknowledged(), equalTo(true)); // <1>
         // end::delete-stored-script-response
 
         putStoredScript("calculate-score", scriptSource);
 
-        final AtomicReference<DeleteStoredScriptResponse> deleteResponseRef = new AtomicReference<>();
         // tag::delete-stored-script-execute-listener
         ActionListener<DeleteStoredScriptResponse> listener =
             new ActionListener<DeleteStoredScriptResponse>() {
                 @Override
                 public void onResponse(DeleteStoredScriptResponse response) {
-                    deleteResponseRef.set(response);// <1>
+                    // <1>
                 }
 
                 @Override
@@ -173,10 +166,6 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::delete-stored-script-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        assertThat(deleteResponseRef.get(), notNullValue());
-        assertThat(deleteResponseRef.get().isAcknowledged(), equalTo(true));
-
-
     }
 
     private void putStoredScript(String id, StoredScriptSource scriptSource) throws IOException {

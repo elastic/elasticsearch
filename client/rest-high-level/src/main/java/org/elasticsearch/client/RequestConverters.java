@@ -879,14 +879,14 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getStoredScript(GetStoredScriptRequest getStoredScriptRequest) {
-        String endpoint = new EndpointBuilder().addPathPart("_scripts").addPathPart(getStoredScriptRequest.id()).build();
+    static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         return request;
     }
 
-    static Request deleteStoredScript(DeleteStoredScriptRequest deleteStoredScriptRequest) {
-        String endpoint = new EndpointBuilder().addPathPart("_scripts").addPathPart(deleteStoredScriptRequest.id()).build();
+    static Request deleteScript(DeleteStoredScriptRequest deleteStoredScriptRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(deleteStoredScriptRequest.id()).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }

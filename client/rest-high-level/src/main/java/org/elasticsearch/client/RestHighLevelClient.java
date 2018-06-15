@@ -666,7 +666,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetStoredScriptResponse getStoredScript(GetStoredScriptRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(request, RequestConverters::getStoredScript, options,
+        return performRequestAndParseEntity(request, RequestConverters::getScript, options,
             GetStoredScriptResponse::fromXContent, emptySet());
     }
 
@@ -680,7 +680,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public void getStoredScriptAsync(GetStoredScriptRequest request, RequestOptions options,
                                      ActionListener<GetStoredScriptResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::getStoredScript, options,
+        performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
             GetStoredScriptResponse::fromXContent, listener, emptySet());
     }
 
@@ -694,7 +694,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeleteStoredScriptResponse deleteStoredScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(request, RequestConverters::deleteStoredScript, options,
+        return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
             DeleteStoredScriptResponse::fromXContent, emptySet());
     }
 
@@ -708,7 +708,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public void deleteStoredScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
                                         ActionListener<DeleteStoredScriptResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::deleteStoredScript, options,
+        performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
             DeleteStoredScriptResponse::fromXContent, listener, emptySet());
     }
 

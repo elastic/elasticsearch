@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -1914,13 +1915,23 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
-    public void testGetStoredScriptRequest() {
+    public void testGetScriptRequest() {
         GetStoredScriptRequest storedScriptRequest = new GetStoredScriptRequest("x-script");
-        Map<String, String> expectedParams = new HashMap<>();
 
-        Request request = RequestConverters.getStoredScript(storedScriptRequest);
+        Request request = RequestConverters.getScript(storedScriptRequest);
         assertThat(request.getEndpoint(), equalTo("/_scripts/" + storedScriptRequest.id()));
-        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters().isEmpty(), equalTo(true));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteScriptRequest() {
+        DeleteStoredScriptRequest storedScriptRequest = new DeleteStoredScriptRequest("x-script");
+
+        Request request = RequestConverters.deleteScript(storedScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + storedScriptRequest.id()));
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(request.getParameters().isEmpty(), equalTo(true));
         assertThat(request.getEntity(), nullValue());
     }
 

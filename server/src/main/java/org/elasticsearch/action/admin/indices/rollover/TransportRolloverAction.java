@@ -196,7 +196,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
                                                                                        RolloverRequest request) {
         List<AliasAction> actions = unmodifiableList(Arrays.asList(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null),
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
                 new AliasAction.Remove(oldIndex, request.getAlias())));
         final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())

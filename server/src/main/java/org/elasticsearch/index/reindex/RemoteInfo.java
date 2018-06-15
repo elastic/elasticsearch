@@ -48,6 +48,7 @@ public class RemoteInfo implements Writeable {
     private final String scheme;
     private final String host;
     private final int port;
+    private final String pathPrefix;
     private final BytesReference query;
     private final String username;
     private final String password;
@@ -61,11 +62,12 @@ public class RemoteInfo implements Writeable {
      */
     private final TimeValue connectTimeout;
 
-    public RemoteInfo(String scheme, String host, int port, BytesReference query, String username, String password,
-            Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
+    public RemoteInfo(String scheme, String host, int port, String pathPrefix, BytesReference query, String username, String password,
+                      Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
         this.scheme = requireNonNull(scheme, "[scheme] must be specified to reindex from a remote cluster");
         this.host = requireNonNull(host, "[host] must be specified to reindex from a remote cluster");
         this.port = port;
+        this.pathPrefix = pathPrefix;
         this.query = requireNonNull(query, "[query] must be specified to reindex from a remote cluster");
         this.username = username;
         this.password = password;
@@ -97,6 +99,11 @@ public class RemoteInfo implements Writeable {
             socketTimeout = DEFAULT_SOCKET_TIMEOUT;
             connectTimeout = DEFAULT_CONNECT_TIMEOUT;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            pathPrefix = in.readOptionalString();
+        } else {
+            pathPrefix = null;
+        }
     }
 
     @Override
@@ -116,6 +123,9 @@ public class RemoteInfo implements Writeable {
             out.writeTimeValue(socketTimeout);
             out.writeTimeValue(connectTimeout);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(pathPrefix);
+        }
     }
 
     public String getScheme() {
@@ -128,6 +138,11 @@ public class RemoteInfo implements Writeable {
 
     public int getPort() {
         return port;
+    }
+
+    @Nullable
+    public String getPathPrefix() {
+        return pathPrefix;
     }
 
     public BytesReference getQuery() {
@@ -169,7 +184,11 @@ public class RemoteInfo implements Writeable {
             // http is the default so it isn't worth taking up space if it is the scheme
             b.append("scheme=").append(scheme).append(' ');
         }
-        b.append("host=").append(host).append(" port=").append(port).append(" query=").append(query.utf8ToString());
+        b.append("host=").append(host).append(" port=").append(port);
+        if (pathPrefix != null) {
+            b.append(" pathPrefix=").append(pathPrefix);
+        }
+        b.append(" query=").append(query.utf8ToString());
         if (username != null) {
             b.append(" username=").append(username);
         }

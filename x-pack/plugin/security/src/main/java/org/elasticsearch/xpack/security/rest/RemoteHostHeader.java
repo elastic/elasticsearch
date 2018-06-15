@@ -20,7 +20,7 @@ public class RemoteHostHeader {
      * then be copied to the subsequent action requests.
      */
     public static void process(RestRequest request, ThreadContext threadContext) {
-        threadContext.putTransient(KEY, request.getRemoteAddress());
+        threadContext.putTransient(KEY, request.getHttpChannel().getRemoteAddress());
     }
 
     /**

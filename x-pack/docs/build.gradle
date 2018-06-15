@@ -16,7 +16,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/ml/functions/rare.asciidoc',
         'en/ml/functions/sum.asciidoc',
         'en/ml/functions/time.asciidoc',
-        'en/ml/customurl.asciidoc',
         'en/rest-api/security/ssl.asciidoc',
         'en/rest-api/security/users.asciidoc',
         'en/rest-api/security/tokens.asciidoc',
@@ -278,6 +277,26 @@ setups['library'] = '''
             {"index":{"_id": "The Moon is a Harsh Mistress"}}
             {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 
+'''
+setups['sample_job'] = '''
+  - do:
+      xpack.ml.put_job:
+        job_id: "sample_job"
+        body:  >
+          {
+            "description" : "Very basic job",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "function": "count"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
 '''
 setups['farequote_index'] = '''
   - do:

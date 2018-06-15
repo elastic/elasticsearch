@@ -23,10 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -38,7 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.security.GeneralSecurityException;
+import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,9 +51,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
-
-    private static final String[] RESOURCE_KEYSTORE_NAMES = new String[] { "elasticsearch_1.keystore", "elasticsearch_2.keystore",
-            "elasticsearch_3.keystore", "elasticsearch_4.keystore" };
 
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
@@ -195,7 +189,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         // "some" keystore should be present in this case
-        loadResourceAsKeystore(environment, randomFrom(RESOURCE_KEYSTORE_NAMES));
+        writeEmptyKeystore(environment, new char[0]);
         final CountDownLatch latch = new CountDownLatch(1);
         client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword("Wrong password here").execute(
                 new ActionListener<NodesReloadSecureSettingsResponse>() {
@@ -207,9 +201,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                             assertThat(nodesMap.size(), equalTo(cluster().size()));
                             for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
                                 assertThat(nodeResponse.reloadException(), notNullValue());
-                                assertThat(nodeResponse.reloadException(), instanceOf(IllegalArgumentException.class));
-                                assertThat(nodeResponse.reloadException().getMessage(),
-                                        containsString("Keystore format does not accept non-empty passwords"));
+                                assertThat(nodeResponse.reloadException(), instanceOf(IOException.class));
                             }
                         } catch (final AssertionError e) {
                             reloadSettingsError.set(e);
@@ -246,9 +238,9 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         // "some" keystore should be present
-        final SecureSettings secureSettings = loadResourceAsKeystore(environment, randomFrom(RESOURCE_KEYSTORE_NAMES));
-        // read setting value from the test case (not from the node)
-        final String dummyValue = MockReloadablePlugin.DUMMY_SECRET_SETTING
+        final SecureSettings secureSettings = writeEmptyKeystore(environment, new char[0]);
+        // read seed setting value from the test case (not from the node)
+        final String seedValue = KeyStoreWrapper.SEED_SETTING
                 .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
                 .toString();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -285,7 +277,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         // unperturbed
         assertThat(mockReloadablePlugin.getReloadCount() - initialReloadCount, equalTo(1));
         // mock plugin should have been reloaded successfully
-        assertThat(mockReloadablePlugin.getDummySecretValue(), equalTo(dummyValue));
+        assertThat(mockReloadablePlugin.getSeedValue(), equalTo(seedValue));
     }
 
     public void testReloadWhileKeystoreChanged() throws Exception {
@@ -296,14 +288,14 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         for (int i = 0; i < randomIntBetween(4, 8); i++) {
             // write keystore
-            final SecureSettings secureSettings = loadResourceAsKeystore(environment, randomFrom(RESOURCE_KEYSTORE_NAMES));
-            // read setting value from the test case (not from the node)
-            final String dummyValue = MockReloadablePlugin.DUMMY_SECRET_SETTING
+            final SecureSettings secureSettings = writeEmptyKeystore(environment, new char[0]);
+            // read seed setting value from the test case (not from the node)
+            final String seedValue = KeyStoreWrapper.SEED_SETTING
                     .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
                     .toString();
             // reload call
             successfulReloadCall();
-            assertThat(mockReloadablePlugin.getDummySecretValue(), equalTo(dummyValue));
+            assertThat(mockReloadablePlugin.getSeedValue(), equalTo(seedValue));
             assertThat(mockReloadablePlugin.getReloadCount() - initialReloadCount, equalTo(i + 1));
         }
     }
@@ -349,17 +341,19 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         }
     }
 
-    private SecureSettings loadResourceAsKeystore(Environment environment, String resourceName)
-            throws IOException, GeneralSecurityException {
-        try (InputStream keystore = ReloadSecureSettingsIT.class.getResourceAsStream(resourceName)) {
-            if (Files.exists(environment.configFile()) == false) {
-                Files.createDirectory(environment.configFile());
+    private SecureSettings writeEmptyKeystore(Environment environment, char[] password) throws Exception {
+        final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
+        try {
+            keyStoreWrapper.save(environment.configFile(), password);
+        } catch (final AccessControlException e) {
+            if (e.getPermission() instanceof RuntimePermission && e.getPermission().getName().equals("accessUserInformation")) {
+                // this is expected: the save method is extra diligent and wants to make sure
+                // the keystore is readable, not relying on umask and whatnot. It's ok, we don't
+                // care about this in tests.
+            } else {
+                throw e;
             }
-            Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configFile()), StandardCopyOption.REPLACE_EXISTING);
         }
-        // read the keystore from the testcase code (not node code)
-        final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
-        keyStoreWrapper.decrypt(new char[0]);
         return keyStoreWrapper;
     }
 
@@ -383,8 +377,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public static class MockReloadablePlugin extends CountingReloadablePlugin {
 
-        static final Setting<SecureString> DUMMY_SECRET_SETTING = SecureSetting.secureString("dummy_secret_setting", null);
-        private volatile String dummySecretValue;
+        private volatile String seedValue;
 
         public MockReloadablePlugin() {
         }
@@ -392,16 +385,11 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         @Override
         public void reload(Settings settings) throws Exception {
             super.reload(settings);
-            dummySecretValue = DUMMY_SECRET_SETTING.get(settings).toString();
+            this.seedValue = KeyStoreWrapper.SEED_SETTING.get(settings).toString();
         }
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(DUMMY_SECRET_SETTING);
-        }
-
-        public String getDummySecretValue() {
-            return dummySecretValue;
+        public String getSeedValue() {
+            return seedValue;
         }
 
     }

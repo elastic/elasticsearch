@@ -25,19 +25,13 @@ import java.util.Collection;
  * Action to obtain information about X.509 (SSL/TLS) certificates that are being used by X-Pack.
  * The primary use case is for tracking the expiry dates of certificates.
  */
-public class GetCertificateInfoAction
-        extends Action<GetCertificateInfoAction.Request, GetCertificateInfoAction.Response, GetCertificateInfoAction.RequestBuilder> {
+public class GetCertificateInfoAction extends Action<GetCertificateInfoAction.Request, GetCertificateInfoAction.Response> {
 
     public static final GetCertificateInfoAction INSTANCE = new GetCertificateInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ssl/certificates/get";
 
     private GetCertificateInfoAction() {
         super(NAME);
-    }
-
-    @Override
-    public GetCertificateInfoAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetCertificateInfoAction.RequestBuilder(client, this);
     }
 
     @Override
@@ -94,7 +88,7 @@ public class GetCertificateInfoAction
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, GetCertificateInfoAction action) {
             super(client, action, new Request());

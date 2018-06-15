@@ -84,6 +84,10 @@ PUT place_path_category
 NOTE: Adding context mappings increases the index size for completion field. The completion index
 is entirely heap resident, you can monitor the completion field index size using <<indices-stats>>.
 
+NOTE: deprecated[7.0.0, Indexing a suggestion without context on a context enabled completion field is deprecated
+and will be removed in the next major release. If you want to index a suggestion that matches all contexts you should
+add a special context for it.]
+
 [[suggester-context-category]]
 [float]
 ==== Category Context
@@ -156,9 +160,9 @@ POST place/_search?pretty
 // CONSOLE
 // TEST[continued]
 
-NOTE: When no categories are provided at query-time, all indexed documents are considered.
-Querying with no categories on a category enabled completion field should be avoided, as it
-will degrade search performance.
+Note: deprecated[7.0.0, When no categories are provided at query-time, all indexed documents are considered.
+Querying with no categories on a category enabled completion field is deprecated and will be removed in the next major release
+as it degrades search performance considerably.]
 
 Suggestions with certain categories can be boosted higher than others.
 The following filters suggestions by categories and additionally boosts

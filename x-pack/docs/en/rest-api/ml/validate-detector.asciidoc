@@ -5,7 +5,7 @@
 <titleabbrev>Validate Detectors </titleabbrev>
 ++++
 
-This API validates detector configuration information.
+Validates detector configuration information.
 
 ==== Request
 

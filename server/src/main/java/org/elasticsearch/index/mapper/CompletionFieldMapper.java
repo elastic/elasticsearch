@@ -83,7 +83,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
  *  for query-time filtering and boosting (see {@link ContextMappings}
  */
 public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapperParser {
-
     public static final String CONTENT_TYPE = "completion";
 
     public static class Defaults {

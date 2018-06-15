@@ -21,25 +21,26 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Collections;
-import java.util.List;
-import java.util.ArrayList;
-
-public class SyncedFlushResponse extends ActionResponse implements ToXContentFragment {
+public class SyncedFlushResponse extends ActionResponse implements ToXContentObject {
 
     public static final String SHARDS_FIELD = "_shards";
 
@@ -86,6 +87,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(SHARDS_FIELD);
         totalCounts.toXContent(builder, params);
         builder.endObject();
@@ -96,6 +98,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             indexResult.toXContent(builder, params);
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 

@@ -6,23 +6,17 @@
 package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for creating a new token
  */
-public final class CreateTokenAction extends Action<CreateTokenRequest, CreateTokenResponse, CreateTokenRequestBuilder> {
+public final class CreateTokenAction extends Action<CreateTokenRequest, CreateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/create";
     public static final CreateTokenAction INSTANCE = new CreateTokenAction();
 
     private CreateTokenAction() {
         super(NAME);
-    }
-
-    @Override
-    public CreateTokenRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new CreateTokenRequestBuilder(client, INSTANCE);
     }
 
     @Override

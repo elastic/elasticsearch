@@ -29,18 +29,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCalendarsAction.Response, GetCalendarsAction.RequestBuilder> {
+public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCalendarsAction.Response> {
 
     public static final GetCalendarsAction INSTANCE = new GetCalendarsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/get";
 
     private GetCalendarsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -147,7 +142,7 @@ public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCa
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

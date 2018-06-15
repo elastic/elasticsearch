@@ -21,7 +21,6 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -69,7 +68,7 @@ public class PersistentTasksService extends AbstractComponent {
      */
     public <Params extends PersistentTaskParams> void sendStartRequest(final String taskId,
                                                                        final String taskName,
-                                                                       final @Nullable Params taskParams,
+                                                                       final Params taskParams,
                                                                        final ActionListener<PersistentTask<Params>> listener) {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener =
@@ -137,8 +136,8 @@ public class PersistentTasksService extends AbstractComponent {
      * <p>
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
-    private <Req extends ActionRequest, Resp extends PersistentTaskResponse, Builder extends ActionRequestBuilder<Req, Resp, Builder>>
-        void execute(final Req request, final Action<Req, Resp, Builder> action, final ActionListener<PersistentTask<?>> listener) {
+    private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
+        void execute(final Req request, final Action<Req, Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);

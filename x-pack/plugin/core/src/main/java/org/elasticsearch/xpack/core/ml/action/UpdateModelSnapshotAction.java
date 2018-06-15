@@ -29,19 +29,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Request,
-        UpdateModelSnapshotAction.Response, UpdateModelSnapshotAction.RequestBuilder> {
+public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Request, UpdateModelSnapshotAction.Response> {
 
     public static final UpdateModelSnapshotAction INSTANCE = new UpdateModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";
 
     private UpdateModelSnapshotAction() {
         super(NAME);
-    }
-
-    @Override
-    public UpdateModelSnapshotAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -236,7 +230,7 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, UpdateModelSnapshotAction action) {
             super(client, action, new Request());

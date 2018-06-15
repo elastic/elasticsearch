@@ -19,15 +19,16 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -85,8 +86,8 @@ public class ClientYamlTestClient {
     /**
      * Calls an api with the provided parameters and body
      */
-    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity, Map<String, String> headers)
-            throws IOException {
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity,
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
 
         ClientYamlSuiteRestApi restApi = restApi(apiName);
 
@@ -171,20 +172,31 @@ public class ClientYamlTestClient {
             requestPath = finalPath.toString();
         }
 
-        Header[] requestHeaders = new Header[headers.size()];
-        int index = 0;
-        for (Map.Entry<String, String> header : headers.entrySet()) {
-            logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
-            requestHeaders[index++] = new BasicHeader(header.getKey(), header.getValue());
-        }
+
 
         logger.debug("calling api [{}]", apiName);
+        Request request = new Request(requestMethod, requestPath);
+        for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
+            request.addParameter(param.getKey(), param.getValue());
+        }
+        request.setEntity(entity);
+        setOptions(request, headers, nodeSelector);
         try {
-            Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, entity, requestHeaders);
+            Response response = restClient.performRequest(request);
             return new ClientYamlTestResponse(response);
         } catch(ResponseException e) {
             throw new ClientYamlTestResponseException(e);
         }
+    }
+
+    protected static void setOptions(Request request, Map<String, String> headers, NodeSelector nodeSelector) {
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
+            options.addHeader(header.getKey(), header.getValue());
+        }
+        options.setNodeSelector(nodeSelector);
+        request.setOptions(options);
     }
 
     private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, long contentLength) {

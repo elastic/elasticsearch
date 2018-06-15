@@ -35,7 +35,6 @@ import java.util.Collections;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetaDataTests extends ESTestCase {
 

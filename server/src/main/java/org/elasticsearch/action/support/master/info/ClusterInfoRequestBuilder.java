@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse, Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
 
 
-    protected ClusterInfoRequestBuilder(ElasticsearchClient client, Action<Request, Response, Builder> action, Request request) {
+    protected ClusterInfoRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
         super(client, action, request);
     }
 

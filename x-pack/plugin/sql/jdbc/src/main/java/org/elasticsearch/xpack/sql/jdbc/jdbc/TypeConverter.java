@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -18,10 +19,13 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static java.util.Calendar.DAY_OF_MONTH;
@@ -48,6 +52,18 @@ final class TypeConverter {
     }
 
     private static final long DAY_IN_MILLIS = 60 * 60 * 24;
+    private static final Map<Class<?>, JDBCType> javaToJDBC;
+    
+    static {
+        javaToJDBC = Arrays.stream(DataType.values())
+                .filter(dataType -> dataType.javaClass() != null && dataType != DataType.HALF_FLOAT && dataType != DataType.SCALED_FLOAT && dataType != DataType.TEXT)
+                .collect(Collectors.toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
+        // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
+        // according to B-4 table from the jdbc4.2 spec
+        javaToJDBC.put(Calendar.class, JDBCType.TIMESTAMP);
+        javaToJDBC.put(java.util.Date.class, JDBCType.TIMESTAMP);
+        javaToJDBC.put(LocalDateTime.class, JDBCType.TIMESTAMP);
+    }
 
     /**
      * Converts millisecond after epoc to date
@@ -99,10 +115,15 @@ final class TypeConverter {
      * Converts object val from columnType to type
      */
     @SuppressWarnings("unchecked")
-    static <T> T convert(Object val, JDBCType columnType, Class<T> type) throws SQLException {
+    static <T> T convert(Object val, JDBCType columnType, Class<T> type) throws SQLException, ClassCastException {
         if (type == null) {
             return (T) convert(val, columnType);
         }
+        
+        if (type.isInstance(val)) {
+            return type.cast(val);
+        }
+        
         if (type == String.class) {
             return (T) asString(convert(val, columnType));
         }
@@ -228,6 +249,18 @@ final class TypeConverter {
         }
         return dataType.isSigned();
     }
+    
+    
+    static JDBCType fromJavaToJDBC(Class<?> clazz) throws SQLException {
+        for (Class<?> key : javaToJDBC.keySet()) {
+            // java.util.Calendar from {@code javaToJDBC} is an abstract class and this method can be used with concrete classes as well
+            if (key.isAssignableFrom(clazz)) {
+                return javaToJDBC.get(key);
+            }
+        }
+        
+        throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
+    }
 
     private static Double doubleValue(Object v) {
         if (v instanceof String) {
@@ -275,7 +308,7 @@ final class TypeConverter {
             case REAL:
             case FLOAT:
             case DOUBLE:
-                return Boolean.valueOf(Integer.signum(((Number) val).intValue()) == 0);
+                return Boolean.valueOf(Integer.signum(((Number) val).intValue()) != 0);
             default:
                 throw new SQLException("Conversion from type [" + columnType + "] to [Boolean] not supported");
 

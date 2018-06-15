@@ -105,10 +105,13 @@ public enum DataType {
      */
     public final boolean defaultDocValues;
 
+    private final Class<?> javaClass;
+
     DataType(JDBCType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize, boolean isInteger, boolean isRational,
              boolean defaultDocValues) {
         this.esType = name().toLowerCase(Locale.ROOT);
         this.javaName = javaClass == null ? null : javaClass.getName();
+        this.javaClass = javaClass;
         this.jdbcType = jdbcType;
         this.size = size;
         this.defaultPrecision = defaultPrecision;
@@ -124,6 +127,10 @@ public enum DataType {
 
     public String sqlName() {
         return jdbcType.getName();
+    }
+    
+    public Class<?> javaClass() {
+        return javaClass;
     }
 
     public boolean isNumeric() {
@@ -151,6 +158,13 @@ public enum DataType {
             throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");
         }
         return jdbcToEs.get(jdbcType);
+    }
+    
+    public static Class<?> fromJdbcTypeToJava(JDBCType jdbcType) {
+        if (jdbcToEs.containsKey(jdbcType) == false) {
+            throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");
+        }
+        return jdbcToEs.get(jdbcType).javaClass();
     }
 
     /**

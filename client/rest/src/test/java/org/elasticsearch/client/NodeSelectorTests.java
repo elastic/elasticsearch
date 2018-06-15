@@ -63,9 +63,10 @@ public class NodeSelectorTests extends RestClientTestCase {
         assertEquals(expected, nodes);
     }
 
-    private Node dummyNode(boolean master, boolean data, boolean ingest) {
+    private static Node dummyNode(boolean master, boolean data, boolean ingest) {
         return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
                 randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(master, data, ingest));
+                new Roles(master, data, ingest),
+                Collections.<String, List<String>>emptyMap());
     }
 }

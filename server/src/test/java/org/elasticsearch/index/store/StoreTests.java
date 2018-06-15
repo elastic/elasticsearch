@@ -144,18 +144,8 @@ public class StoreTests extends ESTestCase {
         store.decRef();
         assertThat(store.refCount(), Matchers.equalTo(0));
         assertFalse(store.tryIncRef());
-        try {
-            store.incRef();
-            fail(" expected exception");
-        } catch (IllegalStateException ex) {
-
-        }
-        try {
-            store.ensureOpen();
-            fail(" expected exception");
-        } catch (IllegalStateException ex) {
-
-        }
+        expectThrows(IllegalStateException.class, store::incRef);
+        expectThrows(IllegalStateException.class, store::ensureOpen);
     }
 
     public void testVerifyingIndexOutput() throws IOException {

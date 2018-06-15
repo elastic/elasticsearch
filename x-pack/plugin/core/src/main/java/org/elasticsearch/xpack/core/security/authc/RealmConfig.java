@@ -11,12 +11,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 
+import java.util.Collection;
+import java.util.Collections;
+
 public class RealmConfig {
 
     final String name;
     final boolean enabled;
     final int order;
     private final String type;
+    private final Collection<String> lookupRealmNames;
     final Settings settings;
 
     private final Environment env;
@@ -33,8 +37,9 @@ public class RealmConfig {
         order = RealmSettings.ORDER_SETTING.get(settings);
         type = RealmSettings.TYPE_SETTING.get(settings);
         this.threadContext = threadContext;
+        this.lookupRealmNames = Collections.unmodifiableCollection(RealmSettings.LOOKUP_REALMS_SETTING.get(settings));
     }
-    
+
     public String name() {
         return name;
     }
@@ -42,13 +47,17 @@ public class RealmConfig {
     public boolean enabled() {
         return enabled;
     }
-    
+
     public int order() {
         return order;
     }
 
     public String type() {
         return type;
+    }
+
+    public Collection<String> lookupRealms() {
+        return lookupRealmNames;
     }
 
     public Settings settings() {

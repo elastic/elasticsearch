@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,6 +51,8 @@ public class RealmSettings {
     static final Setting<String> TYPE_SETTING = Setting.simpleString("type", Setting.Property.NodeScope);
     static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("enabled", true, Setting.Property.NodeScope);
     static final Setting<Integer> ORDER_SETTING = Setting.intSetting("order", Integer.MAX_VALUE, Setting.Property.NodeScope);
+    static final Setting<List<String>> LOOKUP_REALMS_SETTING =
+            Setting.listSetting("lookup_realms", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     /**
      * Add the {@link Setting} configuration for <em>all</em> realms to the provided list.
@@ -181,6 +184,7 @@ public class RealmSettings {
         settingSet.add(TYPE_SETTING);
         settingSet.add(ENABLED_SETTING);
         settingSet.add(ORDER_SETTING);
+        settingSet.add(LOOKUP_REALMS_SETTING);
         final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingSet, Setting.Property.NodeScope) { };
         try {
             validator.validate(settings, false);

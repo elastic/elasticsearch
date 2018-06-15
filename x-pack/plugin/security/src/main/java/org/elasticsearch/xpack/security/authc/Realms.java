@@ -9,12 +9,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -69,6 +67,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         // and is also simpler in terms of logic. These lists are small, so the duplication should not be a real issue here
         List<Realm> standardRealms = new ArrayList<>();
         List<Realm> nativeRealms = new ArrayList<>();
+        List<Realm> candidateLookupRealms = new ArrayList<>();
         for (Realm realm : realms) {
             // don't add the reserved realm here otherwise we end up with only this realm...
             if (InternalRealms.isStandardRealm(realm.type())) {
@@ -77,6 +76,10 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
             if (FileRealmSettings.TYPE.equals(realm.type()) || NativeRealmSettings.TYPE.equals(realm.type())) {
                 nativeRealms.add(realm);
+            }
+
+            if (realm.hasLookupDependency() == false) {
+                candidateLookupRealms.add(realm);
             }
         }
 
@@ -90,6 +93,16 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             assert realmList.get(0) == reservedRealm;
         }
 
+        for (Realm thisRealm : realms) {
+            if (thisRealm.hasLookupDependency()) {
+                final List<Realm> lookupRealmsForThisRealm = Collections.unmodifiableList(
+                        candidateLookupRealms.stream()
+                                .filter(lr -> thisRealm.config().lookupRealms().contains(lr.name()))
+                                .collect(Collectors.toList()));
+                logger.debug("Injecting lookup realms {} for {}", lookupRealmsForThisRealm, thisRealm.name());
+                thisRealm.setLookupRealms(lookupRealmsForThisRealm);
+            }
+        }
         this.standardRealmsOnly = Collections.unmodifiableList(standardRealms);
         this.nativeRealmsOnly = Collections.unmodifiableList(nativeRealms);
     }
@@ -150,33 +163,17 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
     protected List<Realm> initRealms() throws Exception {
         Settings realmsSettings = RealmSettings.get(settings);
-        Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
-            if (type == null) {
-                throw new IllegalArgumentException("missing realm type for [" + name + "] realm");
-            }
             Realm.Factory factory = factories.get(type);
-            if (factory == null) {
-                throw new IllegalArgumentException("unknown realm type [" + type + "] set for realm [" + name + "]");
-            }
             RealmConfig config = new RealmConfig(name, realmSettings, settings, env, threadContext);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}/{}] is disabled", type, name);
                 }
                 continue;
-            }
-            if (FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type)) {
-                // this is an internal realm factory, let's make sure we didn't already registered one
-                // (there can only be one instance of an internal realm)
-                if (internalTypes.contains(type)) {
-                    throw new IllegalArgumentException("multiple [" + type + "] realms are configured. [" + type +
-                            "] is an internal realm and therefore there can only be one such realm configured");
-                }
-                internalTypes.add(type);
             }
             realms.add(factory.create(config));
         }

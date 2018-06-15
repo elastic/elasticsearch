@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,12 +31,14 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     protected RealmConfig config;
+    protected List<Realm> lookupRealms;
 
     public Realm(String type, RealmConfig config) {
         this.type = type;
         this.config = config;
         this.logger = config.logger(getClass());
     }
+
 
     /**
      * @return The type of this realm
@@ -46,22 +51,54 @@ public abstract class Realm implements Comparable<Realm> {
      * @return The name of this realm.
      */
     public String name() {
-        return config.name;
+        return config.name();
     }
 
     /**
      * @return The order of this realm within the executing realm chain.
      */
     public int order() {
-        return config.order;
+        return config.order();
+    }
+
+    public RealmConfig config() {
+        return config;
+    }
+
+    /**
+     * Sets lookup realms for this realm driven by realm setting
+     * {@link RealmSettings#LOOKUP_REALMS_SETTING}
+     *
+     * @param lookupRealms List of {@link Realm}s for user lookup
+     */
+    public void setLookupRealms(final List<Realm> lookupRealms) {
+        if (lookupRealms == null || lookupRealms.isEmpty()) {
+            if (config().lookupRealms() == null || config().lookupRealms().isEmpty()) {
+                this.lookupRealms = Collections.emptyList();
+            } else {
+                throw new IllegalArgumentException(
+                        "list of injected lookup realms is null or empty whereas realm config has lookup realms dependencies as : "
+                                + config().lookupRealms());
+            }
+        } else {
+            this.lookupRealms = Collections.unmodifiableList(lookupRealms);
+        }
+    }
+
+    /**
+     * @return {@code true} if this realm depends on other realms for supporting
+     *         {@link #lookupUser(String, ActionListener)}
+     */
+    public boolean hasLookupDependency() {
+        return (config().lookupRealms() != null && config().lookupRealms().isEmpty() == false);
     }
 
     @Override
     public int compareTo(Realm other) {
-        int result = Integer.compare(config.order, other.config.order);
+        int result = Integer.compare(config.order(), other.config.order());
         if (result == 0) {
             // If same order, compare based on the realm name
-            result = config.name.compareTo(other.config.name);
+            result = config.name().compareTo(other.config.name());
         }
         return result;
     }
@@ -110,14 +147,34 @@ public abstract class Realm implements Comparable<Realm> {
     public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener);
 
     /**
-     * Looks up the user identified the String identifier. A successful lookup will call the {@link ActionListener#onResponse}
-     * with the {@link User} identified by the username. An unsuccessful lookup call with {@code null} as the argument. If lookup is not
-     * supported, simply return {@code null} when called.
+     * Looks up the user identified by the string identifier. A successful lookup
+     * will call the {@link ActionListener#onResponse} with the {@link User}
+     * identified by the username. An unsuccessful lookup call with {@code null} as
+     * the argument. If lookup is not supported, simply return {@code null} when
+     * called.<p>
+     * Default implementation iterates over the list of realms to search user. If it
+     * finds a user then that {@link User} is returned as the argument else it
+     * iterates on the next lookup realm from the list. At the end if it does not
+     * find any user then it will return {@code null} as the argument.<p>
+     * If this realm does not depend on any other realms for lookup, it always
+     * returns {@code null} as the argument.
      *
-     * @param username the String identifier for the user
+     * @param username the string identifier for the user
      * @param listener The listener to pass the lookup result to
      */
-    public abstract void lookupUser(String username, ActionListener<User> listener);
+    public void lookupUser(final String username, final ActionListener<User> listener) {
+        if (lookupRealms == null || lookupRealms.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+        final IteratingActionListener<User, Realm> userLookupListener = new IteratingActionListener<>(listener,
+                (realm, lookupUserListener) -> realm.lookupUser(username, lookupUserListener), lookupRealms, config.threadContext());
+        try {
+            userLookupListener.run();
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> stats = new HashMap<>();
@@ -128,7 +185,7 @@ public abstract class Realm implements Comparable<Realm> {
 
     @Override
     public String toString() {
-        return type + "/" + config.name;
+        return type + "/" + config.name();
     }
 
     /**

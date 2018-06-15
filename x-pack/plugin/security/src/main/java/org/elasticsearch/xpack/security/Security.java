@@ -277,13 +277,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
         }
-
+        this.securityExtensions.addAll(extensions);
         if (enabled) {
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
                     new TokenSSLBootstrapCheck(),
+                    new RealmConfigBootstrapCheck(securityExtensions),
                     new PkiRealmBootstrapCheck(settings, getSslService()),
                     new TLSLicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
@@ -291,7 +292,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
-        this.securityExtensions.addAll(extensions);
     }
 
     @Override

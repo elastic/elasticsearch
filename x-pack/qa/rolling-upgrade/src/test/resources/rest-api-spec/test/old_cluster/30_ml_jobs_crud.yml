@@ -138,11 +138,11 @@
 
   - skip:
       version:  "6.2.0 - "
-      reason:   "Rules fields were renamed on 6.2.0"
+      reason:   "Rules were renamed on 6.2.0 and replaced by custom_rules on 6.4.0"
 
   - do:
       xpack.ml.put_job:
-        job_id: old-cluster-job-with-rules
+        job_id: job-with-old-rules
         body:  >
           {
             "analysis_config": {
@@ -171,36 +171,22 @@
           }
 
 ---
-"Test job with post 6.2 rules":
+"Test dummy job 6.2 onwards":
 
   - skip:
       version:  " - 6.1.99"
-      reason:   "Rules fields were renamed on 6.2.0"
+      reason:   "This creates a job with the same name as the rules job to ensure that job is not missing in the upgraded cluster; also some of the rule fields were deprecated in 6.2 so we using the dummy from 6.2 onwards"
 
   - do:
       xpack.ml.put_job:
-        job_id: old-cluster-job-with-rules
+        job_id: job-with-old-rules
         body:  >
           {
             "analysis_config": {
               "detectors": [
                 {
                   "function": "count",
-                  "by_field_name": "country",
-                  "rules": [
-                    {
-                      "actions": ["filter_results"],
-                      "conditions": [
-                        {
-                          "type":"numerical_actual",
-                          "field_name":"country",
-                          "field_value": "uk",
-                          "condition": {"operator":"lt","value":"33.3"}
-                        },
-                        {"type":"categorical", "field_name":"country", "filter_id": "foo"}
-                      ]
-                    }
-                  ]
+                  "by_field_name": "country"
                 }
               ]
             },

@@ -22,7 +22,7 @@ setup:
         filter_id: filter-foo
         body:  >
           {
-            "items": ["abc", "xyz"]
+            "items": ["xyz", "abc"]
           }
 
   - do:

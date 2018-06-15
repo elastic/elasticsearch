@@ -45,7 +45,9 @@ import javax.security.auth.login.LoginException;
  * interactions using GSS context negotiation.<br>
  * It is not advisable to share a SpnegoClient between threads as there is no
  * synchronization in place, internally this depends on {@link GSSContext} for
- * context negotiation which maintains sequencing for replay detections.
+ * context negotiation which maintains sequencing for replay detections.<br>
+ * Use {@link #close()} to release and dispose {@link LoginContext} and
+ * {@link GSSContext} after usage.
  */
 class SpnegoClient implements AutoCloseable {
     private static final Logger LOGGER = ESLoggerFactory.getLogger(SpnegoClient.class);

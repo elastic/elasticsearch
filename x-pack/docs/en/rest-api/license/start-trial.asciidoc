@@ -36,24 +36,6 @@ For more information, see
 [float]
 ==== Examples
 
-The following example checks whether you are eligible to start a trial:
-
-[source,js]
-------------------------------------------------------------
-GET _xpack/license/start_trial
-------------------------------------------------------------
-// CONSOLE
-// TEST[skip:license testing issues]
-
-Example response:
-[source,js]
-------------------------------------------------------------
-{
-  "eligible_to_start_trial": true
-}
-------------------------------------------------------------
-// NOTCONSOLE
-
 The following example starts a 30-day trial license. The acknowledge
 parameter is required as you are initiating a license that will expire.
 

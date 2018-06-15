@@ -34,7 +34,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Lazy;
+import org.elasticsearch.common.util.LazyInitializable;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -52,7 +52,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
      * Dictionary of client instances. Client instances are built lazily from the
      * latest settings.
      */
-    private AtomicReference<Map<String, Lazy<Storage, IOException>>> clientsCache = new AtomicReference<>(emptyMap());
+    private final AtomicReference<Map<String, LazyInitializable<Storage, IOException>>> clientsCache = new AtomicReference<>(emptyMap());
 
     public GoogleCloudStorageService(final Settings settings) {
         super(settings);
@@ -67,14 +67,15 @@ public class GoogleCloudStorageService extends AbstractComponent {
      */
     public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
         // build the new lazy clients
-        final MapBuilder<String, Lazy<Storage, IOException>> newClientsCache = MapBuilder.newMapBuilder();
+        final MapBuilder<String, LazyInitializable<Storage, IOException>> newClientsCache = MapBuilder.newMapBuilder();
         for (final Map.Entry<String, GoogleCloudStorageClientSettings> entry : clientsSettings.entrySet()) {
-            newClientsCache.put(entry.getKey(), new Lazy<Storage, IOException>(() -> createClient(entry.getKey(), entry.getValue())));
+            newClientsCache.put(entry.getKey(),
+                    new LazyInitializable<Storage, IOException>(() -> createClient(entry.getKey(), entry.getValue())));
         }
         // make the new clients available
-        final Map<String, Lazy<Storage, IOException>> oldClientCache = this.clientsCache.getAndSet(newClientsCache.immutableMap());
+        final Map<String, LazyInitializable<Storage, IOException>> oldClientCache = clientsCache.getAndSet(newClientsCache.immutableMap());
         // release old clients
-        oldClientCache.values().forEach(Lazy::clear);
+        oldClientCache.values().forEach(LazyInitializable::reset);
     }
 
     /**
@@ -89,7 +90,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
      *         (blobs)
      */
     public Storage client(final String clientName) throws IOException {
-        final Lazy<Storage, IOException> lazyClient = clientsCache.get().get(clientName);
+        final LazyInitializable<Storage, IOException> lazyClient = clientsCache.get().get(clientName);
         if (lazyClient == null) {
             throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
                     + Strings.collectionToDelimitedString(clientsCache.get().keySet(), ","));

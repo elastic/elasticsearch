@@ -19,10 +19,8 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -36,15 +34,17 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Lazy;
+import org.elasticsearch.common.util.LazyInitializable;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
-    private final AtomicReference<LazyAmazonEc2Reference> lazyClientReference = new AtomicReference<>();
+    private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
+            new AtomicReference<>();
 
     AwsEc2ServiceImpl(Settings settings) {
         super(settings);
@@ -111,7 +111,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
     @Override
     public AmazonEc2Reference client() {
-        final LazyAmazonEc2Reference clientReference = this.lazyClientReference.get();
+        final LazyInitializable<AmazonEc2Reference, ElasticsearchException> clientReference = this.lazyClientReference.get();
         if (clientReference == null) {
             throw new IllegalStateException("Missing ec2 client configs");
         }
@@ -125,48 +125,24 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
      */
     @Override
     public void refreshAndClearCache(Ec2ClientSettings clientSettings) {
-        final LazyAmazonEc2Reference newClient = new LazyAmazonEc2Reference(() -> buildClient(clientSettings));
-        final LazyAmazonEc2Reference oldClient = this.lazyClientReference.getAndSet(newClient);
+        final LazyInitializable<AmazonEc2Reference, ElasticsearchException> newClient = new LazyInitializable<>(
+                () -> new AmazonEc2Reference(buildClient(clientSettings)), clientReference -> clientReference.incRef(),
+                clientReference -> clientReference.decRef());
+        final LazyInitializable<AmazonEc2Reference, ElasticsearchException> oldClient = this.lazyClientReference.getAndSet(newClient);
         if (oldClient != null) {
-            oldClient.clear();
+            oldClient.reset();
         }
     }
 
     @Override
     public void close() {
-        final LazyAmazonEc2Reference clientReference = this.lazyClientReference.getAndSet(null);
+        final LazyInitializable<AmazonEc2Reference, ElasticsearchException> clientReference = this.lazyClientReference.getAndSet(null);
         if (clientReference != null) {
-            clientReference.clear();
+            clientReference.reset();
         }
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();
-    }
-
-    private static class LazyAmazonEc2Reference extends Lazy<AmazonEc2Reference, Exception> {
-
-        LazyAmazonEc2Reference(Supplier<AmazonEC2> supplier) {
-            super(() -> {
-                final AmazonEC2 client = Objects.requireNonNull(supplier.get());
-                // wrap supplier result in a reference counted object with initial count set to 1
-                final AmazonEc2Reference clientReference = new AmazonEc2Reference(client);
-                clientReference.incRef();
-                return clientReference;
-            }, clientReference -> clientReference.decRef());
-        }
-
-        @Override
-        public AmazonEc2Reference getOrCompute() {
-            AmazonEc2Reference result;
-            try {
-                result = super.getOrCompute();
-            } catch (final Exception e) {
-                throw new ElasticsearchException("This is unexpected", e);
-            }
-            // the count will be decreased by {@codee AmazonEc2Reference#close}
-            result.incRef();
-            return result;
-        }
     }
 
 }

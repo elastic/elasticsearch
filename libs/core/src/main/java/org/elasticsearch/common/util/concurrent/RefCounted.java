@@ -44,7 +44,7 @@ public interface RefCounted {
      *
      * @see #decRef
      * @see #tryIncRef()
-     * @throws org.apache.lucene.store.AlreadyClosedException iff the reference counter can not be incremented.
+     * @throws IllegalStateException iff the reference counter can not be incremented.
      */
     void incRef();
 

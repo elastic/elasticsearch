@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -70,14 +69,14 @@ public class RefCountedTests extends ESTestCase {
         try {
             counted.incRef();
             fail(" expected exception");
-        } catch (AlreadyClosedException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), equalTo("test is already closed can't increment refCount current count [0]"));
         }
 
         try {
             counted.ensureOpen();
             fail(" expected exception");
-        } catch (AlreadyClosedException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), equalTo("closed"));
         }
     }
@@ -116,7 +115,7 @@ public class RefCountedTests extends ESTestCase {
         try {
             counted.ensureOpen();
             fail("expected to be closed");
-        } catch (AlreadyClosedException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), equalTo("closed"));
         }
         assertThat(counted.refCount(), is(0));
@@ -140,7 +139,7 @@ public class RefCountedTests extends ESTestCase {
         public void ensureOpen() {
             if (closed.get()) {
                 assert this.refCount() == 0;
-                throw new AlreadyClosedException("closed");
+                throw new IllegalStateException("closed");
             }
         }
     }

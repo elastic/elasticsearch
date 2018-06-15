@@ -99,7 +99,7 @@ public class RemoteInfo implements Writeable {
             socketTimeout = DEFAULT_SOCKET_TIMEOUT;
             connectTimeout = DEFAULT_CONNECT_TIMEOUT;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             pathPrefix = in.readOptionalString();
         } else {
             pathPrefix = null;
@@ -123,7 +123,7 @@ public class RemoteInfo implements Writeable {
             out.writeTimeValue(socketTimeout);
             out.writeTimeValue(connectTimeout);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalString(pathPrefix);
         }
     }

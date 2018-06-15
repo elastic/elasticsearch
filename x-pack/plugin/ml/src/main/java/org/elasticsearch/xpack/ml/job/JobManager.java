@@ -181,6 +181,7 @@ public class JobManager extends AbstractComponent {
         request.getJobBuilder().validateCategorizationAnalyzer(analysisRegistry, environment);
 
         Job job = request.getJobBuilder().build(new Date());
+
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
             DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }

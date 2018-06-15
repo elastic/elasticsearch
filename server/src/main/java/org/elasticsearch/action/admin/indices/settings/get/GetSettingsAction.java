@@ -20,20 +20,14 @@
 package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetSettingsAction extends Action<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
+public class GetSettingsAction extends Action<GetSettingsRequest, GetSettingsResponse> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();
     public static final String NAME = "indices:monitor/settings/get";
 
     public GetSettingsAction() {
         super(NAME);
-    }
-
-    @Override
-    public GetSettingsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetSettingsRequestBuilder(client, this);
     }
 
     @Override

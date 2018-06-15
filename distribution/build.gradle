@@ -34,7 +34,7 @@ Collection distributions = project('archives').subprojects + project('packages')
 task generateDependenciesReport(type: ConcatFilesTask) {
   files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
   headerLine = "name,version,url,license"
-  target = new File(System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv")
+  target = new File(System.getProperty('csv')?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 }
 
 /*****************************************************************************
@@ -231,6 +231,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from { project(':server').jar }
       from { project(':server').configurations.runtime }
       from { project(':libs:plugin-classloader').jar }
+      from { project(':distribution:tools:java-version-checker').jar }
       from { project(':distribution:tools:launchers').jar }
       into('tools/plugin-cli') {
         from { project(':distribution:tools:plugin-cli').jar }

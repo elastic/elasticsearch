@@ -19,18 +19,19 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AliasMetaDataTests extends ESTestCase {
+public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> {
 
     public void testSerialization() throws IOException {
         final AliasMetaData before =
@@ -52,4 +53,49 @@ public class AliasMetaDataTests extends ESTestCase {
 
         assertThat(after, equalTo(before));
     }
+
+    @Override
+    protected AliasMetaData createTestInstance() {
+        return createTestItem();
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new alias
+                || p.contains(".filter"); // do not insert random data into AliasMetaData#filter
+    }
+
+    @Override
+    protected AliasMetaData doParseInstance(XContentParser parser) throws IOException {
+        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+        }
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.currentToken());
+        AliasMetaData aliasMetaData = AliasMetaData.Builder.fromXContent(parser);
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        return aliasMetaData;
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    private static AliasMetaData createTestItem() {
+        Builder builder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
+        if (randomBoolean()) {
+            builder.routing(randomAlphaOfLengthBetween(3, 10));
+        }
+        if (randomBoolean()) {
+            builder.searchRouting(randomAlphaOfLengthBetween(3, 10));
+        }
+        if (randomBoolean()) {
+            builder.indexRouting(randomAlphaOfLengthBetween(3, 10));
+        }
+        if (randomBoolean()) {
+            builder.filter("{\"term\":{\"year\":2016}}");
+        }
+        return builder.build();
+    }
+
 }

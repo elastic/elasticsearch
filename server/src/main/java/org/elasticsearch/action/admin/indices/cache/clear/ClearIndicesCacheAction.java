@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class ClearIndicesCacheAction extends Action<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder> {
+public class ClearIndicesCacheAction extends Action<ClearIndicesCacheRequest, ClearIndicesCacheResponse> {
 
     public static final ClearIndicesCacheAction INSTANCE = new ClearIndicesCacheAction();
     public static final String NAME = "indices:admin/cache/clear";
@@ -34,10 +33,5 @@ public class ClearIndicesCacheAction extends Action<ClearIndicesCacheRequest, Cl
     @Override
     public ClearIndicesCacheResponse newResponse() {
         return new ClearIndicesCacheResponse();
-    }
-
-    @Override
-    public ClearIndicesCacheRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ClearIndicesCacheRequestBuilder(client, this);
     }
 }

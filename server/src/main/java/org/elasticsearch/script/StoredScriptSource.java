@@ -75,6 +75,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     public static final ParseField TEMPLATE_PARSE_FIELD = new ParseField("template");
 
     /**
+     * Standard {@link ParseField} for query on the inner field.
+     */
+    public static final ParseField TEMPLATE_NO_WRAPPER_PARSE_FIELD = new ParseField("query");
+
+    /**
      * Standard {@link ParseField} for lang on the inner level.
      */
     public static final ParseField LANG_PARSE_FIELD = new ParseField("lang");
@@ -187,6 +192,26 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
         PARSER.declareField(Builder::setSource, parser -> parser, SOURCE_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
+    }
+
+    private static StoredScriptSource parseRemaining(Token token, XContentParser parser) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            if (token != Token.START_OBJECT) {
+                builder.startObject();
+                builder.copyCurrentStructure(parser);
+                builder.endObject();
+            } else {
+                builder.copyCurrentStructure(parser);
+            }
+
+            String source = Strings.toString(builder);
+
+            if (source == null || source.isEmpty()) {
+                DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
+            }
+
+            return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
+        }
     }
 
     /**
@@ -304,38 +329,28 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
-            } else {
-                if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
-                    token = parser.nextToken();
+            } else if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
 
-                    if (token == Token.VALUE_STRING) {
-                        String source = parser.text();
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
 
-                        if (source == null || source.isEmpty()) {
-                            DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
-                        }
-
-                        return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
-                    }
-                }
-
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    if (token != Token.START_OBJECT) {
-                        builder.startObject();
-                        builder.copyCurrentStructure(parser);
-                        builder.endObject();
-                    } else {
-                        builder.copyCurrentStructure(parser);
-                    }
-
-                    String source = Strings.toString(builder);
+                token = parser.nextToken();
+                if (token == Token.VALUE_STRING) {
+                    String source = parser.text();
 
                     if (source == null || source.isEmpty()) {
                         DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
                     }
 
                     return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
+                } else {
+                    return parseRemaining(token, parser);
                 }
+            } else if (TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName().equals(name)) {
+                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
+                return parseRemaining(token, parser);
+            } else {
+                DEPRECATION_LOGGER.deprecated("scripts should not be stored without a context. Specify them in a \"script\" element.");
+                return parseRemaining(token, parser);
             }
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);

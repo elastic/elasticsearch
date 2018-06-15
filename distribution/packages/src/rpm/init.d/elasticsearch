@@ -90,7 +90,7 @@ start() {
     if [ -n "$MAX_LOCKED_MEMORY" ]; then
         ulimit -l $MAX_LOCKED_MEMORY
     fi
-    if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count ]; then
+    if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count -a "$MAX_MAP_COUNT" -ge $(cat /proc/sys/vm/max_map_count) ]; then
         sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
     fi
 

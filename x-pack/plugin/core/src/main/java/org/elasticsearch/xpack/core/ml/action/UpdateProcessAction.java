@@ -24,8 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class UpdateProcessAction extends
-        Action<UpdateProcessAction.Request, UpdateProcessAction.Response, UpdateProcessAction.RequestBuilder> {
+public class UpdateProcessAction extends Action<UpdateProcessAction.Request, UpdateProcessAction.Response> {
 
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/update/process";
@@ -35,16 +34,11 @@ public class UpdateProcessAction extends
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, UpdateProcessAction action) {
             super(client, action, new Request());

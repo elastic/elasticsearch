@@ -19,6 +19,8 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -26,8 +28,11 @@ import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -43,13 +48,24 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTask
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
+import static org.elasticsearch.test.VersionUtils.allReleasedVersions;
+import static org.elasticsearch.test.VersionUtils.compatibleFutureVersion;
+import static org.elasticsearch.test.VersionUtils.getFirstVersion;
+import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializationTestCase<Custom> {
 
@@ -228,7 +244,65 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
             assertEquals(changed, builder.isChanged());
             persistentTasks = builder.build();
         }
+    }
 
+    public void testMinVersionSerialization() throws IOException {
+        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
+
+        Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
+        final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
+        tasks.addTask("test_compatible_version", TestPersistentTasksExecutor.NAME,
+            new TestParams(null, randomVersionBetween(random(), minVersion, streamVersion),
+                randomBoolean() ? Optional.empty() : Optional.of("test")),
+            randomAssignment());
+        tasks.addTask("test_incompatible_version", TestPersistentTasksExecutor.NAME,
+            new TestParams(null, randomVersionBetween(random(), compatibleFutureVersion(streamVersion), Version.CURRENT),
+                randomBoolean() ? Optional.empty() : Optional.of("test")),
+            randomAssignment());
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(streamVersion);
+        Set<String> features = new HashSet<>();
+        final boolean transportClient = randomBoolean();
+        if (transportClient) {
+            features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
+        }
+        // if a transport client, then it must have the feature otherwise we add the feature randomly
+        if (transportClient || randomBoolean()) {
+            features.add("test");
+        }
+        out.setFeatures(features);
+        tasks.build().writeTo(out);
+
+        final StreamInput input = out.bytes().streamInput();
+        input.setVersion(streamVersion);
+        PersistentTasksCustomMetaData read =
+            new PersistentTasksCustomMetaData(new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry()));
+
+        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
+    }
+
+    public void testFeatureSerialization() throws IOException {
+        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
+
+        Version minVersion = getFirstVersion();
+        tasks.addTask("test_compatible", TestPersistentTasksExecutor.NAME,
+            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT),
+                randomBoolean() ? Optional.empty() : Optional.of("existing")),
+            randomAssignment());
+        tasks.addTask("test_incompatible", TestPersistentTasksExecutor.NAME,
+            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT), Optional.of("non_existing")),
+            randomAssignment());
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        Set<String> features = new HashSet<>();
+        features.add("existing");
+        features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
+        out.setFeatures(features);
+        tasks.build().writeTo(out);
+
+        PersistentTasksCustomMetaData read = new PersistentTasksCustomMetaData(
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
+        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible")));
     }
 
     private Assignment randomAssignment() {

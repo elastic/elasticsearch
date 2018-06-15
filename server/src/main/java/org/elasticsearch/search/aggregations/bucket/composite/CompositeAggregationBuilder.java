@@ -170,7 +170,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                     throw new IllegalArgumentException("Missing value for [after." + sources.get(i).name() + "]");
                 }
                 Object obj = after.get(sourceName);
-                if (obj instanceof Comparable) {
+                if (configs[i].missingBucket() && obj == null) {
+                    values[i] = null;
+                } else if (obj instanceof Comparable) {
                     values[i] = (Comparable<?>) obj;
                 } else {
                     throw new IllegalArgumentException("Invalid value for [after." + sources.get(i).name() +

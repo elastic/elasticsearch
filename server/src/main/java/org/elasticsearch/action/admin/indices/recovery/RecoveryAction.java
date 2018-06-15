@@ -20,23 +20,17 @@
 package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Recovery information action
  */
-public class RecoveryAction extends Action<RecoveryRequest, RecoveryResponse, RecoveryRequestBuilder> {
+public class RecoveryAction extends Action<RecoveryRequest, RecoveryResponse> {
 
     public static final RecoveryAction INSTANCE = new RecoveryAction();
     public static final String NAME = "indices:monitor/recovery";
 
     private RecoveryAction() {
         super(NAME);
-    }
-
-    @Override
-    public RecoveryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RecoveryRequestBuilder(client, this);
     }
 
     @Override

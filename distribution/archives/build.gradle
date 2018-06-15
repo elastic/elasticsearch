@@ -106,15 +106,23 @@ tasks.withType(AbstractArchiveTask) {
   baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
 }
 
+Closure commonZipConfig = {
+  dirMode 0755
+  fileMode 0644
+}
+
 task buildIntegTestZip(type: Zip) {
+  configure(commonZipConfig)
   with archiveFiles(transportModulesFiles, 'zip', false)
 }
 
 task buildZip(type: Zip) {
+  configure(commonZipConfig)
   with archiveFiles(modulesFiles(false), 'zip', false)
 }
 
 task buildOssZip(type: Zip) {
+  configure(commonZipConfig)
   with archiveFiles(modulesFiles(true), 'zip', true)
 }
 
@@ -220,6 +228,8 @@ subprojects {
   check.dependsOn checkNotice
 
   if (project.name == 'zip' || project.name == 'tar') {
+    project.ext.licenseName = 'Elastic License'
+    project.ext.licenseUrl = ext.elasticLicenseUrl
     task checkMlCppNotice {
       dependsOn buildDist, checkExtraction
       onlyIf toolExists

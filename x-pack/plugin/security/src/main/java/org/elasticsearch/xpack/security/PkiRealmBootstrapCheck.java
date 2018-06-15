@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;

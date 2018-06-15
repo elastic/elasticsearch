@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.shards;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for {@link TransportIndicesShardStoresAction}
@@ -29,7 +28,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Shard store information reports which nodes hold shard copies, how recent they are
  * and any exceptions on opening the shard index or from previous engine failures
  */
-public class IndicesShardStoresAction extends Action<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardStoreRequestBuilder> {
+public class IndicesShardStoresAction extends Action<IndicesShardStoresRequest, IndicesShardStoresResponse> {
 
     public static final IndicesShardStoresAction INSTANCE = new IndicesShardStoresAction();
     public static final String NAME = "indices:monitor/shard_stores";
@@ -41,10 +40,5 @@ public class IndicesShardStoresAction extends Action<IndicesShardStoresRequest, 
     @Override
     public IndicesShardStoresResponse newResponse() {
         return new IndicesShardStoresResponse();
-    }
-
-    @Override
-    public IndicesShardStoreRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndicesShardStoreRequestBuilder(client, this);
     }
 }

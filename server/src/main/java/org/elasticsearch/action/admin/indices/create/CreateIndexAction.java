@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class CreateIndexAction extends Action<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
+public class CreateIndexAction extends Action<CreateIndexRequest, CreateIndexResponse> {
 
     public static final CreateIndexAction INSTANCE = new CreateIndexAction();
     public static final String NAME = "indices:admin/create";
@@ -34,10 +33,5 @@ public class CreateIndexAction extends Action<CreateIndexRequest, CreateIndexRes
     @Override
     public CreateIndexResponse newResponse() {
         return new CreateIndexResponse();
-    }
-
-    @Override
-    public CreateIndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new CreateIndexRequestBuilder(client, this);
     }
 }

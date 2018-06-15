@@ -62,19 +62,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request, PainlessExecuteAction.Response,
-    PainlessExecuteAction.RequestBuilder> {
+public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request, PainlessExecuteAction.Response> {
 
     static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
     private static final String NAME = "cluster:admin/scripts/painless/execute";
 
     private PainlessExecuteAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -201,7 +195,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
 
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

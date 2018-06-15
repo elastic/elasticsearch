@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
@@ -104,7 +105,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
-        SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
                 .addSort(context.extractedFields.timeField(), SortOrder.ASC)
                 .setIndices(context.indices)
@@ -212,7 +213,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
         return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
-                () -> SearchScrollAction.INSTANCE.newRequestBuilder(client)
+                () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
                 .setScrollId(scrollId)
                 .get());

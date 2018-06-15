@@ -61,6 +61,7 @@ setup() {
             [ ! -d "$ESHOME" ]; then
         clean_before_test
         install
+        set_debug_logging
     fi
 }
 

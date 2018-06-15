@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * This action acks a watch in memory, and the index
  */
-public class ActivateWatchAction extends Action<ActivateWatchRequest, ActivateWatchResponse, ActivateWatchRequestBuilder> {
+public class ActivateWatchAction extends Action<ActivateWatchRequest, ActivateWatchResponse> {
 
     public static final ActivateWatchAction INSTANCE = new ActivateWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/activate";
@@ -23,10 +22,5 @@ public class ActivateWatchAction extends Action<ActivateWatchRequest, ActivateWa
     @Override
     public ActivateWatchResponse newResponse() {
         return new ActivateWatchResponse();
-    }
-
-    @Override
-    public ActivateWatchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ActivateWatchRequestBuilder(client);
     }
 }

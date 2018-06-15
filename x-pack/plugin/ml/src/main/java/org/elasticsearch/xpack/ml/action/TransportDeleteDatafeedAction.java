@@ -90,7 +90,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.cancelPersistentTask(datafeedTask.getId(),
+            persistentTasksService.sendRemoveRequest(datafeedTask.getId(),
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                         @Override
                         public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {

@@ -488,7 +488,7 @@ public enum Hasher {
         } else if (hashString.startsWith(SSHA256_PREFIX)) {
             return Hasher.SSHA256;
         } else {
-            return Hasher.BCRYPT;
+            throw new IllegalArgumentException("unknown hash format for hash [" + hashString + "]");
         }
     }
 

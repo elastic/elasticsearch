@@ -12,15 +12,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -29,7 +26,6 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.io.Closeable;
 import java.time.Clock;
-import java.util.Collections;
 import java.util.function.LongSupplier;
 
 /**
@@ -44,18 +40,15 @@ public class IndexLifecycleService extends AbstractComponent
     private final PolicyStepsRegistry policyRegistry;
     private Client client;
     private ClusterService clusterService;
-    private ThreadPool threadPool;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
     private IndexLifecycleRunner lifecycleRunner;
 
-    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock,
-            ThreadPool threadPool, LongSupplier nowSupplier) {
+    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
-        this.threadPool = threadPool;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry();
@@ -91,8 +84,8 @@ public class IndexLifecycleService extends AbstractComponent
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) { // only act if we are master, otherwise keep idle until elected
-            IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+        if (event.localNodeMaster() && lifecycleMetadata != null) {
             TimeValue pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
                 .get(event.state().getMetaData().settings());
             TimeValue previousPollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
@@ -100,10 +93,8 @@ public class IndexLifecycleService extends AbstractComponent
 
             boolean pollIntervalSettingChanged = !pollInterval.equals(previousPollInterval);
 
-            if (lifecycleMetadata == null) { // no lifecycle metadata, install initial empty metadata state
-                lifecycleMetadata = new IndexLifecycleMetadata(Collections.emptySortedMap());
-                installMetadata(lifecycleMetadata);
-            } else if (scheduler.get() == null) { // metadata installed and scheduler should be kicked off. start your engines.
+
+            if (scheduler.get() == null) { // metadata installed and scheduler should be kicked off. start your engines.
                 scheduler.set(new SchedulerEngine(clock));
                 scheduler.get().register(this);
                 scheduleJob(pollInterval);
@@ -151,26 +142,7 @@ public class IndexLifecycleService extends AbstractComponent
         }
     }
 
-    private void installMetadata(IndexLifecycleMetadata lifecycleMetadata) {
-        threadPool.executor(ThreadPool.Names.GENERIC)
-            .execute(() -> clusterService.submitStateUpdateTask("install-index-lifecycle-metadata", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState.Builder builder = new ClusterState.Builder(currentState);
-                    MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                    metadataBuilder.putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata);
-                    builder.metaData(metadataBuilder.build());
-                    return builder.build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error("unable to install index lifecycle metadata", e);
-                }
-            }));
-    }
-
-    public void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
+    void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy

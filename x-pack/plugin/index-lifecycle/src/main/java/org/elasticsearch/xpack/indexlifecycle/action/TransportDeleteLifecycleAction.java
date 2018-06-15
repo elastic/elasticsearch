@@ -32,11 +32,12 @@ import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class TransportDeleteLifcycleAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportDeleteLifcycleAction(Settings settings, TransportService transportService, ClusterService clusterService,
-            ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportDeleteLifecycleAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                          ThreadPool threadPool, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, DeleteLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, Request::new);
     }
@@ -74,7 +75,8 @@ public class TransportDeleteLifcycleAction extends TransportMasterNodeAction<Req
                         }
                         ClusterState.Builder newState = ClusterState.builder(currentState);
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-                        if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
+                        if (currentMetadata == null
+                                || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
                             throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
                         }
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());

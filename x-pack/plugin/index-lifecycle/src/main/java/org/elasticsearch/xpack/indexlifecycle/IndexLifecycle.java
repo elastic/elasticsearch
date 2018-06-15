@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.indexlifecycle.action.RestMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestRetryAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportSetPolicyForIndexAction;
-import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifcycleAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportExplainLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportMoveToStepAction;
@@ -124,7 +124,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             return emptyList();
         }
         indexLifecycleInitialisationService
-            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), threadPool, System::currentTimeMillis));
+            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 
@@ -164,7 +164,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         return Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
-                new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifcycleAction.class),
+                new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
                 new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
                 new ActionHandler<>(SetPolicyForIndexAction.INSTANCE, TransportSetPolicyForIndexAction.class),
                 new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),

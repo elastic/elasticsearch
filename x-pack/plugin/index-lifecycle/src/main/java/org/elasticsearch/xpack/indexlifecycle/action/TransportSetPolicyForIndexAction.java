@@ -68,6 +68,11 @@ public class TransportSetPolicyForIndexAction extends TransportMasterNodeAction<
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         IndexLifecycleMetadata ilmMetadata = (IndexLifecycleMetadata) currentState.metaData()
                                 .custom(IndexLifecycleMetadata.TYPE);
+
+                        if (ilmMetadata == null) {
+                            throw new ResourceNotFoundException("Policy does not exist [{}]", newPolicyName);
+                        }
+
                         LifecyclePolicy newPolicy = ilmMetadata.getPolicies().get(newPolicyName);
 
                         if (newPolicy == null) {

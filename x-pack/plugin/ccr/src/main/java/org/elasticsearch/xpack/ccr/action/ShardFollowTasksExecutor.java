@@ -37,9 +37,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -105,7 +105,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     @Override
-    protected void nodeOperation(AllocatedPersistentTask task, ShardFollowTask params, Task.Status status) {
+    protected void nodeOperation(final AllocatedPersistentTask task, final ShardFollowTask params, final PersistentTaskState state) {
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         Client leaderClient = wrapClient(params.getLeaderClusterAlias() != null ?
                 this.client.getRemoteClusterClient(params.getLeaderClusterAlias()) : this.client, params);
@@ -119,7 +119,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
                         followGlobalCheckPoint -> {
                             shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint);
-                            prepare(leaderClient, followerClient,shardFollowNodeTask, params, followGlobalCheckPoint, imdVersionChecker);
+                            prepare(leaderClient, followerClient, shardFollowNodeTask, params, followGlobalCheckPoint, imdVersionChecker);
                         }, task::markAsFailed);
             } else {
                 shardFollowNodeTask.markAsFailed(e);

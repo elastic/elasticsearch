@@ -70,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
@@ -327,6 +328,40 @@ public class IndexCreationTaskTests extends ESTestCase {
                 + "you must manage this on the create index request or with an index template");
 
         assertThat(e.getMessage(), containsString("invalid wait_for_active_shards"));
+    }
+
+    public void testWriteIndex() throws Exception {
+        Boolean writeIndex = randomBoolean() ? null : randomBoolean();
+        setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
+        setupRequestMapping("mapping1", createMapping());
+        setupRequestCustom("custom1", createCustom());
+        reqSettings.put("key1", "value1");
+
+        final ClusterState result = executeTask();
+        assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
+        assertThat(result.metaData().index("test").getAliases().get("alias1").writeIndex(), equalTo(writeIndex));
+
+        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
+            + "if you wish to continue using the default of [5] shards, "
+            + "you must manage this on the create index request or with an index template");
+    }
+
+    public void testWriteIndexValidationException() throws Exception {
+        IndexMetaData existingWriteIndex = IndexMetaData.builder("test2")
+            .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
+            .numberOfShards(1).numberOfReplicas(0).build();
+        idxBuilder.put("test2", existingWriteIndex);
+        setupRequestMapping("mapping1", createMapping());
+        setupRequestCustom("custom1", createCustom());
+        reqSettings.put("key1", "value1");
+        setupRequestAlias(new Alias("alias1").writeIndex(true));
+
+        Exception exception = expectThrows(IllegalStateException.class, () -> executeTask());
+        assertThat(exception.getMessage(), startsWith("alias [alias1] has more than one write index ["));
+
+        assertWarnings("the default number of shards will change from [5] to [1] in 7.0.0; "
+            + "if you wish to continue using the default of [5] shards, "
+            + "you must manage this on the create index request or with an index template");
     }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {

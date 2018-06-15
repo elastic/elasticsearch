@@ -31,7 +31,8 @@ public class InboundChannelBufferTests extends ESTestCase {
 
     private static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES;
     private final Supplier<InboundChannelBuffer.Page> defaultPageSupplier = () ->
-        new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {});
+        new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {
+        });
 
     public void testNewBufferHasSinglePage() {
         InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier);
@@ -165,6 +166,49 @@ public class InboundChannelBufferTests extends ESTestCase {
         }
 
         expectThrows(IllegalStateException.class, () -> channelBuffer.ensureCapacity(1));
+    }
+
+    public void testCloseRetainedPages() {
+        ConcurrentLinkedQueue<AtomicBoolean> queue = new ConcurrentLinkedQueue<>();
+        Supplier<InboundChannelBuffer.Page> supplier = () -> {
+            AtomicBoolean atomicBoolean = new AtomicBoolean();
+            queue.add(atomicBoolean);
+            return new InboundChannelBuffer.Page(ByteBuffer.allocate(PAGE_SIZE), () -> atomicBoolean.set(true));
+        };
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(supplier);
+        channelBuffer.ensureCapacity(PAGE_SIZE * 4);
+
+        assertEquals(4, queue.size());
+
+        for (AtomicBoolean closedRef : queue) {
+            assertFalse(closedRef.get());
+        }
+
+        InboundChannelBuffer.Page[] pages = channelBuffer.sliceAndRetainPagesTo(PAGE_SIZE * 2);
+
+        pages[1].close();
+
+        for (AtomicBoolean closedRef : queue) {
+            assertFalse(closedRef.get());
+        }
+
+        channelBuffer.close();
+
+        int i = 0;
+        for (AtomicBoolean closedRef : queue) {
+            if (i < 1) {
+                assertFalse(closedRef.get());
+            } else {
+                assertTrue(closedRef.get());
+            }
+            ++i;
+        }
+
+        pages[0].close();
+
+        for (AtomicBoolean closedRef : queue) {
+            assertTrue(closedRef.get());
+        }
     }
 
     public void testAccessByteBuffers() {

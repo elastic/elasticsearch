@@ -23,12 +23,6 @@ esplugin {
     classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
-forbiddenApisTest {
-    // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
-}
-
 // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
 

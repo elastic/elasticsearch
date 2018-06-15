@@ -20,7 +20,6 @@
 package org.elasticsearch.grok;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,6 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -35,12 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 
 public class GrokTests extends ESTestCase {
-    private Map<String, String> basePatterns;
-
-    @Before
-    public void setup() {
-        basePatterns = Grok.getBuiltinPatterns();
-    }
+    private static final Map<String, String> basePatterns = Grok.getBuiltinPatterns();
 
     public void testMatchWithoutCaptures() {
         String line = "value";
@@ -414,5 +411,32 @@ public class GrokTests extends ESTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put("num", "1");
         assertThat(grok.captures("12"), equalTo(expected));
+    }
+    
+    public void testExponentialExpressions() {
+        AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
+        
+        String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] " +
+            "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
+        String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] " +
+            "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
+        BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler = (delay, command) -> {
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            Thread t = new Thread(() -> {
+                if (run.get()) {
+                    command.run();
+                }
+            });
+            t.start();
+            return null;
+        };
+        Grok grok = new Grok(basePatterns, grokPattern, ThreadWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler));
+        Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
+        run.set(false);
+        assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
     }
 }

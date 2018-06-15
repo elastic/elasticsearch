@@ -2231,6 +2231,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
             // end::put-stored-script-content-mustache
 
+            client.indices().putStoredScript(request, RequestOptions.DEFAULT);
+
             Map<String, Object> script = getAsMap("/_scripts/id");
             assertThat(extractValue("script.lang", script), equalTo("mustache"));
             assertThat(extractValue("script.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));

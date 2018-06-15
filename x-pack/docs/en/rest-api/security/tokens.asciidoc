@@ -1,17 +1,19 @@
 [role="xpack"]
 [[security-api-tokens]]
-=== Token Management APIs
+== Token Management APIs
 
 The `token` API enables you to create and invalidate bearer tokens for access
 without requiring basic authentication.
 
-==== Request
+[float]
+=== Request
 
 `POST /_xpack/security/oauth2/token` +
 
 `DELETE /_xpack/security/oauth2/token`
 
-==== Description
+[float]
+=== Description
 
 The tokens are created by the {es} Token Service, which is automatically enabled
 when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
@@ -34,8 +36,8 @@ information, see <<token-service-settings>>.
 If you want to invalidate a token immediately, you can do so by using the Delete
 Token API.
 
-
-==== Request Body
+[float]
+=== Request Body
 
 The following parameters can be specified in the body of a POST request and
 pertain to creating a token:
@@ -59,7 +61,8 @@ pertain to deleting a token:
 `token`::
 (string) An access token.
 
-==== Examples
+[float]
+=== Examples
 [[security-api-get-token]]
 To obtain a token, submit a POST request to the `/_xpack/security/oauth2/token`
 endpoint.

@@ -1,0 +1,31 @@
+[role="xpack"]
+[[security-api]]
+= Security APIs
+
+[partintro]
+--
+
+You can use the security APIs to create and delete users, set passwords, assign 
+roles, check privileges, and perform various other tasks related to 
+{stack-ov}/xpack-security.html[securing the {stack}]
+
+* <<security-api-authenticate>>
+* <<security-api-clear-cache>>
+* <<security-api-privileges>>
+* <<security-api-roles>>
+* <<security-api-role-mapping>>
+* <<security-api-ssl>>
+* <<security-api-tokens>>
+* <<security-api-users>>
+
+--
+
+include::{xes-repo-dir}/rest-api/security/authenticate.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/change-password.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/clear-cache.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/privileges.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/roles.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/role-mapping.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/ssl.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/tokens.asciidoc[]
+include::{xes-repo-dir}/rest-api/security/users.asciidoc[]

@@ -1,16 +1,17 @@
 [role="xpack"]
 [[security-api-ssl]]
-=== SSL Certificate API
+== SSL Certificate API
 
 The `certificates` API enables you to retrieve information about the X.509
 certificates that are used to encrypt communications in your {es} cluster.
 
-==== Request
+[float]
+=== Request
 
 `GET /_xpack/ssl/certificates`
 
-
-==== Description
+[float]
+=== Description
 
 For more information about how certificates are configured in conjunction with
 Transport Layer Security (TLS), see
@@ -38,8 +39,8 @@ If {xpack} is configured to use a keystore or truststore, the API output
 includes all certificates in that store, even though some of the certificates
 might not be in active use within the cluster.
 
-
-==== Results
+[float]
+=== Results
 
 The response is an array of objects, with each object representing a
 single certificate. The fields in each object are:
@@ -57,14 +58,15 @@ certificate, this field has a value of `true`.
 `expiry`:: (string) The ISO formatted date of the certificate's expiry
 (not-after) date.
 
-==== Authorization
+[float]
+=== Authorization
 
 If {security} is enabled, you must have `monitor` cluster privileges to use this
 API. For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 
-
-==== Examples
+[float]
+=== Examples
 
 The following example provides information about the certificates on a single
 node of {es}:

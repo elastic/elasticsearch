@@ -1,6 +1,9 @@
 [[breaking-changes-6.2]]
 == Breaking changes in 6.2
 
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.2
+
 [[breaking_62_packaging]]
 [float]
 === All permission bootstrap check

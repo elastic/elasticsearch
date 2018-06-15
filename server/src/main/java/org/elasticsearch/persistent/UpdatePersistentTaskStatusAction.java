@@ -35,10 +35,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -70,16 +69,15 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
         private String taskId;
         private long allocationId = -1L;
-        private Task.Status status;
+        private PersistentTaskState state;
 
         public Request() {
-
         }
 
-        public Request(String taskId, long allocationId, Task.Status status) {
+        public Request(String taskId, long allocationId, PersistentTaskState state) {
             this.taskId = taskId;
             this.allocationId = allocationId;
-            this.status = status;
+            this.state = state;
         }
 
         public void setTaskId(String taskId) {
@@ -90,8 +88,8 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             this.allocationId = allocationId;
         }
 
-        public void setStatus(Task.Status status) {
-            this.status = status;
+        public void setState(PersistentTaskState state) {
+            this.state = state;
         }
 
         @Override
@@ -99,7 +97,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             super.readFrom(in);
             taskId = in.readString();
             allocationId = in.readLong();
-            status = in.readOptionalNamedWriteable(Task.Status.class);
+            state = in.readOptionalNamedWriteable(PersistentTaskState.class);
         }
 
         @Override
@@ -107,7 +105,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             super.writeTo(out);
             out.writeString(taskId);
             out.writeLong(allocationId);
-            out.writeOptionalNamedWriteable(status);
+            out.writeOptionalNamedWriteable(state);
         }
 
         @Override
@@ -129,13 +127,12 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskId, request.taskId) && allocationId == request.allocationId &&
-                    Objects.equals(status, request.status);
+            return Objects.equals(taskId, request.taskId) && allocationId == request.allocationId && Objects.equals(state, request.state);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskId, allocationId, status);
+            return Objects.hash(taskId, allocationId, state);
         }
     }
 
@@ -151,11 +148,10 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             return this;
         }
 
-        public final RequestBuilder setStatus(Task.Status status) {
-            request.setStatus(status);
+        public final RequestBuilder setState(PersistentTaskState state) {
+            request.setState(state);
             return this;
         }
-
     }
 
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
@@ -189,9 +185,10 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state,
+        protected final void masterOperation(final Request request,
+                                             final ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.updatePersistentTaskStatus(request.taskId, request.allocationId, request.status,
+            persistentTasksClusterService.updatePersistentTaskState(request.taskId, request.allocationId, request.state,
                     new ActionListener<PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTask<?> task) {

@@ -73,7 +73,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
     }
 
     /**
-     * This is reading the old style rules (< 6.4) off the stream.
+     * This is reading the old style rules (before 6.4) off the stream.
      */
     public static DetectionRule readOldFormat(StreamInput in) throws IOException {
         // Read actions

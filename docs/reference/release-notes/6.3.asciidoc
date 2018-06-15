@@ -226,8 +226,8 @@ Mapping::
 Machine Learning::
 * Synchronize long and short tests for periodicity {ml-pull}62[#62]
 * Improvements to trend modelling and periodicity testing for forecasting {ml-pull}7[#7] (issue: {ml-issue}5[#5])
-* [ML] Clean left behind model state docs {pull}30659[#30659] (issue: {issue}30551[#30551])
-* [ML] Hide internal Job update options from the REST API {pull}30537[#30537] (issue: {issue}30512[#30512])
+* Clean left behind model state docs {pull}30659[#30659] (issue: {issue}30551[#30551])
+* Hide internal Job update options from the REST API {pull}30537[#30537] (issue: {issue}30512[#30512])
 
 Packaging::
 * Configure heap dump path for archive packages {pull}29130[#29130] (issue: {issue}26755[#26755])

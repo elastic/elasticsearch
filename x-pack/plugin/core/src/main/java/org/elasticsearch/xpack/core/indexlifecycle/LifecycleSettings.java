@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
+    public static final String LIFECYCLE_MAINTENANCE_MODE = "indices.lifecycle.maintenance";
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
     public static final String LIFECYCLE_PHASE = "index.lifecycle.phase";
     public static final String LIFECYCLE_ACTION = "index.lifecycle.action";

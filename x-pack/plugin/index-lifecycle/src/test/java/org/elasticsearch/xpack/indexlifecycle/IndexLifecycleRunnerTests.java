@@ -321,6 +321,22 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verifyZeroInteractions(clusterService);
     }
 
+    public void testRunPolicyWithNoStepsInRegistry() {
+        String policyName = "cluster_state_action_policy";
+        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
+        ClusterService clusterService = mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(), clusterService, () -> 0L);
+        IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> runner.runPolicy(policyName, indexMetaData, null, randomBoolean()));
+        assertEquals("current step for index [my_index] with policy [cluster_state_action_policy] is not recognized",
+            exception.getMessage());
+        Mockito.verifyZeroInteractions(clusterService);
+
+    }
+
     public void testRunPolicyUnknownStepType() {
         String policyName = "cluster_state_action_policy";
         StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");

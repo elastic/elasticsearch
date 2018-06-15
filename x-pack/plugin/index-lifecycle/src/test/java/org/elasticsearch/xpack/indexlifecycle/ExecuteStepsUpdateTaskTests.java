@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
@@ -98,7 +99,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.NORMAL))
             .put(IndexMetaData.builder(indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);

@@ -12,8 +12,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Enum representing logical comparisons on doubles

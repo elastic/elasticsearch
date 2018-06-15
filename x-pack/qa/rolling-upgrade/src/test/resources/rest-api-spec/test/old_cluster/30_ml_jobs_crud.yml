@@ -175,7 +175,7 @@
 
   - skip:
       version:  " - 6.1.99"
-      reason:   "Rules replaced by custom_rules on 6.4.0"
+      reason:   "This creates a job with the same name as the rules job to ensure that job is not missing in the upgraded cluster; also some of the rule fields were deprecated in 6.2 so we using the dummy from 6.2 onwards"
 
   - do:
       xpack.ml.put_job:

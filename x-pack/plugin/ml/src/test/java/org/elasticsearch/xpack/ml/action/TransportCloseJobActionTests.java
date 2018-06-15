@@ -314,7 +314,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
                                PersistentTasksCustomMetaData.Builder tasks) {
         tasks.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
-        tasks.updateTaskStatus(MLMetadataField.datafeedTaskId(datafeedId), state);
+        tasks.updateTaskState(MLMetadataField.datafeedTaskId(datafeedId), state);
     }
 
 }

@@ -279,6 +279,13 @@ docker build --tag=elasticsearch-custom .
 docker run -ti -v /usr/share/elasticsearch/data elasticsearch-custom
 --------------------------------------------
 
+Some plugins require additional security permissions. You have to explicitly accept
+them either by attaching a `tty` when you run the Docker image and accepting yes at 
+the prompts, or inspecting the security permissions separately and if you are 
+comfortable with them adding the `--batch` flag to the plugin install command.
+See {plugins}/_other_command_line_parameters.html[Plugin Management documentation]
+for more details.
+
 ===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
 
 Options can be passed as command-line options to the {es} process by

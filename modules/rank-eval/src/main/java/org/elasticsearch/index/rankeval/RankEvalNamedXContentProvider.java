@@ -41,6 +41,8 @@ public class RankEvalNamedXContentProvider implements NamedXContentProvider {
                 PrecisionAtK.Detail::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(MetricDetail.class, new ParseField(MeanReciprocalRank.NAME),
                 MeanReciprocalRank.Detail::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(MetricDetail.class, new ParseField(DiscountedCumulativeGain.NAME),
+                DiscountedCumulativeGain.Detail::fromXContent));
         return namedXContent;
     }
 }

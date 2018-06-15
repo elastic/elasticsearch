@@ -363,10 +363,12 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 setParam(parameterIndex, String.valueOf(x), Types.VARCHAR);
             } else {
                 // anything other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
-                throw new SQLFeatureNotSupportedException("Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
+                throw new SQLFeatureNotSupportedException(
+                        "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
             }
         } else {
-            throw new SQLFeatureNotSupportedException("Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
+            throw new SQLFeatureNotSupportedException(
+                    "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
         }
     }
 

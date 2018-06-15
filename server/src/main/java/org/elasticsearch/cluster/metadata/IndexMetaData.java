@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -295,6 +296,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
     static final String KEY_ALIASES = "aliases";
+    static final String KEY_ROLLOVER_INFOS = "rollover_info";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
@@ -332,13 +334,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     private final Version indexUpgradedVersion;
 
     private final ActiveShardCount waitForActiveShards;
+    private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
 
     private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
                           ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
                           DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
                           Version indexCreatedVersion, Version indexUpgradedVersion,
-                          int routingNumShards, int routingPartitionSize, ActiveShardCount waitForActiveShards) {
+                          int routingNumShards, int routingPartitionSize, ActiveShardCount waitForActiveShards, ImmutableOpenMap<String, RolloverInfo> rolloverInfos) {
 
         this.index = index;
         this.version = version;
@@ -363,6 +366,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
         this.waitForActiveShards = waitForActiveShards;
+        this.rolloverInfos = rolloverInfos;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -518,6 +522,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return inSyncAllocationIds;
     }
 
+    public ImmutableOpenMap<String, RolloverInfo> getRolloverInfos() {
+        return rolloverInfos;
+    }
+
     public Set<String> inSyncAllocationIds(int shardId) {
         assert shardId >= 0 && shardId < numberOfShards;
         return inSyncAllocationIds.get(shardId);
@@ -588,6 +596,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) {
             return false;
         }
+        if (rolloverInfos.equals(that.rolloverInfos) == false) {
+            return false;
+        }
         return true;
     }
 
@@ -604,6 +615,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         result = 31 * result + Long.hashCode(routingNumShards);
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + inSyncAllocationIds.hashCode();
+        result = 31 * result + rolloverInfos.hashCode();
         return result;
     }
 
@@ -639,6 +651,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         private final Diff<ImmutableOpenMap<String, AliasMetaData>> aliases;
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
+        private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
 
         IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
             index = after.index.getName();
@@ -652,6 +665,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
             inSyncAllocationIds = DiffableUtils.diff(before.inSyncAllocationIds, after.inSyncAllocationIds,
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
+            rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
         }
 
         IndexMetaDataDiff(StreamInput in) throws IOException {
@@ -680,6 +694,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 });
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                rolloverInfos = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RolloverInfo::new,
+                    RolloverInfo::readDiffFrom);
+            } else {
+                ImmutableOpenMap<String, RolloverInfo> emptyMap = ImmutableOpenMap.of();
+                rolloverInfos = DiffableUtils.diff(emptyMap, emptyMap, DiffableUtils.getStringKeySerializer());
+            }
         }
 
         @Override
@@ -694,6 +715,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             aliases.writeTo(out);
             customs.writeTo(out);
             inSyncAllocationIds.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                rolloverInfos.writeTo(out);
+            }
         }
 
         @Override
@@ -708,6 +732,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.aliases.putAll(aliases.apply(part.aliases));
             builder.customs.putAll(customs.apply(part.customs));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
+            builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             return builder.build();
         }
     }
@@ -741,6 +766,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
             builder.putInSyncAllocationIds(key, allocationIds);
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            int rolloverAliasesSize = in.readVInt();
+            for (int i = 0; i < rolloverAliasesSize; i++) {
+                builder.putRolloverInfo(new RolloverInfo(in));
+            }
+        }
         return builder.build();
     }
 
@@ -770,6 +801,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             out.writeVInt(cursor.key);
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVInt(rolloverInfos.size());
+            for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
+                cursor.value.writeTo(out);
+            }
+        }
     }
 
     public static Builder builder(String index) {
@@ -791,6 +828,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private final ImmutableOpenIntMap.Builder<Set<String>> inSyncAllocationIds;
+        private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
 
         public Builder(String index) {
@@ -799,6 +837,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.aliases = ImmutableOpenMap.builder();
             this.customs = ImmutableOpenMap.builder();
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder();
+            this.rolloverInfos = ImmutableOpenMap.builder();
         }
 
         public Builder(IndexMetaData indexMetaData) {
@@ -812,6 +851,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
             this.routingNumShards = indexMetaData.routingNumShards;
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetaData.inSyncAllocationIds);
+            this.rolloverInfos = ImmutableOpenMap.builder(indexMetaData.rolloverInfos);
         }
 
         public String index() {
@@ -949,6 +989,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
         public Builder putInSyncAllocationIds(int shardId, Set<String> allocationIds) {
             inSyncAllocationIds.put(shardId, new HashSet<>(allocationIds));
+            return this;
+        }
+
+        public RolloverInfo getRolloverInfo(String alias) {
+            return rolloverInfos.get(alias);
+        }
+
+        public Builder putRolloverInfo(RolloverInfo rolloverInfo) {
+            rolloverInfos.put(rolloverInfo.getAlias(), rolloverInfo);
             return this;
         }
 
@@ -1090,7 +1139,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
                 tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
-                indexCreatedVersion, indexUpgradedVersion, getRoutingNumShards(), routingPartitionSize, waitForActiveShards);
+                indexCreatedVersion, indexUpgradedVersion, getRoutingNumShards(), routingPartitionSize, waitForActiveShards, rolloverInfos.build());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1141,6 +1190,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     builder.value(allocationId);
                 }
                 builder.endArray();
+            }
+            builder.endObject();
+
+            builder.startObject(KEY_ROLLOVER_INFOS);
+            for (ObjectCursor<RolloverInfo> cursor : indexMetaData.getRolloverInfos().values()) {
+                cursor.value.toXContent(builder, params);
             }
             builder.endObject();
 
@@ -1199,6 +1254,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                                     }
                                 }
                                 builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
+                            }
+                        }
+                    } else if (KEY_ROLLOVER_INFOS.equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                builder.putRolloverInfo(RolloverInfo.parse(parser, currentFieldName));
                             } else {
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }

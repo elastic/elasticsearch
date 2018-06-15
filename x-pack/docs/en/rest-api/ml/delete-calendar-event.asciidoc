@@ -5,7 +5,7 @@
 <titleabbrev>Delete Events from Calendar</titleabbrev>
 ++++
 
-This API enables you to delete scheduled events from a calendar.
+Deletes scheduled events from a calendar.
 
 
 ==== Request

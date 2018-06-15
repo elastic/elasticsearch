@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * indexer's current position.  When the allocated task updates its status,
  * it is providing a new version of this.
  */
-public class RollupJobStatus implements Task.Status {
+public class RollupJobStatus implements Task.Status, PersistentTaskState {
     public static final String NAME = "xpack/rollup/job";
 
     private final IndexerState state;
@@ -73,7 +74,7 @@ public class RollupJobStatus implements Task.Status {
         currentPosition = in.readBoolean() ? new TreeMap<>(in.readMap()) : null;
     }
 
-    public IndexerState getState() {
+    public IndexerState getIndexerState() {
         return state;
     }
 

@@ -44,6 +44,7 @@ integTestCluster {
   setting 'http.port', '40200-40249'
   setting 'transport.tcp.port', '40300-40349'
   setting 'node.name', 'quest'
+  setting 'node.attr.role', 'client'
   setting 'tribe.one.cluster.name', 'one'
   setting 'tribe.one.discovery.zen.ping.unicast.hosts', "'${-> oneNodes.get(0).transportUri()}'"
   setting 'tribe.one.http.enabled', 'true'

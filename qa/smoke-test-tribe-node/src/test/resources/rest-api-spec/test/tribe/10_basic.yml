@@ -1,6 +1,11 @@
 ---
 "Tribe node test":
+  - skip:
+      features: node_selector
   - do:
+      node_selector:
+          attribute:
+              role: client
       cat.nodes:
           h: name
           s: name

@@ -1,9 +1,11 @@
 [[sql-functions]]
 == Functions and Operators
 
+{es-sql} provides a number of built-in operators and functions.
+
 === Comparison Operators
 
-Elasticsearch SQL supports the following comparison operators:
+{es-sql} supports the following comparison operators:
 
 * Equality (`=`)
 
@@ -12,7 +14,7 @@ Elasticsearch SQL supports the following comparison operators:
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
 --------------------------------------------------
 
-* Inequality (`<>` or `!=`)
+* Inequality (`<>` or `!=` or `<=>`)
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -43,7 +45,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
 
 === Logical Operators
 
-Elasticsearch SQL supports the following logical operators:
+{es-sql} supports the following logical operators:
 
 * `AND`
 
@@ -69,7 +71,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
 
 === Math Operators
 
-Elasticsearch SQL supports the following math operators:
+{es-sql} supports the following math operators:
 
 * Add (`+`)
 
@@ -106,7 +108,7 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
 include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
 --------------------------------------------------
 
-* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] (`%`)
+* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] or Reminder(`%`)
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -115,14 +117,41 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
 
 
 === Math Functions
-==== Basic
 
-* https://en.wikipedia.org/wiki/Absolute_value[Absolute value] (`ABS`)
+All math and trigonometric functions require their input (where applicable)
+to be numeric.
+
+==== Generic
+
+* `ABS`
+
+https://en.wikipedia.org/wiki/Absolute_value[Absolute value], returns \[same type as input]
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/math.sql-spec[abs]
 --------------------------------------------------
+
+* `CBRT`
+
+https://en.wikipedia.org/wiki/Cube_root[Cube root], returns `double`
+
+// TODO make the example in the tests presentable
+
+* `CEIL`
+
+https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Ceiling], returns `double`
+
+* `CEILING`
+
+Same as `CEIL`
+
+// TODO make the example in the tests presentable
+
+* `E`
+
+https://en.wikipedia.org/wiki/E_%28mathematical_constant%29[Euler's number], returns `2.7182818284590452354`
+
 
 * https://en.wikipedia.org/wiki/Rounding#Round_half_up[Round] (`ROUND`)
 
@@ -130,9 +159,6 @@ include-tagged::{sql-specs}/math.sql-spec[abs]
 
 NOTE: This rounds "half up" meaning that `ROUND(-1.5)` results in `-1`.
 
-* https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Ceiling] (`CEIL`)
-
-// TODO make the example in the tests presentable
 
 * https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Floor] (`FLOOR`)
 
@@ -158,10 +184,6 @@ include-tagged::{sql-specs}/math.sql-spec[log10]
 --------------------------------------------------
 include-tagged::{sql-specs}/math.sql-spec[sqrt]
 --------------------------------------------------
-
-* https://en.wikipedia.org/wiki/Cube_root[Cube root] (`CBRT`)
-
-// TODO make the example in the tests presentable
 
 * https://en.wikipedia.org/wiki/Exponential_function[e^x^] (`EXP`)
 

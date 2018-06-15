@@ -98,8 +98,11 @@ public class NettyTcpChannel implements TcpChannel {
             } else {
                 final Throwable cause = f.cause();
                 Netty4Utils.maybeDie(cause);
-                assert cause instanceof Exception;
-                listener.onFailure((Exception) cause);
+                if (cause instanceof Error) {
+                    listener.onFailure(new Exception(cause));
+                } else {
+                    listener.onFailure((Exception) cause);
+                }
             }
         });
         channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);

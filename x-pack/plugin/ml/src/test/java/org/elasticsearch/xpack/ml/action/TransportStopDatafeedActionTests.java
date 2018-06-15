@@ -31,7 +31,7 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         tasksBuilder.addTask(MLMetadataField.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L), new PersistentTasksCustomMetaData.Assignment("node_id", ""));
-        tasksBuilder.updateTaskStatus(MLMetadataField.datafeedTaskId("foo"), DatafeedState.STARTED);
+        tasksBuilder.updateTaskState(MLMetadataField.datafeedTaskId("foo"), DatafeedState.STARTED);
         tasksBuilder.build();
 
         Job job = createDatafeedJob().build(new Date());
@@ -121,6 +121,6 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         taskBuilder.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime),
                 new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
-        taskBuilder.updateTaskStatus(MLMetadataField.datafeedTaskId(datafeedId), state);
+        taskBuilder.updateTaskState(MLMetadataField.datafeedTaskId(datafeedId), state);
     }
 }

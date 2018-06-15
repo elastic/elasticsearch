@@ -9,10 +9,8 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -199,13 +197,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             result += Objects.hashCode(indexMetadataVersion);
             result += Arrays.hashCode(operations);
             return result;
-        }
-    }
-
-    static class RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        RequestBuilder(ElasticsearchClient client, Action<Request, Response> action) {
-            super(client, action, new Request());
         }
     }
 

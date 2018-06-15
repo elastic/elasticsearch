@@ -122,8 +122,8 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         Response() {
         }
 
-        public Response(MlFilter calendar) {
-            this.filter = calendar;
+        public Response(MlFilter filter) {
+            this.filter = filter;
         }
 
         @Override

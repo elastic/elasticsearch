@@ -5,10 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
 
-public class PutFilterActionResponseTests extends AbstractStreamableTestCase<PutFilterAction.Response> {
+import java.io.IOException;
+
+public class PutFilterActionResponseTests extends AbstractStreamableXContentTestCase<PutFilterAction.Response> {
 
     @Override
     protected PutFilterAction.Response createTestInstance() {
@@ -18,5 +22,10 @@ public class PutFilterActionResponseTests extends AbstractStreamableTestCase<Put
     @Override
     protected PutFilterAction.Response createBlankInstance() {
         return new PutFilterAction.Response();
+    }
+
+    @Override
+    protected PutFilterAction.Response doParseInstance(XContentParser parser) throws IOException {
+        return new PutFilterAction.Response(MlFilter.LENIENT_PARSER.parse(parser, null).build());
     }
 }

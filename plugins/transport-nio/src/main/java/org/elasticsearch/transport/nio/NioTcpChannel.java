@@ -28,11 +28,11 @@ import java.io.IOException;
 import java.net.StandardSocketOptions;
 import java.nio.channels.SocketChannel;
 
-public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel {
+public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
     private final String profile;
 
-    public TcpNioSocketChannel(String profile, SocketChannel socketChannel) throws IOException {
+    public NioTcpChannel(String profile, SocketChannel socketChannel) throws IOException {
         super(socketChannel);
         this.profile = profile;
     }

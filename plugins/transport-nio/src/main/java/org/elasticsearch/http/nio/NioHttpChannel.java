@@ -36,4 +36,17 @@ public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
         getContext().sendMessage(response, ActionListener.toBiConsumer(listener));
     }
+
+    @Override
+    public void addCloseListener(ActionListener<Void> listener) {
+        addCloseListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public String toString() {
+        return "NioHttpChannel{" +
+            "localAddress=" + getLocalAddress() +
+            ", remoteAddress=" + getRemoteAddress() +
+            '}';
+    }
 }

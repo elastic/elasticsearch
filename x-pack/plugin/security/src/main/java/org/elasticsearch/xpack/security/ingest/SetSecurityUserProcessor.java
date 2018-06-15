@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.security.authz.accesscontrol;
+package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.AbstractProcessor;

@@ -219,6 +219,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // LUCENE-8273: ProtectedTermFilterFactory allows analysis chains to skip
         // particular token filters based on the attributes of the current token.
         .put("protectedterm", Void.class)
+        // LUCENE-8332
+        .put("concatenategraph", Void.class)
 
         .immutableMap();
 

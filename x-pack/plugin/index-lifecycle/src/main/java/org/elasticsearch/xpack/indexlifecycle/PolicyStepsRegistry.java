@@ -59,6 +59,8 @@ public class PolicyStepsRegistry {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void update(ClusterState currentState, Client client, LongSupplier nowSupplier) {
         IndexLifecycleMetadata meta = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
+
         Diff<Map<String, LifecyclePolicyMetadata>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicyMetadatas(),
             DiffableUtils.getStringKeySerializer());
         DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;

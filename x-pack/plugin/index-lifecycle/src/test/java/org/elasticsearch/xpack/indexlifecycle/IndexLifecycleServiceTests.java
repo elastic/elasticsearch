@@ -25,7 +25,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
@@ -55,7 +54,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -74,7 +72,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     @Before
     public void prepareServices() {
         nodeId = randomAlphaOfLength(10);
-        ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
         masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
@@ -84,7 +81,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
 
         doAnswer(invocationOnMock -> null).when(clusterService).addListener(any());
-        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[0];
             runnable.run();
@@ -98,8 +94,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
-        indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock,
-            threadPool, () -> now);
+        indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock, () -> now);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
@@ -109,14 +104,18 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         indexLifecycleService.close();
     }
 
-    public void testOnlyChangesStateOnMaster() throws Exception {
-        MetaData metaData = MetaData.builder()
+    public void testOnlyChangesStateOnMasterAndMetadataExists() {
+        boolean isMaster = randomBoolean();
+        String localNodeId = isMaster ? nodeId : nodeId + "not_master";
+        MetaData.Builder metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
-            .build();
+                .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build());
+        if (isMaster == false) {
+                metaData.putCustom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(metaData)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId + "not").masterNodeId(nodeId).add(masterNode).build())
+            .nodes(DiscoveryNodes.builder().localNodeId(localNodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
 
@@ -132,7 +131,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
-                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.NORMAL))
+                .putCustom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY)
             .build();
 
         // First check that when the node has never been master the scheduler
@@ -198,40 +197,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNotNull(indexLifecycleService.getScheduledJob());
     }
 
-    public void testServiceSetupOnFirstClusterChange() {
-        TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
-        MetaData metaData = MetaData.builder().persistentSettings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
-            .build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
-        final SetOnce<ClusterChangedEvent> installedEvent = new SetOnce<>();
-        doAnswer(invocationOnMock -> {
-            ClusterStateUpdateTask updateTask = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
-            ClusterState newState = updateTask.execute(state);
-            IndexLifecycleMetadata indexLifecycleMetadata = newState.metaData().custom(IndexLifecycleMetadata.TYPE);
-            assertThat(indexLifecycleMetadata.getPolicyMetadatas(), equalTo(Collections.emptySortedMap()));
-            installedEvent.set(new ClusterChangedEvent(event.source(), newState, state));
-            return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
-
-        indexLifecycleService.applyClusterState(event);
-        indexLifecycleService.clusterChanged(event);
-
-        verify(clusterService, times(1)).addListener(any());
-        verify(clusterService, times(1)).addStateApplier(any());
-        verify(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
-        Mockito.verifyNoMoreInteractions(clusterService);
-        assertNull(indexLifecycleService.getScheduler());
-    }
-
     public void testSchedulerInitializationAndUpdate() {
         TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
         MetaData metaData = MetaData.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.NORMAL))
+            .putCustom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY)
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         MetaData updatedPollMetaData = MetaData.builder(metaData).persistentSettings(settings(Version.CURRENT)
@@ -266,29 +235,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         verify(clusterService, times(1)).addStateApplier(any());
         verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         Mockito.verifyNoMoreInteractions(clusterService);
-    }
-
-    public void testInstallMetadataFail() {
-        TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
-        MetaData metaData = MetaData.builder() .persistentSettings(settings(Version.CURRENT)
-            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
-            .build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
-
-        doThrow(new RuntimeException("error")).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
-
-        Exception exception = expectThrows(RuntimeException.class, () -> indexLifecycleService.clusterChanged(event));
-        assertThat(exception.getMessage(), equalTo("error"));
-
-        verify(clusterService, times(1)).addListener(any());
-        verify(clusterService, times(1)).addStateApplier(any());
-        verify(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
-        Mockito.verifyNoMoreInteractions(clusterService);
-        assertNull(indexLifecycleService.getScheduler());
     }
 
     public void testMaintenanceModeSkip() {
@@ -356,6 +302,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             executedShrink.set(true);
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ExecuteStepsUpdateTask.class));
+        indexLifecycleService.applyClusterState(new ClusterChangedEvent("change", currentState, ClusterState.EMPTY_STATE));
         indexLifecycleService.clusterChanged(event);
         assertTrue(executedShrink.get());
     }
@@ -410,223 +357,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNull(ranPolicy.get());
         assertTrue(moveToMaintenance.get());
     }
-
-//    /**
-//     * Checks that a new index does the following successfully:
-//     *
-//     * 1. setting index.lifecycle.date
-//     * 2. sets phase
-//     * 3. sets action
-//     * 4. executes action
-//     */
-//    @SuppressWarnings("unchecked")
-//    public void testTriggeredWithMatchingPolicy() {
-//        String policyName = randomAlphaOfLengthBetween(1, 20);
-//        MockAction mockAction = new MockAction(Collections.emptyList());
-//        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
-//        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
-//                Collections.singletonMap(phase.getName(), phase));
-//        SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
-//        policyMap.put(policyName, policy);
-//        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-//        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
-//            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
-//            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-//        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
-//            .fPut(index.getName(), indexMetadata);
-//        MetaData metaData = MetaData.builder()
-//            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
-//            .indices(indices.build())
-//            .persistentSettings(settings(Version.CURRENT).build())
-//            .build();
-//        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-//            .metaData(metaData)
-//            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-//            .build();
-//
-//        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event(IndexLifecycle.NAME, randomLong(), randomLong());
-//
-//        when(clusterService.state()).thenReturn(currentState);
-//
-//        SetOnce<Boolean> dateUpdated = new SetOnce<>();
-//        SetOnce<Boolean> phaseUpdated = new SetOnce<>();
-//        SetOnce<Boolean> actionUpdated = new SetOnce<>();
-//        doAnswer(invocationOnMock -> {
-//            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
-//            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
-//            UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-//                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
-//                    indexMetadata.getCreationDate()).build(), index.getName());
-//            dateUpdated.set(true);
-//            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-//            return null;
-//        }).doAnswer(invocationOnMock -> {
-//            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
-//            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
-//            UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-//                .put(LifecycleSettings.LIFECYCLE_ACTION, "")
-//                .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, -1L)
-//                .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
-//                .put(LifecycleSettings.LIFECYCLE_PHASE, "phase").build(), index.getName());
-//            phaseUpdated.set(true);
-//            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-//            return null;
-//        }).doAnswer(invocationOnMock -> {
-//            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
-//            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
-//            UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-//                .put(LifecycleSettings.LIFECYCLE_ACTION, MockAction.NAME)
-//                .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now).build(), index.getName());
-//            actionUpdated.set(true);
-//            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-//            return null;
-//        }).when(indicesClient).updateSettings(any(), any());
-//
-//        indexLifecycleService.triggered(schedulerEvent);
-//
-//        assertThat(dateUpdated.get(), equalTo(true));
-//        assertThat(phaseUpdated.get(), equalTo(true));
-//        assertThat(actionUpdated.get(), equalTo(true));
-//    }
-
-//    /**
-//     * Check that a policy is executed without first setting the `index.lifecycle.date` setting
-//     */
-//    @SuppressWarnings("unchecked")
-//    public void testTriggeredWithDateSettingAlreadyPresent() {
-//        String policyName = randomAlphaOfLengthBetween(1, 20);
-//        MockAction mockAction = new MockAction(Collections.emptyList());
-//        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
-//        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
-//            Collections.singletonMap(phase.getName(), phase));
-//        SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
-//        policyMap.put(policyName, policy);
-//        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-//        long creationDate = randomLongBetween(0, now - 1);
-//        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
-//            .settings(settings(Version.CURRENT)
-//                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName)
-//                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), creationDate))
-//            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).creationDate(creationDate).build();
-//        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
-//            .fPut(index.getName(), indexMetadata);
-//        MetaData metaData = MetaData.builder()
-//            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
-//            .indices(indices.build())
-//            .persistentSettings(settings(Version.CURRENT).build())
-//            .build();
-//        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-//            .metaData(metaData)
-//            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-//            .build();
-//
-//        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event(IndexLifecycle.NAME, randomLong(), randomLong());
-//
-//        when(clusterService.state()).thenReturn(currentState);
-//
-//        SetOnce<Boolean> dateUpdated = new SetOnce<>();
-//        doAnswer(invocationOnMock -> {
-//            UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
-//            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
-//            try {
-//                UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-//                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(),
-//                        indexMetadata.getCreationDate()).build(), index.getName());
-//                dateUpdated.set(true);
-//            } catch (AssertionError e) {
-//                // noop: here because we are either updating the phase or action prior to executing MockAction
-//            }
-//            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-//            return null;
-//        }).when(indicesClient).updateSettings(any(), any());
-//
-//        indexLifecycleService.triggered(schedulerEvent);
-//
-//        assertNull(dateUpdated.get());
-//    }
-
-//    /**
-//     * Check that if an index has an unknown lifecycle policy set it does not
-//     * execute any policy but does process other indexes.
-//     */
-//    public void testTriggeredUnknownPolicyNameSet() {
-//        String policyName = randomAlphaOfLengthBetween(1, 20);
-//        MockAction mockAction = new MockAction(Collections.emptyList());
-//        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
-//        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
-//                Collections.singletonMap(phase.getName(), phase));
-//        SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
-//        policyMap.put(policyName, policy);
-//        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-//        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
-//                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), "foo"))
-//                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-//        Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-//        IndexMetaData indexMetadata2 = IndexMetaData.builder(index2.getName())
-//                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
-//                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-//        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-//                indexMetadata).fPut(index2.getName(), indexMetadata2);
-//        MetaData metaData = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
-//                .indices(indices.build()).persistentSettings(settings(Version.CURRENT).build()).build();
-//        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData)
-//                .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build()).build();
-//
-//        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event(IndexLifecycle.NAME, randomLong(), randomLong());
-//
-//        when(clusterService.state()).thenReturn(currentState);
-//
-//        doAnswer(invocationOnMock -> {
-//            @SuppressWarnings("unchecked")
-//            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
-//            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-//            return null;
-//
-//        }).when(indicesClient).updateSettings(any(), any());
-//
-//        indexLifecycleService.triggered(schedulerEvent);
-//    }
-
-//    /**
-//     * Check that if an index has no lifecycle policy set it does not execute
-//     * any policy but does process other indexes.
-//     */
-//    public void testTriggeredNoPolicyNameSet() {
-//        String policyName = randomAlphaOfLengthBetween(1, 20);
-//        MockAction mockAction = new MockAction(Collections.emptyList());
-//        Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
-//        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
-//                Collections.singletonMap(phase.getName(), phase));
-//        SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
-//        policyMap.put(policyName, policy);
-//        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-//        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName()).settings(settings(Version.CURRENT))
-//                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-//        Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-//        IndexMetaData indexMetadata2 = IndexMetaData.builder(index2.getName())
-//                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
-//                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-//        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-//                indexMetadata).fPut(index2.getName(), indexMetadata2);
-//        MetaData metaData = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap))
-//                .indices(indices.build()).persistentSettings(settings(Version.CURRENT).build()).build();
-//        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData)
-//                .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build()).build();
-//
-//        SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event(IndexLifecycle.NAME, randomLong(), randomLong());
-//
-//        when(clusterService.state()).thenReturn(currentState);
-//
-//        doAnswer(invocationOnMock -> {
-//            @SuppressWarnings("unchecked")
-//            ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
-//            listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-//            return null;
-//
-//        }).when(indicesClient).updateSettings(any(), any());
-//
-//        indexLifecycleService.triggered(schedulerEvent);
-//    }
 
     public void testTriggeredDifferentJob() {
         SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event("foo", randomLong(), randomLong());

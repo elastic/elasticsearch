@@ -7,6 +7,16 @@ setup:
 ---
 "Test Basic Policy CRUD":
   - do:
+      catch: missing
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      xpack.index_lifecycle.delete_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+
+  - do:
       acknowlege: true
       xpack.index_lifecycle.put_lifecycle:
         lifecycle: "my_timeseries_lifecycle"

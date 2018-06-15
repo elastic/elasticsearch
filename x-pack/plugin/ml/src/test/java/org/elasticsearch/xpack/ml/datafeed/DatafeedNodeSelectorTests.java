@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.junit.Before;
 
@@ -255,20 +255,20 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
         // Set to lower allocationId, so job task is stale:
-        tasksBuilder.updateTaskStatus(MlMetadata.jobTaskId(job.getId()), new JobTaskStatus(JobState.OPENED, 0));
+        tasksBuilder.updateTaskState(MlMetadata.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0));
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
 
         PersistentTasksCustomMetaData.Assignment result = new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").selectNode();
         assertNull(result.getExecutorNode());
-        assertEquals("cannot start datafeed [datafeed_id], job [job_id] status is stale",
+        assertEquals("cannot start datafeed [datafeed_id], job [job_id] state is stale",
                 result.getExplanation());
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> new DatafeedNodeSelector(clusterState, resolver, "datafeed_id").checkDatafeedTaskCanBeCreated());
         assertThat(e.getMessage(), containsString("No node found to start datafeed [datafeed_id], allocation explanation "
-                + "[cannot start datafeed [datafeed_id], job [job_id] status is stale]"));
+                + "[cannot start datafeed [datafeed_id], job [job_id] state is stale]"));
 
         tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), "node_id1", JobState.OPENED, tasksBuilder);

@@ -35,6 +35,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField MAINTENANCE_MODE_FIELD = new ParseField("maintenance_mode");
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
+    public static final IndexLifecycleMetadata EMPTY = new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.NORMAL);
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(

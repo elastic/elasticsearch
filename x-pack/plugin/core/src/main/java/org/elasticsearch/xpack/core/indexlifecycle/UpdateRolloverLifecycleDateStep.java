@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -30,22 +30,12 @@ public class UpdateRolloverLifecycleDateStep extends AsyncActionStep {
                 + "] is not set on index [" + indexMetaData.getIndex().getName() + "]"));
             return;
         }
-        AliasOrIndex aliasOrIndex = currentState.metaData().getAliasAndIndexLookup().get(rolloverAlias);
-        if (aliasOrIndex == null || aliasOrIndex.isAlias() == false) {
-            listener.onFailure(new IllegalStateException("rollover alias [" + rolloverAlias + "] does not exist"));
-            return;
-        }
-        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-        if (alias.getIndices().size() != 1) {
-            listener.onFailure(new IllegalStateException("rollover alias [" + rolloverAlias + "] points to multiple indices"));
-            return;
-        }
-        if (indexMetaData.getIndex().equals(alias.getIndices().get(0).getIndex())) {
+        RolloverInfo rolloverInfo = indexMetaData.getRolloverInfos().get(rolloverAlias);
+        if (rolloverInfo == null) {
             listener.onFailure(new IllegalStateException("index [" + indexMetaData.getIndex().getName() + "] has not rolled over yet"));
             return;
         }
-        long lifecycleDate = alias.getIndices().get(0).getSettings().getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1L);
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, lifecycleDate).build();
+        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, rolloverInfo.getTime()).build();
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName()).settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest,
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

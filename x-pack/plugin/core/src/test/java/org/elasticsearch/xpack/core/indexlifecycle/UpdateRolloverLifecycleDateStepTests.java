@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
 import org.mockito.Mockito;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -67,11 +70,13 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
     public void testPerformAction() {
         String alias = randomAlphaOfLength(3);
         long creationDate = randomLongBetween(0, 1000000);
+        long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
         IndexMetaData newIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
             .settings(settings(Version.CURRENT)).creationDate(creationDate)
             .putAlias(AliasMetaData.builder(alias)).numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5)).build();
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .putRolloverInfo(new RolloverInfo(alias, Collections.emptyList(), rolloverTime))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -80,7 +85,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
                 .put(newIndexMetaData, false)).build();
 
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
-        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build();
+        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, rolloverTime).build();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -175,82 +180,18 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             equalTo("setting [index.lifecycle.rollover_alias] is not set on index [" + indexMetaData.getIndex().getName() +"]"));
     }
 
-    public void testPerformActionNoAliasConfigured() {
-        String alias = randomAlphaOfLength(3);
-        long creationDate = randomLongBetween(0, 1000000);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .creationDate(creationDate).numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5)).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder().put(indexMetaData, false)).build();
-        UpdateRolloverLifecycleDateStep step = createRandomInstance();
-
-        SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, clusterState, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exceptionThrown.set(e);
-            }
-        });
-
-        assertThat(exceptionThrown.get().getClass(), equalTo(IllegalStateException.class));
-        assertThat(exceptionThrown.get().getMessage(),
-            equalTo("rollover alias [" + alias + "] does not exist"));
-    }
-
-    public void testPerformActionAliasToMultipleIndices() {
-        String alias = randomAlphaOfLength(3);
-        long creationDate = randomLongBetween(0, 1000000);
-        IndexMetaData newIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
-            .settings(settings(Version.CURRENT)).creationDate(creationDate)
-            .putAlias(AliasMetaData.builder(alias)).numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5)).build();
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .putAlias(AliasMetaData.builder(alias)).numberOfShards(randomIntBetween(1, 5))
-            .numberOfReplicas(randomIntBetween(0, 5)).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder()
-                .put(indexMetaData, false)
-                .put(newIndexMetaData, false)).build();
-        UpdateRolloverLifecycleDateStep step = createRandomInstance();
-
-        SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, clusterState, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exceptionThrown.set(e);
-            }
-        });
-
-        assertThat(exceptionThrown.get().getClass(), equalTo(IllegalStateException.class));
-        assertThat(exceptionThrown.get().getMessage(),
-            equalTo("rollover alias [" + alias + "] points to multiple indices"));
-    }
-
     @SuppressWarnings("unchecked")
     public void testPerformActionUpdateFailure() {
         Exception exception = new RuntimeException();
         String alias = randomAlphaOfLength(3);
         long creationDate = randomLongBetween(0, 1000000);
+        long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
         IndexMetaData newIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
             .settings(settings(Version.CURRENT)).creationDate(creationDate)
             .putAlias(AliasMetaData.builder(alias)) .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5)).build();
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .putRolloverInfo(new RolloverInfo(alias, Collections.emptyList(), rolloverTime))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -259,7 +200,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
                 .put(newIndexMetaData, false)).build();
 
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
-        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build();
+        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, rolloverTime).build();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);

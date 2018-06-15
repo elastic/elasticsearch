@@ -120,7 +120,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testScope() throws Exception {
-        MlFilter safeIps = new MlFilter("safe_ips", Arrays.asList("111.111.111.111", "222.222.222.222"));
+        MlFilter safeIps = MlFilter.builder("safe_ips").setItems("111.111.111.111", "222.222.222.222").build();
         assertThat(putMlFilter(safeIps), is(true));
 
         DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips")).build();
@@ -178,7 +178,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(records.get(0).getOverFieldValue(), equalTo("333.333.333.333"));
 
         // Now let's update the filter
-        MlFilter updatedFilter = new MlFilter(safeIps.getId(), Collections.singletonList("333.333.333.333"));
+        MlFilter updatedFilter = MlFilter.builder(safeIps.getId()).setItems("333.333.333.333").build();
         assertThat(putMlFilter(updatedFilter), is(true));
 
         // Wait until the notification that the process was updated is indexed
@@ -229,7 +229,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
     public void testScopeAndCondition() throws IOException {
         // We have 2 IPs and they're both safe-listed.
         List<String> ips = Arrays.asList("111.111.111.111", "222.222.222.222");
-        MlFilter safeIps = new MlFilter("safe_ips", ips);
+        MlFilter safeIps = MlFilter.builder("safe_ips").setItems(ips).build();
         assertThat(putMlFilter(safeIps), is(true));
 
         // Ignore if ip in safe list AND actual < 10.

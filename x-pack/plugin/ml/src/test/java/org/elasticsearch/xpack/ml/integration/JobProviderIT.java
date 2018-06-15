@@ -385,8 +385,8 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         indexScheduledEvents(events);
 
         List<MlFilter> filters = new ArrayList<>();
-        filters.add(new MlFilter("fruit", Arrays.asList("apple", "pear")));
-        filters.add(new MlFilter("tea", Arrays.asList("green", "builders")));
+        filters.add(MlFilter.builder("fruit").setItems("apple", "pear").build());
+        filters.add(MlFilter.builder("tea").setItems("green", "builders").build());
         indexFilters(filters);
 
         DataCounts earliestCounts = DataCountsTests.createTestInstance(jobId);

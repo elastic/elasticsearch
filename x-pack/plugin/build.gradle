@@ -43,9 +43,7 @@ subprojects {
         final FileCollection classDirectories = project.files(files).filter { it.exists() }
 
         doFirst {
-          String cp = project.configurations.featureAwarePlugin.asPath
-          cp = cp.replaceAll(":[^:]*/asm-debug-all-5.1.jar:", ":")
-          args('-cp', cp, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
+          args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
           classDirectories.each { args it.getAbsolutePath() }
         }
         doLast {

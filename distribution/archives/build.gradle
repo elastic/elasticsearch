@@ -228,6 +228,8 @@ subprojects {
   check.dependsOn checkNotice
 
   if (project.name == 'zip' || project.name == 'tar') {
+    project.ext.licenseName = 'Elastic License'
+    project.ext.licenseUrl = ext.elasticLicenseUrl
     task checkMlCppNotice {
       dependsOn buildDist, checkExtraction
       onlyIf toolExists

@@ -68,7 +68,7 @@ public class NioHttpPipeliningHandler extends ChannelDuplexHandler {
             List<Tuple<NioHttpResponse, NettyListener>> readyResponses = aggregator.write(response, listener);
             success = true;
             for (Tuple<NioHttpResponse, NettyListener> responseToWrite : readyResponses) {
-                ctx.write(responseToWrite.v1().getResponse(), responseToWrite.v2());
+                ctx.write(responseToWrite.v1(), responseToWrite.v2());
             }
         } catch (IllegalStateException e) {
             ctx.channel().close();

@@ -51,7 +51,7 @@ public abstract class AliasAction {
 
     /**
      * Apply the action.
-     * 
+     *
      * @param aliasValidator call to validate a new alias before adding it to the builder
      * @param metadata metadata builder for the changes made by all actions as part of this request
      * @param index metadata for the index being changed
@@ -64,7 +64,7 @@ public abstract class AliasAction {
      */
     @FunctionalInterface
     public interface NewAliasValidator {
-        void validate(String alias, @Nullable String indexRouting, @Nullable String filter);
+        void validate(String alias, @Nullable String indexRouting, @Nullable String filter, @Nullable Boolean writeIndex);
     }
 
     /**
@@ -82,10 +82,14 @@ public abstract class AliasAction {
         @Nullable
         private final String searchRouting;
 
+        @Nullable
+        private final Boolean writeIndex;
+
         /**
          * Build the operation.
          */
-        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting) {
+        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting,
+                   @Nullable String searchRouting, @Nullable Boolean writeIndex) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
@@ -94,6 +98,7 @@ public abstract class AliasAction {
             this.filter = filter;
             this.indexRouting = indexRouting;
             this.searchRouting = searchRouting;
+            this.writeIndex = writeIndex;
         }
 
         /**
@@ -103,6 +108,10 @@ public abstract class AliasAction {
             return alias;
         }
 
+        public Boolean writeIndex() {
+            return writeIndex;
+        }
+
         @Override
         boolean removeIndex() {
             return false;
@@ -110,15 +119,18 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
-            aliasValidator.validate(alias, indexRouting, filter);
+            aliasValidator.validate(alias, indexRouting, filter, writeIndex);
+
             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).filter(filter).indexRouting(indexRouting)
-                    .searchRouting(searchRouting).build();
+                    .searchRouting(searchRouting).writeIndex(writeIndex).build();
+
             // Check if this alias already exists
             AliasMetaData currentAliasMd = index.getAliases().get(alias);
             if (currentAliasMd != null && currentAliasMd.equals(newAliasMd)) {
                 // It already exists, ignore it
                 return false;
             }
+
             metadata.put(IndexMetaData.builder(index).putAlias(newAliasMd));
             return true;
         }

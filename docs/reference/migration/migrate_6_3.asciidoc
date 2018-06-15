@@ -7,6 +7,7 @@ your application to Elasticsearch 6.3.
 * <<breaking_63_api_changes>>
 * <<breaking_63_plugins_changes>>
 * <<breaking_63_settings_changes>>
+* <<breaking_63_search_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -88,3 +89,11 @@ place) you can start Elasticsearch with the JVM option
 `-Des.thread_pool.write.use_bulk_as_display_name=true` to have Elasticsearch
 continue to display the name of this thread pool as `bulk`. Elasticsearch will
 stop observing this system property in 7.0.0.
+
+[[breaking_63_search_changes]]
+=== Search and Query DSL changes
+
+==== Invalid `_search` request body
+
+Search requests with extra content after the main object will no longer be accepted
+by the `_search` endpoint. A parsing exception will be thrown instead.

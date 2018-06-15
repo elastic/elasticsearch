@@ -419,9 +419,8 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return forecasts;
     }
 
-    protected boolean putMlFilter(MlFilter filter) {
-        PutFilterAction.Response response = client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
-        return response.isAcknowledged();
+    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
+        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
     protected PutCalendarAction.Response putCalendar(String calendarId, List<String> jobIds, String description) {

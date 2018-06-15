@@ -99,12 +99,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             for (String index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
+                    for (String alias : action.aliases()) {
                         finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(), action.searchRouting()));
                     }
                     break;
                 case REMOVE:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
+                    for (String alias : action.aliases()) {
                         finalActions.add(new AliasAction.Remove(index, alias));
                     }
                     break;
@@ -115,9 +115,6 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             }
-        }
-        if (finalActions.isEmpty() && false == actions.isEmpty()) {
-            throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
         }
         request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
@@ -135,23 +132,5 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 listener.onFailure(t);
             }
         });
-    }
-
-    private static String[] concreteAliases(AliasActions action, MetaData metaData, String concreteIndex) {
-        if (action.expandAliasesWildcards()) {
-            //for DELETE we expand the aliases
-            String[] indexAsArray = {concreteIndex};
-            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action.aliases(), indexAsArray);
-            List<String> finalAliases = new ArrayList<>();
-            for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
-                for (AliasMetaData aliasMeta: curAliases.value) {
-                    finalAliases.add(aliasMeta.alias());
-                }
-            }
-            return finalAliases.toArray(new String[finalAliases.size()]);
-        } else {
-            //for ADD and REMOVE_INDEX we just return the current aliases
-            return action.aliases();
-        }
     }
 }

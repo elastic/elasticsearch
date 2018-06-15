@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -98,6 +99,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
         Map<String, IndexService> indices = new HashMap<>();
         try {
             boolean changed = false;
+            boolean executed = false; // if at least a single action is executed
+            List<String> notFoundAliases = new ArrayList<>();
             // Gather all the indexes that must be removed first so:
             // 1. We don't cause error when attempting to replace an index with a alias of the same name.
             // 2. We don't allow removal of aliases from indexes that we're just going to delete anyway. That'd be silly.
@@ -110,6 +113,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
                     indicesToDelete.add(index.getIndex());
                     changed = true;
+                    executed = true;
                 }
             }
             // Remove the indexes if there are any to remove
@@ -154,7 +158,19 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 xContentRegistry);
                     }
                 };
-                changed |= action.apply(newAliasValidator, metadata, index);
+                try {
+                    changed |= action.apply(newAliasValidator, metadata, index);
+                    executed = true;
+                } catch (AliasesNotFoundException e) {
+                    notFoundAliases.add(action.getAlias());
+                    executed |= false;
+                }
+            }
+
+            // if no action has been executed,
+            // it means that a user supplied a nonexisting alias
+            if (executed == false) {
+                throw new AliasesNotFoundException(notFoundAliases.toArray(new String[notFoundAliases.size()]));
             }
 
             if (changed) {

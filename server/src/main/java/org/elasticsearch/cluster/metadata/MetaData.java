@@ -1072,6 +1072,36 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                                 customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
         }
 
+        /**
+         * Finds the specific index aliases that match with the specified alias directly or partially via wildcards and
+         * that point to the specified concrete index or match partially with the index via wildcards.
+         *
+         * @param alias         The names of the index alias to find, could be a pattern to resolve
+         * @param concreteIndex The concrete index, the index aliases must point to in order to be returned
+         * @return a list of concrete aliases corresponding to the given alias and concrete index
+         */
+        public List<String> findAliases(final String alias, String concreteIndex) {
+            List<String> concreteAliases = new ArrayList<>();
+            if (alias.length() == 0) {
+                return concreteAliases;
+            }
+            if (!indices.keys().contains(concreteIndex)) {
+                return concreteAliases;
+            }
+            boolean matchAllAliases = (alias.equals(ALL)) ? true : false;
+            IndexMetaData indexMetaData = indices.get(concreteIndex);
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
+               final String concreteAlias = cursor.value.alias();
+                if (matchAllAliases || Regex.simpleMatch(alias, concreteAlias)) {
+                    concreteAliases.add(concreteAlias);
+                }
+            }
+            if (concreteAliases.size() > 1) {
+                Collections.sort(concreteAliases);
+            }
+            return concreteAliases;
+        }
+
         public static String toXContent(MetaData metaData) throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();

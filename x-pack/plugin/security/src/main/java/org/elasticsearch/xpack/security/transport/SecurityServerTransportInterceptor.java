@@ -104,6 +104,10 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                // make a local copy of isStateNotRecovered as this is a volatile variable and it
+                // is used multiple times in the method. The copy to a local variable allows us to
+                // guarantee we use the same value wherever we would check the value for the state
+                // being recovered
                 final boolean stateNotRecovered = isStateNotRecovered;
                 final boolean sendWithAuth = (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) || stateNotRecovered;
                 if (sendWithAuth) {

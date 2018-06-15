@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-import java.util.Collection;
-
 /**
  * Builder for {@link DeletePrivilegesRequest}
  */

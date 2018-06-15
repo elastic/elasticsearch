@@ -15,8 +15,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
-import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 public class GetPrivilegesResponseTests extends ESTestCase {
 

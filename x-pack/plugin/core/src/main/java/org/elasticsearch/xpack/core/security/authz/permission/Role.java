@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;

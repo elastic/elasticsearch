@@ -71,7 +71,6 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         out.writeMap(metadata);
     }
 
-
     public String getApplication() {
         return application;
     }

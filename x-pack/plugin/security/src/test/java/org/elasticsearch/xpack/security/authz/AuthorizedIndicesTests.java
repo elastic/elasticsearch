@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 

@@ -11,18 +11,13 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
-import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,6 +33,11 @@ public final class ApplicationPrivilege extends Privilege {
     private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
     private static final Pattern VALID_APPLICATION_OR_WILDCARD = Pattern.compile("^[a-z*][A-Za-z0-9_*-]*");
     private static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
+
+    /**
+     * A name or action must be composed of printable, visible ASCII characters.
+     * That is: letters, numbers & symbols, but no whitespace.
+     */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
     public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
@@ -107,7 +111,7 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validatePrivilegeOrActionName(String name) {
-        if(VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
+        if (VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
             throw new IllegalArgumentException("Application privilege names and actions must match the pattern "
                 + VALID_NAME_OR_ACTION.pattern() + " (found '" + name + "')");
         }

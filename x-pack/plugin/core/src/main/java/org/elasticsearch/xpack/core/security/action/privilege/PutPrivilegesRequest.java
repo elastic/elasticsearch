@@ -50,11 +50,6 @@ public final class PutPrivilegesRequest extends ActionRequest implements WriteRe
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(e.getMessage(), validationException);
             }
-            try {
-                ApplicationPrivilege.validatePrivilegeName(privilege.getName());
-            } catch (IllegalArgumentException e) {
-                validationException = addValidationError(e.getMessage(), validationException);
-            }
             for (String action : privilege.getActions()) {
                 if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
                     validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",

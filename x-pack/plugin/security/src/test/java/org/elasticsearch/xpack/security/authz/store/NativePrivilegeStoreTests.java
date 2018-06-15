@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
@@ -54,7 +53,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;

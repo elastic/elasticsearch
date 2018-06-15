@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -28,8 +27,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 

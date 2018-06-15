@@ -41,7 +41,6 @@ public class PutRoleRequestTests extends ESTestCase {
         assertThat(exception.validationErrors(), hasItem(containsString(message)));
     }
 
-
     private PutRoleRequest buildRequestWithApplicationPrivilege(String appName, String[] privileges, String[] resources) {
         final PutRoleRequest request = new PutRoleRequest();
         request.name("test");

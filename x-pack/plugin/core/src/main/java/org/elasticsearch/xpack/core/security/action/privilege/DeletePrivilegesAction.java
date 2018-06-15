@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for deleting application privileges.

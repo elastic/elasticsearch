@@ -228,7 +228,8 @@ final class Security {
                     }
                     propertiesSet.add(property);
                     String previous = System.setProperty(property, url.toString());
-                    if (previous != null) {
+                    // allow to re-set to what was previusly there. https://github.com/elastic/elasticsearch/issues/31324
+                    if (previous != null && url.toString() != previous) {
                         throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
                                                         ", cannot set to " + url.toString());
                     }

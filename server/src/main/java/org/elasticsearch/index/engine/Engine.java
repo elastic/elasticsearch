@@ -568,17 +568,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the translog associated with this engine.
-     * Prefer to keep the translog package-private, so that an engine can control all accesses to the translog.
-     */
-    abstract Translog getTranslog();
-
-    /**
      * Checks if the underlying storage sync is required.
      */
-    public boolean isTranslogSyncNeeded() {
-        return getTranslog().syncNeeded();
-    }
+    public abstract boolean isTranslogSyncNeeded();
 
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
@@ -596,20 +588,14 @@ public abstract class Engine implements Closeable {
      * Creates a new translog snapshot from this engine for reading translog operations whose seq# in the provided range.
      * The caller has to close the returned snapshot after finishing the reading.
      */
-    public Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
-        return getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo);
-    }
+    public abstract Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException;
 
-    public TranslogStats getTranslogStats() {
-        return getTranslog().stats();
-    }
+    public abstract TranslogStats getTranslogStats();
 
     /**
      * Returns the last location that the translog of this engine has written into.
      */
-    public Translog.Location getTranslogLastWriteLocation() {
-        return getTranslog().getLastWriteLocation();
-    }
+    public abstract Translog.Location getTranslogLastWriteLocation();
 
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seqno in the requesting seqno range
@@ -621,27 +607,12 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot for reading operations since the provided seqno.
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
-        } else {
-            return getTranslog().getSnapshotBetween(startingSeqNo, Long.MAX_VALUE);
-        }
-    }
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
-    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            try (Translog.Snapshot snapshot =
-                     newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)) {
-                return snapshot.totalOperations();
-            } catch (IOException ex) {
-                maybeFailEngine(source, ex);
-                throw ex;
-            }
-        } else {
-            return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
-        }
-    }
+    /**
+     * Returns the estimated number of history operations whose seq# at least the provided seq# in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
@@ -691,9 +662,7 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
      */
-    public long getLastSyncedGlobalCheckpoint() {
-        return getTranslog().getLastSyncedGlobalCheckpoint();
-    }
+    public abstract long getLastSyncedGlobalCheckpoint();
 
     /**
      * Global stats on segments.
@@ -965,9 +934,7 @@ public abstract class Engine implements Closeable {
      *
      * @return {@code true} if the current generation should be rolled to a new generation
      */
-    public boolean shouldRollTranslogGeneration() {
-        return getTranslog().shouldRollGeneration();
-    }
+    public abstract boolean shouldRollTranslogGeneration();
 
     /**
      * Rolls the translog generation and cleans unneeded.

@@ -192,7 +192,7 @@ attribute.groups:: See <<saml-attribute-mapping>>.
 When a user connects to {kib} through your Identity Provider, the Identity
 Provider will supply a SAML Assertion about the user. The assertion will contain
 an _Authentication Statement_ indicating that the user has successfully
-authenticated to the IdP and one ore more _Attribute Statements_ that will
+authenticated to the IdP and one or more _Attribute Statements_ that will
 include _Attributes_ for the user.
 
 These attributes may include such things as:
@@ -213,7 +213,7 @@ customise the URIs and their associated value.
 logged in, and they can be used for role mapping (below).
 
 In order for these attributes to be useful, {es} and the IdP need to have a
-common via for the names of the attributes. This is done manually, by
+common value for the names of the attributes. This is done manually, by
 configuring the IdP and the {security} SAML realm to use the same URI name for
 each logical user attribute.
 

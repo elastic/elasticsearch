@@ -82,6 +82,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -452,10 +453,15 @@ public class InternalEngine extends Engine {
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, engineConfig.getPrimaryTermSupplier());
     }
 
-    @Override
+    // Package private for testing purposes only
     Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public boolean isTranslogSyncNeeded() {
+        return getTranslog().syncNeeded();
     }
 
     @Override
@@ -471,6 +477,52 @@ public class InternalEngine extends Engine {
     public void syncTranslog() throws IOException {
         translog.sync();
         revisitIndexDeletionPolicyOnTranslogSynced();
+    }
+
+    @Override
+    public Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
+        return getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo);
+    }
+
+    /**
+     * Creates a new history snapshot for reading operations since the provided seqno.
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     */
+    @Override
+    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            return newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
+        } else {
+            return getTranslog().getSnapshotBetween(startingSeqNo, Long.MAX_VALUE);
+        }
+    }
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least the provided seq# in this engine.
+     */
+    @Override
+    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            try (Translog.Snapshot snapshot =
+                     newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)) {
+                return snapshot.totalOperations();
+            } catch (IOException ex) {
+                maybeFailEngine(source, ex);
+                throw ex;
+            }
+        } else {
+            return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
+        }
+    }
+
+    @Override
+    public TranslogStats getTranslogStats() {
+        return getTranslog().stats();
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return getTranslog().getLastWriteLocation();
     }
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
@@ -1684,6 +1736,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean shouldRollTranslogGeneration() {
+        return getTranslog().shouldRollGeneration();
+    }
+
+    @Override
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -2315,6 +2372,11 @@ public class InternalEngine extends Engine {
     // Used only for testing! Package private to prevent anyone else from using it
     LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
+    }
+
+    @Override
+    public long getLastSyncedGlobalCheckpoint() {
+        return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
     @Override

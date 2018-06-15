@@ -1,22 +1,53 @@
+[role="xpack"]
 [[ml-configuring-url]]
-=== Adding Custom URLs To Machine Learning Results
+=== Adding custom URLs to machine learning results
 
 When you create an advanced job or edit any job in {kib}, you can optionally
-attach one or more custom URLs. You can also specify these custom settings when
-you create or update jobs by using the {ml} APIs.
+attach one or more custom URLs. 
 
-The custom URLs provide links from the anomalies table in the Anomaly Explorer
-or Single Metric Viewer window in {kib} to custom dashboards or external
-websites. For example, you can define a custom URL that provides a way for users
-to drill down to the source data from the results set.
+The custom URLs provide links from the anomalies table in the *Anomaly Explorer*
+or *Single Metric Viewer* window in {kib} to {kib} dashboards, the *Discovery* 
+page, or external websites. For example, you can define a custom URL that 
+provides a way for users to drill down to the source data from the results set.
 
-For each custom URL, you must supply the URL and a label, which is the link text
-that appears in the anomalies table.
+When you edit a job in {kib}, it simplifies the creation of the custom URLs for  
+{kib} dashboards and the *Discover* page and it enables you to test your URLs. 
+For example:
 
 [role="screenshot"]
-image::images/ml-customurl.jpg["Links in the Anomaly Explorer anoamilies table"]
+image::images/ml-customurl-edit.jpg["Edit a job to add a custom URL"]
+
+For each custom URL, you must supply the URL and a label, which is the link text
+that appears in the anomalies table. You can also optionally supply a time 
+range. For example, these are the values that are added for `My link 1`:
+
+[role="screenshot"]
+image::images/ml-customurl-detail.jpg["An example of a label and URL"]
+
+As in this case, the custom URL can contain 
+<<ml-configuring-url-strings,dollar sign delimited tokens>>, which 
+are populated when you click the link in the anomalies table. In this example, 
+the custom URL contains `$earliest$`, `$latest$`, and `$service$` tokens, which 
+pass the beginning and end of the time span of the selected anomaly and the 
+pertinent `service` field value to the target page. If you were interested in the following anomaly, for example: 
+
+[role="screenshot"]
+image::images/ml-customurl.jpg["An example of the custom URL links in the Anomaly Explorer anomalies table"]
+
+...clicking `My Link 1` opens the *Discover* page and shows results for the 
+service and date that were identified in the anomaly:
+
+[role="screenshot"]
+image::images/ml-customurl-discover.jpg["An example of the results on the Discover page"]
+
+Since we specified a time range of 2 hours, the time filter restricts the 
+results to the time period two hours before and after the anomaly.
+
+You can also specify these custom URL settings when you create or update jobs by 
+using the {ml} APIs.
 
 [float]
+[[ml-configuring-url-strings]]
 ==== String Substitution in Custom URLs
 
 You can use dollar sign ($) delimited tokens in a custom URL. These tokens are
@@ -40,7 +71,8 @@ span of the selected anomaly to the target page. The tokens are substituted with
 date-time strings in ISO-8601 format. If you selected an interval of 1 hour for
 the anomalies table, these tokens use one hour on either side of the anomaly
 time as the earliest and latest times. The same is also true if the interval is
-set to `Auto` and a one hour interval was chosen.
+set to `Auto` and a one hour interval was chosen. You can override this behavior 
+by using the `time_range` setting. 
 
 The `$mlcategoryregex$` and `$mlcategoryterms$` tokens pertain to jobs where you
 are categorizing field values. For more information about this type of analysis,
@@ -55,28 +87,32 @@ the selected anomaly. Each categorization term is prefixed by a plus (+)
 character, so that when the token is passed to a {kib} dashboard, the resulting
 dashboard query seeks a match for all of the terms of the category.
 
-For example, the following API updates a `log_categories` job to add a custom
-URL that uses `$earliest$`, `$latest$`, and `$mlcategoryterms$` tokens:
+For example, the following API updates a job to add a custom URL that uses 
+`$earliest$`, `$latest$`, and `$mlcategoryterms$` tokens:
 
 [source,js]
 ----------------------------------
-POST _xpack/ml/anomaly_detectors/log_categories/_update
+POST _xpack/ml/anomaly_detectors/sample_job/_update
 {
   "custom_settings": {
         "custom_urls": [
           {
             "url_name": "test-link1",
+            "time_range": "1h",
             "url_value": "http://localhost:5601/app/kibana#/discover?_g=(refreshInterval:(display:Off,pause:!f,value:0),time:(from:'$earliest$',mode:quick,to:'$latest$'))&_a=(columns:!(_source),index:AV3OWB68ue3Ht69t29aw,interval:auto,query:(query_string:(analyze_wildcard:!t,query:'$mlcategoryterms$')),sort:!(time,desc))"
           }
         ]
       }
 }
 ----------------------------------
+//CONSOLE
+//TEST[setup:sample_job]
 
 When you click this custom URL in the anomalies table in {kib}, it opens up the
-Discover page and displays source data for the period when the anomaly occurred.
-Since this job was categorizing log messages, some `$mlcategoryterms$` token
-values that were passed to the target page for an example anomaly are as follows:
+*Discover* page and displays source data for the period one hour before and 
+after the anomaly occurred. Since this job was categorizing log messages, some 
+`$mlcategoryterms$` token values that were passed to the target page for an 
+example anomaly are as follows:
 
 [role="screenshot"]
 image::images/ml-categoryterms.jpg["A query for category terms on the Discover page in {kib}"]

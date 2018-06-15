@@ -73,6 +73,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Collections.singletonMap("divisor", 4));
     private static final String CONFLICTING_PARAM_NAME = "initialValue";
 
+    private static final Script INIT_SCRIPT_SELF_REF = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptSelfRef",
+            Collections.emptyMap());
+    private static final Script MAP_SCRIPT_SELF_REF = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptSelfRef",
+            Collections.emptyMap());
+    private static final Script COMBINE_SCRIPT_SELF_REF = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptSelfRef",
+            Collections.emptyMap());
+
     private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();
 
     @BeforeClass
@@ -126,6 +133,25 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
             int divisor = ((Integer) params.get("divisor"));
             return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
+        });
+
+        SCRIPTS.put("initScriptSelfRef", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            agg.put("collector", new ArrayList<Integer>());
+            agg.put("selfRef", agg);
+            return agg;
+        });
+
+        SCRIPTS.put("mapScriptSelfRef", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            agg.put("selfRef", agg);
+            return agg;
+        });
+
+        SCRIPTS.put("combineScriptSelfRef", params -> {
+           Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+           agg.put("selfRef", agg);
+           return agg;
         });
     }
 
@@ -253,6 +279,61 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 );
                 assertEquals("Parameter name \"" + CONFLICTING_PARAM_NAME + "\" used in both aggregation and script parameters",
                     ex.getMessage());
+            }
+        }
+    }
+
+    public void testSelfReferencingAggStateAfterInit() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                // No need to add docs for this test
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT_SELF_REF).mapScript(MAP_SCRIPT);
+
+                IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+                    search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
+                );
+                assertEquals("Iterable object is self-referencing itself (Scripted metric aggs init script)", ex.getMessage());
+            }
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31307")
+    public void testSelfReferencingAggStateAfterMap() throws IOException {
+        try (Directory directory = newDirectory()) {
+            Integer numDocs = randomInt(100);
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < numDocs; i++) {
+                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT_SELF_REF);
+
+                IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+                    search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
+                );
+                assertEquals("Iterable object is self-referencing itself (Scripted metric aggs map script)", ex.getMessage());
+            }
+        }
+    }
+
+    public void testSelfReferencingAggStateAfterCombine() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                // No need to add docs for this test
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT_SELF_REF);
+
+                IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+                    search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
+                );
+                assertEquals("Iterable object is self-referencing itself (Scripted metric aggs combine script)", ex.getMessage());
             }
         }
     }

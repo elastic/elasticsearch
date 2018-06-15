@@ -9,22 +9,22 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
-public class JobTaskStatusTests extends AbstractSerializingTestCase<JobTaskStatus> {
+public class JobTaskStateTests extends AbstractSerializingTestCase<JobTaskState> {
 
     @Override
-    protected JobTaskStatus createTestInstance() {
-        return new JobTaskStatus(randomFrom(JobState.values()), randomLong());
+    protected JobTaskState createTestInstance() {
+        return new JobTaskState(randomFrom(JobState.values()), randomLong());
     }
 
     @Override
-    protected Writeable.Reader<JobTaskStatus> instanceReader() {
-        return JobTaskStatus::new;
+    protected Writeable.Reader<JobTaskState> instanceReader() {
+        return JobTaskState::new;
     }
 
     @Override
-    protected JobTaskStatus doParseInstance(XContentParser parser) {
-        return JobTaskStatus.fromXContent(parser);
+    protected JobTaskState doParseInstance(XContentParser parser) {
+        return JobTaskState.fromXContent(parser);
     }
 }

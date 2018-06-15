@@ -57,7 +57,7 @@ public class PagedByteBuf extends UnpooledHeapByteBuf {
 
     private static ByteBuf byteBufFromPage(InboundChannelBuffer.Page page) {
         ByteBuffer buffer = page.getByteBuffer();
-        assert !buffer.isDirect() && buffer.hasArray() : "Must be a heap buffer with an array";
+        assert buffer.isDirect() == false && buffer.hasArray() : "Must be a heap buffer with an array";
         int offset = buffer.arrayOffset() + buffer.position();
         PagedByteBuf newByteBuf = new PagedByteBuf(buffer.array(), page::close);
         return newByteBuf.slice(offset, buffer.remaining());

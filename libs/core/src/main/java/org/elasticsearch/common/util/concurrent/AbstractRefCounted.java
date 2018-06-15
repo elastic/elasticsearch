@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.lucene.store.AlreadyClosedException;
-
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -68,7 +66,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     }
 
     protected void alreadyClosed() {
-        throw new AlreadyClosedException(name + " is already closed can't increment refCount current count [" + refCount.get() + "]");
+        throw new IllegalStateException(name + " is already closed can't increment refCount current count [" + refCount.get() + "]");
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.nio.ByteBuffer;
@@ -27,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
@@ -273,22 +273,25 @@ public final class InboundChannelBuffer implements AutoCloseable {
     public static class Page implements AutoCloseable {
 
         private final ByteBuffer byteBuffer;
-        private final Runnable closeable;
-        private final AtomicInteger referenceCount;
+        // This is reference counted as some implementations want to retain the byte pages by calling
+        // sliceAndRetainPagesTo. With reference counting we can increment the reference count, return the
+        // pages, and safely close them when this channel buffer is done with them. The reference count
+        // would be 1 at that point, meaning that the pages will remain until the implementation closes
+        // theirs.
+        private final RefCountedCloseable refCountedCloseable;
 
         public Page(ByteBuffer byteBuffer, Runnable closeable) {
-            this(byteBuffer, closeable, new AtomicInteger(1));
+            this(byteBuffer, new RefCountedCloseable(closeable));
         }
 
-        private Page(ByteBuffer byteBuffer, Runnable closeable, AtomicInteger referenceCount) {
+        private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
             this.byteBuffer = byteBuffer;
-            this.closeable = closeable;
-            this.referenceCount = referenceCount;
+            this.refCountedCloseable = refCountedCloseable;
         }
 
         private Page duplicate() {
-            referenceCount.incrementAndGet();
-            return new Page(byteBuffer.duplicate(), closeable, referenceCount);
+            refCountedCloseable.incRef();
+            return new Page(byteBuffer.duplicate(), refCountedCloseable);
         }
 
         public ByteBuffer getByteBuffer() {
@@ -297,9 +300,20 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
         @Override
         public void close() {
-            int newReferenceCount = referenceCount.decrementAndGet();
-            assert newReferenceCount >= 0 : "Reference count should never be less than 0. Found: [" + newReferenceCount + "].";
-            if (newReferenceCount == 0) {
+            refCountedCloseable.decRef();
+        }
+
+        private static class RefCountedCloseable extends AbstractRefCounted {
+
+            private final Runnable closeable;
+
+            private RefCountedCloseable(Runnable closeable) {
+                super("byte array page");
+                this.closeable = closeable;
+            }
+
+            @Override
+            protected void closeInternal() {
                 closeable.run();
             }
         }

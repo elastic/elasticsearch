@@ -49,4 +49,43 @@ public class PagedByteBufTests extends ESTestCase {
         secondBuf.release();
         assertEquals(pageCount, integer.get());
     }
+
+    public void testBytesAreUsed() {
+        byte[] bytes1 = new byte[10];
+        byte[] bytes2 = new byte[10];
+
+        for (int i = 0; i < 10; ++i) {
+            bytes1[i] = (byte) i;
+        }
+
+        for (int i = 10; i < 20; ++i) {
+            bytes2[i - 10] = (byte) i;
+        }
+
+        InboundChannelBuffer.Page[] pages = new InboundChannelBuffer.Page[2];
+        pages[0] = new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes1), () -> {});
+        pages[1] = new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes2), () -> {});
+
+        ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages);
+        assertEquals(20, byteBuf.readableBytes());
+
+        for (int i = 0; i < 20; ++i) {
+            assertEquals((byte) i, byteBuf.getByte(i));
+        }
+
+        InboundChannelBuffer.Page[] pages2 = new InboundChannelBuffer.Page[2];
+        ByteBuffer firstBuffer = ByteBuffer.wrap(bytes1);
+        firstBuffer.position(2);
+        ByteBuffer secondBuffer = ByteBuffer.wrap(bytes2);
+        secondBuffer.limit(8);
+        pages2[0] = new InboundChannelBuffer.Page(firstBuffer, () -> {});
+        pages2[1] = new InboundChannelBuffer.Page(secondBuffer, () -> {});
+
+        ByteBuf byteBuf2 = PagedByteBuf.byteBufFromPages(pages2);
+        assertEquals(16, byteBuf2.readableBytes());
+
+        for (int i = 2; i < 18; ++i) {
+            assertEquals((byte) i, byteBuf2.getByte(i - 2));
+        }
+    }
 }

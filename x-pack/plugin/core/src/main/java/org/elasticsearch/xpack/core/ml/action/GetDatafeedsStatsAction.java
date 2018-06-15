@@ -30,8 +30,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Request, GetDatafeedsStatsAction.Response,
-        GetDatafeedsStatsAction.RequestBuilder> {
+public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Request, GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/stats/get";
@@ -41,11 +40,6 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
 
     private GetDatafeedsStatsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override

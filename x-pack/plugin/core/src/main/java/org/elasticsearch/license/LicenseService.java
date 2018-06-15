@@ -411,7 +411,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             // auto-generate license if no licenses ever existed or if the current license is basic and
             // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
             if (currentClusterState.getNodes().isLocalNodeElectedMaster() &&
-                    (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) || LicenseUtils.signatureNeedsUpdate(currentLicense))) {
+                    (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) ||
+                        LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
                 registerOrUpdateSelfGeneratedLicense();
             }
         } else if (logger.isDebugEnabled()) {

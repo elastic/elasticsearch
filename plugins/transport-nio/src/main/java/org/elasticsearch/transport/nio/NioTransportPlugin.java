@@ -50,8 +50,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         return Arrays.asList(
             NioHttpServerTransport.NIO_HTTP_ACCEPTOR_COUNT,
             NioHttpServerTransport.NIO_HTTP_WORKER_COUNT,
-            NioTransport.NIO_WORKER_COUNT,
-            NioTransport.NIO_ACCEPTOR_COUNT
+            NioTransport.NIO_WORKER_COUNT
         );
     }
 

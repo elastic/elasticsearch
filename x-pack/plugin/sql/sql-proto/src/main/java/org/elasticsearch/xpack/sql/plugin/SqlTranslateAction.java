@@ -6,23 +6,17 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Sql action for translating SQL queries into ES requests
  */
-public class SqlTranslateAction extends Action<SqlTranslateRequest, SqlTranslateResponse, SqlTranslateRequestBuilder> {
+public class SqlTranslateAction extends Action<SqlTranslateRequest, SqlTranslateResponse> {
 
     public static final SqlTranslateAction INSTANCE = new SqlTranslateAction();
     public static final String NAME = "indices:data/read/sql/translate";
 
     private SqlTranslateAction() {
         super(NAME);
-    }
-
-    @Override
-    public SqlTranslateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SqlTranslateRequestBuilder(client, this);
     }
 
     @Override

@@ -16,8 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class KillProcessAction extends Action<KillProcessAction.Request, KillProcessAction.Response,
-        KillProcessAction.RequestBuilder> {
+public class KillProcessAction extends Action<KillProcessAction.Request, KillProcessAction.Response> {
 
     public static final KillProcessAction INSTANCE = new KillProcessAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/kill/process";
@@ -27,16 +26,11 @@ public class KillProcessAction extends Action<KillProcessAction.Request, KillPro
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client, KillProcessAction action) {
             super(client, action, new Request());

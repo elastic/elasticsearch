@@ -209,6 +209,14 @@ Before submitting your changes, run the test suite to make sure that nothing is 
 ./gradlew check
 ```
 
+If your changes affect only the documentation, run:
+
+```sh
+./gradlew -p docs check
+```
+For more information about testing code examples in the documentation, see 
+https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
+
 ### Project layout
 
 This repository is split into many top level directories. The most important

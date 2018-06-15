@@ -32,6 +32,10 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+/**
+ * This class is responsible for bootstrapping {@link IndexLifecycleMetadata} into the cluster-state, as well
+ * as adding the desired new policy to be inserted.
+ */
 public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
@@ -64,6 +68,9 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         ClusterState.Builder newState = ClusterState.builder(currentState);
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
+                        if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
+                            currentMetadata = IndexLifecycleMetadata.EMPTY;
+                        }
                         if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicy().getName())) {
                             throw new ResourceAlreadyExistsException("Lifecycle policy already exists: {}",
                                     request.getPolicy().getName());

@@ -30,14 +30,14 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -76,15 +76,16 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 @Override
                 public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
-                    assert context == SearchScript.SCRIPT_SCORE_CONTEXT;
-                    SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
-                        @Override
-                        public SearchScript newInstance(LeafReaderContext context) throws IOException {
-                            return new MyScript(lookup.doc().getLeafDocLookup(context));
-                        }
+                    assert context == ScoreScript.CONTEXT;
+                    ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
                         @Override
                         public boolean needs_score() {
                             return false;
+                        }
+
+                        @Override
+                        public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                            return new MyScript(params1, lookup, ctx);
                         }
                     };
                     return context.factoryClazz.cast(factory);
@@ -93,28 +94,21 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         }
     }
 
-    static class MyScript extends SearchScript implements ExplainableSearchScript {
-        LeafDocLookup docLookup;
+    static class MyScript extends ScoreScript implements ExplainableSearchScript {
 
-        MyScript(LeafDocLookup docLookup) {
-            super(null, null, null);
-            this.docLookup = docLookup;
+        MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+            super(params, lookup, leafContext);
         }
-
-        @Override
-        public void setDocument(int doc) {
-            docLookup.setDocument(doc);
-        }
-
+    
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
             Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
-            return Explanation.match((float) (runAsDouble()), "This script returned " + runAsDouble(), scoreExp);
+            return Explanation.match((float) (execute()), "This script returned " + execute(), scoreExp);
         }
 
         @Override
-        public double runAsDouble() {
-            return ((Number) ((ScriptDocValues) docLookup.get("number_field")).getValues().get(0)).doubleValue();
+        public double execute() {
+            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).getValues().get(0)).doubleValue();
         }
     }
 

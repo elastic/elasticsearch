@@ -37,8 +37,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
-    DeprecationInfoAction.Response, DeprecationInfoAction.RequestBuilder> {
+public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request, DeprecationInfoAction.Response> {
 
     public static final DeprecationInfoAction INSTANCE = new DeprecationInfoAction();
     public static final String NAME = "cluster:admin/xpack/deprecation/info";
@@ -57,11 +56,6 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
      */
     public static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override

@@ -20,10 +20,8 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteStoredScriptAction extends Action<DeleteStoredScriptRequest, DeleteStoredScriptResponse,
-        DeleteStoredScriptRequestBuilder> {
+public class DeleteStoredScriptAction extends Action<DeleteStoredScriptRequest, DeleteStoredScriptResponse> {
 
     public static final DeleteStoredScriptAction INSTANCE = new DeleteStoredScriptAction();
     public static final String NAME = "cluster:admin/script/delete";
@@ -35,10 +33,5 @@ public class DeleteStoredScriptAction extends Action<DeleteStoredScriptRequest, 
     @Override
     public DeleteStoredScriptResponse newResponse() {
         return new DeleteStoredScriptResponse();
-    }
-
-    @Override
-    public DeleteStoredScriptRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new DeleteStoredScriptRequestBuilder(client, this);
     }
 }

@@ -79,7 +79,7 @@ public class ReplicasAction implements LifecycleAction {
         StepKey enoughKey = new StepKey(phase, NAME, ReplicasAllocatedStep.NAME);
         Settings replicaSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         return Arrays.asList(new UpdateSettingsStep(updateReplicasKey, enoughKey, client, replicaSettings),
-                new ReplicasAllocatedStep(enoughKey, nextStepKey, numberOfReplicas));
+                new ReplicasAllocatedStep(enoughKey, nextStepKey));
     }
 
     public int getNumberOfReplicas() {

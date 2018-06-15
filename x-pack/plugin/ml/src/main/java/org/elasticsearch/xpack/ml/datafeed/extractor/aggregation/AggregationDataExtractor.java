@@ -121,7 +121,7 @@ class AggregationDataExtractor implements DataExtractor {
         // in that bucket
         long histogramSearchStartTime = Math.max(0, context.start - getHistogramInterval());
 
-        SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setIndices(context.indices)
                 .setTypes(context.types)
                 .setSize(0)

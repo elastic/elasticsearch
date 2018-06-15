@@ -6,13 +6,10 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -21,7 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class DeleteLifecycleAction
-        extends Action<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response, DeleteLifecycleAction.RequestBuilder> {
+        extends Action<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
     public static final String NAME = "cluster:admin/xpack/index_lifecycle/delete";
 
@@ -30,21 +27,8 @@ public class DeleteLifecycleAction
     }
 
     @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
     public Response newResponse() {
         return new Response();
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
-            super(client, action, new Request());
-        }
-
     }
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
@@ -55,39 +39,6 @@ public class DeleteLifecycleAction
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isAcknowledged());
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (obj.getClass() != getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(isAcknowledged(), other.isAcknowledged());
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this, true, true);
-        }
-
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

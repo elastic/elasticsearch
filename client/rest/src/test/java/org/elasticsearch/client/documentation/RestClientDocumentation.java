@@ -36,8 +36,12 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
+import org.elasticsearch.client.HasAttributeNodeSelector;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -71,6 +75,19 @@ import java.util.concurrent.CountDownLatch;
  */
 @SuppressWarnings("unused")
 public class RestClientDocumentation {
+    private static final String TOKEN = "DUMMY";
+
+    // tag::rest-client-options-singleton
+    private static final RequestOptions COMMON_OPTIONS;
+    static {
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.addHeader("Authorization", "Bearer " + TOKEN); // <1>
+        builder.setNodeSelector(NodeSelector.NOT_MASTER_ONLY); // <2>
+        builder.setHttpAsyncResponseConsumerFactory(           // <3>
+            new HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
+        COMMON_OPTIONS = builder.build();
+    }
+    // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
     public void testUsage() throws IOException, InterruptedException {
@@ -103,7 +120,7 @@ public class RestClientDocumentation {
             RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
             builder.setFailureListener(new RestClient.FailureListener() {
                 @Override
-                public void onFailure(HttpHost host) {
+                public void onFailure(Node node) {
                     // <1>
                 }
             });
@@ -171,14 +188,23 @@ public class RestClientDocumentation {
             //tag::rest-client-body-shorter
             request.setJsonEntity("{\"json\":\"text\"}");
             //end::rest-client-body-shorter
-            //tag::rest-client-headers
-            request.addHeader("Accept", "text/plain");
-            request.addHeader("Cache-Control", "no-cache");
-            //end::rest-client-headers
-            //tag::rest-client-response-consumer
-            request.setHttpAsyncResponseConsumerFactory(
-                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024));
-            //end::rest-client-response-consumer
+            //tag::rest-client-options-set-singleton
+            request.setOptions(COMMON_OPTIONS);
+            //end::rest-client-options-set-singleton
+            {
+                //tag::rest-client-options-customize-header
+                RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
+                options.addHeader("cats", "knock things off of other things");
+                request.setOptions(options);
+                //end::rest-client-options-customize-header
+            }
+            {
+                //tag::rest-client-options-customize-attribute
+                RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
+                options.setNodeSelector(new HasAttributeNodeSelector("rack", "c12")); // <1>
+                request.setOptions(options);
+                //end::rest-client-options-customize-attribute
+            }
         }
         {
             HttpEntity[] documents = new HttpEntity[10];

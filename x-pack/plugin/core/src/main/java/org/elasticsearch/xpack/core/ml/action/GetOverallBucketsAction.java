@@ -48,19 +48,13 @@ import java.util.function.LongSupplier;
  * the interval.
  * </p>
  */
-public class GetOverallBucketsAction
-        extends Action<GetOverallBucketsAction.Request, GetOverallBucketsAction.Response, GetOverallBucketsAction.RequestBuilder> {
+public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Request, GetOverallBucketsAction.Response> {
 
     public static final GetOverallBucketsAction INSTANCE = new GetOverallBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/overall_buckets/get";
 
     private GetOverallBucketsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -280,7 +274,7 @@ public class GetOverallBucketsAction
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

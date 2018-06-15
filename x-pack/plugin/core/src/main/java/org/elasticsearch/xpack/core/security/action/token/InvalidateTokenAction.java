@@ -6,23 +6,17 @@
 package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for invalidating a given token
  */
-public final class InvalidateTokenAction extends Action<InvalidateTokenRequest, InvalidateTokenResponse, InvalidateTokenRequestBuilder> {
+public final class InvalidateTokenAction extends Action<InvalidateTokenRequest, InvalidateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/invalidate";
     public static final InvalidateTokenAction INSTANCE = new InvalidateTokenAction();
 
     private InvalidateTokenAction() {
         super(NAME);
-    }
-
-    @Override
-    public InvalidateTokenRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new InvalidateTokenRequestBuilder(client);
     }
 
     @Override

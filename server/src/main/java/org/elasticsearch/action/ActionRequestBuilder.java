@@ -24,14 +24,13 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
 
-public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse,
-        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> {
+public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
 
-    protected final Action<Request, Response, RequestBuilder> action;
+    protected final Action<Request, Response> action;
     protected final Request request;
     protected final ElasticsearchClient client;
 
-    protected ActionRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+    protected ActionRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
         Objects.requireNonNull(action, "action must not be null");
         this.action = action;
         this.request = request;

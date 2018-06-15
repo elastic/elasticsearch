@@ -126,8 +126,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             @Override
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-            void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                    RequestBuilder extends ActionRequestBuilder<Request, Response>>
+            void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;

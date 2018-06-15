@@ -81,8 +81,8 @@ public final class ClientHelper {
      * is wrapped to ensure the proper context is restored
      */
     public static <Request extends ActionRequest, Response extends ActionResponse,
-            RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void executeAsyncWithOrigin(
-            Client client, String origin, Action<Request, Response, RequestBuilder> action, Request request,
+            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
+            Client client, String origin, Action<Request, Response> action, Request request,
             ActionListener<Response> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
@@ -140,8 +140,8 @@ public final class ClientHelper {
      *            The listener to call when the action is complete
      */
     public static <Request extends ActionRequest, Response extends ActionResponse, 
-            RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void executeWithHeadersAsync(
-            Map<String, String> headers, String origin, Client client, Action<Request, Response, RequestBuilder> action, Request request,
+            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeWithHeadersAsync(
+            Map<String, String> headers, String origin, Client client, Action<Request, Response> action, Request request,
             ActionListener<Response> listener) {
 
         Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
@@ -178,8 +178,8 @@ public final class ClientHelper {
 
         @Override
         protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
-                Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
+                Action<Request, Response> action, Request request, ActionListener<Response> listener) {
             final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashContext()) {
                 in().threadPool().getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);

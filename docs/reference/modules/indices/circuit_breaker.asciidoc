@@ -80,12 +80,12 @@ The accounting circuit breaker allows Elasticsearch to limit the memory
 usage of things held in memory that are not released when a request is
 completed. This includes things like the Lucene segment memory.
 
-`network.breaker.accounting.limit`::
+`indices.breaker.accounting.limit`::
 
     Limit for accounting breaker, defaults to 100% of JVM heap. This means that it is bound
     by the limit configured for the parent circuit breaker.
 
-`network.breaker.accounting.overhead`::
+`indices.breaker.accounting.overhead`::
 
     A constant that all accounting estimations are multiplied with to determine a
     final estimation. Defaults to 1

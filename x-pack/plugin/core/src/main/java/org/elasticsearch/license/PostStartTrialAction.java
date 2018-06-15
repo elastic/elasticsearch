@@ -6,20 +6,14 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class PostStartTrialAction extends Action<PostStartTrialRequest, PostStartTrialResponse, PostStartTrialRequestBuilder> {
+public class PostStartTrialAction extends Action<PostStartTrialRequest, PostStartTrialResponse> {
 
     public static final PostStartTrialAction INSTANCE = new PostStartTrialAction();
     public static final String NAME = "cluster:admin/xpack/license/start_trial";
 
     private PostStartTrialAction() {
         super(NAME);
-    }
-
-    @Override
-    public PostStartTrialRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PostStartTrialRequestBuilder(client, this);
     }
 
     @Override

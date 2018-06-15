@@ -104,9 +104,18 @@ The cluster health API accepts the following request parameters:
     Alternatively, it is possible to use `ge(N)`, `le(N)`, `gt(N)` and
     `lt(N)` notation.
 
+`wait_for_events`::
+    Can be one of `immediate`, `urgent`, `high`, `normal`, `low`, `languid`.
+    Wait until all currently queued events with the given priority are processed.
+
 `timeout`::
     A time based parameter controlling how long to wait if one of
     the wait_for_XXX are provided. Defaults to `30s`.
+
+`master_timeout`::
+    A time based parameter controlling how long to wait if the master has not been
+    discovered yet or disconnected.
+    If not provided, uses the same value as `timeout`.
 
 `local`::
     If `true` returns the local node information and does not provide

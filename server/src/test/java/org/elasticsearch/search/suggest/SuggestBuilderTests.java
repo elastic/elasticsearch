@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class SuggestBuilderTests extends ESTestCase {
 

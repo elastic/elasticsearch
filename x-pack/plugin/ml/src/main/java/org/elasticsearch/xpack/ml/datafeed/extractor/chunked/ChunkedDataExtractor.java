@@ -108,7 +108,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private DataSummary requestDataSummary() throws IOException {
-        SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setSize(0)
                 .setIndices(context.indices)
                 .setTypes(context.types)

@@ -16,9 +16,11 @@
           body:
             filter:       [icu_normalizer]
             text:         Foo Bar Ruß
-            tokenizer:    keyword
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: foo bar russ }
+            tokenizer:    standard
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foo}
+    - match:  { tokens.1.token: bar }
+    - match:  { tokens.2.token: russ }
 ---
 "Normalization charfilter":
     - do:
@@ -26,9 +28,11 @@
           body:
             char_filter:  [icu_normalizer]
             text:         Foo Bar Ruß
-            tokenizer:    keyword
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: foo bar russ }
+            tokenizer:    standard
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+    - match:  { tokens.2.token: russ }
 ---
 "Folding filter":
     - do:
@@ -36,9 +40,11 @@
           body:
             filter:       [icu_folding]
             text:         Foo Bar résumé
-            tokenizer:    keyword
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: foo bar resume }
+            tokenizer:    standard
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+    - match:  { tokens.2.token: resume }
 ---
 "Normalization with a UnicodeSet Filter":
     - do:
@@ -64,25 +70,34 @@
           index:    test
           body:
             char_filter: ["charfilter_icu_normalizer"]
-            tokenizer:  keyword
+            tokenizer:  standard
             text:     charfilter Föo Bâr Ruß
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: charfilter föo bâr ruß }
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: charfilter }
+    - match:  { tokens.1.token: föo }
+    - match:  { tokens.2.token: bâr }
+    - match:  { tokens.3.token: ruß }
     - do:
         indices.analyze:
           index:    test
           body:
-            tokenizer:  keyword
+            tokenizer:  standard
             filter: ["tokenfilter_icu_normalizer"]
             text:     tokenfilter Föo Bâr Ruß
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: tokenfilter föo Bâr ruß }
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: tokenfilter }
+    - match:  { tokens.1.token: föo }
+    - match:  { tokens.2.token: Bâr }
+    - match:  { tokens.3.token: ruß }
     - do:
         indices.analyze:
           index:    test
           body:
-            tokenizer:  keyword
+            tokenizer:  standard
             filter: ["tokenfilter_icu_folding"]
             text:     icufolding Föo Bâr Ruß
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: icufolding foo bâr russ }
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: icufolding }
+    - match:  { tokens.1.token: foo }
+    - match:  { tokens.2.token: bâr }
+    - match:  { tokens.3.token: russ }

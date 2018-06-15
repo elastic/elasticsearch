@@ -432,7 +432,15 @@ Remote hosts have to be explicitly whitelisted in elasticsearch.yaml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations (e.g.
 `otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is
-ignored by the whitelist - only host and port are used.
+ignored by the whitelist - only host and port are used, for example:
+
+
+[source,yaml]
+--------------------------------------------------
+reindex.remote.whitelist: "otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"
+--------------------------------------------------
+
+The whitelist must be configured on any nodes that will coordinate the reindex.
 
 This feature should work with remote clusters of any version of Elasticsearch
 you are likely to find. This should allow you to upgrade from any version of

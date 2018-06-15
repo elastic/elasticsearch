@@ -87,14 +87,14 @@ final class RequestLogger {
     /**
      * Logs a request that failed
      */
-    static void logFailedRequest(Log logger, HttpUriRequest request, HttpHost host, Exception e) {
+    static void logFailedRequest(Log logger, HttpUriRequest request, Node node, Exception e) {
         if (logger.isDebugEnabled()) {
-            logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) + "] failed", e);
+            logger.debug("request [" + request.getMethod() + " " + node.getHost() + getUri(request.getRequestLine()) + "] failed", e);
         }
         if (tracer.isTraceEnabled()) {
             String traceRequest;
             try {
-                traceRequest = buildTraceRequest(request, host);
+                traceRequest = buildTraceRequest(request, node.getHost());
             } catch (IOException e1) {
                 tracer.trace("error while reading request for trace purposes", e);
                 traceRequest = "";

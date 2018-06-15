@@ -6,9 +6,8 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class PutLicenseAction extends Action<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder> {
+public class PutLicenseAction extends Action<PutLicenseRequest, PutLicenseResponse> {
 
     public static final PutLicenseAction INSTANCE = new PutLicenseAction();
     public static final String NAME = "cluster:admin/xpack/license/put";
@@ -20,10 +19,5 @@ public class PutLicenseAction extends Action<PutLicenseRequest, PutLicenseRespon
     @Override
     public PutLicenseResponse newResponse() {
         return new PutLicenseResponse();
-    }
-
-    @Override
-    public PutLicenseRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PutLicenseRequestBuilder(client, this);
     }
 }

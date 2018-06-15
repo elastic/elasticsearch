@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackPlugin.XPackMetaDataCustom;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,9 +31,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
-public class IndexLifecycleMetadata implements MetaData.Custom {
+public class IndexLifecycleMetadata implements XPackMetaDataCustom {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
+    public static final IndexLifecycleMetadata EMPTY = new IndexLifecycleMetadata(Collections.emptySortedMap());
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(

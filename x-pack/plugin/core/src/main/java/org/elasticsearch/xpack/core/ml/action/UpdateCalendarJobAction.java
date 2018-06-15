@@ -18,18 +18,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Request, PutCalendarAction.Response,
-        UpdateCalendarJobAction.RequestBuilder> {
+public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Request, PutCalendarAction.Response> {
     public static final UpdateCalendarJobAction INSTANCE = new UpdateCalendarJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/jobs/update";
 
     private UpdateCalendarJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -108,7 +102,7 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, PutCalendarAction.Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, PutCalendarAction.Response> {
 
         public RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

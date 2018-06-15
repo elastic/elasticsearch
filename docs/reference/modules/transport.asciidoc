@@ -44,7 +44,12 @@ time setting format). Defaults to `30s`.
 |`transport.tcp.compress` |Set to `true` to enable compression (`DEFLATE`)
 between all nodes. Defaults to `false`.
 
-|`transport.ping_schedule` | Schedule a regular ping message to ensure that connections are kept alive. Defaults to `5s` in the transport client and `-1` (disabled) elsewhere.
+|`transport.ping_schedule` | Schedule a regular application-level ping message
+to ensure that transport connections between nodes are kept alive. Defaults to
+`5s` in the transport client and `-1` (disabled) elsewhere. It is preferable to
+correctly configure TCP keep-alives instead of using this feature, because TCP
+keep-alives apply to all kinds of long-lived connection and not just to
+transport connections.
 
 |=======================================================================
 
@@ -79,6 +84,20 @@ The following parameters can be configured like that
 * `reuse_address`: Configures the `SO_REUSEADDR` option for this socket
 * `tcp_send_buffer_size`: Configures the send buffer size of the socket
 * `tcp_receive_buffer_size`: Configures the receive buffer size of the socket
+
+[float]
+==== Long-lived idle connections
+
+Elasticsearch opens a number of long-lived TCP connections between each pair of
+nodes in the cluster, and some of these connections may be idle for an extended
+period of time. Nonetheless, Elasticsearch requires these connections to remain
+open, and it can disrupt the operation of the cluster if any inter-node
+connections are closed by an external influence such as a firewall. It is
+important to configure your network to preserve long-lived idle connections
+between Elasticsearch nodes, for instance by leaving `tcp_keep_alive` enabled
+and ensuring that the keepalive interval is shorter than any timeout that might
+cause idle connections to be closed, or by setting `transport.ping_schedule` if
+keepalives cannot be configured.
 
 [float]
 === Transport Tracer

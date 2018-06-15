@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -607,7 +608,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(7, namedXContents.size());
+        assertEquals(8, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -625,9 +626,10 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(2), categories.get(MetricDetail.class));
+        assertEquals(Integer.valueOf(3), categories.get(MetricDetail.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
+        assertTrue(names.contains(DiscountedCumulativeGain.NAME));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

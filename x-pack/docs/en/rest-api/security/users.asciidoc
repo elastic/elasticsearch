@@ -1,12 +1,12 @@
 [role="xpack"]
 [[security-api-users]]
-=== User Management APIs
+== User Management APIs
 
 The `user` API enables you to create, read, update, and delete users from the
 `native` realm. These users are commonly referred to as *native users*.
 
-
-==== Request
+[float]
+=== Request
 
 `GET /_xpack/security/user` +
 
@@ -24,8 +24,8 @@ The `user` API enables you to create, read, update, and delete users from the
 
 `PUT /_xpack/security/user/<username>/_password`
 
-
-==== Description
+[float]
+=== Description
 
 You can use the PUT user API to create or update users. When updating a user,
 you can update everything but its `username` and `password`. To change a user's
@@ -37,14 +37,15 @@ contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and
 printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
 Leading or trailing whitespace is not allowed.
 
-==== Path Parameters
+[float]
+=== Path Parameters
 
 `username`::
   (string) An identifier for the user. If you omit this parameter from a Get
   User API request, it retrieves information about all users.
 
-
-==== Request Body
+[float]
+=== Request Body
 
 The following parameters can be specified in the body of a POST or PUT request
 and pertain to creating a user:
@@ -68,12 +69,13 @@ and pertain to creating a user:
 (list) A set of roles the user has. The roles determine the user's access 
 permissions. To create a user without any roles, specify an empty list: `[]`.
 
-==== Authorization
+[float]
+=== Authorization
 
 To use this API, you must have at least the `manage_security` cluster privilege.
 
-
-==== Examples
+[float]
+=== Examples
 
 [[security-api-put-user]]
 To add a user, submit a PUT or POST request to the `/_xpack/security/user/<username>`

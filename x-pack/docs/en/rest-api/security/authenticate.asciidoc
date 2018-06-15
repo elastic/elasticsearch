@@ -1,24 +1,25 @@
 [role="xpack"]
 [[security-api-authenticate]]
-=== Authenticate API
+== Authenticate API
 
 The Authenticate API enables you to submit a request with a basic auth header to
 authenticate a user and retrieve information about the authenticated user.
 
-
-==== Request
+[float]
+=== Request
 
 `GET _xpack/security/_authenticate`
 
-
-==== Description
+[float]
+=== Description
 
 A successful call returns a JSON structure that shows what roles are assigned
 to the user as well as any assigned metadata.
 
 If the user cannot be authenticated, this API returns a 401 status code.
 
-==== Examples
+[float]
+=== Examples
 
 To authenticate a user, submit a GET request to the
 `_xpack/security/_authenticate` endpoint:

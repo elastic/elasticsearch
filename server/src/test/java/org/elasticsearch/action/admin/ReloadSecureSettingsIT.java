@@ -304,7 +304,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = Arrays.asList(MockReloadablePlugin.class, MisbehavingReloadablePlugin.class);
         // shuffle as reload is called in order
-        Collections.shuffle(plugins);
+        Collections.shuffle(plugins, random());
         return plugins;
     }
 

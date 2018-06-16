@@ -115,7 +115,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
 
     @Override
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
-        throws URISyntaxException, StorageException, FileAlreadyExistsExceeption {
+        throws URISyntaxException, StorageException, FileAlreadyExistsException {
         if (blobs.containsKey(blobName)) {
             throw new FileAlreadyExistsException(blobName);
         }

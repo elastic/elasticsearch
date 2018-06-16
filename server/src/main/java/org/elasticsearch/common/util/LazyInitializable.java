@@ -65,10 +65,10 @@ public final class LazyInitializable<T, E extends Exception> {
      *            A {@code Consumer} which is invoked on the value that will be
      *            erased when calling {@code #reset()}
      */
-    public LazyInitializable(CheckedSupplier<T, E> supplier, Consumer<T> primer, Consumer<T> finalizer) {
+    public LazyInitializable(CheckedSupplier<T, E> supplier, Consumer<T> onGet, Consumer<T> onReset) {
         this.supplier = supplier;
-        this.onGet = primer;
-        this.onReset = finalizer;
+        this.onGet = onGet;
+        this.onReset = onReset;
     }
 
     /**

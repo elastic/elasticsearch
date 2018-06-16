@@ -68,7 +68,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertThat(query, instanceOf(SpanTermQuery.class));
         SpanTermQuery spanTermQuery = (SpanTermQuery) query;
         assertThat(spanTermQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.getQueryShardContext().fullName(queryBuilder.fieldName());
         if (mapper != null) {
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));

@@ -86,7 +86,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
                 : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
-        fieldType = context.getQueryShardContext().fieldMapper(indexedFieldName);
+        fieldType = context.getQueryShardContext().fullName(indexedFieldName);
 
     }
 
@@ -133,13 +133,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
         }
         return context.searcher().count(query);
     }
-    
+
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
         String value = format.format(termBytes).toString();
         return getBackgroundFrequency(value);
-    }    
+    }
 
-    
+
     @Override
     public void close() {
         try {
@@ -154,11 +154,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
     @Override
     protected Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {        
+            throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        
+
         numberOfAggregatorsCreated++;
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -166,7 +166,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting but request double the usual amount.
             // We typically need more than the number of "top" terms requested
-            // by other aggregations as the significance algorithm is in less 
+            // by other aggregations as the significance algorithm is in less
             // of a position to down-select at shard-level - some of the things
             // we want to find have only one occurrence on each shard and as
             // such are impossible to differentiate from non-significant terms
@@ -177,9 +177,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
 
 //        TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null: 
+        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
-        
+
         return new SignificantTextAggregator(name, factories, context, parent, pipelineAggregators, bucketCountThresholds,
                 incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
 

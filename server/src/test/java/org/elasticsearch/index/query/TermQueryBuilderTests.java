@@ -93,7 +93,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     @Override
     protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.getQueryShardContext().fullName(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
             assertThat(termQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));

@@ -211,7 +211,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, SearchContext searchContext)
         throws IOException {
         QueryShardContext context = searchContext.getQueryShardContext();
-        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
+        MappedFieldType fieldType = context.fullName(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else if (query instanceof IndexOrDocValuesQuery) { // TODO: remove the if statement once we always use LatLonPoint

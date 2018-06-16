@@ -105,7 +105,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private void setFieldInfo(SearchContext context) {
         if (!config.unmapped()) {
             this.indexedFieldName = config.fieldContext().field();
-            fieldType = context.smartNameFieldType(indexedFieldName);
+            fieldType = context.fullName(indexedFieldName);
         }
     }
 

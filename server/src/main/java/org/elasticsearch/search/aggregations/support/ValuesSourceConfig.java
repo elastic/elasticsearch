@@ -76,7 +76,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             return config;
         }
 
-        MappedFieldType fieldType = context.fieldMapper(field);
+        MappedFieldType fieldType = context.fullName(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);

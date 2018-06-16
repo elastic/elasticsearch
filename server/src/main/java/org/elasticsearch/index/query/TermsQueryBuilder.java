@@ -428,7 +428,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
                     IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fullName(fieldName);
 
         if (fieldType != null) {
             return fieldType.termsQuery(values, context);

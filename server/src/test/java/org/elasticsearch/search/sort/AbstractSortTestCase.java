@@ -193,7 +193,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 xContentRegistry(), namedWriteableRegistry, null, null, () -> randomNonNegativeLong(), null) {
 
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType fullName(String name) {
                 return provideMappedFieldType(name);
             }
 

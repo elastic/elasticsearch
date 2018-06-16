@@ -133,7 +133,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query = null;
-        MappedFieldType mapper = context.fieldMapper(this.fieldName);
+        MappedFieldType mapper = context.fullName(this.fieldName);
         if (mapper != null) {
             query = mapper.termQuery(this.value, context);
         }

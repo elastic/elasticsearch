@@ -201,7 +201,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.simpleMatchToFullName(pattern);
     }
 
-    public MappedFieldType fieldMapper(String name) {
+    public MappedFieldType fullName(String name) {
         return failIfFieldMappingNotFound(name, mapperService.fullName(name));
     }
 

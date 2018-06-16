@@ -251,7 +251,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         Query query = null;
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fullName(fieldName);
         if (fieldType != null) {
             query = fieldType.regexpQuery(value, flagsValue, maxDeterminizedStates, method, context);
         }

@@ -230,7 +230,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             throw new BooleanQuery.TooManyClauses();
         }
 
-        final MappedFieldType fieldType = context.fieldMapper(fieldName);
+        final MappedFieldType fieldType = context.fullName(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
             if (fieldType != null) {
@@ -241,7 +241,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         }
         final LongValuesSource longValuesSource;
         if (minimumShouldMatchField != null) {
-            MappedFieldType msmFieldType = context.fieldMapper(minimumShouldMatchField);
+            MappedFieldType msmFieldType = context.fullName(minimumShouldMatchField);
             if (msmFieldType == null) {
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }

@@ -162,7 +162,7 @@ public class MultiMatchQuery extends MatchQuery {
             List<Query> queries = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
                 String name = entry.getKey();
-                MappedFieldType fieldType = context.fieldMapper(name);
+                MappedFieldType fieldType = context.fullName(name);
                 if (fieldType != null) {
                     Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
                     name = fieldType.name();

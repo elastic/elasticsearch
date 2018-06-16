@@ -428,7 +428,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         final Query expectedQuery;
         if (getCurrentTypes().length > 0) {
             if (queryShardContext.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                    && queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
+                    && queryShardContext.fullName(query.fieldName()).hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));

@@ -164,7 +164,7 @@ public final class QueryParserHelper {
         Collection<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
         for (String fieldName : allFields) {
-            if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
+            if (fieldSuffix != null && context.fullName(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
             }
             FieldMapper mapper = getFieldMapper(context.getMapperService(), fieldName);

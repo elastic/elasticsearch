@@ -332,7 +332,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        final MappedFieldType ft = context.fieldMapper(field);
+        final MappedFieldType ft = context.fullName(field);
 
         if (ft instanceof FeatureFieldType) {
             final FeatureFieldType fft = (FeatureFieldType) ft;
@@ -341,7 +341,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             final int lastDotIndex = field.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
-                final MappedFieldType parentFt = context.fieldMapper(parentField);
+                final MappedFieldType parentFt = context.fullName(parentField);
                 if (parentFt instanceof FeatureVectorFieldType) {
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }

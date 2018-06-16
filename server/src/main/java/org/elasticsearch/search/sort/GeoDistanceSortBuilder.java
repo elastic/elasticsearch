@@ -622,7 +622,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             finalSortMode = MultiValueMode.fromString(sortMode.toString());
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fullName(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 fieldType = context.getMapperService().unmappedFieldType("geo_point");

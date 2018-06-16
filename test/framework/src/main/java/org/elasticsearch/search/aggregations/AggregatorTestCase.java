@@ -87,7 +87,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
@@ -149,7 +148,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         for (MappedFieldType fieldType : fieldTypes) {
-            when(searchContext.smartNameFieldType(fieldType.name())).thenReturn(fieldType);
+            when(searchContext.fullName(fieldType.name())).thenReturn(fieldType);
         }
 
         return aggregationBuilder.build(searchContext, null);
@@ -263,7 +262,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         for (MappedFieldType fieldType : fieldTypes) {
-            when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
+            when(queryShardContext.fullName(fieldType.name())).thenReturn(fieldType);
             when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder(mapperService.getIndexSettings()
                 .getIndex().getName())
                 .build(mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mapperService));

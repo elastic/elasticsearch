@@ -1020,7 +1020,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryBuilder.toQuery(context);
         if (getCurrentTypes().length > 0) {
             if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                    && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+                    && (context.fullName(STRING_FIELD_NAME).omitNorms() == false)) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));

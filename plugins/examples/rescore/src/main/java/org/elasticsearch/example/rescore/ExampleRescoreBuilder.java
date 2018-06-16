@@ -111,7 +111,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     @Override
     public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
         IndexFieldData<?> factorField =
-                this.factorField == null ? null : context.getForField(context.fieldMapper(this.factorField));
+                this.factorField == null ? null : context.getForField(context.fullName(this.factorField));
         return new ExampleRescoreContext(windowSize, factor, factorField);
     }
 
@@ -172,7 +172,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                  * them in (reader, field, docId) order because that is the
                  * order they are on disk.
                  */
-                ScoreDoc[] sortedByDocId = new ScoreDoc[topDocs.scoreDocs.length]; 
+                ScoreDoc[] sortedByDocId = new ScoreDoc[topDocs.scoreDocs.length];
                 System.arraycopy(topDocs.scoreDocs, 0, sortedByDocId, 0, topDocs.scoreDocs.length);
                 Arrays.sort(sortedByDocId, (a, b) -> a.doc - b.doc); // Safe because doc ids >= 0
                 Iterator<LeafReaderContext> leaves = searcher.getIndexReader().leaves().iterator();

@@ -16,7 +16,7 @@ The JDBC driver can be obtained either by downloading it from the https://www.el
 <dependency>
   <groupId>org.elasticsearch.plugin.jdbc</groupId>
   <artifactId>jdbc</artifactId>
-  <version>{ver}</version>
+  <version>{version}</version>
 </dependency>
 ----
 

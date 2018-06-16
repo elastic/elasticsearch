@@ -247,108 +247,31 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET);
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH, version -> {
-            Analyzer a = new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true,
-                CharArraySet.EMPTY_SET);
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("snowball", CachingStrategy.LUCENE, version -> {
-            Analyzer a =  new SnowballAnalyzer("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("arabic", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new ArabicAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("armenian", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new ArmenianAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("basque", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new BasqueAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("bengali", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new BengaliAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("brazilian", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new BrazilianAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("bulgarian", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new BulgarianAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("catalan", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new CatalanAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.LUCENE, version -> {
-            // only for old indices, best effort
-            Analyzer a = new StandardAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("cjk", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new CJKAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("czech", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new CzechAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("danish", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new DanishAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("dutch", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new DutchAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("english", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new EnglishAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("finnish", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new FinnishAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("french", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new FrenchAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("galician", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new GalicianAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("german", CachingStrategy.LUCENE, version -> {
-            Analyzer a = new GermanAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
-        }));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.LUCENE,
+            () -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH,
+            () -> new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true,
+            CharArraySet.EMPTY_SET)));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("snowball", CachingStrategy.LUCENE,
+            () -> new SnowballAnalyzer("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("arabic", CachingStrategy.LUCENE, ArabicAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("armenian", CachingStrategy.LUCENE, ArmenianAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("basque", CachingStrategy.LUCENE, BasqueAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("bengali", CachingStrategy.LUCENE, BengaliAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("brazilian", CachingStrategy.LUCENE, BrazilianAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("bulgarian", CachingStrategy.LUCENE, BulgarianAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("catalan", CachingStrategy.LUCENE, CatalanAnalyzer::new));
+        // chinese analyzer: only for old indices, best effort
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.LUCENE, StandardAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("cjk", CachingStrategy.LUCENE, CJKAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("czech", CachingStrategy.LUCENE, CzechAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("danish", CachingStrategy.LUCENE, DanishAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("dutch", CachingStrategy.LUCENE, DutchAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("english", CachingStrategy.LUCENE, EnglishAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("finnish", CachingStrategy.LUCENE, FinnishAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("french", CachingStrategy.LUCENE, FrenchAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("galician", CachingStrategy.LUCENE, GalicianAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("german", CachingStrategy.LUCENE, GermanAnalyzer::new));
         return analyzers;
     }
 

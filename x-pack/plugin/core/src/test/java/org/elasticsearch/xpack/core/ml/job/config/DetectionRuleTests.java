@@ -5,100 +5,40 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRule> {
 
-    public void testExtractReferencedLists() {
-        RuleCondition numericalCondition =
-                new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "field", "value", new Condition(Operator.GT, "5"), null);
-        List<RuleCondition> conditions = Arrays.asList(
-                numericalCondition,
-                RuleCondition.createCategorical("foo", "filter1"),
-                RuleCondition.createCategorical("bar", "filter2"));
+    public void testBuildWithNeitherScopeNorCondition() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new DetectionRule.Builder().build());
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: at least scope or a condition is required"));
+    }
 
-        DetectionRule rule = new DetectionRule.Builder(conditions).build();
+    public void testExtractReferencedLists() {
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder()
+                .exclude("foo", "filter1").include("bar", "filter2"))
+                .build();
 
         assertEquals(new HashSet<>(Arrays.asList("filter1", "filter2")), rule.extractReferencedFilters());
     }
 
-    public void testEqualsGivenSameObject() {
-        DetectionRule rule = createFullyPopulated().build();
-        assertTrue(rule.equals(rule));
-    }
-
-    public void testEqualsGivenString() {
-        assertFalse(createFullyPopulated().build().equals("a string"));
-    }
-
-    public void testEqualsGivenDifferentTargetFieldName() {
-        DetectionRule rule1 = createFullyPopulated().build();
-        DetectionRule rule2 = createFullyPopulated().setTargetFieldName("targetField2").build();
-        assertFalse(rule1.equals(rule2));
-        assertFalse(rule2.equals(rule1));
-    }
-
-    public void testEqualsGivenDifferentTargetFieldValue() {
-        DetectionRule rule1 = createFullyPopulated().build();
-        DetectionRule rule2 = createFullyPopulated().setTargetFieldValue("targetValue2").build();
-        assertFalse(rule1.equals(rule2));
-        assertFalse(rule2.equals(rule1));
-    }
-
-    public void testEqualsGivenDifferentConnective() {
-        DetectionRule rule1 = createFullyPopulated().build();
-        DetectionRule rule2 = createFullyPopulated().setConditionsConnective(Connective.OR).build();
-        assertFalse(rule1.equals(rule2));
-        assertFalse(rule2.equals(rule1));
-    }
-
-    public void testEqualsGivenRules() {
-        DetectionRule rule1 = createFullyPopulated().build();
-        DetectionRule rule2 = createFullyPopulated().setConditions(createRule("10")).build();
-        assertFalse(rule1.equals(rule2));
-        assertFalse(rule2.equals(rule1));
-    }
-
-    public void testEqualsGivenEqual() {
-        DetectionRule rule1 = createFullyPopulated().build();
-        DetectionRule rule2 = createFullyPopulated().build();
-        assertTrue(rule1.equals(rule2));
-        assertTrue(rule2.equals(rule1));
-        assertEquals(rule1.hashCode(), rule2.hashCode());
-    }
-
-    private static DetectionRule.Builder createFullyPopulated() {
-        return new DetectionRule.Builder(createRule("5"))
-                .setActions(EnumSet.of(RuleAction.FILTER_RESULTS, RuleAction.SKIP_SAMPLING))
-                .setTargetFieldName("targetField")
-                .setTargetFieldValue("targetValue")
-                .setConditionsConnective(Connective.AND);
-    }
-
-    private static List<RuleCondition> createRule(String value) {
-        Condition condition = new Condition(Operator.GT, value);
-        return Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null));
-    }
-
     @Override
     protected DetectionRule createTestInstance() {
-        int size = 1 + randomInt(20);
-        List<RuleCondition> ruleConditions = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            // no need for random condition (it is already tested)
-            ruleConditions.addAll(createRule(Double.toString(randomDouble())));
-        }
-        DetectionRule.Builder builder = new DetectionRule.Builder(ruleConditions);
+        DetectionRule.Builder builder = new DetectionRule.Builder();
 
         if (randomBoolean()) {
             EnumSet<RuleAction> actions = EnumSet.noneOf(RuleAction.class);
@@ -109,13 +49,35 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
             builder.setActions(actions);
         }
 
-        if (randomBoolean()) {
-            builder.setConditionsConnective(randomFrom(Connective.values()));
+        boolean hasScope = randomBoolean();
+        boolean hasConditions = randomBoolean();
+
+        if (!hasScope && !hasConditions) {
+            // at least one of the two should be present
+            if (randomBoolean()) {
+                hasScope = true;
+            } else {
+                hasConditions = true;
+            }
         }
 
-        if (randomBoolean()) {
-            builder.setTargetFieldName(randomAlphaOfLengthBetween(1, 20));
-            builder.setTargetFieldValue(randomAlphaOfLengthBetween(1, 20));
+        if (hasScope) {
+            Map<String, FilterRef> scope = new HashMap<>();
+            int scopeSize = randomIntBetween(1, 3);
+            for (int i = 0; i < scopeSize; i++) {
+                scope.put(randomAlphaOfLength(20), new FilterRef(randomAlphaOfLength(20), randomFrom(FilterRef.FilterType.values())));
+            }
+            builder.setScope(new RuleScope(scope));
+        }
+
+        if (hasConditions) {
+            int size = randomIntBetween(1, 5);
+            List<RuleCondition> ruleConditions = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                // no need for random condition (it is already tested)
+                ruleConditions.addAll(createCondition(randomDouble()));
+            }
+            builder.setConditions(ruleConditions);
         }
 
         return builder.build();
@@ -132,39 +94,34 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
     }
 
     @Override
-    protected DetectionRule mutateInstance(DetectionRule instance) throws IOException {
+    protected DetectionRule mutateInstance(DetectionRule instance) {
         List<RuleCondition> conditions = instance.getConditions();
+        RuleScope scope = instance.getScope();
         EnumSet<RuleAction> actions = instance.getActions();
-        String targetFieldName = instance.getTargetFieldName();
-        String targetFieldValue = instance.getTargetFieldValue();
-        Connective connective = instance.getConditionsConnective();
 
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
         case 0:
-            conditions = new ArrayList<>(conditions);
-            conditions.addAll(createRule(Double.toString(randomDouble())));
+            if (actions.size() == RuleAction.values().length) {
+                actions = EnumSet.of(randomFrom(RuleAction.values()));
+            } else {
+                actions = EnumSet.allOf(RuleAction.class);
+            }
             break;
         case 1:
-            targetFieldName = randomAlphaOfLengthBetween(5, 10);
+            conditions = new ArrayList<>(conditions);
+            conditions.addAll(createCondition(randomDouble()));
             break;
         case 2:
-            targetFieldValue = randomAlphaOfLengthBetween(5, 10);
-            if (targetFieldName == null) {
-                targetFieldName = randomAlphaOfLengthBetween(5, 10);
-            }
-            break;
-        case 3:
-            if (connective == Connective.AND) {
-                connective = Connective.OR;
-            } else {
-                connective = Connective.AND;
-            }
+            scope = new RuleScope.Builder(scope).include("another_field", "another_filter").build();
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DetectionRule.Builder(conditions).setActions(actions).setTargetFieldName(targetFieldName)
-                .setTargetFieldValue(targetFieldValue).setConditionsConnective(connective).build();
+        return new DetectionRule.Builder(conditions).setActions(actions).setScope(scope).build();
+    }
+
+    private static List<RuleCondition> createCondition(double value) {
+        return Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, value));
     }
 }

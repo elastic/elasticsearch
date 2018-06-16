@@ -5,7 +5,7 @@
 <titleabbrev>Delete Jobs</titleabbrev>
 ++++
 
-This API enables you to delete an existing anomaly detection job.
+Deletes an existing anomaly detection job.
 
 
 ==== Request

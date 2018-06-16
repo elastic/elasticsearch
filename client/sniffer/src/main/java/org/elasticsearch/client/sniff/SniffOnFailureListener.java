@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.sniff;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 

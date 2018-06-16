@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -27,15 +26,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -72,7 +70,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -86,7 +84,6 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
-import org.elasticsearch.xpack.core.test.ObjectCleanerThreadThreadFilter;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -110,7 +107,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
-@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     private List<Job.Builder> jobs = new ArrayList<>();
@@ -423,9 +419,8 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return forecasts;
     }
 
-    protected boolean putMlFilter(MlFilter filter) {
-        PutFilterAction.Response response = client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
-        return response.isAcknowledged();
+    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
+        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
     protected PutCalendarAction.Response putCalendar(String calendarId, List<String> jobIds, String description) {
@@ -453,8 +448,8 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
                     StartDatafeedAction.DatafeedParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME,
                     OpenJobAction.JobParams::new));
-            entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, JobTaskStatus.NAME, JobTaskStatus::new));
-            entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream));
             entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new));
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();

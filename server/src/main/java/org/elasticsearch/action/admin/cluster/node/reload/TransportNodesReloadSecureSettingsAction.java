@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginsService;
@@ -84,7 +85,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest) {
         final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
         KeyStoreWrapper keystore = null;
-        try {
+        try (final SecureString secureSettingsPassword = request.secureSettingsPassword()) {
             // reread keystore from config file
             keystore = KeyStoreWrapper.load(environment.configFile());
             if (keystore == null) {
@@ -92,7 +93,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                         new IllegalStateException("Keystore is missing"));
             }
             // decrypt the keystore using the password from the request
-            keystore.decrypt(request.secureSettingsPassword().toCharArray());
+            keystore.decrypt(secureSettingsPassword.getChars());
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder()
                     .put(environment.settings(), false)

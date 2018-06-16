@@ -53,8 +53,8 @@ public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationReque
     public NodesReloadSecureSettingsRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         Objects.requireNonNull(xContentType);
         // EMPTY is ok here because we never call namedObject
-        try (final InputStream stream = source.streamInput();
-                final XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+        try (InputStream stream = source.streamInput();
+                XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
                         LoggingDeprecationHandler.INSTANCE, stream)) {
             XContentParser.Token token;
             token = parser.nextToken();

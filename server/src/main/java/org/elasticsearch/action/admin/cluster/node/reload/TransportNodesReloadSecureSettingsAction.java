@@ -85,7 +85,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest) {
         final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
         KeyStoreWrapper keystore = null;
-        try (final SecureString secureSettingsPassword = request.secureSettingsPassword()) {
+        try (SecureString secureSettingsPassword = request.secureSettingsPassword()) {
             // reread keystore from config file
             keystore = KeyStoreWrapper.load(environment.configFile());
             if (keystore == null) {

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -62,7 +63,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configFile()));
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword("").execute(
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
                 new ActionListener<NodesReloadSecureSettingsResponse>() {
                     @Override
                     public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
@@ -149,7 +150,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
             Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configFile()), StandardCopyOption.REPLACE_EXISTING);
         }
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword("").execute(
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
                 new ActionListener<NodesReloadSecureSettingsResponse>() {
                     @Override
                     public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
@@ -191,8 +192,11 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         // "some" keystore should be present in this case
         writeEmptyKeystore(environment, new char[0]);
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword("Wrong password here").execute(
-                new ActionListener<NodesReloadSecureSettingsResponse>() {
+        client().admin()
+                .cluster()
+                .prepareReloadSecureSettings()
+                .setSecureStorePassword(new SecureString(new char[] { 'W', 'r', 'o', 'n', 'g' }))
+                .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
                     @Override
                     public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
                         try {
@@ -244,7 +248,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                 .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
                 .toString();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword("").execute(
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
                 new ActionListener<NodesReloadSecureSettingsResponse>() {
                     @Override
                     public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
@@ -311,7 +315,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     private void successfulReloadCall() throws InterruptedException {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword("").execute(
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
                 new ActionListener<NodesReloadSecureSettingsResponse>() {
                     @Override
                     public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {

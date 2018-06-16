@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 
 /**
@@ -121,7 +120,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
     public void testScope() throws Exception {
         MlFilter safeIps = MlFilter.builder("safe_ips").setItems("111.111.111.111", "222.222.222.222").build();
-        assertThat(putMlFilter(safeIps), is(true));
+        assertThat(putMlFilter(safeIps).getFilter(), equalTo(safeIps));
 
         DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips")).build();
 
@@ -179,7 +178,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         // Now let's update the filter
         MlFilter updatedFilter = MlFilter.builder(safeIps.getId()).setItems("333.333.333.333").build();
-        assertThat(putMlFilter(updatedFilter), is(true));
+        assertThat(putMlFilter(updatedFilter).getFilter(), equalTo(updatedFilter));
 
         // Wait until the notification that the process was updated is indexed
         assertBusy(() -> {
@@ -230,7 +229,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         // We have 2 IPs and they're both safe-listed.
         List<String> ips = Arrays.asList("111.111.111.111", "222.222.222.222");
         MlFilter safeIps = MlFilter.builder("safe_ips").setItems(ips).build();
-        assertThat(putMlFilter(safeIps), is(true));
+        assertThat(putMlFilter(safeIps).getFilter(), equalTo(safeIps));
 
         // Ignore if ip in safe list AND actual < 10.
         DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips"))

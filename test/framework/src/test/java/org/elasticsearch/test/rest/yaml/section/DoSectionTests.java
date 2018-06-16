@@ -35,6 +35,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -511,7 +512,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 "just one entry this time")));
     }
 
-    public void testNodeSelector() throws IOException {
+    public void testNodeSelectorByVersion() throws IOException {
         parser = createParser(YamlXContent.yamlXContent,
                 "node_selector:\n" +
                 "    version: 5.2.0-6.0.0\n" +
@@ -541,8 +542,90 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
     }
 
-    private Node nodeWithVersion(String version) {
-        return new Node(new HttpHost("dummy"), null, null, version, null);
+    private static Node nodeWithVersion(String version) {
+        return new Node(new HttpHost("dummy"), null, null, version, null, null);
+    }
+
+    public void testNodeSelectorByAttribute() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    attribute:\n" +
+                "        attr: val\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node hasAttr = nodeWithAttributes(singletonMap("attr", singletonList("val")));
+        Node hasAttrWrongValue = nodeWithAttributes(singletonMap("attr", singletonList("notval")));
+        Node notHasAttr = nodeWithAttributes(singletonMap("notattr", singletonList("val")));
+        {
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(hasAttr);
+            nodes.add(hasAttrWrongValue);
+            nodes.add(notHasAttr);
+            doSection.getApiCallSection().getNodeSelector().select(nodes);
+            assertEquals(Arrays.asList(hasAttr), nodes);
+        }
+
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    attribute:\n" +
+                "        attr: val\n" +
+                "        attr2: val2\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSectionWithTwoAttributes = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node hasAttr2 = nodeWithAttributes(singletonMap("attr2", singletonList("val2")));
+        Map<String, List<String>> bothAttributes = new HashMap<>();
+        bothAttributes.put("attr", singletonList("val"));
+        bothAttributes.put("attr2", singletonList("val2"));
+        Node hasBoth = nodeWithAttributes(bothAttributes);
+        {
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(hasAttr);
+            nodes.add(hasAttrWrongValue);
+            nodes.add(notHasAttr);
+            nodes.add(hasAttr2);
+            nodes.add(hasBoth);
+            doSectionWithTwoAttributes.getApiCallSection().getNodeSelector().select(nodes);
+            assertEquals(Arrays.asList(hasBoth), nodes);
+        }
+    }
+
+    private static Node nodeWithAttributes(Map<String, List<String>> attributes) {
+        return new Node(new HttpHost("dummy"), null, null, null, null, attributes);
+    }
+
+    public void testNodeSelectorByTwoThings() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    version: 5.2.0-6.0.0\n" +
+                "    attribute:\n" +
+                "        attr: val\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node both = nodeWithVersionAndAttributes("5.2.1", singletonMap("attr", singletonList("val")));
+        Node badVersion = nodeWithVersionAndAttributes("5.1.1", singletonMap("attr", singletonList("val")));
+        Node badAttr = nodeWithVersionAndAttributes("5.2.1", singletonMap("notattr", singletonList("val")));
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(both);
+        nodes.add(badVersion);
+        nodes.add(badAttr);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(Arrays.asList(both), nodes);
+    }
+
+    private static Node nodeWithVersionAndAttributes(String version, Map<String, List<String>> attributes) {
+        return new Node(new HttpHost("dummy"), null, null, version, null, attributes);
     }
 
     private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

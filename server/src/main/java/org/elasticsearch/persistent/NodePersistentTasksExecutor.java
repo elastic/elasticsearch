@@ -20,7 +20,6 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -29,16 +28,17 @@ import org.elasticsearch.threadpool.ThreadPool;
  * It abstracts away the execution of tasks and greatly simplifies testing of PersistentTasksNodeService
  */
 public class NodePersistentTasksExecutor {
+
     private final ThreadPool threadPool;
 
-    public NodePersistentTasksExecutor(ThreadPool threadPool) {
+    NodePersistentTasksExecutor(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 
-    public <Params extends PersistentTaskParams> void executeTask(Params params,
-                                                                  @Nullable Task.Status status,
-                                                                  AllocatedPersistentTask task,
-                                                                  PersistentTasksExecutor<Params> executor) {
+    public <Params extends PersistentTaskParams> void executeTask(final Params params,
+                                                                  final @Nullable PersistentTaskState state,
+                                                                  final AllocatedPersistentTask task,
+                                                                  final PersistentTasksExecutor<Params> executor) {
         threadPool.executor(executor.getExecutor()).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -49,14 +49,12 @@ public class NodePersistentTasksExecutor {
             @Override
             protected void doRun() throws Exception {
                 try {
-                    executor.nodeOperation(task, params, status);
+                    executor.nodeOperation(task, params, state);
                 } catch (Exception ex) {
                     task.markAsFailed(ex);
                 }
 
             }
         });
-
     }
-
 }

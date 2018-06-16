@@ -20,8 +20,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,7 +57,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
 
     private final Set<String> searchRoutingValues;
 
-    private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting) {
+    @Nullable
+    private final Boolean writeIndex;
+
+    private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -65,10 +70,11 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         } else {
             searchRoutingValues = emptySet();
         }
+        this.writeIndex = writeIndex;
     }
 
     private AliasMetaData(AliasMetaData aliasMetaData, String alias) {
-        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting());
+        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting(), aliasMetaData.writeIndex());
     }
 
     public String alias() {
@@ -111,6 +117,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         return searchRoutingValues;
     }
 
+    public Boolean writeIndex() {
+        return writeIndex;
+    }
+
     public static Builder builder(String alias) {
         return new Builder(alias);
     }
@@ -138,6 +148,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         if (indexRouting != null ? !indexRouting.equals(that.indexRouting) : that.indexRouting != null) return false;
         if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null)
             return false;
+        if (writeIndex != null ? writeIndex != that.writeIndex : that.writeIndex != null)
+            return false;
 
         return true;
     }
@@ -148,6 +160,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         result = 31 * result + (filter != null ? filter.hashCode() : 0);
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
+        result = 31 * result + (writeIndex != null ? writeIndex.hashCode() : 0);
         return result;
     }
 
@@ -173,6 +186,9 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             out.writeBoolean(false);
         }
 
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalBoolean(writeIndex());
+        }
     }
 
     public AliasMetaData(StreamInput in) throws IOException {
@@ -193,6 +209,11 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         } else {
             searchRouting = null;
             searchRoutingValues = emptySet();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            writeIndex = in.readOptionalBoolean();
+        } else {
+            writeIndex = null;
         }
     }
 
@@ -221,6 +242,9 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
 
         private String searchRouting;
 
+        @Nullable
+        private Boolean writeIndex;
+
 
         public Builder(String alias) {
             this.alias = alias;
@@ -231,6 +255,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             filter = aliasMetaData.filter();
             indexRouting = aliasMetaData.indexRouting();
             searchRouting = aliasMetaData.searchRouting();
+            writeIndex = aliasMetaData.writeIndex();
         }
 
         public String alias() {
@@ -284,8 +309,13 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             return this;
         }
 
+        public Builder writeIndex(@Nullable Boolean writeIndex) {
+            this.writeIndex = writeIndex;
+            return this;
+        }
+
         public AliasMetaData build() {
-            return new AliasMetaData(alias, filter, indexRouting, searchRouting);
+            return new AliasMetaData(alias, filter, indexRouting, searchRouting, writeIndex);
         }
 
         public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -305,6 +335,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             }
             if (aliasMetaData.searchRouting() != null) {
                 builder.field("search_routing", aliasMetaData.searchRouting());
+            }
+
+            if (aliasMetaData.writeIndex() != null) {
+                builder.field("is_write_index", aliasMetaData.writeIndex());
             }
 
             builder.endObject();
@@ -343,6 +377,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parser.skipChildren();
+                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                    if ("is_write_index".equals(currentFieldName)) {
+                        builder.writeIndex(parser.booleanValue());
+                    }
                 }
             }
             return builder.build();

@@ -69,7 +69,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
                     @Override
                     public void onResponse(BulkResponse indexResponse) {
                         jobManager.updateProcessOnFilterChanged(filter);
-                        listener.onResponse(new PutFilterAction.Response());
+                        listener.onResponse(new PutFilterAction.Response(filter));
                     }
 
                     @Override

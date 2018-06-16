@@ -29,16 +29,16 @@ import java.util.function.Consumer;
  * first call to {@code #getOrCompute()}. The value which the
  * <code>supplier</code> returns is memorized and will be served until
  * {@code #reset()} is called. Each value returned by {@code #getOrCompute()},
- * newly minted or cached, will be passed to the <code>primer</code>
+ * newly minted or cached, will be passed to the <code>onGet</code>
  * {@link Consumer}. On {@code #reset()} the value will be passed to the
- * <code>finalizer</code> {@code Consumer} and the next {@code #getOrCompute()}
+ * <code>onReset</code> {@code Consumer} and the next {@code #getOrCompute()}
  * will regenerate the value.
  */
 public final class LazyInitializable<T, E extends Exception> {
 
     private final CheckedSupplier<T, E> supplier;
-    private final Consumer<T> primer;
-    private final Consumer<T> finalizer;
+    private final Consumer<T> onGet;
+    private final Consumer<T> onReset;
     private volatile T value;
 
     /**
@@ -58,17 +58,17 @@ public final class LazyInitializable<T, E extends Exception> {
      * @param supplier
      *            The {@code CheckedSupplier} to generate values which will be
      *            served on {@code #getOrCompute()} invocations.
-     * @param primer
+     * @param onGet
      *            A {@code Consumer} which is called on each value, newly forged or
      *            stale, that is returned by {@code #getOrCompute()}
-     * @param finalizer
+     * @param onReset
      *            A {@code Consumer} which is invoked on the value that will be
      *            erased when calling {@code #reset()}
      */
     public LazyInitializable(CheckedSupplier<T, E> supplier, Consumer<T> primer, Consumer<T> finalizer) {
         this.supplier = supplier;
-        this.primer = primer;
-        this.finalizer = finalizer;
+        this.onGet = primer;
+        this.onReset = finalizer;
     }
 
     /**
@@ -79,18 +79,18 @@ public final class LazyInitializable<T, E extends Exception> {
     public T getOrCompute() throws E {
         final T readOnce = value; // Read volatile just once...
         final T result = readOnce == null ? maybeCompute(supplier) : readOnce;
-        primer.accept(result);
+        onGet.accept(result);
         return result;
     }
 
     /**
      * Clears the value, if it has been previously created by calling
-     * {@code #getOrCompute()}. The <code>finalizer</code> will be called on this
+     * {@code #getOrCompute()}. The <code>onReset</code> will be called on this
      * value. The next call to {@code #getOrCompute()} will recreate the value.
      */
     public synchronized void reset() {
         if (value != null) {
-            finalizer.accept(value);
+            onReset.accept(value);
             value = null;
         }
     }

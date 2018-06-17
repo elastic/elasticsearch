@@ -318,8 +318,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     Netty4Utils.closeChannels(serverChannels);
                 } catch (IOException e) {
                     logger.trace("exception while closing channels", e);
+                } finally {
+                    serverChannels.clear();
                 }
-                serverChannels.clear();
             }
         }
 
@@ -345,8 +346,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     public HttpStats stats() {
-        int serverChannelCount = serverChannels.size();
-        return new HttpStats(serverChannelCount, httpChannels.size() + serverChannelCount);
+        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
     }
 
     @Override

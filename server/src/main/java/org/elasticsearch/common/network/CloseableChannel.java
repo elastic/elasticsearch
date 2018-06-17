@@ -69,7 +69,7 @@ public interface CloseableChannel extends Closeable {
     /**
      * Closes the channel.
      *
-     * @param channel to close
+     * @param channel  to close
      * @param blocking indicates if we should block on channel close
      */
     static <C extends CloseableChannel> void closeChannel(C channel, boolean blocking) {
@@ -83,19 +83,15 @@ public interface CloseableChannel extends Closeable {
      * @param blocking indicates if we should block on channel close
      */
     static <C extends CloseableChannel> void closeChannels(List<C> channels, boolean blocking) {
+        IOUtils.closeAndConvertToRuntimeExceptions(channels);
         if (blocking) {
             ArrayList<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
             for (final C channel : channels) {
-                if (channel.isOpen()) {
-                    PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
-                    channel.addCloseListener(closeFuture);
-                    channel.close();
-                    futures.add(closeFuture);
-                }
+                PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+                channel.addCloseListener(closeFuture);
+                futures.add(closeFuture);
             }
             blockOnFutures(futures);
-        } else {
-            IOUtils.closeWhileHandlingException(channels);
         }
     }
 
@@ -108,7 +104,6 @@ public interface CloseableChannel extends Closeable {
                 // close exceptions happens elsewhere.
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new IllegalStateException("Future got interrupted", e);
             }
         }
     }

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -51,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
@@ -72,6 +74,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final String[] bindHosts;
     private final String[] publishHosts;
 
+    protected final AtomicLong totalChannelsAccepted = new AtomicLong();
     protected final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     protected volatile BoundTransportAddress boundAddress;
 
@@ -181,7 +184,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             return;
         }
         if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-            logger.warn(() -> new ParameterizedMessage(
+            logger.trace(() -> new ParameterizedMessage(
                 "close connection exception caught while handling client http traffic, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         } else if (NetworkExceptionHelper.isConnectException(e)) {
@@ -193,7 +196,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 "cancelled key exception caught while handling client http traffic, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         } else {
-            logger.debug(() -> new ParameterizedMessage(
+            logger.warn(() -> new ParameterizedMessage(
                     "caught exception while handling client http traffic, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         }
@@ -210,7 +213,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
-        httpChannels.add(httpChannel);
+        boolean addedOnThisCall = httpChannels.add(httpChannel);
+        assert addedOnThisCall : "Channel should only be added to http channel set once";
+        totalChannelsAccepted.incrementAndGet();
+        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
+        logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
     }
 
     /**

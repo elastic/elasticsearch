@@ -234,8 +234,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     public HttpStats stats() {
-        int serverChannelCount = serverChannels.size();
-        return new HttpStats(serverChannels.size(), httpChannels.size() + serverChannelCount);
+        return new HttpStats(serverChannels.size(), totalChannelsAccepted.get());
     }
 
     static NioCorsConfig buildCorsConfig(Settings settings) {

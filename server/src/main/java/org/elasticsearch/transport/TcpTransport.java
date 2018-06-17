@@ -1061,7 +1061,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected void serverAcceptedChannel(TcpChannel channel) {
         boolean addedOnThisCall = acceptedChannels.add(channel);
-        assert addedOnThisCall : "Channel should only be added to accept channel set once";
+        assert addedOnThisCall : "Channel should only be added to accepted channel set once";
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
         logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
     }

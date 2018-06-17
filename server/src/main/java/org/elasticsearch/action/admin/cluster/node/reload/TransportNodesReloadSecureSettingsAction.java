@@ -84,10 +84,9 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     @Override
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest) {
         final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
-        KeyStoreWrapper keystore = null;
-        try (SecureString secureSettingsPassword = request.secureSettingsPassword()) {
+        final SecureString secureSettingsPassword = request.secureSettingsPassword();
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
-            keystore = KeyStoreWrapper.load(environment.configFile());
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(),
                         new IllegalStateException("Keystore is missing"));
@@ -114,10 +113,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
-        } finally {
-            if (keystore != null) {
-                keystore.close();
-            }
         }
     }
 

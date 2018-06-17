@@ -19,7 +19,9 @@ setup:
 
 ---
 "Get all aliases via /_alias":
-
+  - skip:
+      version: all
+      reason: Nik will look on Monday
   - do:
       indices.create:
         index: test_index_3

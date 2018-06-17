@@ -11,7 +11,9 @@ setup:
 
 ---
 "Check empty aliases when getting all aliases via /_alias":
-
+  - skip:
+      version: all
+      reason: Nik will look on Monday
   - do:
       indices.get_alias: {}
 

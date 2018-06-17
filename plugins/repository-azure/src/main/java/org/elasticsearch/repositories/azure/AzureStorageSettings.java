@@ -195,16 +195,13 @@ final class AzureStorageSettings {
         for (final String clientName : ACCOUNT_SETTING.getNamespaces(settings)) {
             storageSettings.put(clientName, getClientSettings(settings, clientName));
         }
-        if (storageSettings.isEmpty()) {
-            throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
-        }
-        if (storageSettings.containsKey("default") == false) {
+        if (false == storageSettings.containsKey("default") && false == storageSettings.isEmpty()) {
             // in case no setting named "default" has been set, let's define our "default"
             // as the first named config we get
             final AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();
             storageSettings.put("default", defaultSettings);
         }
-        assert storageSettings.containsKey("default") : "always have 'default'";
+        assert storageSettings.containsKey("default") || storageSettings.isEmpty() : "always have 'default' if any";
         return Collections.unmodifiableMap(storageSettings);
     }
 

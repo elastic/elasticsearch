@@ -153,11 +153,6 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetSelectedClientWithNoPrimaryAndSecondary() {
-        final SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceImpl(Settings.EMPTY));
-        assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
-    }
-
     public void testGetSelectedClientNonExisting() {
         final AzureStorageServiceImpl azureStorageService = new AzureStorageServiceImpl(buildSettings());
         final SettingsException e = expectThrows(SettingsException.class, () -> azureStorageService.client("azure4"));

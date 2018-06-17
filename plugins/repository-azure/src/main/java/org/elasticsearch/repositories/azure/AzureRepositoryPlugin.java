@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -68,6 +69,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
+        if (clientsSettings.isEmpty()) {
+            throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
+        }
         azureStoreService.refreshAndClearCache(clientsSettings);
     }
 }

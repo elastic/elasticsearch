@@ -175,12 +175,36 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
     }
 
+
+    ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
+        ConnectionProfile connectionProfile1 = connectionProfile == null ? LIGHT_PROFILE : connectionProfile;
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        Set<TransportRequestOptions.Type> allTypesWithConnection = new HashSet<>();
+        Set<TransportRequestOptions.Type> allTypesWithoutConnection = new HashSet<>();
+        for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile1.getHandles()) {
+            Set<TransportRequestOptions.Type> types = handle.getTypes();
+            if (handle.length > 0) {
+                allTypesWithConnection.addAll(types);
+            } else {
+                allTypesWithoutConnection.addAll(types);
+            }
+        }
+        // make sure we maintain at least the types that are supported by this profile even if we only use a single channel for them.
+        builder.addConnections(1, allTypesWithConnection.toArray(new TransportRequestOptions.Type[0]));
+        if (allTypesWithoutConnection.isEmpty() == false) {
+            builder.addConnections(0, allTypesWithoutConnection.toArray(new TransportRequestOptions.Type[0]));
+        }
+        builder.setHandshakeTimeout(connectionProfile1.getHandshakeTimeout());
+        builder.setConnectTimeout(connectionProfile1.getConnectTimeout());
+        return builder.build();
+    }
+
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node,
                                              ConnectionProfile profile,
                                              Consumer<MockChannel> onChannelClose) throws IOException {
         final MockChannel[] mockChannels = new MockChannel[1];
-        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
+        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, resolveConnectionProfile(profile));
         boolean success = false;
         final Socket socket = new Socket();
         try {

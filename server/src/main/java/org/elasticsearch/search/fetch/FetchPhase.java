@@ -111,7 +111,7 @@ public class FetchPhase implements SearchPhase {
                     }
                     fieldNamePatterns.add(fieldName);
                 } else {
-                    MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+                    MappedFieldType fieldType = context.fullName(fieldName);
                     if (fieldType == null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         if (context.getObjectMapper(fieldName) != null) {

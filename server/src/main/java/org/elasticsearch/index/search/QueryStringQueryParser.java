@@ -387,7 +387,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Query getRangeQuerySingle(String field, String part1, String part2,
                                       boolean startInclusive, boolean endInclusive, QueryShardContext context) {
-        currentFieldType = context.fieldMapper(field);
+        currentFieldType = context.fullName(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
         }
@@ -436,7 +436,7 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getFuzzyQuerySingle(String field, String termStr, float minSimilarity) throws ParseException {
-        currentFieldType = context.fieldMapper(field);
+        currentFieldType = context.fullName(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
         }
@@ -485,7 +485,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = context.fieldMapper(field);
+            currentFieldType = context.fullName(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
@@ -640,7 +640,7 @@ public class QueryStringQueryParser extends XQueryParser {
         currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = queryBuilder.context.fieldMapper(field);
+            currentFieldType = queryBuilder.context.fullName(field);
             if (currentFieldType != null) {
                 setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
                 indexedNameField = currentFieldType.name();
@@ -687,7 +687,7 @@ public class QueryStringQueryParser extends XQueryParser {
         currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            currentFieldType = queryBuilder.context.fieldMapper(field);
+            currentFieldType = queryBuilder.context.fullName(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }

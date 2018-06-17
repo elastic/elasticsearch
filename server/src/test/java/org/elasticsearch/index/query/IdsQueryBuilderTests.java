@@ -80,7 +80,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
         if (queryBuilder.ids().size() == 0
                 // no types
-                || context.getQueryShardContext().fieldMapper(IdFieldMapper.NAME) == null
+                || context.getQueryShardContext().fullName(IdFieldMapper.NAME) == null
                 // there are types, but disjoint from the query
                 || (allTypes == false &&
                     Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().documentMapper().type()) == -1)) {

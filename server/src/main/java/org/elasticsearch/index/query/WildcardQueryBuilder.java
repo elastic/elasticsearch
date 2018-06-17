@@ -184,7 +184,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fullName(fieldName);
         Term term;
         if (fieldType == null) {
             term = new Term(fieldName, BytesRefs.toBytesRef(value));

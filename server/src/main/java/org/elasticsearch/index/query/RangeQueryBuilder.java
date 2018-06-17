@@ -503,7 +503,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             }
         }
         Query query = null;
-        MappedFieldType mapper = context.fieldMapper(this.fieldName);
+        MappedFieldType mapper = context.fullName(this.fieldName);
         if (mapper != null) {
             DateMathParser forcedDateParser = getForceDateParser();
             query = mapper.rangeQuery(

@@ -100,7 +100,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
 
     public void testDateRangeQuery() throws Exception {
         QueryShardContext context = createShardContext();
-        RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.fieldMapper(DATE_RANGE_FIELD_NAME);
+        RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.fullName(DATE_RANGE_FIELD_NAME);
         DateMathParser parser = type.dateMathParser;
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,

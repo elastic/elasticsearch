@@ -328,7 +328,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         if (rewrite == null && context.isFilter()) {
             rewrite = QueryParsers.CONSTANT_SCORE.getPreferredName();
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fullName(fieldName);
         if (fieldType != null) {
             query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
         }

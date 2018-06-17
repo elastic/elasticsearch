@@ -148,7 +148,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
 
         QueryShardContext context = searchContext.getQueryShardContext();
-        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
+        MappedFieldType fieldType = context.fullName(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
             if (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple")) {

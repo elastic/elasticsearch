@@ -374,7 +374,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 tz.isFixed() == false &&
                 field() != null &&
                 script() == null) {
-            final MappedFieldType ft = context.fieldMapper(field());
+            final MappedFieldType ft = context.fullName(field());
             final IndexReader reader = context.getIndexReader();
             if (ft != null && reader != null) {
                 Long anyInstant = null;

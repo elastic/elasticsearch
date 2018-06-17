@@ -281,7 +281,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.format(resolveFormat(format, valueType));
         }
 
-        MappedFieldType fieldType = context.smartNameFieldType(field);
+        MappedFieldType fieldType = context.fullName(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);

@@ -278,7 +278,7 @@ public class HighlightBuilderTests extends ESTestCase {
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             namedWriteableRegistry, null, null, System::currentTimeMillis, null) {
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType fullName(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
                 return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
             }

@@ -149,7 +149,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
             }
 
             private void collectFromSource(int doc, long bucket, String indexedFieldName, String[] sourceFieldNames) throws IOException {
-                MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(indexedFieldName);
+                MappedFieldType fieldType = context.getQueryShardContext().fullName(indexedFieldName);
                 if(fieldType == null){
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot process field ["+indexedFieldName
                             +"] since it is not present");

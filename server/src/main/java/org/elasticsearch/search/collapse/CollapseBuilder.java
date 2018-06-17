@@ -229,7 +229,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
         }
 
-        MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(field);
+        MappedFieldType fieldType = context.getQueryShardContext().fullName(field);
         if (fieldType == null) {
             throw new SearchContextException(context, "no mapping found for `" + field + "` in order to collapse on");
         }

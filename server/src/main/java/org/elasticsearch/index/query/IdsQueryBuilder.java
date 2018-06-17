@@ -156,7 +156,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        MappedFieldType idField = context.fullName(IdFieldMapper.NAME);
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
@@ -178,7 +178,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             } else {
                 return new MatchNoDocsQuery("Type mismatch");
             }
-            
+
         }
     }
 

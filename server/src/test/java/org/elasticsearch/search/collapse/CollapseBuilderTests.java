@@ -163,7 +163,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             for (MappedFieldType fieldType : new MappedFieldType[] {numberFieldType, keywordFieldType}) {
                 fieldType.setName("field");
                 fieldType.setHasDocValues(true);
-                when(searchContext.getQueryShardContext().fieldMapper("field")).thenReturn(fieldType);
+                when(searchContext.getQueryShardContext().fullName("field")).thenReturn(fieldType);
                 CollapseBuilder builder = new CollapseBuilder("field");
                 CollapseContext collapseContext = builder.build(searchContext);
                 assertEquals(collapseContext.getFieldType(), fieldType);
@@ -217,7 +217,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             };
             fieldType.setName("field");
             fieldType.setHasDocValues(true);
-            when(context.getQueryShardContext().fieldMapper("field")).thenReturn(fieldType);
+            when(context.getQueryShardContext().fullName("field")).thenReturn(fieldType);
             CollapseBuilder builder = new CollapseBuilder("field");
             SearchContextException exc = expectThrows(SearchContextException.class, () -> builder.build(context));
             assertEquals(exc.getMessage(), "unknown type for collapse field `field`, only keywords and numbers are accepted");

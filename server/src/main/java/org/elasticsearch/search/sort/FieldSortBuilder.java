@@ -311,7 +311,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return SORT_DOC;
             }
         } else {
-            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            MappedFieldType fieldType = context.fullName(fieldName);
             if (fieldType == null) {
                 if (unmappedType != null) {
                     fieldType = context.getMapperService().unmappedFieldType(unmappedType);

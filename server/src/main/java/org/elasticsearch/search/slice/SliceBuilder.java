@@ -218,7 +218,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      * @param context Additional information needed to build the query
      */
     public Query toFilter(ClusterService clusterService, ShardSearchRequest request, QueryShardContext context, Version minNodeVersion) {
-        final MappedFieldType type = context.fieldMapper(field);
+        final MappedFieldType type = context.fullName(field);
         if (type == null) {
             throw new IllegalArgumentException("field " + field + " not found");
         }

@@ -37,7 +37,14 @@ class UserAndPassword {
     }
 
     boolean verifyPassword(SecureString data) {
-        return Hasher.resolveFromHash(this.passwordHash).verify(data, this.passwordHash);
+        try {
+            Hasher hasher = Hasher.resolveFromHash(this.passwordHash);
+            return hasher.verify(data, this.passwordHash);
+        } catch (IllegalArgumentException e) {
+            // The hash was of invalid format, we can't validate the password
+            return false;
+        }
+
     }
 
     @Override

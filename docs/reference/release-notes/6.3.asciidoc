@@ -23,9 +23,6 @@ Packaging::
 Plugins::
 * Remove silent batch mode from install plugin {pull}29359[#29359]
 
-Search::
-* Fail _search request with trailing tokens {pull}29428[#29428] (issue: {issue}28995[#28995])
-
 Security::
 * The legacy `XPackExtension` extension mechanism has been removed and replaced
 with an SPI based extension mechanism that is installed and built as an
@@ -62,6 +59,7 @@ REST API::
 
 Search::
 * Deprecate slicing on `_uid`. {pull}29353[#29353]
+* Generate deprecation warning for _search request with trailing tokens {pull}29428[#29428] (issue: {issue}28995[#28995])
 
 Stats::
 * Deprecate the suggest metrics {pull}29627[#29627] (issue: {issue}29589[#29589])

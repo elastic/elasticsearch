@@ -1,7 +1,8 @@
 [[release-notes-6.3.0]]
 == {es} version 6.3.0
 
-=== Known Issues
+[float]
+=== Known issues
 
 Clusters with a Gold or Platinum license that are upgrading to 6.3 will need to explicitly set
 `xpack.security.enabled: true` in `elasticsearch.yml` to upgrade successfully.

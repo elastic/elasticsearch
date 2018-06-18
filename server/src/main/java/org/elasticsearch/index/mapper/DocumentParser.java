@@ -469,7 +469,8 @@ final class DocumentParser {
         } else if (mapper instanceof FieldAliasMapper) {
             throw new IllegalArgumentException("Cannot write to a field alias [" + mapper.name() + "].");
         } else {
-            throw new IllegalStateException("The provided mapper [" + mapper.name() + "] has an unrecognized type.");
+            throw new IllegalStateException("The provided mapper [" + mapper.name() + "] has an unrecognized type [" +
+                mapper.getClass().getSimpleName() + "].");
         }
     }
 

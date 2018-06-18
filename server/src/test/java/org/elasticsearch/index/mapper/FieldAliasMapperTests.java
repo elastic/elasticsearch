@@ -72,7 +72,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
             .endObject());
         MapperParsingException exception = expectThrows(MapperParsingException.class,
             () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("The [path] property must be specified.", exception.getMessage());
+        assertEquals("The [path] property must be specified for field [alias-field].", exception.getMessage());
     }
 
     public void testParsingWithExtraArgument() throws IOException {

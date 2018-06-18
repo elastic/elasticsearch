@@ -38,7 +38,12 @@ enum MapperUtils {
             fieldMappers.add((FieldMapper)mapper);
         } else if (mapper instanceof FieldAliasMapper) {
             fieldAliasMappers.add((FieldAliasMapper) mapper);
+        } else {
+            throw new IllegalStateException("Unrecognized mapper type [" +
+                mapper.getClass().getSimpleName() + "].");
         }
+
+
         for (Mapper child : mapper) {
             collect(child, objectMappers, fieldMappers, fieldAliasMappers);
         }

@@ -27,7 +27,13 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
-public class FieldAliasMapper extends Mapper {
+/**
+ * A mapper for field aliases.
+ *
+ * A field alias has no concrete field mappings of its own, but instead points to another field by
+ * its path. Once defined, an alias can be used in place of the concrete field name in search requests.
+ */
+public final class FieldAliasMapper extends Mapper {
     public static final String CONTENT_TYPE = "alias";
 
     public static class Names {
@@ -89,7 +95,7 @@ public class FieldAliasMapper extends Mapper {
             Object pathField = node.remove(Names.PATH);
             String path = XContentMapValues.nodeStringValue(pathField, null);
             if (path == null) {
-                throw new MapperParsingException("The [path] property must be specified.");
+                throw new MapperParsingException("The [path] property must be specified for field [" + name + "].");
             }
             return builder.path(path);
         }

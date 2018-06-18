@@ -183,7 +183,7 @@ public class ElasticsearchMappings {
                         .startObject(Detector.EXCLUDE_FREQUENT_FIELD.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
-                        .startObject(Detector.RULES_FIELD.getPreferredName())
+                        .startObject(Detector.CUSTOM_RULES_FIELD.getPreferredName())
                             .field(TYPE, NESTED) // TODO
                         .endObject()
                         .startObject(Detector.DETECTOR_INDEX.getPreferredName())

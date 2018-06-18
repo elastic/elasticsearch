@@ -222,7 +222,7 @@ public final class ReservedFieldNames {
             Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(),
             Detector.USE_NULL_FIELD.getPreferredName(),
             Detector.EXCLUDE_FREQUENT_FIELD.getPreferredName(),
-            Detector.RULES_FIELD.getPreferredName(),
+            Detector.CUSTOM_RULES_FIELD.getPreferredName(),
             Detector.DETECTOR_INDEX.getPreferredName(),
 
             DataDescription.FORMAT_FIELD.getPreferredName(),

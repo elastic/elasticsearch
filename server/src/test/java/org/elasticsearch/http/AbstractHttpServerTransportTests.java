@@ -19,13 +19,27 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.net.InetAddress.getByName;
@@ -35,6 +49,27 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AbstractHttpServerTransportTests extends ESTestCase {
+
+    private NetworkService networkService;
+    private ThreadPool threadPool;
+    private MockBigArrays bigArrays;
+
+    @Before
+    public void setup() throws Exception {
+        networkService = new NetworkService(Collections.emptyList());
+        threadPool = new TestThreadPool("test");
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    @After
+    public void shutdown() throws Exception {
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+        }
+        threadPool = null;
+        networkService = null;
+        bigArrays = null;
+    }
 
     public void testHttpPublishPort() throws Exception {
         int boundPort = randomIntBetween(9000, 9100);
@@ -68,6 +103,64 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             publishPort = resolvePublishPort(Settings.EMPTY, asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
                 getByName("::1"));
             assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
+        }
+    }
+
+    public void testDispatchDoesNotModifyThreadContext() {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("bar", "baz");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestRequest request,
+                                           final RestChannel channel,
+                                           final ThreadContext threadContext,
+                                           final Throwable cause) {
+                threadContext.putHeader("foo_bad", "bar");
+                threadContext.putTransient("bar_bad", "baz");
+            }
+
+        };
+
+        try (AbstractHttpServerTransport transport =
+                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher) {
+                     @Override
+                     protected TransportAddress bindAddress(InetAddress hostAddress) {
+                         return null;
+                     }
+
+                     @Override
+                     protected void doStart() {
+
+                     }
+
+                     @Override
+                     protected void doStop() {
+
+                     }
+
+                     @Override
+                     protected void doClose() throws IOException {
+
+                     }
+
+                     @Override
+                     public HttpStats stats() {
+                         return null;
+                     }
+                 }) {
+
+            transport.dispatchRequest(null, null, null);
+            assertNull(threadPool.getThreadContext().getHeader("foo"));
+            assertNull(threadPool.getThreadContext().getTransient("bar"));
+
+            transport.dispatchRequest(null, null, new Exception());
+            assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
+            assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
         }
     }
 

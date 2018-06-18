@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 

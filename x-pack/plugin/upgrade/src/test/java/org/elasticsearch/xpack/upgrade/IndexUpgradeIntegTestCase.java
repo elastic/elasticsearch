@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 public abstract class IndexUpgradeIntegTestCase extends AbstractLicensesIntegrationTestCase {
     @Override

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,29 +15,27 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlParserType;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.EnumMap;
-import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 public class RuleCondition implements ToXContentObject, Writeable {
-    public static final ParseField TYPE_FIELD = new ParseField("type", "condition_type");
+
     public static final ParseField RULE_CONDITION_FIELD = new ParseField("rule_condition");
-    public static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");
-    public static final ParseField FIELD_VALUE_FIELD = new ParseField("field_value");
-    public static final ParseField FILTER_ID_FIELD = new ParseField(MlFilter.ID.getPreferredName(), "value_filter");
+
+    public static final ParseField APPLIES_TO_FIELD = new ParseField("applies_to");
+    public static final ParseField VALUE_FIELD = new ParseField("value");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<RuleCondition, Void> METADATA_PARSER =
             new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), true,
-                    a -> new RuleCondition((RuleConditionType) a[0], (String) a[1], (String) a[2], (Condition) a[3], (String) a[4]));
+                    a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
     public static final ConstructingObjectParser<RuleCondition, Void> CONFIG_PARSER =
             new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), false,
-                    a -> new RuleCondition((RuleConditionType) a[0], (String) a[1], (String) a[2], (Condition) a[3], (String) a[4]));
+                    a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
     public static final Map<MlParserType, ConstructingObjectParser<RuleCondition, Void>> PARSERS =
             new EnumMap<>(MlParserType.class);
 
@@ -50,111 +47,63 @@ public class RuleCondition implements ToXContentObject, Writeable {
             assert parser != null;
             parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return RuleConditionType.fromString(p.text());
+                    return AppliesTo.fromString(p.text());
                 }
                 throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, TYPE_FIELD, ValueType.STRING);
-            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_NAME_FIELD);
-            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_VALUE_FIELD);
-            parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), Condition.PARSER, Condition.CONDITION_FIELD);
-            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FILTER_ID_FIELD);
+            }, APPLIES_TO_FIELD, ValueType.STRING);
+            parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return Operator.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, Operator.OPERATOR_FIELD, ValueType.STRING);
+            parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
         }
     }
 
-    private final RuleConditionType type;
-    private final String fieldName;
-    private final String fieldValue;
-    private final Condition condition;
-    private final String filterId;
+    private final AppliesTo appliesTo;
+    private final Operator operator;
+    private final double value;
 
     public RuleCondition(StreamInput in) throws IOException {
-        type = RuleConditionType.readFromStream(in);
-        condition = in.readOptionalWriteable(Condition::new);
-        fieldName = in.readOptionalString();
-        fieldValue = in.readOptionalString();
-        filterId = in.readOptionalString();
+        appliesTo = AppliesTo.readFromStream(in);
+        operator = Operator.readFromStream(in);
+        value = in.readDouble();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        type.writeTo(out);
-        out.writeOptionalWriteable(condition);
-        out.writeOptionalString(fieldName);
-        out.writeOptionalString(fieldValue);
-        out.writeOptionalString(filterId);
+        appliesTo.writeTo(out);
+        operator.writeTo(out);
+        out.writeDouble(value);
     }
 
-    RuleCondition(RuleConditionType type, String fieldName, String fieldValue, Condition condition, String filterId) {
-        this.type = type;
-        this.fieldName = fieldName;
-        this.fieldValue = fieldValue;
-        this.condition = condition;
-        this.filterId = filterId;
-
-        verifyFieldsBoundToType(this);
-        verifyFieldValueRequiresFieldName(this);
-    }
-
-    public RuleCondition(RuleCondition ruleCondition) {
-        this.type = ruleCondition.type;
-        this.fieldName = ruleCondition.fieldName;
-        this.fieldValue = ruleCondition.fieldValue;
-        this.condition = ruleCondition.condition;
-        this.filterId = ruleCondition.filterId;
+    public RuleCondition(AppliesTo appliesTo, Operator operator, double value) {
+        this.appliesTo = appliesTo;
+        this.operator = operator;
+        this.value = value;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TYPE_FIELD.getPreferredName(), type);
-        if (condition != null) {
-            builder.field(Condition.CONDITION_FIELD.getPreferredName(), condition);
-        }
-        if (fieldName != null) {
-            builder.field(FIELD_NAME_FIELD.getPreferredName(), fieldName);
-        }
-        if (fieldValue != null) {
-            builder.field(FIELD_VALUE_FIELD.getPreferredName(), fieldValue);
-        }
-        if (filterId != null) {
-            builder.field(FILTER_ID_FIELD.getPreferredName(), filterId);
-        }
+        builder.field(APPLIES_TO_FIELD.getPreferredName(), appliesTo);
+        builder.field(Operator.OPERATOR_FIELD.getPreferredName(), operator);
+        builder.field(VALUE_FIELD.getPreferredName(), value);
         builder.endObject();
         return builder;
     }
 
-    public RuleConditionType getType() {
-        return type;
+    public AppliesTo getAppliesTo() {
+        return appliesTo;
     }
 
-    /**
-     * The field name for which the rule applies. Can be null, meaning rule
-     * applies to all results.
-     */
-    public String getFieldName() {
-        return fieldName;
+    public Operator getOperator() {
+        return operator;
     }
 
-    /**
-     * The value of the field name for which the rule applies. When set, the
-     * rule applies only to the results that have the fieldName/fieldValue pair.
-     * When null, the rule applies to all values for of the specified field
-     * name. Only applicable when fieldName is not null.
-     */
-    public String getFieldValue() {
-        return fieldValue;
-    }
-
-    public Condition getCondition() {
-        return condition;
-    }
-
-    /**
-     * The unique identifier of a filter. Required when the rule type is
-     * categorical. Should be null for all other types.
-     */
-    public String getFilterId() {
-        return filterId;
+    public double getValue() {
+        return value;
     }
 
     @Override
@@ -168,114 +117,40 @@ public class RuleCondition implements ToXContentObject, Writeable {
         }
 
         RuleCondition other = (RuleCondition) obj;
-        return Objects.equals(type, other.type) && Objects.equals(fieldName, other.fieldName)
-                && Objects.equals(fieldValue, other.fieldValue) && Objects.equals(condition, other.condition)
-                && Objects.equals(filterId, other.filterId);
+        return appliesTo == other.appliesTo && operator == other.operator && value == other.value;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, fieldName, fieldValue, condition, filterId);
-    }
-
-    public static RuleCondition createCategorical(String fieldName, String filterId) {
-        return new RuleCondition(RuleConditionType.CATEGORICAL, fieldName, null, null, filterId);
-    }
-
-    public static RuleCondition createNumerical(RuleConditionType conditionType, String fieldName, String fieldValue,
-                                                Condition condition ) {
-        if (conditionType.isNumerical() == false) {
-            throw new IllegalStateException("Rule condition type [" +  conditionType + "] not valid for a numerical condition");
-        }
-        return new RuleCondition(conditionType, fieldName, fieldValue, condition, null);
+        return Objects.hash(appliesTo, operator, value);
     }
 
     public static RuleCondition createTime(Operator operator, long epochSeconds) {
-        return new RuleCondition(RuleConditionType.TIME, null, null, new Condition(operator, Long.toString(epochSeconds)), null);
+        return new RuleCondition(AppliesTo.TIME, operator, epochSeconds);
     }
 
-    private static void verifyFieldsBoundToType(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        switch (ruleCondition.getType()) {
-        case CATEGORICAL:
-        case CATEGORICAL_COMPLEMENT:
-            verifyCategorical(ruleCondition);
-            break;
-        case NUMERICAL_ACTUAL:
-        case NUMERICAL_TYPICAL:
-        case NUMERICAL_DIFF_ABS:
-            verifyNumerical(ruleCondition);
-            break;
-        case TIME:
-            verifyTimeRule(ruleCondition);
-            break;
-        default:
-            throw new IllegalStateException();
+    public enum AppliesTo implements Writeable {
+        ACTUAL,
+        TYPICAL,
+        DIFF_FROM_TYPICAL,
+        TIME;
+
+        public static AppliesTo fromString(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
         }
-    }
 
-    private static void verifyCategorical(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        checkCategoricalHasNoField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
-        checkCategoricalHasNoField(RuleCondition.FIELD_VALUE_FIELD.getPreferredName(), ruleCondition.getFieldValue());
-        checkCategoricalHasField(FILTER_ID_FIELD.getPreferredName(), ruleCondition.getFilterId());
-    }
-
-    private static void checkCategoricalHasNoField(String fieldName, Object fieldValue) throws ElasticsearchParseException {
-        if (fieldValue != null) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_INVALID_OPTION, fieldName);
-            throw ExceptionsHelper.badRequestException(msg);
+        public static AppliesTo readFromStream(StreamInput in) throws IOException {
+            return in.readEnum(AppliesTo.class);
         }
-    }
 
-    private static void checkCategoricalHasField(String fieldName, Object fieldValue) throws ElasticsearchParseException {
-        if (fieldValue == null) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_MISSING_OPTION, fieldName);
-            throw ExceptionsHelper.badRequestException(msg);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
         }
-    }
 
-    private static void verifyNumerical(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        checkNumericalHasNoField(FILTER_ID_FIELD.getPreferredName(), ruleCondition.getFilterId());
-        checkNumericalHasField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
-        if (ruleCondition.getFieldName() != null && ruleCondition.getFieldValue() == null) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_WITH_FIELD_NAME_REQUIRES_FIELD_VALUE);
-            throw ExceptionsHelper.badRequestException(msg);
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
-        checkNumericalConditionOparatorsAreValid(ruleCondition);
-    }
-
-    private static void checkNumericalHasNoField(String fieldName, Object fieldValue) throws ElasticsearchParseException {
-        if (fieldValue != null) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_INVALID_OPTION, fieldName);
-            throw ExceptionsHelper.badRequestException(msg);
-        }
-    }
-
-    private static void checkNumericalHasField(String fieldName, Object fieldValue) throws ElasticsearchParseException {
-        if (fieldValue == null) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_MISSING_OPTION, fieldName);
-            throw ExceptionsHelper.badRequestException(msg);
-        }
-    }
-
-    private static void verifyFieldValueRequiresFieldName(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        if (ruleCondition.getFieldValue() != null && ruleCondition.getFieldName() == null) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_MISSING_FIELD_NAME,
-                    ruleCondition.getFieldValue());
-            throw ExceptionsHelper.badRequestException(msg);
-        }
-    }
-
-    static EnumSet<Operator> VALID_CONDITION_OPERATORS = EnumSet.of(Operator.LT, Operator.LTE, Operator.GT, Operator.GTE);
-
-    private static void checkNumericalConditionOparatorsAreValid(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        Operator operator = ruleCondition.getCondition().getOperator();
-        if (!VALID_CONDITION_OPERATORS.contains(operator)) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_INVALID_OPERATOR, operator);
-            throw ExceptionsHelper.badRequestException(msg);
-        }
-    }
-
-    private static void verifyTimeRule(RuleCondition ruleCondition) {
-        checkNumericalConditionOparatorsAreValid(ruleCondition);
     }
 }

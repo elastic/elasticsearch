@@ -56,11 +56,11 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         docMapper = index.mapperService().documentMapper("person");
         DocumentFieldMappers mappers = docMapper.mappers();
 
-        assertThat(mappers.smartNameFieldMapper("s"), Matchers.notNullValue());
-        assertEquals(IndexOptions.NONE, mappers.smartNameFieldMapper("s").fieldType().indexOptions());
+        assertThat(mappers.getMapper("s"), Matchers.notNullValue());
+        assertEquals(IndexOptions.NONE, mappers.getMapper("s").fieldType().indexOptions());
 
-        assertThat(mappers.smartNameFieldMapper("l"), Matchers.notNullValue());
-        assertNotSame(IndexOptions.NONE, mappers.smartNameFieldMapper("l").fieldType().indexOptions());
+        assertThat(mappers.getMapper("l"), Matchers.notNullValue());
+        assertNotSame(IndexOptions.NONE, mappers.getMapper("l").fieldType().indexOptions());
 
 
     }

@@ -389,13 +389,13 @@ public class ShardStateActionTests extends ESTestCase {
         final String index = "test";
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
         ShardRouting failedShard = getRandomShardRouting(index);
-        long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
         boolean markAsStale = randomBoolean();
         int numListeners = between(1, 100);
         CountDownLatch latch = new CountDownLatch(numListeners);
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         for (int i = 0; i < numListeners; i++) {
             shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
-                primaryTerm + 1, markAsStale, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+                primaryTerm, markAsStale, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
                     @Override
                     public void onSuccess() {
                         latch.countDown();

@@ -141,7 +141,7 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeader()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests}.
      */
     @Deprecated
     public void testPerformOldStyleAsyncWithNullHeaders() throws Exception {

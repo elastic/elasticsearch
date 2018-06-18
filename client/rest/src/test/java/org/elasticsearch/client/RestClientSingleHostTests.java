@@ -314,7 +314,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeaders()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests}.
      */
     @Deprecated
     public void tesPerformRequestOldStyleNullHeaders() throws IOException {

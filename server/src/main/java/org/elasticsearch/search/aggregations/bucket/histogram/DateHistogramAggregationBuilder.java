@@ -25,6 +25,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -70,6 +72,7 @@ import static java.util.Collections.unmodifiableMap;
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     public static final String NAME = "date_histogram";
+    private static DateMathParser DEFAULT_DATE_PARSER = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
 
     public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
 
@@ -380,7 +383,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 Long anyInstant = null;
                 final IndexNumericFieldData fieldData = context.getForField(ft);
                 for (LeafReaderContext ctx : reader.leaves()) {
-                    AtomicNumericFieldData leafFD = ((IndexNumericFieldData) fieldData).load(ctx);
+                    AtomicNumericFieldData leafFD = fieldData.load(ctx);
                     SortedNumericDocValues values = leafFD.getLongValues();
                     if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         anyInstant = values.nextValue();
@@ -406,11 +409,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                     // rounding rounds down, so 'nextTransition' is a good upper bound
                     final long high = nextTransition;
 
-                    final DocValueFormat format = ft.docValueFormat(null, null);
-                    final Object formattedLow = format.format(low);
-                    final Object formattedHigh = format.format(high);
+                    final Object formattedLow = DocValueFormat.RAW.format(low);
+                    final Object formattedHigh = DocValueFormat.RAW.format(high);
                     if (ft.isFieldWithinQuery(reader, formattedLow, formattedHigh,
-                            true, false, tz, null, context) == Relation.WITHIN) {
+                            true, false, DateTimeZone.UTC, DEFAULT_DATE_PARSER, context) == Relation.WITHIN) {
                         // All values in this reader have the same offset despite daylight saving times.
                         // This is very common for location-based timezones such as Europe/Paris in
                         // combination with time-based indices.

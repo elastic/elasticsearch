@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bwc;
+package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;

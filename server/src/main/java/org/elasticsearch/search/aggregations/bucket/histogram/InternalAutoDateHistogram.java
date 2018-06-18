@@ -103,7 +103,7 @@ public final class InternalAutoDateHistogram extends
 
         @Override
         public String getKeyAsString() {
-            return format.format(key);
+            return (String) format.format(key);
         }
 
         @Override
@@ -134,7 +134,7 @@ public final class InternalAutoDateHistogram extends
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            String keyAsString = format.format(key);
+            String keyAsString = (String) format.format(key);
             builder.startObject();
             if (format != DocValueFormat.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
@@ -493,11 +493,11 @@ public final class InternalAutoDateHistogram extends
         if (reduceContext.isFinalReduce()) {
             // adding empty buckets if needed
             reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, reduceContext);
-    
+
             // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
             reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult.buckets, reducedBucketsResult.roundingIdx,
                     reducedBucketsResult.roundingInfo, reduceContext);
-            
+
             // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
             reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
         }

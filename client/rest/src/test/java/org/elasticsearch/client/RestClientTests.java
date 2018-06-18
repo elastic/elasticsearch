@@ -341,9 +341,9 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     public void testSelectHosts() throws IOException {
-        Node n1 = new Node(new HttpHost("1"), null, null, "1", null);
-        Node n2 = new Node(new HttpHost("2"), null, null, "2", null);
-        Node n3 = new Node(new HttpHost("3"), null, null, "3", null);
+        Node n1 = new Node(new HttpHost("1"), null, null, "1", null, null);
+        Node n2 = new Node(new HttpHost("2"), null, null, "2", null, null);
+        Node n3 = new Node(new HttpHost("3"), null, null, "3", null, null);
 
         NodeSelector not1 = new NodeSelector() {
             @Override

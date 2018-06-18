@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
@@ -131,11 +133,10 @@ public class DoSection implements ExecutableSection {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
-                        } else if (token.isValue()) {
-                            NodeSelector newSelector = buildNodeSelector(
-                                parser.getTokenLocation(), selectorName, parser.text());
-                                nodeSelector = nodeSelector == NodeSelector.ANY ?
-                                    newSelector : new ComposeNodeSelector(nodeSelector, newSelector);
+                        } else {
+                            NodeSelector newSelector = buildNodeSelector(selectorName, parser);
+                            nodeSelector = nodeSelector == NodeSelector.ANY ?
+                                newSelector : new ComposeNodeSelector(nodeSelector, newSelector);
                         }
                     }
                 } else if (currentFieldName != null) { // must be part of API call then
@@ -368,34 +369,64 @@ public class DoSection implements ExecutableSection {
                 not(equalTo(409)))));
     }
 
-    private static NodeSelector buildNodeSelector(XContentLocation location, String name, String value) {
+    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
         switch (name) {
+        case "attribute":
+            return parseAttributeValuesSelector(parser);
         case "version":
-            Version[] range = SkipSection.parseVersionRange(value);
-            return new NodeSelector() {
-                @Override
-                public void select(Iterable<Node> nodes) {
-                    for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
-                        Node node = itr.next();
-                        if (node.getVersion() == null) {
-                            throw new IllegalStateException("expected [version] metadata to be set but got "
-                                    + node);
-                        }
-                        Version version = Version.fromString(node.getVersion());
-                        if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
-                            itr.remove();
-                        }
+            return parseVersionSelector(parser);
+        default:
+            throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
+        }
+    }
+
+    private static NodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(parser.getTokenLocation(), "expected START_OBJECT");
+        }
+        String key = null;
+        XContentParser.Token token;
+        NodeSelector result = NodeSelector.ANY;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                key = parser.currentName();
+            } else if (token.isValue()) {
+                NodeSelector newSelector = new HasAttributeNodeSelector(key, parser.text());
+                result = result == NodeSelector.ANY ?
+                    newSelector : new ComposeNodeSelector(result, newSelector);
+            } else {
+                throw new XContentParseException(parser.getTokenLocation(), "expected [" + key + "] to be a value");
+            }
+        }
+        return result;
+    }
+
+    private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+        if (false == parser.currentToken().isValue()) {
+            throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
+        }
+        Version[] range = SkipSection.parseVersionRange(parser.text());
+        return new NodeSelector() {
+            @Override
+            public void select(Iterable<Node> nodes) {
+                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                    Node node = itr.next();
+                    if (node.getVersion() == null) {
+                        throw new IllegalStateException("expected [version] metadata to be set but got "
+                                + node);
+                    }
+                    Version version = Version.fromString(node.getVersion());
+                    if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
+                        itr.remove();
                     }
                 }
+            }
 
-                @Override
-                public String toString() {
-                    return "version between [" + range[0] + "] and [" + range[1] + "]";
-                }
-            };
-        default:
-            throw new IllegalArgumentException("unknown node_selector [" + name + "]");
-        }
+            @Override
+            public String toString() {
+                return "version between [" + range[0] + "] and [" + range[1] + "]";
+            }
+        };
     }
 
     /**

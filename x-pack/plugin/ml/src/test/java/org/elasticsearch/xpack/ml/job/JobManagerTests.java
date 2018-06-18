@@ -210,7 +210,7 @@ public class JobManagerTests extends ESTestCase {
 
         JobManager jobManager = createJobManager();
 
-        MlFilter filter = new MlFilter("foo_filter", Arrays.asList("a", "b"));
+        MlFilter filter = MlFilter.builder("foo_filter").setItems("a", "b").build();
 
         jobManager.updateProcessOnFilterChanged(filter);
 

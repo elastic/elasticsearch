@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -52,13 +54,18 @@ public class Node {
      * if we don't know what roles the node has.
      */
     private final Roles roles;
+    /**
+     * Attributes declared on the node.
+     */
+    private final Map<String, List<String>> attributes;
 
     /**
      * Create a {@linkplain Node} with metadata. All parameters except
      * {@code host} are nullable and implementations of {@link NodeSelector}
      * need to decide what to do in their absence.
      */
-    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version, Roles roles) {
+    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version,
+            Roles roles, Map<String, List<String>> attributes) {
         if (host == null) {
             throw new IllegalArgumentException("host cannot be null");
         }
@@ -67,13 +74,14 @@ public class Node {
         this.name = name;
         this.version = version;
         this.roles = roles;
+        this.attributes = attributes;
     }
 
     /**
      * Create a {@linkplain Node} without any metadata.
      */
     public Node(HttpHost host) {
-        this(host, null, null, null, null);
+        this(host, null, null, null, null, null);
     }
 
     /**
@@ -115,6 +123,13 @@ public class Node {
         return roles;
     }
 
+    /**
+     * Attributes declared on the node.
+     */
+    public Map<String, List<String>> getAttributes() {
+        return attributes;
+    }
+
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
@@ -131,6 +146,9 @@ public class Node {
         if (roles != null) {
             b.append(", roles=").append(roles);
         }
+        if (attributes != null) {
+            b.append(", attributes=").append(attributes);
+        }
         return b.append(']').toString();
     }
 
@@ -144,12 +162,13 @@ public class Node {
             && Objects.equals(boundHosts, other.boundHosts)
             && Objects.equals(name, other.name)
             && Objects.equals(version, other.version)
-            && Objects.equals(roles, other.roles);
+            && Objects.equals(roles, other.roles)
+            && Objects.equals(attributes, other.attributes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(host, boundHosts, name, version, roles);
+        return Objects.hash(host, boundHosts, name, version, roles, attributes);
     }
 
     /**

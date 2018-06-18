@@ -19,14 +19,13 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static java.util.Collections.unmodifiableList;
-
-import java.io.IOException;
 
 /**
  * Allows to register additional features supported by the tests runner.

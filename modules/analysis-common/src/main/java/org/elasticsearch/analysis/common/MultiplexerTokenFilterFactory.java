@@ -22,6 +22,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
+import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +72,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory im
         for (TokenFilterFactory tff : filters) {
             functions.add(tff::create);
         }
-        return new MultiplexTokenFilter(tokenStream, functions);
+        return new RemoveDuplicatesTokenFilter(new MultiplexTokenFilter(tokenStream, functions));
     }
 
     @Override

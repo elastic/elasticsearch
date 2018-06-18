@@ -62,6 +62,12 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
             }, new int[]{
                 1,      0,      0,      1,      0,      0
             });
+            // Duplicates are removed
+            assertAnalyzesTo(analyzer, "ONe THREE", new String[]{
+                "ONe", "on", "ONE", "THREE", "th"
+            }, new int[]{
+                1,      0,      0,      1,      0,      0
+            });
         }
     }
 

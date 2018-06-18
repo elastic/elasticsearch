@@ -2,7 +2,11 @@
 === Multiplexer Token Filter
 
 A token filter of type `multiplexer` will emit multiple tokens at the same position,
-each version of the token having been run through a different filter.
+each version of the token having been run through a different filter.  Identical
+output tokens at the same position will be removed.
+
+WARNING: If the incoming token stream has duplicate tokens, then these will also be
+removed by the multiplexer
 
 [float]
 === Options
@@ -11,11 +15,14 @@ filters:: a list of token filters to apply to incoming tokens.  These can be any
   token filters defined elsewhere in the index mappings.  Filters can be chained
   using a comma-delimited string, so for example `"lowercase, porter_stem"` would
   apply the `lowercase` filter and then the `porter_stem` filter to a single token.
-  WARNING: Shingle or multi-word synonym token filters will not function normally
+
+WARNING: Shingle or multi-word synonym token filters will not function normally
   when they are declared in the filters array because they read ahead internally
   which is unsupported by the multiplexer
+
 preserve_original:: if `true` (the default) then emit the original token in
   addition to the filtered tokens
+
 
 [float]
 === Settings example
@@ -31,7 +38,7 @@ PUT /multiplexer_example
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : [ "my_multiplexer", "remove_duplicates" ] <1>
+                    "filter" : [ "my_multiplexer" ]
                 }
             },
             "filter" : {
@@ -45,12 +52,6 @@ PUT /multiplexer_example
 }
 --------------------------------------------------
 // CONSOLE
-
-<1> The `remove_duplicates` filter here will prevent identical tokens being emitted
-at the same position.  For example, the token `home` in the `_analyze` script below
-would be emitted from both the `"lowercase"` and the `"lowercase, porter_stem"`
-branches of the multiplexer without this extra filter.  Deduplicating will help
-preserve term statistics that might otherwise produce odd effects in scoring.
 
 And test it like:
 
@@ -100,7 +101,7 @@ And it'd respond:
       "position": 1
     },
     {
-      "token": "home",
+      "token": "home",          <1>
       "start_offset": 6,
       "end_offset": 10,
       "type": "<ALPHANUM>",
@@ -110,3 +111,6 @@ And it'd respond:
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+<1> The stemmer has also emitted a token `home` at position 1, but because it is a
+duplicate of this token it has been removed from the token stream

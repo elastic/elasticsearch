@@ -2,3 +2,5 @@
 few nodes in different configurations locally at various versions. They are
 for testing `ElasticsearchNodesSniffer` against different versions of
 Elasticsearch.
+
+See create_test_nodes_info.bash for how to create these.

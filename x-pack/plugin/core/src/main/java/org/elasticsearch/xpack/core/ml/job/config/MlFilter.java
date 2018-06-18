@@ -17,11 +17,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class MlFilter implements ToXContentObject, Writeable {
 
@@ -53,9 +54,9 @@ public class MlFilter implements ToXContentObject, Writeable {
 
     private final String id;
     private final String description;
-    private final List<String> items;
+    private final SortedSet<String> items;
 
-    public MlFilter(String id, String description, List<String> items) {
+    public MlFilter(String id, String description, SortedSet<String> items) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
         this.description = description;
         this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
@@ -68,7 +69,8 @@ public class MlFilter implements ToXContentObject, Writeable {
         } else {
             description = null;
         }
-        items = Arrays.asList(in.readStringArray());
+        items = new TreeSet<>();
+        items.addAll(Arrays.asList(in.readStringArray()));
     }
 
     @Override
@@ -103,8 +105,8 @@ public class MlFilter implements ToXContentObject, Writeable {
         return description;
     }
 
-    public List<String> getItems() {
-        return new ArrayList<>(items);
+    public SortedSet<String> getItems() {
+        return Collections.unmodifiableSortedSet(items);
     }
 
     @Override
@@ -142,7 +144,7 @@ public class MlFilter implements ToXContentObject, Writeable {
 
         private String id;
         private String description;
-        private List<String> items = Collections.emptyList();
+        private SortedSet<String> items = new TreeSet<>();
 
         private Builder() {}
 
@@ -162,12 +164,13 @@ public class MlFilter implements ToXContentObject, Writeable {
         }
 
         public Builder setItems(List<String> items) {
-            this.items = items;
+            this.items = new TreeSet<>();
+            this.items.addAll(items);
             return this;
         }
 
         public Builder setItems(String... items) {
-            this.items = Arrays.asList(items);
+            setItems(Arrays.asList(items));
             return this;
         }
 

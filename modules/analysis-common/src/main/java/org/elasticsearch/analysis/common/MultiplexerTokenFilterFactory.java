@@ -41,7 +41,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory implements ReferringFilterFactory {
+public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory implements ReferringFilterFactory {
 
     private List<TokenFilterFactory> filters;
     private List<String> filterNames;
@@ -59,10 +59,10 @@ public class MultiplexingTokenFilterFactory extends AbstractTokenFilterFactory i
         }
     };
 
-    public MultiplexingTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
+    public MultiplexerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
         this.filterNames = settings.getAsList("filters");
-        this.preserveOriginal = settings.getAsBoolean("preserveOriginal", true);
+        this.preserveOriginal = settings.getAsBoolean("preserve_original", true);
     }
 
     @Override

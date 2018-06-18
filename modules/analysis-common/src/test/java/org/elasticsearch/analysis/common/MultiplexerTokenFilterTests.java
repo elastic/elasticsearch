@@ -75,7 +75,7 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
             .put("index.analysis.filter.t.type", "truncate")
             .put("index.analysis.filter.t.length", "2")
             .put("index.analysis.filter.multiplexFilter.type", "multiplexer")
-            .put("index.analysis.filter.multiplexFilter.preserveOriginal", "false")
+            .put("index.analysis.filter.multiplexFilter.preserve_original", "false")
             .putList("index.analysis.filter.multiplexFilter.filters", "lowercase, t", "uppercase")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
             .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")

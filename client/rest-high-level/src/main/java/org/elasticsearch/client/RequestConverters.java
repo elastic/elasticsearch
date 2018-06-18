@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -838,6 +839,18 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(verifyRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(deleteSnapshotRequest.repository())
+            .addPathPart(deleteSnapshotRequest.snapshot())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
         return request;
     }
 

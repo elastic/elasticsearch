@@ -108,4 +108,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
             highLevelClient().snapshot()::verifyRepositoryAsync);
         assertThat(response.getNodes().size(), equalTo(1));
     }
+
+    public void testDeleteSnapshot() {
+        //TODO: Wait for #31215 so we can create via the high-level REST API.
+        fail("Implement me");
+    }
 }

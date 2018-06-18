@@ -29,6 +29,8 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -355,6 +357,65 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             // tag::verify-repository-execute-async
             client.snapshot().verifyRepositoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::verify-repository-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSnapshotDeleteSnapshot() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        createTestRepositories();
+        //TODO: createTestSnapshots();
+
+        // tag::delete-snapshot-request
+        DeleteSnapshotRequest request = new DeleteSnapshotRequest(repositoryName);
+        //TODO: Set snapshot name
+        request.snapshot("snapshotName");
+        // end::delete-snapshot-request
+
+        // tag::delete-snapshot-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::delete-snapshot-request-masterTimeout
+
+        // tag::delete-snapshot-execute
+        DeleteSnapshotResponse response = client.snapshot().deleteSnapshot(request, RequestOptions.DEFAULT);
+        // end::delete-snapshot-execute
+
+        // tag::delete-snapshot-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::delete-snapshot-response
+        assertTrue(acknowledged);
+    }
+
+    public void testSnapshotDeleteSnapshotAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            DeleteSnapshotRequest request = new DeleteSnapshotRequest();
+
+            // tag::delete-snapshot-execute-listener
+            ActionListener<DeleteSnapshotResponse> listener =
+                new ActionListener<DeleteSnapshotResponse>() {
+                    @Override
+                    public void onResponse(DeleteSnapshotResponse deleteSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-snapshot-execute-async
+            client.snapshot().deleteSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

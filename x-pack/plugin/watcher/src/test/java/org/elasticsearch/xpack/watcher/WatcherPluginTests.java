@@ -69,7 +69,7 @@ public class WatcherPluginTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);
         AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(),
                 emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
-        IndexModule indexModule = new IndexModule(indexSettings, registry, new InternalEngineFactory());
+        IndexModule indexModule = new IndexModule(indexSettings, registry, s -> new InternalEngineFactory());
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);
 

@@ -88,7 +88,6 @@ java.lang.Thread#getAllStackTraces()
 
 @defaultMessage Stopping threads explicitly leads to inconsistent states. Use interrupt() instead.
 java.lang.Thread#stop()
-java.lang.Thread#stop(java.lang.Throwable)
 
 @defaultMessage Please do not terminate the application
 java.lang.System#exit(int)

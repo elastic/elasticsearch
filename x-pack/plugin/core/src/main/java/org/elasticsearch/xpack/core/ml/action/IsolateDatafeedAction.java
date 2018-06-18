@@ -35,7 +35,7 @@ import java.util.Objects;
  * task ensures the current datafeed task can complete inconsequentially while
  * the datafeed persistent task may be stopped or reassigned on another node.
  */
-public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Request, IsolateDatafeedAction.Response> {
+public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response> {
 
     public static final IsolateDatafeedAction INSTANCE = new IsolateDatafeedAction();
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/isolate";

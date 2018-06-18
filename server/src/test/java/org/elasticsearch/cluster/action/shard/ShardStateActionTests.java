@@ -440,13 +440,12 @@ public class ShardStateActionTests extends ESTestCase {
 
         AtomicInteger notifiedResponses = new AtomicInteger();
         for (int t = 0; t < clientThreads.length; t++) {
-            long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShards[0].id());
             clientThreads[t] = new Thread(() -> {
                 barrier.arriveAndAwaitAdvance();
                 for (int i = 0; i < iterationsPerThread; i++) {
                     ShardRouting failedShard = randomFrom(failedShards);
                     shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
-                        primaryTerm + 1, randomBoolean(), "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+                        randomLongBetween(1, Long.MAX_VALUE), randomBoolean(), "test", getSimulatedFailure(), new ShardStateAction.Listener() {
                             @Override
                             public void onSuccess() {
                                 notifiedResponses.incrementAndGet();
